@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag } from "../../api";
+import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip } from "antd";
+import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined } from "@ant-design/icons";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs } from "../../api";
 import AIInsight from "../../components/ai/AIInsight";
 import LoadingGuard from "../../components/shared/LoadingGuard";
 import CustomerFormFields from "./CustomerForm";
-import type { Customer, Contact, FollowUp, Tag as TagType, TimelineEvent } from "../../types";
+import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog } from "../../types";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -110,6 +110,11 @@ export default function CustomerDetail() {
               defaultActiveKey="ai"
               items={[
                 {
+                  key: "profile",
+                  label: "客户画像",
+                  children: <CustomerProfile customerId={customerId} />,
+                },
+                {
                   key: "ai",
                   label: "AI 洞察",
                   children: <AIInsight customerId={customerId} />,
@@ -181,6 +186,16 @@ export default function CustomerDetail() {
                       ))}
                     </div>
                   ),
+                },
+                {
+                  key: "attachments",
+                  label: "附件",
+                  children: <AttachmentPanel customerId={customerId} />,
+                },
+                {
+                  key: "logs",
+                  label: "变更日志",
+                  children: <ChangeLogPanel customerId={customerId} />,
                 },
               ]}
             />
@@ -353,6 +368,170 @@ function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { o
   );
 }
 
+// --- Customer Profile ---
+
+const LIFECYCLE_COLORS: Record<string, string> = { "活跃": "green", "新客户": "blue", "衰退": "orange", "沉默客户": "default", "流失": "red" };
+const HEALTH_COLORS: Record<string, string> = { "优秀": "#52c41a", "良好": "#1677ff", "一般": "#faad14", "差": "#ff4d4f" };
+
+function CustomerProfile({ customerId }: { customerId: number }) {
+  const [stats, setStats] = useState<CustomerStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCustomerStats(customerId).then((r) => {
+      setStats(r.data.data as CustomerStats);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [customerId]);
+
+  if (loading) return <Spin />;
+  if (!stats) return <Empty description="暂无数据" />;
+
+  const agingEntries = Object.entries(stats.aging).filter(([, v]) => v > 0);
+
+  return (
+    <div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={6}>
+          <Card size="small">
+            <Statistic title="健康度" value={stats.health_score} suffix="分"
+              prefix={<HeartOutlined style={{ color: HEALTH_COLORS[stats.health_label] || "#1677ff" }} />}
+              valueStyle={{ color: HEALTH_COLORS[stats.health_label] || "#1677ff" }}
+            />
+            <Progress percent={stats.health_score} size="small"
+              strokeColor={stats.health_score >= 80 ? "#52c41a" : stats.health_score >= 60 ? "#1677ff" : stats.health_score >= 40 ? "#faad14" : "#ff4d4f"}
+              style={{ marginTop: 4 }}
+            />
+            <div style={{ marginTop: 4, color: "#888", fontSize: 12 }}>{stats.health_label}</div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card size="small">
+            <Statistic title="生命周期" value={stats.lifecycle}
+              prefix={<Tag color={LIFECYCLE_COLORS[stats.lifecycle] || "default"} style={{ fontSize: 16 }}>{stats.lifecycle}</Tag>}
+            />
+            <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>创建 {stats.created_days} 天</div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card size="small">
+            <Statistic title="订单总数" value={stats.order_count} prefix={<ShoppingCartOutlined />} />
+            <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>
+              累计: ¥{stats.total_revenue.toLocaleString()}
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card size="small">
+            <Statistic title="信用使用" value={stats.credit_usage_pct} suffix="%" prefix={<WalletOutlined />} />
+            <Progress percent={stats.credit_usage_pct} size="small"
+              status={stats.credit_usage_pct > 80 ? "exception" : stats.credit_usage_pct > 50 ? "active" : "normal"}
+              style={{ marginTop: 4 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card size="small" title="应收账款账龄" style={{ marginTop: 16 }}>
+        {agingEntries.length === 0 ? (
+          <Empty description="无未结清应收账款" />
+        ) : (
+          <Row gutter={[16, 16]}>
+            {agingEntries.map(([bucket, amt]) => (
+              <Col xs={12} sm={6} key={bucket}>
+                <Statistic
+                  title={bucket + " 天"}
+                  value={amt}
+                  precision={2}
+                  prefix="¥"
+                  valueStyle={{ color: bucket === "90+" ? "#cf1322" : bucket === "60-90" ? "#fa8c16" : "#333" }}
+                />
+              </Col>
+            ))}
+          </Row>
+        )}
+      </Card>
+
+      {stats.last_order_date && (
+        <div style={{ marginTop: 12, color: "#888", fontSize: 12 }}>最近订单: {stats.last_order_date?.slice(0, 10)} | 已付金额: ¥{stats.paid_total.toLocaleString()}</div>
+      )}
+    </div>
+  );
+}
+
+// --- Attachment Panel ---
+
+function AttachmentPanel({ customerId }: { customerId: number }) {
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const resp = await getAttachments(customerId);
+      setAttachments((resp.data.data as Attachment[]) || []);
+    } catch {} finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [customerId]);
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      await uploadAttachment(customerId, file);
+      message.success("上传成功");
+      load();
+    } catch { message.error("上传失败"); }
+    finally { setUploading(false); }
+    return false;
+  };
+
+  const handleDelete = async (id: number) => {
+    try { await deleteAttachment(customerId, id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div>
+      <Space style={{ marginBottom: 16 }}>
+        <Upload accept="*" showUploadList={false} beforeUpload={handleUpload} disabled={uploading}>
+          <Button icon={<UploadOutlined />} loading={uploading}>上传文件</Button>
+        </Upload>
+      </Space>
+
+      {loading ? <Spin /> :
+        attachments.length === 0 ? <Empty description="暂无附件" /> :
+        <List
+          dataSource={attachments}
+          renderItem={(item) => (
+            <List.Item
+              actions={[
+                <Button key="dl" size="small" icon={<DownloadOutlined />}
+                  onClick={() => window.open(`/api/v1/customers/${customerId}/attachments/${item.id}/download`, "_blank")}
+                />,
+                <Popconfirm key="del" title="确定删除?" onConfirm={() => handleDelete(item.id)}>
+                  <Button size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>,
+              ]}
+            >
+              <List.Item.Meta
+                avatar={<PaperClipOutlined style={{ fontSize: 20 }} />}
+                title={item.original_name}
+                description={`${formatSize(item.file_size)} · ${item.category || "其他"} · ${item.created_at?.slice(0, 10)}`}
+              />
+            </List.Item>
+          )}
+        />
+      }
+    </div>
+  );
+}
+
 // --- Tag Manage Modal ---
 
 function TagManageModal({ open, allTags, customerTags, onLink, onClose }: { open: boolean; allTags: TagType[]; customerTags: TagType[]; onLink: (id: number) => void; onClose: () => void }) {
@@ -379,5 +558,53 @@ function TagManageModal({ open, allTags, customerTags, onLink, onClose }: { open
         </Space>
       </div>
     </Modal>
+  );
+}
+
+// --- Change Log Panel ---
+
+const ACTION_LABELS: Record<string, string> = {
+  create: "创建", update: "更新", delete: "删除", merge: "合并", tag: "标签", import: "导入",
+};
+const ACTION_COLORS: Record<string, string> = {
+  create: "green", update: "blue", delete: "red", merge: "purple", tag: "orange", import: "cyan",
+};
+
+function ChangeLogPanel({ customerId }: { customerId: number }) {
+  const [logs, setLogs] = useState<CustomerLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCustomerLogs(customerId).then((r) => {
+      setLogs((r.data.data as CustomerLog[]) || []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [customerId]);
+
+  if (loading) return <Spin />;
+  if (logs.length === 0) return <Empty description="暂无变更记录" />;
+
+  return (
+    <Timeline
+      items={logs.map((l) => ({
+        color: ACTION_COLORS[l.action] || "gray",
+        children: (
+          <div>
+            <Space size={4}>
+              <Tag color={ACTION_COLORS[l.action]}>{ACTION_LABELS[l.action] || l.action}</Tag>
+              {l.field_name && <Typography.Text strong>{l.field_name}</Typography.Text>}
+            </Space>
+            {l.summary && <div style={{ marginTop: 2, fontSize: 13 }}>{l.summary}</div>}
+            {l.old_value !== null && l.new_value !== null && l.action === "update" && (
+              <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                <Typography.Text delete>{l.old_value}</Typography.Text> → {l.new_value}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>
+              {l.created_at?.slice(0, 19)} {l.operator && `· ${l.operator}`}
+            </div>
+          </div>
+        ),
+      }))}
+    />
   );
 }

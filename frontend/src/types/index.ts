@@ -30,6 +30,7 @@ export interface Customer {
   credit_level: string | null;
   last_contacted_at: string | null;
   created_at: string;
+  owner: string | null;
   contacts?: Contact[];
   follow_ups?: FollowUp[];
   tags?: Tag[];
@@ -39,6 +40,53 @@ export interface Tag {
   id: number;
   name: string;
   color: string | null;
+}
+
+export interface Attachment {
+  id: number;
+  original_name: string;
+  file_size: number;
+  content_type: string | null;
+  category: string | null;
+  created_at: string;
+}
+
+export interface OverdueFollowUp {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  owner: string | null;
+  method: string | null;
+  priority: string | null;
+  planned_at: string;
+  status: string | null;
+  content: string | null;
+  overdue_days: number;
+}
+
+export interface DashboardStats {
+  total: number;
+  by_industry: { name: string; value: number }[];
+  by_level: { name: string; value: number }[];
+  by_region: { name: string; value: number }[];
+  by_source: { name: string; value: number }[];
+  by_type: { name: string; value: number }[];
+  monthly: { month: string; count: number }[];
+}
+
+export interface CustomerStats {
+  lifecycle: string;
+  created_days: number;
+  order_count: number;
+  total_revenue: number;
+  last_order_date: string | null;
+  credit_limit: number;
+  outstanding: number;
+  paid_total: number;
+  credit_usage_pct: number;
+  aging: Record<string, number>;
+  health_score: number;
+  health_label: string;
 }
 
 export interface TimelineEvent {
@@ -126,16 +174,32 @@ export interface Opportunity {
   notes: string | null; created_at: string;
 }
 
+export interface QuotationItem {
+  id: number; quotation_id: number; product_id: number;
+  quantity: number; unit_price: number; amount: number;
+}
+
 export interface Quotation {
   id: number; quotation_no: string | null; customer_id: number;
   status: string; total_amount: number; valid_until: string | null;
   notes: string | null; created_at: string;
+  items?: QuotationItem[];
+}
+
+export interface SalesOrderItem {
+  id: number; order_id: number; product_id: number;
+  quantity: number; unit_price: number; amount: number;
 }
 
 export interface SalesOrder {
   id: number; order_no: string | null; customer_id: number;
   status: string; total_amount: number; delivery_date: string | null;
   notes: string | null; created_at: string;
+  items?: SalesOrderItem[];
+}
+
+export interface DeliveryNoteItem {
+  id: number; delivery_note_id: number; product_id: number; quantity: number;
 }
 
 export interface DeliveryNote {
@@ -143,6 +207,7 @@ export interface DeliveryNote {
   customer_id: number; status: string;
   delivery_date: string | null; signed_at: string | null;
   notes: string | null; created_at: string;
+  items?: DeliveryNoteItem[];
 }
 
 // Transactions
@@ -181,4 +246,26 @@ export interface Sample {
   apply_date: string | null; ship_date: string | null; receive_date: string | null;
   status: string; tracking_number: string | null; notes: string | null;
   created_at: string;
+}
+
+export interface CustomerLog {
+  id: number;
+  action: string;
+  field_name: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  operator: string | null;
+  summary: string | null;
+  created_at: string;
+}
+
+export interface DuplicatePair {
+  similarity: number;
+  customer_a: { id: number; name: string; phone: string | null; owner: string | null };
+  customer_b: { id: number; name: string; phone: string | null; owner: string | null };
+}
+
+export interface MergeResult {
+  merged: boolean;
+  transferred: Record<string, number>;
 }

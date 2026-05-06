@@ -34,6 +34,7 @@ class Customer(TimestampMixin, Base):
     credit_limit: Mapped[float | None] = mapped_column(nullable=True)
     credit_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_contacted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     contacts = relationship("CustomerContact", back_populates="customer", lazy="selectin")
     follow_ups = relationship("CustomerFollowUp", back_populates="customer", lazy="selectin")
@@ -77,3 +78,26 @@ class CustomerTag(TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(100), unique=True)
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class CustomerAttachment(TimestampMixin, Base):
+    __tablename__ = "customer_attachments"
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    filename: Mapped[str] = mapped_column(String(255))
+    original_name: Mapped[str] = mapped_column(String(255))
+    file_size: Mapped[int] = mapped_column(default=0)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+
+class CustomerLog(TimestampMixin, Base):
+    __tablename__ = "customer_logs"
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    action: Mapped[str] = mapped_column(String(30))  # create, update, delete, merge, tag, import
+    field_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    operator: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    summary: Mapped[str | None] = mapped_column(String(500), nullable=True)

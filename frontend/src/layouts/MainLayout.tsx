@@ -11,6 +11,8 @@ import {
   SettingOutlined,
   LogoutOutlined,
   RobotOutlined,
+  CarOutlined,
+  SnippetsOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 
@@ -24,7 +26,7 @@ export default function MainLayout() {
   const logout = useAuthStore((s) => s.logout);
   const { token } = theme.useToken();
 
-  const menuKeys = ["/", "/customers", "/opportunities", "/sales", "/products", "/inventory", "/ai-chat", "/settings"];
+  const menuKeys = ["/", "/customers", "/sales", "/products", "/inventory", "/ai-chat", "/settings"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || (k !== "/" && location.pathname.startsWith(k + "/")))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -32,10 +34,17 @@ export default function MainLayout() {
   const menuItems = [
     { key: "/", icon: <DashboardOutlined />, label: "仪表板" },
     { key: "/customers", icon: <TeamOutlined />, label: "客户管理" },
-    { key: "/opportunities", icon: <FileTextOutlined />, label: "销售Pipeline" },
-    { key: "/sales", icon: <DollarOutlined />, label: "销售订单" },
     { key: "/products", icon: <ShopOutlined />, label: "产品管理" },
     { key: "/inventory", icon: <StockOutlined />, label: "库存管理" },
+    {
+      key: "/sales", icon: <DollarOutlined />, label: "销售管理",
+      children: [
+        { key: "/sales/opportunities", icon: <FileTextOutlined />, label: "销售Pipeline" },
+        { key: "/sales/quotations", icon: <SnippetsOutlined />, label: "报价单" },
+        { key: "/sales/orders", icon: <DollarOutlined />, label: "销售订单" },
+        { key: "/sales/delivery-notes", icon: <CarOutlined />, label: "送货单" },
+      ],
+    },
     { key: "/ai-chat", icon: <RobotOutlined />, label: "AI 助手" },
     { key: "/settings", icon: <SettingOutlined />, label: "设置" },
   ];

@@ -57,7 +57,10 @@ export default function CustomerFormFields() {
           <Input placeholder="联系邮箱" />
         </FormItem>
       </FormRow>
-      <FormRow cols={2}>
+      <FormRow cols={3}>
+        <FormItem name="owner" label="负责人">
+          <Input placeholder="客户归属负责人" />
+        </FormItem>
         <FormItem name="credit_limit" label="信用额度">
           <InputNumber min={0} style={{ width: "100%" }} placeholder="授信额度" />
         </FormItem>
