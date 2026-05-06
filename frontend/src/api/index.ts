@@ -319,3 +319,65 @@ export const mergeCustomers = (source_id: number, target_id: number) =>
 // Duplicate Detection
 export const detectDuplicates = (threshold = 0.7) =>
   client.get<APIResponse<{ total: number; pairs: DuplicatePair[] }>>("/customers/duplicates", { params: { threshold } });
+
+// Sales Funnel
+import type { FunnelStage, SalesSummary, TrendPoint, StageDistribution, SalesRecommendation, WinPrediction } from "../types";
+
+export const getSalesFunnel = (params?: Record<string, unknown>) =>
+  client.get<APIResponse<FunnelStage[]>>("/opportunities/funnel", { params });
+
+// Sales Stats
+export const getSalesSummary = () =>
+  client.get<APIResponse<SalesSummary>>("/sales/stats/summary");
+
+export const getSalesTrend = (params: Record<string, unknown>) =>
+  client.get<APIResponse<TrendPoint[]>>("/sales/stats/trend", { params });
+
+export const getStageDistribution = () =>
+  client.get<APIResponse<StageDistribution[]>>("/sales/stats/stage-distribution");
+
+// Flow Conversion
+export const convertQuotationToOrder = (quotationId: number) =>
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/quotations/${quotationId}/convert-to-order`);
+
+export const convertOrderToDelivery = (orderId: number) =>
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/sales-orders/${orderId}/convert-to-delivery`);
+
+// Batch Operations
+export const batchDeleteOpportunities = (ids: number[]) =>
+  client.post<APIResponse>("/opportunities/batch-delete", { ids });
+
+export const batchUpdateOpportunities = (ids: number[], stage?: string, probability?: number) =>
+  client.post<APIResponse>("/opportunities/batch-update", { ids, stage, probability });
+
+export const batchDeleteQuotations = (ids: number[]) =>
+  client.post<APIResponse>("/quotations/batch-delete", { ids });
+
+export const batchDeleteSalesOrders = (ids: number[]) =>
+  client.post<APIResponse>("/sales-orders/batch-delete", { ids });
+
+// Excel Import/Export
+export const exportQuotations = (params?: Record<string, unknown>) =>
+  client.get("/quotations/export", { params, responseType: "blob" });
+
+export const importQuotations = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post("/quotations/import", form, { headers: { "Content-Type": "multipart/form-data" } });
+};
+
+export const exportSalesOrders = (params?: Record<string, unknown>) =>
+  client.get("/sales-orders/export", { params, responseType: "blob" });
+
+export const importSalesOrders = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post("/sales-orders/import", form, { headers: { "Content-Type": "multipart/form-data" } });
+};
+
+// AI Sales
+export const getSalesRecommendation = (customerId: number) =>
+  client.post<APIResponse<SalesRecommendation>>(`/ai/sales/recommend?customer_id=${customerId}`);
+
+export const getWinPrediction = (opportunityId: number) =>
+  client.post<APIResponse<WinPrediction>>(`/ai/sales/predict?opportunity_id=${opportunityId}`);

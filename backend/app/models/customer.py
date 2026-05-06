@@ -35,10 +35,13 @@ class Customer(TimestampMixin, Base):
     credit_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_contacted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
 
     contacts = relationship("CustomerContact", back_populates="customer", lazy="selectin")
     follow_ups = relationship("CustomerFollowUp", back_populates="customer", lazy="selectin")
     tags = relationship("CustomerTag", secondary=customer_tag_table, lazy="selectin")
+    children = relationship("Customer", back_populates="parent", lazy="selectin", remote_side="Customer.id")
+    parent = relationship("Customer", back_populates="children", remote_side="Customer.parent_id", lazy="selectin")
 
 
 class CustomerContact(TimestampMixin, Base):
@@ -101,3 +104,27 @@ class CustomerLog(TimestampMixin, Base):
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     operator: Mapped[str | None] = mapped_column(String(100), nullable=True)
     summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class AlertRule(TimestampMixin, Base):
+    __tablename__ = "alert_rules"
+
+    name: Mapped[str] = mapped_column(String(100))
+    rule_type: Mapped[str] = mapped_column(String(50))  # no_order, credit_over, order_drop, ar_overdue
+    threshold_days: Mapped[int | None] = mapped_column(nullable=True)  # for no_order: days without order
+    threshold_pct: Mapped[float | None] = mapped_column(nullable=True)  # for credit_over/order_drop: percentage
+    threshold_amount: Mapped[float | None] = mapped_column(nullable=True)  # for ar_overdue: amount
+    enabled: Mapped[bool] = mapped_column(default=True)
+    severity: Mapped[str] = mapped_column(String(20), default="warning")  # info, warning, critical
+
+
+class AlertEvent(TimestampMixin, Base):
+    __tablename__ = "alert_events"
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    rule_type: Mapped[str] = mapped_column(String(50))
+    rule_name: Mapped[str] = mapped_column(String(100))
+    severity: Mapped[str] = mapped_column(String(20))
+    message: Mapped[str] = mapped_column(String(500))
+    is_read: Mapped[bool] = mapped_column(default=False)
+    read_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

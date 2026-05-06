@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.customer import Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog, CustomerTag, customer_tag_table
+from app.models.customer import AlertEvent, AlertRule, Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog, CustomerTag, customer_tag_table
 from app.schemas.common import fail, ok
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads")
@@ -159,6 +159,7 @@ def _customer_row(c: Customer) -> dict:
         "last_contacted_at": str(c.last_contacted_at) if c.last_contacted_at else None,
         "created_at": str(c.created_at),
         "owner": c.owner,
+        "parent_id": c.parent_id,
         "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in (c.tags or [])],
     }
 
@@ -587,6 +588,121 @@ async def delete_customer(customer_id: int, db: AsyncSession = Depends(get_db), 
     await _log(db, customer_id, "delete", summary=f"删除客户: {customer.name}", operator=_user.get("username"))
     await db.flush()
     return ok(msg="deleted")
+
+
+# --- Group Relationships ---
+
+class LinkParentRequest(BaseModel):
+    parent_id: int
+
+
+@router.post("/{customer_id}/link-parent")
+async def link_parent(customer_id: int, body: LinkParentRequest, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    if customer_id == body.parent_id:
+        return fail("不能关联自身", 400)
+    result = await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+    )
+    customer = result.scalar_one_or_none()
+    if not customer:
+        return fail("Customer not found", 404)
+    parent_result = await db.execute(
+        select(Customer).where(Customer.id == body.parent_id, Customer.deleted_at.is_(None))
+    )
+    parent = parent_result.scalar_one_or_none()
+    if not parent:
+        return fail("Parent customer not found", 404)
+    # Prevent circular reference
+    ancestor_id = body.parent_id
+    while ancestor_id:
+        a = (await db.execute(select(Customer.parent_id).where(Customer.id == ancestor_id))).scalar()
+        if a == customer_id:
+            return fail("不能建立循环关联", 400)
+        ancestor_id = a
+    customer.parent_id = body.parent_id
+    await _log(db, customer_id, "update", field_name="parent_id", new_value=str(body.parent_id), operator=_user.get("username"))
+    await db.flush()
+    return ok({"id": customer.id, "parent_id": body.parent_id})
+
+
+@router.delete("/{customer_id}/link-parent")
+async def unlink_parent(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+    )
+    customer = result.scalar_one_or_none()
+    if not customer:
+        return fail("Customer not found", 404)
+    if not customer.parent_id:
+        return fail("Customer has no parent", 400)
+    old_parent = customer.parent_id
+    customer.parent_id = None
+    await _log(db, customer_id, "update", field_name="parent_id", old_value=str(old_parent), new_value=None, operator=_user.get("username"))
+    await db.flush()
+    return ok(msg="unlinked")
+
+
+@router.get("/{customer_id}/children")
+async def get_children(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+    )
+    customer = result.scalar_one_or_none()
+    if not customer:
+        return fail("Customer not found", 404)
+    children_result = await db.execute(
+        select(Customer).where(Customer.parent_id == customer_id, Customer.deleted_at.is_(None))
+    )
+    children = children_result.scalars().all()
+    return ok([_customer_row(c) for c in children])
+
+
+@router.get("/{customer_id}/group-stats")
+async def get_group_stats(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.sales import SalesOrder
+    result = await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+    )
+    customer = result.scalar_one_or_none()
+    if not customer:
+        return fail("Customer not found", 404)
+    # Collect all group members (this customer + all descendants)
+    all_ids = {customer.id}
+    queue = [customer.id]
+    while queue:
+        pid = queue.pop()
+        children = (await db.execute(
+            select(Customer.id).where(Customer.parent_id == pid, Customer.deleted_at.is_(None))
+        )).scalars().all()
+        for cid in children:
+            if cid not in all_ids:
+                all_ids.add(cid)
+                queue.append(cid)
+    members = len(all_ids)
+    # Aggregate orders
+    order_rows = (await db.execute(
+        select(SalesOrder).where(
+            SalesOrder.customer_id.in_(list(all_ids)),
+            SalesOrder.deleted_at.is_(None),
+        )
+    )).scalars().all()
+    agg_revenue = sum(float(o.total_amount or 0) for o in order_rows)
+    agg_orders = len(order_rows)
+    # Aggregate credit
+    credit_rows = (await db.execute(
+        select(Customer.credit_limit).where(
+            Customer.id.in_(list(all_ids)),
+            Customer.deleted_at.is_(None),
+        )
+    )).all()
+    agg_credit = sum(float(r[0] or 0) for r in credit_rows)
+    return ok({
+        "members": members,
+        "all_ids": list(all_ids),
+        "agg_revenue": round(agg_revenue, 2),
+        "agg_orders": agg_orders,
+        "agg_credit": round(agg_credit, 2),
+    })
 
 
 # --- Batch operations ---

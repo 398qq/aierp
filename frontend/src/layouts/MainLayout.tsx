@@ -13,6 +13,8 @@ import {
   RobotOutlined,
   CarOutlined,
   SnippetsOutlined,
+  FilterOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 
@@ -40,6 +42,8 @@ export default function MainLayout() {
       key: "/sales", icon: <DollarOutlined />, label: "销售管理",
       children: [
         { key: "/sales/opportunities", icon: <FileTextOutlined />, label: "销售Pipeline" },
+        { key: "/sales/funnel", icon: <FilterOutlined />, label: "销售漏斗" },
+        { key: "/sales/stats", icon: <BarChartOutlined />, label: "销售统计" },
         { key: "/sales/quotations", icon: <SnippetsOutlined />, label: "报价单" },
         { key: "/sales/orders", icon: <DollarOutlined />, label: "销售订单" },
         { key: "/sales/delivery-notes", icon: <CarOutlined />, label: "送货单" },

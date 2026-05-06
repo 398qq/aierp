@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getOpportunities, createOpportunity, updateOpportunity, deleteOpportunity, getCustomers } from "../../api";
+import { getOpportunities, createOpportunity, updateOpportunity, deleteOpportunity, getCustomers, batchDeleteOpportunities, batchUpdateOpportunities } from "../../api";
 import type { Opportunity, Customer } from "../../types";
 
 const stageColors: Record<string, string> = {
@@ -22,6 +22,8 @@ export default function OpportunityList() {
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState({ customer_id: "", stage: "" });
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchStage, setBatchStage] = useState<string>("");
 
   const fetch = async (p = page) => {
     setLoading(true);
@@ -89,6 +91,31 @@ export default function OpportunityList() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    try {
+      await batchDeleteOpportunities(selectedRowKeys as number[]);
+      message.success(`已批量删除 ${selectedRowKeys.length} 条`);
+      setSelectedRowKeys([]);
+      fetch(1);
+    } catch { message.error("批量删除失败"); }
+  };
+
+  const handleBatchUpdateStatus = async () => {
+    if (!batchStage) { message.warning("请选择目标阶段"); return; }
+    try {
+      await batchUpdateOpportunities(selectedRowKeys as number[], batchStage);
+      message.success(`已批量更新 ${selectedRowKeys.length} 条`);
+      setSelectedRowKeys([]);
+      setBatchStage("");
+      fetch(page);
+    } catch { message.error("批量更新失败"); }
+  };
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+  };
+
   const columns = [
     { title: "名称", dataIndex: "name", width: 200 },
     { title: "客户ID", dataIndex: "customer_id", width: 80 },
@@ -121,12 +148,26 @@ export default function OpportunityList() {
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建机会</Button>
         </Space>
       </Space>
+
+      {selectedRowKeys.length > 0 && (
+        <Space style={{ marginBottom: 8 }}>
+          <span>已选 {selectedRowKeys.length} 项</span>
+          <Popconfirm title={`确定批量删除 ${selectedRowKeys.length} 条?`} onConfirm={handleBatchDelete}>
+            <Button danger size="small">批量删除</Button>
+          </Popconfirm>
+          <Select placeholder="目标阶段" value={batchStage || undefined} onChange={setBatchStage} style={{ width: 120 }} allowClear
+            options={Object.keys(stageColors).map((k) => ({ value: k, label: k }))} />
+          <Button size="small" onClick={handleBatchUpdateStatus}>批量更新阶段</Button>
+        </Space>
+      )}
+
       <Table
         rowKey="id"
+        rowSelection={rowSelection}
         columns={columns}
         dataSource={data}
         loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t: number) => `共 ${t} 条` }}
       />
       <Modal title={editingId ? "编辑机会" : "新建机会"} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>

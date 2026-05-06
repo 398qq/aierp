@@ -23,6 +23,8 @@ import QuotationForm from "./pages/sales/QuotationForm";
 import DeliveryNoteList from "./pages/sales/DeliveryNoteList";
 import DeliveryNoteDetail from "./pages/sales/DeliveryNoteDetail";
 import DeliveryNoteForm from "./pages/sales/DeliveryNoteForm";
+import SalesFunnel from "./pages/sales/SalesFunnel";
+import SalesStats from "./pages/sales/SalesStats";
 import InventoryList from "./pages/inventory/index";
 import Settings from "./pages/settings/index";
 import AIChat from "./pages/ai/Chat";
@@ -76,6 +78,8 @@ export default function App() {
               <Route path="/sales/delivery-notes/new" element={<DeliveryNoteForm />} />
               <Route path="/sales/delivery-notes/:id" element={<DeliveryNoteDetail />} />
               <Route path="/sales/delivery-notes/:id/edit" element={<DeliveryNoteForm />} />
+              <Route path="/sales/funnel" element={<SalesFunnel />} />
+              <Route path="/sales/stats" element={<SalesStats />} />
               <Route path="/inventory" element={<InventoryList />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/ai-chat" element={<AIChat />} />

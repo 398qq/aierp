@@ -269,3 +269,45 @@ export interface MergeResult {
   merged: boolean;
   transferred: Record<string, number>;
 }
+
+// Sales Funnel
+export interface FunnelStage {
+  stage: string;
+  count: number;
+  amount: number;
+}
+
+// Sales Stats
+export interface SalesSummary {
+  total_orders: number;
+  total_amount: number;
+  avg_amount: number;
+  active_opportunities: number;
+}
+
+export interface TrendPoint {
+  period: string;
+  order_count: number;
+  total_amount: number;
+}
+
+export interface StageDistribution {
+  stage: string;
+  count: number;
+  percentage: number;
+}
+
+// AI Sales
+export interface SalesRecommendation {
+  recommended_products: string[];
+  opportunity_suggestion: string;
+  cross_sell_opportunities: string;
+  priority_action: string;
+}
+
+export interface WinPrediction {
+  win_probability: number;
+  confidence: string;
+  key_factors: string[];
+  recommendation: string;
+}

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Table, Button, Space, Tag, Descriptions, Card, Spin, Alert, Empty, Popconfirm, message } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { getSalesOrder, deleteSalesOrder, getSalesOrderItems, deleteSalesOrderItem } from "../../api";
+import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SwapOutlined } from "@ant-design/icons";
+import { getSalesOrder, deleteSalesOrder, getSalesOrderItems, deleteSalesOrderItem, convertOrderToDelivery } from "../../api";
 import type { SalesOrder, SalesOrderItem } from "../../types";
 
 const statusColors: Record<string, string> = {
@@ -42,6 +42,14 @@ export default function SalesOrderDetail() {
     catch { message.error("删除失败"); }
   };
 
+  const handleConvert = async () => {
+    try {
+      const resp = await convertOrderToDelivery(Number(id));
+      message.success(resp.data.data.msg || "已转为送货单");
+      navigate("/sales/delivery-notes");
+    } catch { message.error("转换失败"); }
+  };
+
   if (loading) return <Spin style={{ display: "block", margin: "100px auto" }} />;
   if (error) return <Alert type="error" message={error} />;
   if (!data) return <Empty description="未找到该订单" />;
@@ -68,6 +76,11 @@ export default function SalesOrderDetail() {
         <Popconfirm title="确定删除?" onConfirm={handleDelete}>
           <Button danger icon={<DeleteOutlined />}>删除</Button>
         </Popconfirm>
+        {data.status !== "confirmed" && data.status !== "delivered" && data.status !== "shipped" && (
+          <Popconfirm title="将此订单转为送货单?" onConfirm={handleConvert}>
+            <Button type="primary" icon={<SwapOutlined />}>转为送货单</Button>
+          </Popconfirm>
+        )}
       </Space>
       <Card title={`销售订单: ${data.order_no || "NO-" + data.id}`} style={{ marginBottom: 16 }}>
         <Descriptions column={2}>

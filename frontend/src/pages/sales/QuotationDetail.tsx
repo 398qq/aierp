@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Table, Button, Space, Tag, Descriptions, Card, Spin, Alert, Empty, Popconfirm, message } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { getQuotation, deleteQuotation, getQuotationItems, deleteQuotationItem } from "../../api";
+import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SwapOutlined } from "@ant-design/icons";
+import { getQuotation, deleteQuotation, getQuotationItems, deleteQuotationItem, convertQuotationToOrder } from "../../api";
 import type { Quotation, QuotationItem } from "../../types";
 
 const statusColors: Record<string, string> = {
@@ -44,6 +44,14 @@ export default function QuotationDetail() {
     catch { message.error("删除失败"); }
   };
 
+  const handleConvert = async () => {
+    try {
+      const resp = await convertQuotationToOrder(Number(id));
+      message.success(resp.data.data.msg || "已转为销售订单");
+      navigate("/sales/orders");
+    } catch { message.error("转换失败"); }
+  };
+
   if (loading) return <Spin style={{ display: "block", margin: "100px auto" }} />;
   if (error) return <Alert type="error" message={error} />;
   if (!data) return <Empty description="未找到该报价单" />;
@@ -70,6 +78,11 @@ export default function QuotationDetail() {
         <Popconfirm title="确定删除?" onConfirm={handleDelete}>
           <Button danger icon={<DeleteOutlined />}>删除</Button>
         </Popconfirm>
+        {data.status !== "approved" && (
+          <Popconfirm title="将此报价单转为销售订单?" onConfirm={handleConvert}>
+            <Button type="primary" icon={<SwapOutlined />}>转为订单</Button>
+          </Popconfirm>
+        )}
       </Space>
       <Card title={`报价单: ${data.quotation_no || "NO-" + data.id}`} style={{ marginBottom: 16 }}>
         <Descriptions column={2}>

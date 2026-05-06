@@ -213,3 +213,58 @@ class DeliveryNoteItemResponse(BaseModel):
     product_id: int
     quantity: int
     model_config = {"from_attributes": True}
+
+
+# --- Sales Funnel ---
+
+class FunnelStage(BaseModel):
+    stage: str
+    count: int
+    amount: float
+
+
+# --- Sales Stats ---
+
+class SalesSummary(BaseModel):
+    total_orders: int
+    total_amount: float
+    avg_amount: float
+    active_opportunities: int
+
+
+class TrendPoint(BaseModel):
+    period: str
+    order_count: int
+    total_amount: float
+
+
+class StageDistribution(BaseModel):
+    stage: str
+    count: int
+    percentage: float
+
+
+# --- Batch Operations ---
+
+class BatchDeleteRequest(BaseModel):
+    ids: list[int]
+
+
+class OpportunityBatchUpdate(BaseModel):
+    ids: list[int]
+    stage: str | None = None
+    probability: int | None = None
+
+
+# --- Flow Conversion ---
+
+class ConvertResponse(BaseModel):
+    id: int
+    document_no: str
+    msg: str
+
+
+# --- Document Numbering ---
+
+class DocumentNumberResponse(BaseModel):
+    document_no: str
