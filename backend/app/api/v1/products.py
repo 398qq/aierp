@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.product import Brand, Inventory, Product, Supplier, Warehouse
+from app.models.product import Brand, Inventory, Product, Supplier, SupplierProduct, Warehouse
 from app.schemas.common import fail, ok
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -133,15 +133,56 @@ class BrandCreate(BaseModel):
     name_cn: str | None = None
     website: str | None = None
     category: str | None = None
+    description: str | None = None
     notes: str | None = None
 
 
+class BrandUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=255)
+    name_cn: str | None = None
+    website: str | None = None
+    category: str | None = None
+    description: str | None = None
+    notes: str | None = None
+    supplier_id: int | None = None
+
+
 @brands_router.get("")
-async def list_brands(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    rows = (await db.execute(
-        select(Brand).where(Brand.deleted_at.is_(None)).order_by(Brand.name)
-    )).scalars().all()
-    return ok([{"id": b.id, "name": b.name, "name_cn": b.name_cn, "website": b.website, "category": b.category} for b in rows])
+async def list_brands(
+    q: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    base = select(Brand).where(Brand.deleted_at.is_(None))
+    if q:
+        base = base.where(Brand.name.ilike(f"%{q}%"))
+    rows = (await db.execute(base.order_by(Brand.name))).scalars().all()
+    return ok([{"id": b.id, "name": b.name, "name_cn": b.name_cn, "website": b.website, "category": b.category, "notes": b.notes, "supplier_id": b.supplier_id, "created_at": str(b.created_at), "updated_at": str(b.updated_at) if b.updated_at else None} for b in rows])
+
+
+@brands_router.get("/{brand_id}")
+async def get_brand(brand_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    brand = (await db.execute(
+        select(Brand).where(Brand.id == brand_id, Brand.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if brand is None:
+        return fail("Brand not found", 404)
+
+    # Count products under this brand
+    product_count = (await db.execute(
+        select(func.count(Product.id)).where(
+            Product.brand_id == brand_id, Product.deleted_at.is_(None)
+        )
+    )).scalar() or 0
+
+    return ok({
+        "id": brand.id, "name": brand.name, "name_cn": brand.name_cn,
+        "website": brand.website, "category": brand.category, "notes": brand.notes,
+        "supplier_id": brand.supplier_id,
+        "product_count": product_count,
+        "created_at": str(brand.created_at),
+        "updated_at": str(brand.updated_at) if brand.updated_at else None,
+    })
 
 
 @brands_router.post("", status_code=201)
@@ -150,6 +191,31 @@ async def create_brand(body: BrandCreate, db: AsyncSession = Depends(get_db), _u
     db.add(brand)
     await db.flush()
     return ok({"id": brand.id, "name": brand.name})
+
+
+@brands_router.put("/{brand_id}")
+async def update_brand(brand_id: int, body: BrandUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    brand = (await db.execute(
+        select(Brand).where(Brand.id == brand_id, Brand.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if brand is None:
+        return fail("Brand not found", 404)
+    for key, val in body.model_dump(exclude_unset=True).items():
+        setattr(brand, key, val)
+    await db.flush()
+    return ok({"id": brand.id})
+
+
+@brands_router.delete("/{brand_id}")
+async def delete_brand(brand_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    brand = (await db.execute(
+        select(Brand).where(Brand.id == brand_id, Brand.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if brand is None:
+        return fail("Brand not found", 404)
+    brand.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="deleted")
 
 
 # --- Suppliers ---
@@ -216,6 +282,102 @@ async def create_supplier(body: SupplierCreate, db: AsyncSession = Depends(get_d
     return ok({"id": supplier.id, "name": supplier.name})
 
 
+# --- Supplier-Product Linkage ---
+
+
+class SupplierProductLink(BaseModel):
+    product_id: int
+    cost_price: float | None = None
+    lead_time_days: int | None = None
+    moq: int | None = None
+    spq: int | None = None
+    is_preferred: bool = False
+    notes: str | None = None
+
+
+@suppliers_router.get("/{supplier_id}/products")
+async def list_supplier_products(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    rows = (await db.execute(
+        select(
+            SupplierProduct.id, SupplierProduct.product_id, SupplierProduct.cost_price,
+            SupplierProduct.lead_time_days, SupplierProduct.moq, SupplierProduct.spq,
+            SupplierProduct.is_preferred, SupplierProduct.notes,
+            Product.sku, Product.name, Product.category, Product.package_type,
+            Brand.name_cn, Brand.name,
+        )
+        .join(Product, SupplierProduct.product_id == Product.id)
+        .outerjoin(Brand, Product.brand_id == Brand.id)
+        .where(
+            SupplierProduct.supplier_id == supplier_id,
+            SupplierProduct.deleted_at.is_(None),
+            Product.deleted_at.is_(None),
+        )
+        .order_by(SupplierProduct.is_preferred.desc(), SupplierProduct.id.desc())
+    )).all()
+    return ok([{
+        "id": r[0], "product_id": r[1], "cost_price": float(r[2]) if r[2] else None,
+        "lead_time_days": r[3], "moq": r[4], "spq": r[5],
+        "is_preferred": r[6], "notes": r[7],
+        "sku": r[8], "product_name": r[9], "category": r[10], "package_type": r[11],
+        "brand_name": r[12] or r[13],
+    } for r in rows])
+
+
+@suppliers_router.post("/{supplier_id}/products", status_code=201)
+async def link_supplier_product(supplier_id: int, body: SupplierProductLink, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    # Check for duplicate
+    existing = (await db.execute(
+        select(SupplierProduct).where(
+            SupplierProduct.supplier_id == supplier_id,
+            SupplierProduct.product_id == body.product_id,
+            SupplierProduct.deleted_at.is_(None),
+        )
+    )).scalar_one_or_none()
+    if existing:
+        return fail("Product already linked to this supplier", 409)
+
+    sp = SupplierProduct(supplier_id=supplier_id, **body.model_dump())
+    db.add(sp)
+    await db.flush()
+    return ok({"id": sp.id})
+
+
+@suppliers_router.put("/{supplier_id}/products/{product_id}")
+async def update_supplier_product(supplier_id: int, product_id: int, body: SupplierProductLink, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(SupplierProduct).where(
+            SupplierProduct.supplier_id == supplier_id,
+            SupplierProduct.product_id == product_id,
+            SupplierProduct.deleted_at.is_(None),
+        )
+    )
+    sp = result.scalar_one_or_none()
+    if sp is None:
+        return fail("Linkage not found", 404)
+    for key, val in body.model_dump(exclude_unset=True).items():
+        setattr(sp, key, val)
+    await db.flush()
+    return ok({"id": sp.id})
+
+
+@suppliers_router.delete("/{supplier_id}/products/{product_id}")
+async def unlink_supplier_product(supplier_id: int, product_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(SupplierProduct).where(
+            SupplierProduct.supplier_id == supplier_id,
+            SupplierProduct.product_id == product_id,
+            SupplierProduct.deleted_at.is_(None),
+        )
+    )
+    sp = result.scalar_one_or_none()
+    if sp is None:
+        return fail("Linkage not found", 404)
+    from datetime import datetime, timezone
+    sp.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="unlinked")
+
+
 # --- Warehouses ---
 
 warehouses_router = APIRouter(prefix="/warehouses", tags=["warehouses"])
@@ -243,7 +405,24 @@ async def list_inventory(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    base = select(Inventory).where(Inventory.deleted_at.is_(None))
+    from app.models.product import Brand
+
+    base = select(
+        Inventory.id, Inventory.product_id, Inventory.warehouse_id,
+        Inventory.quantity, Inventory.safety_stock, Inventory.created_at,
+        Product.sku, Product.name, Product.category,
+        Brand.name_cn, Brand.name,
+        Warehouse.name,
+    ).select_from(Inventory).join(
+        Product, Inventory.product_id == Product.id
+    ).outerjoin(
+        Brand, Product.brand_id == Brand.id
+    ).join(
+        Warehouse, Inventory.warehouse_id == Warehouse.id
+    ).where(
+        Inventory.deleted_at.is_(None), Product.deleted_at.is_(None)
+    )
+
     count_base = select(func.count(Inventory.id)).where(Inventory.deleted_at.is_(None))
 
     if warehouse_id:
@@ -256,11 +435,46 @@ async def list_inventory(
     total = (await db.execute(count_base)).scalar() or 0
     rows = (await db.execute(
         base.order_by(Inventory.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    )).all()
 
     return ok({
-        "list": [{"id": i.id, "product_id": i.product_id, "warehouse_id": i.warehouse_id,
-                  "quantity": i.quantity, "safety_stock": i.safety_stock,
-                  "created_at": str(i.created_at)} for i in rows],
+        "list": [{
+            "id": r[0], "product_id": r[1], "warehouse_id": r[2],
+            "quantity": r[3], "safety_stock": r[4], "created_at": str(r[5]),
+            "sku": r[6], "product_name": r[7], "category": r[8],
+            "brand_name": r[9] or r[10], "warehouse_name": r[11],
+        } for r in rows],
         "total": total, "page": page, "page_size": page_size,
     })
+
+
+@inventory_router.get("/overview")
+async def inventory_overview(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Intelligent inventory overview: dead stock, restock predictions."""
+    from app.services.inventory_service import get_inventory_overview
+    result = await get_inventory_overview(db)
+    return ok(result)
+
+
+@inventory_router.post("/adjust")
+async def inventory_adjust(
+    product_id: int = Query(...),
+    warehouse_id: int = Query(...),
+    adjustment: int = Query(...),
+    reason: str = Query("manual"),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Adjust inventory quantity and log the transaction."""
+    from app.services.inventory_service import adjust_inventory
+    result = await adjust_inventory(db, product_id, warehouse_id, adjustment, reason)
+    await db.commit()
+    return ok(result)
+
+
+@inventory_router.get("/{product_id}/substitutes")
+async def inventory_substitutes(product_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Find in-stock substitutes for a low-stock product."""
+    from app.services.inventory_service import find_substitutes_for_stockout
+    result = await find_substitutes_for_stockout(db, product_id)
+    return ok(result)
