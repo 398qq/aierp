@@ -7,6 +7,25 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.config import settings
 
 
+def _coerce_numbers(obj):
+    """Recursively convert numeric strings to int/float in dicts/lists."""
+    if isinstance(obj, dict):
+        return {k: _coerce_numbers(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_coerce_numbers(v) for v in obj]
+    if isinstance(obj, str):
+        s = obj.strip()
+        if s.isdigit() or (s.startswith("-") and s[1:].isdigit()):
+            return int(s)
+        try:
+            f = float(s)
+            if not (f == float("inf") or f == float("-inf") or f == float("nan")):
+                return f
+        except (ValueError, OverflowError):
+            pass
+    return obj
+
+
 class AIClient:
     """Unified AI client — text generation + embeddings."""
 
@@ -71,11 +90,84 @@ class AIClient:
         }
         text = await self.chat(messages, temperature=temperature, max_tokens=4096)
         text = text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-        return json.loads(text)
+        # Sanitize control characters and invalid Unicode that break JSON
+        import unicodedata
+        text = ''.join(
+            ch if unicodedata.category(ch)[0] != 'C' or ch in ('\n', '\r', '\t') else ' '
+            for ch in text
+        )
+        # Fix garbled Unicode replacement characters
+        text = text.replace('�', ' ')
+        # Extract JSON from markdown code blocks
+        if "```" in text:
+            start = text.find("```") + 3
+            end = text.find("```", start)
+            if end > start:
+                text = text[start:end].strip()
+                if text.startswith("json\n"):
+                    text = text[5:]
+        # Try to find JSON object boundaries
+        text = text.strip()
+        if not text.startswith("{"):
+            start = text.find("{")
+            end = text.rfind("}")
+            if start >= 0 and end > start:
+                text = text[start:end + 1]
+        # Fix common model JSON errors
+        import re
+        text = re.sub(r'"\s+"', '", "', text)
+        text = re.sub(r'"\s+null"', '", null', text)
+        # Fix missing commas between adjacent objects: }{\s*{
+        text = re.sub(r'}\s*{', r'}, {', text)
+        # Fix missing commas in arrays: }\s*\n\s*{
+        text = re.sub(r'}(\s*\n\s*){', r'},\n{', text)
+        # Fix malformed number followed by quote: 97" -> 9,"
+        text = re.sub(r'(\d+)"(\s*\n\s*"dimension")', r'\1,\2', text)
+        # Fix double colon: "key":: -> "key":
+        text = re.sub(r'"\s*::\s*', '": ', text)
+        # Fix extra quote after number: 23" -> 23
+        text = re.sub(r'(\d+)"(\s*[,}\]\n])', r'\1\2', text)
+        # Fix number with trailing comma inside string: "6, -> "6,
+        text = re.sub(r'"\s*(\d+),(\s*[,}\]\n"\s])', r'"\1"\2', text)
+        text = re.sub(r'"\s*(\d+),(\s*[,}\]\n"])', r'"\1"\2', text)
+        # Fix misspelled win_probability field name (common AI hallucination)
+        text = re.sub(r'"wi_probability"', '"win_probability"', text)
+        # Fix missing colon: "key" value -> "key": value
+        text = re.sub(r'"\s*}\s*"', '": "', text)
+        # Remove trailing commas before ] or }
+        text = re.sub(r',\s*}', '}', text)
+        text = re.sub(r',\s*]', ']', text)
+        # Fix unclosed strings by removing trailing lone quotes before comma/closing
+        text = re.sub(r'"\s*"\s*([,}\]])', r'"\1', text)
+        try:
+            result = json.loads(text)
+            result = _coerce_numbers(result)
+            return result
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Third attempt: specific fixes for known AI hallucination patterns
+        text2 = text
+        text2 = re.sub(r'"wi_probability"', '"win_probability"', text2)
+        text2 = re.sub(r'"win_probability"[:\s]*"(\d+),"', r'"win_probability": \1,', text2)
+        try:
+            result = json.loads(text2)
+            result = _coerce_numbers(result)
+            return result
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Fourth attempt: try to salvage by counting braces and appending missing closers
+        try:
+            open_braces = text.count("{") - text.count("}")
+            open_brackets = text.count("[") - text.count("]")
+            suffix = "]" * max(0, open_brackets) + "}" * max(0, open_braces)
+            result = json.loads(text + suffix)
+            result = _coerce_numbers(result)
+            return result
+        except (json.JSONDecodeError, ValueError):
+            import logging
+            logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:800]}")
+            raise ValueError(f"AI returned invalid JSON: {text[:300]}")
+
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         async with httpx.AsyncClient(timeout=30) as client:
