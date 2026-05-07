@@ -1650,15 +1650,15 @@ def orchestrate_global_prompt(global_data: dict) -> str:
 **6. 异常/告警总览：**
 {global_data.get('anomalies_overview', '无数据')}
 
-请返回一个综合分析：
+请返回：
 1. enterprise_health_score：企业健康评分 0-100
-2. executive_summary：执行摘要（3-5句话）
-3. top_opportunities：[{{"area": "string", "description": "string", "potential_value": "number", "effort": "string", "timeframe": "string"}}]（TOP5）
-4. top_risks：[{{"area": "string", "description": "string", "severity": "string", "probability": "string", "mitigation": "string"}}]（TOP5）
-5. cross_domain_correlations：[{{"domains": "string", "finding": "string", "significance": "string"}}]
-6. strategic_recommendations：[{{"recommendation": "string", "domain": "string", "priority": "string", "rationale": "string"}}]（TOP5）
+2. executive_summary：执行摘要（2-3句话）
+3. top_opportunities：[{{"area": "string", "description": "string", "potential_value": "number"}}]（TOP3）
+4. top_risks：[{{"area": "string", "description": "string", "severity": "string"}}]（TOP3）
+5. cross_domain_correlations：[{{"domains": "string", "finding": "string"}}]
+6. strategic_recommendations：[{{"recommendation": "string", "domain": "string", "priority": "string"}}]（TOP3）
 7. kpi_health：关键KPI健康度 [{{"kpi": "string", "current": "string", "target": "string", "status": "string"}}]
-8. focus_areas：本周/月重点关注领域 ["string"]
+8. focus_areas：本周重点领域 ["string"]
 """
 
 

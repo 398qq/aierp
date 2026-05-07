@@ -55,9 +55,11 @@ export default function SalesOrderForm() {
   const handleSubmit = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
+      const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+      const payload = { ...values, total_amount: totalAmount };
       const parentId = isEdit
-        ? (await updateSalesOrder(Number(id), values), Number(id))
-        : ((await createSalesOrder(values)).data.data as { id: number }).id;
+        ? (await updateSalesOrder(Number(id), payload), Number(id))
+        : ((await createSalesOrder(payload)).data.data as { id: number }).id;
 
       if (isEdit) {
         const existing = (await getSalesOrderItems(Number(id))).data.data as SalesOrderItem[];

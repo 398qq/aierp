@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs } from "../../api";
+import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
+import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined } from "@ant-design/icons";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getQuotationHistory, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer } from "../../api";
+import type { CustomerProductMatch } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
 import LoadingGuard from "../../components/shared/LoadingGuard";
 import CustomerFormFields from "./CustomerForm";
-import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog } from "../../types";
+import dayjs from "dayjs";
+import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, QuotationHistory, Visit } from "../../types";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +26,9 @@ export default function CustomerDetail() {
   const [allTags, setAllTags] = useState<TagType[]>([]);
   const [customerTags, setCustomerTags] = useState<TagType[]>([]);
   const [tagModalOpen, setTagModalOpen] = useState(false);
+  const [recModalOpen, setRecModalOpen] = useState(false);
+  const [recResult, setRecResult] = useState<CustomerProductMatch | null>(null);
+  const [recLoading, setRecLoading] = useState(false);
 
   const customerId = Number(id);
 
@@ -67,10 +72,22 @@ export default function CustomerDetail() {
     try { await linkTag(customerId, tagId); loadTags(); message.success("标签已添加"); } catch { message.error("添加标签失败"); }
   };
 
+  const handleProductRecs = async () => {
+    setRecLoading(true);
+    try {
+      const resp = await recommendProductsForCustomer(customerId);
+      if (resp.data.code === 0) { setRecResult(resp.data.data as CustomerProductMatch); setRecModalOpen(true); }
+    } catch { message.error("AI 推荐失败"); }
+    finally { setRecLoading(false); }
+  };
+
   return (
     <div>
       <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")} style={{ marginBottom: 16 }}>
         返回列表
+      </Button>
+      <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs} style={{ marginBottom: 16, marginLeft: 8 }}>
+        AI 产品推荐
       </Button>
 
       <LoadingGuard loading={loading} error={error} data={customer}>
@@ -197,6 +214,21 @@ export default function CustomerDetail() {
                   label: "变更日志",
                   children: <ChangeLogPanel customerId={customerId} />,
                 },
+                {
+                  key: "group",
+                  label: "集团关系",
+                  children: <GroupPanel customerId={customerId} customerName={customer.name} />,
+                },
+                {
+                  key: "quotations",
+                  label: "报价历史",
+                  children: <QuotationHistoryPanel customerId={customerId} />,
+                },
+                {
+                  key: "visits",
+                  label: "拜访计划",
+                  children: <VisitPanel customerId={customerId} />,
+                },
               ]}
             />
 
@@ -204,6 +236,30 @@ export default function CustomerDetail() {
             <ContactFormModal open={contactModalOpen} customerId={customerId} contact={editingContact} onClose={() => { setContactModalOpen(false); setEditingContact(null); }} onSaved={() => { setContactModalOpen(false); setEditingContact(null); load(); }} />
             <FollowUpFormModal open={followupModalOpen} customerId={customerId} followUp={editingFollowUp} onClose={() => { setFollowupModalOpen(false); setEditingFollowUp(null); }} onSaved={() => { setFollowupModalOpen(false); setEditingFollowUp(null); load(); }} />
             <TagManageModal open={tagModalOpen} allTags={allTags} customerTags={customerTags} onLink={handleLinkTag} onClose={() => setTagModalOpen(false)} />
+
+            {/* AI Product Recommendations Modal */}
+            <Modal title={<><BulbOutlined /> AI 产品推荐</>} open={recModalOpen} onCancel={() => setRecModalOpen(false)} width={700}
+              footer={<Button onClick={() => setRecModalOpen(false)}>关闭</Button>}>
+              {recResult && (
+                <div>
+                  <Card size="small" style={{ marginBottom: 12, background: "#f6ffed" }}>
+                    <Typography.Text>{recResult.summary}</Typography.Text>
+                  </Card>
+                  <Table size="small" dataSource={recResult.recommendations} rowKey="product_name" pagination={false}
+                    columns={[
+                      { title: "产品", dataIndex: "product_name", width: 180 },
+                      { title: "品牌", dataIndex: "brand", width: 120, render: (v: string) => <Tag>{v}</Tag> },
+                      { title: "推荐原因", dataIndex: "reason" },
+                      { title: "预计价值", dataIndex: "estimated_potential", width: 180 },
+                      { title: "优先级", dataIndex: "priority", width: 80, render: (v: string) => <Tag color={v === "高" ? "red" : v === "中" ? "blue" : "default"}>{v}</Tag> },
+                    ]}
+                  />
+                  <Card size="small" type="inner" style={{ marginTop: 12, background: "#fffbe6" }}>
+                    <Typography.Text strong>推荐策略：</Typography.Text><Typography.Text>{recResult.approach_strategy}</Typography.Text>
+                  </Card>
+                </div>
+              )}
+            </Modal>
           </>
         )}
       </LoadingGuard>
@@ -387,46 +443,42 @@ function CustomerProfile({ customerId }: { customerId: number }) {
   if (!stats) return <Empty description="暂无数据" />;
 
   const agingEntries = Object.entries(stats.aging).filter(([, v]) => v > 0);
+  const healthColor = HEALTH_COLORS[stats.health_label] || "#1677ff";
 
   return (
     <div>
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic title="健康度" value={stats.health_score} suffix="分"
-              prefix={<HeartOutlined style={{ color: HEALTH_COLORS[stats.health_label] || "#1677ff" }} />}
-              valueStyle={{ color: HEALTH_COLORS[stats.health_label] || "#1677ff" }}
+              prefix={<HeartOutlined style={{ color: healthColor }} />}
+              valueStyle={{ color: healthColor }}
             />
             <Progress percent={stats.health_score} size="small"
               strokeColor={stats.health_score >= 80 ? "#52c41a" : stats.health_score >= 60 ? "#1677ff" : stats.health_score >= 40 ? "#faad14" : "#ff4d4f"}
-              style={{ marginTop: 4 }}
-            />
+              style={{ marginTop: 4 }} />
             <div style={{ marginTop: 4, color: "#888", fontSize: 12 }}>{stats.health_label}</div>
           </Card>
         </Col>
-        <Col xs={24} sm={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic title="生命周期" value={stats.lifecycle}
-              prefix={<Tag color={LIFECYCLE_COLORS[stats.lifecycle] || "default"} style={{ fontSize: 16 }}>{stats.lifecycle}</Tag>}
-            />
+              prefix={<Tag color={LIFECYCLE_COLORS[stats.lifecycle] || "default"} style={{ fontSize: 16 }}>{stats.lifecycle}</Tag>} />
             <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>创建 {stats.created_days} 天</div>
           </Card>
         </Col>
-        <Col xs={24} sm={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic title="订单总数" value={stats.order_count} prefix={<ShoppingCartOutlined />} />
-            <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>
-              累计: ¥{stats.total_revenue.toLocaleString()}
-            </div>
+            <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>累计: ¥{stats.total_revenue.toLocaleString()}</div>
           </Card>
         </Col>
-        <Col xs={24} sm={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="信用使用" value={stats.credit_usage_pct} suffix="%" prefix={<WalletOutlined />} />
-            <Progress percent={stats.credit_usage_pct} size="small"
-              status={stats.credit_usage_pct > 80 ? "exception" : stats.credit_usage_pct > 50 ? "active" : "normal"}
-              style={{ marginTop: 4 }}
-            />
+            <Statistic title="信用额度" value={stats.credit_limit} prefix="¥" precision={0} />
+            <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>
+              已用 {stats.credit_usage_pct}% | 未付 ¥{stats.outstanding.toLocaleString()}
+            </div>
           </Card>
         </Col>
       </Row>
@@ -452,7 +504,9 @@ function CustomerProfile({ customerId }: { customerId: number }) {
       </Card>
 
       {stats.last_order_date && (
-        <div style={{ marginTop: 12, color: "#888", fontSize: 12 }}>最近订单: {stats.last_order_date?.slice(0, 10)} | 已付金额: ¥{stats.paid_total.toLocaleString()}</div>
+        <div style={{ marginTop: 12, color: "#888", fontSize: 12 }}>
+          最近订单: {stats.last_order_date?.slice(0, 10)} | 已付金额: ¥{stats.paid_total.toLocaleString()}
+        </div>
       )}
     </div>
   );
@@ -606,5 +660,208 @@ function ChangeLogPanel({ customerId }: { customerId: number }) {
         ),
       }))}
     />
+  );
+}
+
+// --- Group Panel ---
+
+function GroupPanel({ customerId, customerName }: { customerId: number; customerName: string }) {
+  const [children, setChildren] = useState<Customer[]>([]);
+  const [stats, setStats] = useState<GroupStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [parentId, setParentId] = useState<number>(0);
+
+  const load = async () => {
+    try {
+      const [cResp, sResp] = await Promise.all([getChildren(customerId), getGroupStats(customerId)]);
+      setChildren((cResp.data.data as Customer[]) || []);
+      setStats(sResp.data.data as GroupStats);
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [customerId]);
+
+  const handleLink = async () => {
+    if (!parentId) return;
+    try { await linkParent(customerId, parentId); message.success("关联成功"); setLinkOpen(false); load(); } catch { message.error("关联失败"); }
+  };
+
+  const handleUnlink = async () => {
+    try { await unlinkParent(customerId); message.success("已解除关联"); load(); } catch { message.error("解除失败"); }
+  };
+
+  if (loading) return <Spin />;
+
+  return (
+    <div>
+      <Space style={{ marginBottom: 16 }}>
+        <Button icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>关联母公司</Button>
+        <Button icon={<DisconnectOutlined />} onClick={handleUnlink}>解除关联</Button>
+      </Space>
+
+      {stats && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={12} sm={6}><Card size="small"><Statistic title="集团客户数" value={stats.members} /></Card></Col>
+          <Col xs={12} sm={6}><Card size="small"><Statistic title="集团订单数" value={stats.agg_orders} /></Card></Col>
+          <Col xs={12} sm={6}><Card size="small"><Statistic title="集团营收" value={stats.agg_revenue} prefix="¥" /></Card></Col>
+          <Col xs={12} sm={6}><Card size="small"><Statistic title="集团信用额" value={stats.agg_credit} prefix="¥" /></Card></Col>
+        </Row>
+      )}
+
+      <Card size="small" title={`子公司 (${children.length})`}>
+        {children.length === 0 ? <Empty description="暂无子公司" /> : (
+          <List dataSource={children} renderItem={(c) => (
+            <List.Item extra={<Tag color={c.level === "A" ? "red" : "default"}>{c.level}</Tag>}>
+              <List.Item.Meta
+                title={<a onClick={() => window.open(`/customers/${c.id}`, '_self')}>{c.name}</a>}
+                description={`${c.industry || "-"} · ${c.region || "-"} · ${c.contact_person || "无联系人"}`}
+              />
+            </List.Item>
+          )} />
+        )}
+      </Card>
+
+      <Modal title="关联母客户" open={linkOpen} onCancel={() => setLinkOpen(false)} onOk={handleLink}>
+        <Form.Item label="母客户ID">
+          <Input value={parentId || ""} onChange={(e) => setParentId(Number(e.target.value) || 0)} placeholder="请输入母客户ID" />
+        </Form.Item>
+      </Modal>
+    </div>
+  );
+}
+
+// --- Quotation History Panel ---
+
+function QuotationHistoryPanel({ customerId }: { customerId: number }) {
+  const [data, setData] = useState<QuotationHistory | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getQuotationHistory(customerId).then((r) => {
+      setData(r.data.data as QuotationHistory);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [customerId]);
+
+  if (loading) return <Spin />;
+  if (!data || data.total === 0) return <Empty description="暂无报价记录" />;
+
+  const STATUS: Record<string, { color: string; label: string }> = {
+    draft: { color: "default", label: "草稿" }, won: { color: "green", label: "成交" },
+    lost: { color: "red", label: "丢失" }, pending: { color: "processing", label: "待定" },
+  };
+
+  return (
+    <div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={6}><Card size="small"><Statistic title="报价次数" value={data.total} /></Card></Col>
+        <Col xs={12} sm={6}><Card size="small"><Statistic title="转化率" value={data.stats.conversion_rate} suffix="%" valueStyle={{ color: data.stats.conversion_rate >= 30 ? "#52c41a" : "#faad14" }} /></Card></Col>
+        <Col xs={12} sm={6}><Card size="small"><Statistic title="成交额" value={data.stats.total_won_amount} prefix="¥" precision={0} /></Card></Col>
+        <Col xs={12} sm={6}><Card size="small"><Statistic title="进行中" value={data.stats.pending} /></Card></Col>
+      </Row>
+
+      <Table dataSource={data.quotations} rowKey="id" size="small"
+        columns={[
+          { title: "报价单号", dataIndex: "quotation_no", width: 120 },
+          { title: "金额", dataIndex: "total_amount", render: (v: number) => `¥${v.toLocaleString()}` },
+          { title: "状态", dataIndex: "status", render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
+          { title: "有效期", dataIndex: "valid_until", render: (v: string) => v?.slice(0, 10) || "-" },
+          { title: "创建时间", dataIndex: "created_at", render: (v: string) => v?.slice(0, 10) },
+        ]}
+        pagination={{ pageSize: 10, size: "small" }}
+      />
+    </div>
+  );
+}
+
+// --- Visit Panel ---
+
+function VisitPanel({ customerId }: { customerId: number }) {
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingVisit, setEditingVisit] = useState<Visit | null>(null);
+  const [form] = Form.useForm();
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const resp = await getCustomerVisits(customerId);
+      setVisits((resp.data.data as unknown as Visit[]) || []);
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [customerId]);
+
+  const openForm = (v?: Visit) => {
+    setEditingVisit(v || null);
+    if (v) form.setFieldsValue({ ...v, visit_date: v.visit_date?.slice(0, 10), followup_date: v.followup_date?.slice(0, 10) });
+    else form.resetFields();
+    setModalOpen(true);
+  };
+
+  const onFinish = async (values: Record<string, unknown>) => {
+    try {
+      if (editingVisit) {
+        await updateCustomerVisit(customerId, editingVisit.id, values as Record<string, unknown>);
+        message.success("更新成功");
+      } else {
+        await createCustomerVisit(customerId, values as Record<string, unknown>);
+        message.success("创建成功");
+      }
+      setModalOpen(false);
+      load();
+    } catch { message.error("保存失败"); }
+  };
+
+  const handleDelete = async (id: number) => {
+    try { await deleteCustomerVisit(customerId, id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+  };
+
+  const TYPE: Record<string, string> = { visit: "拜访", call: "电话", online: "线上" };
+  const STATUS: Record<string, { color: string; label: string }> = {
+    planned: { color: "default", label: "计划中" }, completed: { color: "green", label: "已完成" },
+    cancelled: { color: "red", label: "已取消" },
+  };
+
+  return (
+    <div>
+      <Button type="primary" onClick={() => openForm()} style={{ marginBottom: 16 }}>新增拜访</Button>
+      {loading ? <Spin /> : visits.length === 0 ? <Empty description="暂无拜访记录" /> : (
+        <List dataSource={visits} renderItem={(v) => (
+          <Card size="small" style={{ marginBottom: 8 }}
+            actions={[
+              <EditOutlined key="edit" onClick={() => openForm(v)} />,
+              <Popconfirm key="del" title="确定删除?" onConfirm={() => handleDelete(v.id)}><DeleteOutlined /></Popconfirm>,
+            ]}
+          >
+            <Row gutter={8}>
+              <Col span={6}><Typography.Text strong>{v.title || "无标题"}</Typography.Text></Col>
+              <Col span={4}><Tag>{TYPE[v.type as string] || v.type}</Tag></Col>
+              <Col span={4}><Tag color={STATUS[v.status as string]?.color}>{STATUS[v.status as string]?.label || v.status}</Tag></Col>
+              <Col span={4}>{v.visit_date?.slice(0, 10) || "-"}</Col>
+              <Col span={6}>{v.stage && <Tag color="blue">{v.stage}</Tag>}</Col>
+            </Row>
+            {v.content && <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ marginTop: 8, fontSize: 13 }}>{v.content}</Typography.Paragraph>}
+          </Card>
+        )} />
+      )}
+
+      <Modal title={editingVisit ? "编辑拜访" : "新增拜访"} open={modalOpen}
+        onCancel={() => setModalOpen(false)} onOk={() => form.submit()} width={600}>
+        <Form form={form} layout="vertical" onFinish={onFinish}>
+          <Form.Item name="title" label="标题"><Input /></Form.Item>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item name="type" label="方式"><Select options={[{ value: "visit", label: "拜访" }, { value: "call", label: "电话" }, { value: "online", label: "线上" }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="status" label="状态"><Select options={[{ value: "planned", label: "计划中" }, { value: "completed", label: "已完成" }, { value: "cancelled", label: "已取消" }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="visit_date" label="日期"><Input placeholder="YYYY-MM-DD" /></Form.Item></Col>
+          </Row>
+          <Form.Item name="purpose" label="拜访目的"><Input /></Form.Item>
+          <Form.Item name="content" label="拜访内容"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item name="result" label="拜访结果"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="next_plan" label="下一步计划"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 }

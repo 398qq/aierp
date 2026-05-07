@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm } from "antd";
+import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Result } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { getOpportunities, createOpportunity, updateOpportunity, deleteOpportunity, getCustomers, batchDeleteOpportunities, batchUpdateOpportunities } from "../../api";
@@ -24,9 +24,11 @@ export default function OpportunityList() {
   const [filters, setFilters] = useState({ customer_id: "", stage: "" });
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [batchStage, setBatchStage] = useState<string>("");
+  const [error, setError] = useState(false);
 
   const fetch = async (p = page) => {
     setLoading(true);
+    setError(false);
     try {
       const params: Record<string, unknown> = { page: p, page_size: 20 };
       if (filters.customer_id) params.customer_id = Number(filters.customer_id);
@@ -35,6 +37,7 @@ export default function OpportunityList() {
       setData(resp.data.data.list);
       setTotal(resp.data.data.total);
     } catch {
+      setError(true);
       message.error("加载机会列表失败");
     } finally {
       setLoading(false);
@@ -161,14 +164,19 @@ export default function OpportunityList() {
         </Space>
       )}
 
-      <Table
-        rowKey="id"
-        rowSelection={rowSelection}
-        columns={columns}
-        dataSource={data}
-        loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t: number) => `共 ${t} 条` }}
-      />
+      {error ? (
+        <Result status="warning" title="加载失败" subTitle="无法加载销售机会数据" extra={<Button onClick={() => fetch()}>重试</Button>} />
+      ) : (
+        <Table
+          rowKey="id"
+          rowSelection={rowSelection}
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          locale={{ emptyText: "暂无销售机会" }}
+          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t: number) => `共 ${t} 条` }}
+        />
+      )}
       <Modal title={editingId ? "编辑机会" : "新建机会"} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>

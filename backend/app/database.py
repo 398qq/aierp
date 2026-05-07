@@ -24,3 +24,39 @@ async def get_db():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Run pgvector migration if needed
+    await _ensure_pgvector(engine)
+
+
+async def _ensure_pgvector(eng):
+    """Ensure pgvector extension and column type are set up. Skips gracefully if no permission."""
+    import pathlib
+
+    async with eng.connect() as conn:
+        try:
+            await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
+        except Exception:
+            pass  # Extension may already exist or user lacks privilege
+
+        # Check if embedding column needs migration from JSON to VECTOR
+        try:
+            result = await conn.exec_driver_sql(
+                "SELECT data_type FROM information_schema.columns "
+                "WHERE table_name = 'customers' AND column_name = 'embedding'"
+            )
+            row = result.fetchone()
+        except Exception:
+            row = None
+
+        if row and row[0] in ('json', 'jsonb'):
+            migration_path = pathlib.Path(__file__).resolve().parent / "migrations" / "001_pgvector_embedding.sql"
+            if migration_path.exists():
+                sql = migration_path.read_text()
+                for stmt in sql.split(";"):
+                    stmt = stmt.strip()
+                    if stmt and not stmt.startswith("--") and "CREATE EXTENSION" not in stmt.upper():
+                        try:
+                            await conn.exec_driver_sql(stmt + ";")
+                        except Exception:
+                            pass
+        await conn.commit()

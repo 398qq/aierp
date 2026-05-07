@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
+import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Upload } from "antd";
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, UploadOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getDeliveryNotes, createDeliveryNote, updateDeliveryNote, deleteDeliveryNote, getCustomers } from "../../api";
+import { getDeliveryNotes, createDeliveryNote, updateDeliveryNote, deleteDeliveryNote, getCustomers, batchDeleteDeliveryNotes, exportDeliveryNotes, importDeliveryNotes } from "../../api";
 import type { DeliveryNote, Customer } from "../../types";
 
 const statusColors: Record<string, string> = {
@@ -17,6 +17,7 @@ export default function DeliveryNoteList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
@@ -65,6 +66,33 @@ export default function DeliveryNoteList() {
     try { await deleteDeliveryNote(id); message.success("已删除"); fetch(page); } catch { message.error("删除失败"); }
   };
 
+  const handleBatchDelete = async () => {
+    try { await batchDeleteDeliveryNotes(selectedRowKeys); message.success(`已删除 ${selectedRowKeys.length} 条`); setSelectedRowKeys([]); fetch(1); } catch { message.error("批量删除失败"); }
+  };
+
+  const handleExport = async () => {
+    try {
+      const params: Record<string, unknown> = {};
+      if (filters.customer_id) params.customer_id = Number(filters.customer_id);
+      if (filters.status) params.status = filters.status;
+      const resp = await exportDeliveryNotes(params);
+      const url = URL.createObjectURL(new Blob([resp.data]));
+      const a = document.createElement("a");
+      a.href = url; a.download = "delivery_notes.xlsx"; a.click();
+      URL.revokeObjectURL(url);
+      message.success("导出成功");
+    } catch { message.error("导出失败"); }
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const resp = await importDeliveryNotes(file);
+      message.success(`导入成功: ${(resp.data.data as { imported: number }).imported} 条`);
+      fetch(1);
+    } catch { message.error("导入失败，请检查文件格式"); }
+    return false;
+  };
+
   const columns = [
     { title: "送货单号", dataIndex: "note_no", width: 150 },
     { title: "销售订单ID", dataIndex: "sales_order_id", width: 100 },
@@ -94,10 +122,20 @@ export default function DeliveryNoteList() {
           <Input placeholder="客户ID" value={filters.customer_id} onChange={(e) => setFilters({ ...filters, customer_id: e.target.value })} style={{ width: 120 }} />
           <Select placeholder="状态" value={filters.status || undefined} onChange={(v) => setFilters({ ...filters, status: v || "" })} allowClear style={{ width: 120 }}
             options={Object.keys(statusColors).map((k) => ({ value: k, label: k }))} />
+          {selectedRowKeys.length > 0 && (
+            <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个送货单?`} onConfirm={handleBatchDelete}>
+              <Button danger icon={<DeleteOutlined />}>批量删除</Button>
+            </Popconfirm>
+          )}
+          <Upload accept=".xlsx" showUploadList={false} beforeUpload={handleImport}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建送货单</Button>
         </Space>
       </Space>
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
+        rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as number[]) }}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
       <Modal title={editingId ? "编辑送货单" : "新建送货单"} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>

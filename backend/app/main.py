@@ -10,6 +10,7 @@ from app.jobs.scheduler import start_scheduler, stop_scheduler
 
 # Import all models so Base.metadata knows about every table
 import app.models.customer  # noqa: F401
+import app.models.finance  # noqa: F401
 import app.models.product  # noqa: F401
 import app.models.sales  # noqa: F401
 import app.models.transaction  # noqa: F401

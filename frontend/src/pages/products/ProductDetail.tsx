@@ -1,0 +1,562 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Card, Descriptions, Tag, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse } from "antd";
+import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined } from "@ant-design/icons";
+import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle } from "../../api";
+import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis } from "../../types";
+
+const { Text, Title } = Typography;
+
+export default function ProductDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [brandName, setBrandName] = useState("");
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [similar, setSimilar] = useState<Record<string, unknown>[]>([]);
+  const [substitutes, setSubstitutes] = useState<Record<string, unknown> | null>(null);
+  const [supplierProducts, setSupplierProducts] = useState<SupplierProductLink[]>([]);
+  const [benchmark, setBenchmark] = useState<PriceBenchmark | null>(null);
+  const [aiPrice, setAiPrice] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [embedding, setEmbedding] = useState(false);
+  const [specsObj, setSpecsObj] = useState<Record<string, unknown>>({});
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [profile, setProfile] = useState<ProductProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [associations, setAssociations] = useState<ProductAssociation[]>([]);
+  const [assocLoading, setAssocLoading] = useState(false);
+  const [procurementQty, setProcurementQty] = useState(1000);
+  const [procurement, setProcurement] = useState<ProcurementPlan | null>(null);
+  const [procurementLoading, setProcurementLoading] = useState(false);
+  const [lifecycle, setLifecycle] = useState<LifecycleAnalysis | null>(null);
+  const [lifecycleLoading, setLifecycleLoading] = useState(false);
+  const [specLoading, setSpecLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [prodRes, brandsRes, invRes, simRes] = await Promise.allSettled([
+          getProduct(Number(id)),
+          getBrands(),
+          getInventory({ product_id: Number(id), page_size: 50 }),
+          similarProducts(Number(id)),
+        ]);
+        let pid = Number(id);
+        if (prodRes.status === "fulfilled") {
+          const p = prodRes.value.data.data;
+          setProduct(p);
+          pid = p.id;
+          if (p.specs) {
+            try { setSpecsObj(JSON.parse(p.specs)); } catch { setSpecsObj({ raw: p.specs }); }
+          }
+        }
+        if (brandsRes.status === "fulfilled") {
+          const brands = (brandsRes.value.data.data || []) as Brand[];
+          const b = brands.find((x) => x.id === product?.brand_id);
+          if (b) setBrandName(b.name_cn || b.name);
+        }
+        if (invRes.status === "fulfilled") {
+          setInventory(invRes.value.data.data.list || []);
+        }
+        if (simRes.status === "fulfilled" && simRes.value.data.code === 0) {
+          setSimilar((simRes.value.data.data || []) as Record<string, unknown>[]);
+        }
+
+        // Load suppliers and pricing in background
+        loadSuppliersAndPricing(pid);
+      } catch { /* */ }
+      finally { setLoading(false); }
+    })();
+
+    // Also try to get substitutes (may fail if AI unavailable)
+    productSubstitutes(Number(id)).then((r) => {
+      if (r.data.code === 0) setSubstitutes(r.data.data as Record<string, unknown>);
+    }).catch(() => {});
+  }, [id]);
+
+  const loadSuppliersAndPricing = async (pid: number) => {
+    try {
+      const [supRes, benchRes] = await Promise.allSettled([
+        getSuppliers({ page_size: 100 }),
+        getPricingBenchmark(pid),
+      ]);
+      if (supRes.status === "fulfilled") {
+        const allSuppliers = (supRes.value.data.data.list || []) as Supplier[];
+        // Get linked products for each supplier that may carry this product
+        const spResults: SupplierProductLink[] = [];
+        for (const s of allSuppliers.slice(0, 10)) {
+          try {
+            const spResp = await getSupplierProducts(s.id);
+            const linked = ((spResp.data.data || []) as SupplierProductLink[])
+              .filter((l) => l.product_id === pid);
+            spResults.push(...linked);
+          } catch { /* */ }
+        }
+        setSupplierProducts(spResults);
+      }
+      if (benchRes.status === "fulfilled" && benchRes.value.data.code === 0) {
+        setBenchmark(benchRes.value.data.data as PriceBenchmark);
+      }
+    } catch { /* */ }
+  };
+
+  const handleGetAiPrice = async () => {
+    setPricingLoading(true);
+    try {
+      const resp = await getPricingRecommend({ product_id: Number(id) });
+      if (resp.data.code === 0) setAiPrice(resp.data.data as Record<string, unknown>);
+    } catch { message.error("AI 定价失败"); }
+    finally { setPricingLoading(false); }
+  };
+
+  const handleGetProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const resp = await getProductProfile(Number(id));
+      if (resp.data.code === 0) setProfile(resp.data.data as ProductProfile);
+    } catch { message.error("生成产品画像失败"); }
+    finally { setProfileLoading(false); }
+  };
+
+  const handleNormalizeSpecs = async () => {
+    setSpecLoading(true);
+    try {
+      const resp = await normalizeProductSpecs(Number(id));
+      if (resp.data.code === 0) {
+        message.success("规格参数已标准化");
+        if (product) {
+          const params = (resp.data.data?.parameters || []) as NormalizedSpec[];
+          const newSpecs: Record<string, string> = {};
+          params.forEach((p) => { newSpecs[p.key] = `${p.value}${p.unit || ''}`; });
+          setSpecsObj(newSpecs);
+        }
+      }
+    } catch { message.error("规格标准化失败"); }
+    finally { setSpecLoading(false); }
+  };
+
+  const handleGetAssociations = async () => {
+    setAssocLoading(true);
+    try {
+      const resp = await getProductAssociations(Number(id));
+      if (resp.data.code === 0) setAssociations(resp.data.data?.associations || []);
+    } catch { message.error("加载关联产品失败"); }
+    finally { setAssocLoading(false); }
+  };
+
+  const handleGetProcurement = async () => {
+    setProcurementLoading(true);
+    try {
+      const resp = await getProcurementOptimize(Number(id), procurementQty);
+      if (resp.data.code === 0) setProcurement(resp.data.data as ProcurementPlan);
+    } catch { message.error("采购优化失败"); }
+    finally { setProcurementLoading(false); }
+  };
+
+  const handleGetLifecycle = async () => {
+    setLifecycleLoading(true);
+    try {
+      const resp = await getProductLifecycle(Number(id));
+      if (resp.data.code === 0) setLifecycle(resp.data.data as LifecycleAnalysis);
+    } catch { message.error("生命周期分析失败"); }
+    finally { setLifecycleLoading(false); }
+  };
+
+  const handleEmbed = async () => {
+    setEmbedding(true);
+    try { await embedProduct(Number(id)); message.success("Embedding 生成成功"); }
+    catch { message.error("生成失败"); }
+    finally { setEmbedding(false); }
+  };
+
+  if (loading) return <Spin style={{ margin: 40 }} />;
+  if (!product) return <Alert type="error" message="产品未找到" />;
+
+  const totalStock = inventory.reduce((s, i) => s + (i.quantity || 0), 0);
+  const lowStock = inventory.some((i) => i.quantity <= i.safety_stock);
+
+  return (
+    <div>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/products")}>返回列表</Button>
+        <Button icon={<EditOutlined />} onClick={() => navigate(`/products/${id}/edit`)}>编辑</Button>
+        <Button icon={<ThunderboltOutlined />} loading={embedding} onClick={handleEmbed}>生成 Embedding</Button>
+        <Button icon={<ProfileOutlined />} loading={profileLoading} onClick={handleGetProfile}>AI 产品画像</Button>
+        <Button icon={<OrderedListOutlined />} loading={specLoading} onClick={handleNormalizeSpecs}>标准化规格</Button>
+        <Button icon={<NodeIndexOutlined />} loading={assocLoading} onClick={handleGetAssociations}>关联产品</Button>
+        <Button icon={<ApartmentOutlined />} loading={procurementLoading} onClick={handleGetProcurement}>采购优化</Button>
+        <Button icon={<AlertOutlined />} loading={lifecycleLoading} onClick={handleGetLifecycle}>生命周期</Button>
+      </Space>
+
+      {/* Product Info */}
+      <Card title="产品信息" style={{ marginBottom: 16 }}>
+        <Descriptions bordered column={3} size="small">
+          <Descriptions.Item label="SKU">{product.sku || "-"}</Descriptions.Item>
+          <Descriptions.Item label="名称">{product.name}</Descriptions.Item>
+          <Descriptions.Item label="品牌">{brandName || (product.brand_id ? `#${product.brand_id}` : "-")}</Descriptions.Item>
+          <Descriptions.Item label="分类">{product.category || "-"}</Descriptions.Item>
+          <Descriptions.Item label="封装">{product.package_type || "-"}</Descriptions.Item>
+          <Descriptions.Item label="单位">{product.unit || "-"}</Descriptions.Item>
+        </Descriptions>
+        {Object.keys(specsObj).length > 0 && (
+          <Card title="规格参数" size="small" type="inner" style={{ marginTop: 12 }}>
+            <Descriptions column={4} size="small">
+              {Object.entries(specsObj).map(([k, v]) => (
+                <Descriptions.Item key={k} label={k}>{String(v)}</Descriptions.Item>
+              ))}
+            </Descriptions>
+          </Card>
+        )}
+        {product.notes && (
+          <Card title="备注" size="small" type="inner" style={{ marginTop: 12 }}>
+            <Text>{product.notes}</Text>
+          </Card>
+        )}
+      </Card>
+
+      {/* AI Product Profile */}
+      {profile && (
+        <Card title={<><ProfileOutlined /> AI 产品画像</>} style={{ marginBottom: 16 }} bodyStyle={{ padding: 12 }}>
+          <Row gutter={[12, 12]}>
+            <Col span={8}>
+              <Card size="small" type="inner"><Text type="secondary">市场定位</Text><div>{profile.market_positioning}</div></Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small" type="inner"><Text type="secondary">生命周期</Text>
+                <div><Tag color={profile.lifecycle_stage.includes('EOL') ? 'red' : profile.lifecycle_stage.includes('NRND') ? 'orange' : profile.lifecycle_stage.includes('成熟') ? 'blue' : 'green'}>{profile.lifecycle_stage}</Tag>
+                <Text type="secondary"> 置信度 {profile.lifecycle_score}%</Text></div>
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small" type="inner"><Text type="secondary">利润空间 / 需求</Text>
+                <div><Tag color={profile.margin_potential === '高' ? 'green' : profile.margin_potential === '中' ? 'blue' : 'orange'}>{profile.margin_potential}</Tag>
+                <Tag>{profile.demand_stability}</Tag></div>
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card size="small" type="inner" title="典型应用">
+                <List size="small" dataSource={profile.typical_applications} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag>{i}</Tag></List.Item>} />
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card size="small" type="inner" title="竞品">
+                <List size="small" dataSource={profile.competitor_products} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="orange">{i}</Tag></List.Item>} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small" type="inner" title="目标客户">
+                <List size="small" dataSource={profile.target_customers} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}>{i}</List.Item>} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small" type="inner" title="核心卖点">
+                <List size="small" dataSource={profile.key_selling_points} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="green">{i}</Tag></List.Item>} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small" type="inner" title="风险因素" style={{ borderColor: '#ff4d4f' }}>
+                <List size="small" dataSource={profile.risk_factors} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="red">{i}</Tag></List.Item>} />
+              </Card>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {/* Inventory Overview */}
+      <Card title="库存概览" style={{ marginBottom: 16 }}>
+        <Row gutter={24}>
+          <Col span={8}>
+            <Card size="small">
+              <Text type="secondary">总库存</Text>
+              <Title level={3} style={{ margin: 0 }}>{totalStock}</Title>
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card size="small">
+              <Text type="secondary">仓库数</Text>
+              <Title level={3} style={{ margin: 0 }}>{inventory.length}</Title>
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card size="small">
+              <Text type="secondary">状态</Text>
+              <div>
+                <Tag color={lowStock ? "red" : "green"}>{lowStock ? "库存不足" : "正常"}</Tag>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+        {inventory.length > 0 && (
+          <List
+            size="small"
+            style={{ marginTop: 12 }}
+            dataSource={inventory}
+            renderItem={(i) => (
+              <List.Item>
+                <Space>
+                  <Tag>仓库 #{i.warehouse_id}</Tag>
+                  <Text>库存: {i.quantity}</Text>
+                  <Text type="secondary">安全库存: {i.safety_stock}</Text>
+                  <Progress
+                    percent={Math.min(100, Math.round((i.quantity / Math.max(i.safety_stock, 1)) * 100))}
+                    size="small"
+                    style={{ width: 120 }}
+                    status={i.quantity <= i.safety_stock ? "exception" : "success"}
+                  />
+                </Space>
+              </List.Item>
+            )}
+          />
+        )}
+      </Card>
+
+      {/* Similar Products */}
+      {similar.length > 0 && (
+        <Card title="相似产品" style={{ marginBottom: 16 }}>
+          <List
+            size="small"
+            dataSource={similar}
+            renderItem={(s: Record<string, unknown>) => (
+              <List.Item>
+                <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                  <span>
+                    <a onClick={() => navigate(`/products/${s.id}`)}>
+                      {String(s.sku || "")} {String(s.name || "")}
+                    </a>
+                    <Tag style={{ marginLeft: 8 }}>{String(s.category || "")}</Tag>
+                    {s.brand_name ? <Tag color="blue">{String(s.brand_name)}</Tag> : null}
+                  </span>
+                  <Tag color={Number(s.similarity) > 0.8 ? "green" : "orange"}>
+                    相似度 {(Number(s.similarity) * 100).toFixed(0)}%
+                  </Tag>
+                </Space>
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
+
+      {/* Product Associations (co-purchase) */}
+      {associations.length > 0 && (
+        <Card title={<><NodeIndexOutlined /> 关联产品 (共同购买)</>} style={{ marginBottom: 16 }}>
+          <Table
+            size="small" dataSource={associations} rowKey="product_id" pagination={false}
+            columns={[
+              { title: "产品", key: "product", width: 200, render: (_: unknown, r: ProductAssociation) => <a onClick={() => navigate(`/products/${r.product_id}`)}>{r.sku ? `[${r.sku}] ` : ''}{r.name}</a> },
+              { title: "分类", dataIndex: "category", width: 80, render: (v: string) => v ? <Tag>{v}</Tag> : null },
+              { title: "品牌", dataIndex: "brand_name", width: 80 },
+              { title: "共同购买次数", dataIndex: "co_purchase_count", width: 100, render: (v: number) => <Tag color="blue">{v}</Tag> },
+              { title: "共同数量", dataIndex: "co_quantity", width: 80 },
+            ]}
+          />
+        </Card>
+      )}
+
+      {/* Supplier Linkages */}
+      <Card title={<><LinkOutlined /> 供应商关联 ({supplierProducts.length})</>} style={{ marginBottom: 16 }}>
+        {supplierProducts.length > 0 ? (
+          <Table
+            size="small"
+            dataSource={supplierProducts}
+            rowKey="id"
+            pagination={false}
+            columns={[
+              { title: "供应商", key: "supplier", width: 150, render: (_: unknown, r: SupplierProductLink) => <a onClick={() => navigate(`/suppliers/${r.supplier_id || r.id}`)}>{String(r.supplier_name || r.brand_name || "-")}</a> },
+              { title: "成本价", dataIndex: "cost_price", width: 100, render: (v: number | null) => v ? `¥${Number(v).toFixed(4)}` : "-" },
+              { title: "交期(天)", dataIndex: "lead_time_days", width: 80 },
+              { title: "MOQ", dataIndex: "moq", width: 60 },
+              { title: "SPQ", dataIndex: "spq", width: 60 },
+              { title: "首选", dataIndex: "is_preferred", width: 60, render: (v: boolean) => v ? <Tag color="green">是</Tag> : null },
+            ]}
+          />
+        ) : (
+          <Text type="secondary">暂无供应商关联，前往 <a onClick={() => navigate("/suppliers")}>供应商管理</a> 进行关联</Text>
+        )}
+      </Card>
+
+      {/* Pricing Intelligence */}
+      <Card
+        title={<><DollarOutlined /> 价格情报</>}
+        style={{ marginBottom: 16 }}
+        extra={<Button type="primary" icon={<ThunderboltOutlined />} loading={pricingLoading} onClick={handleGetAiPrice}>AI 定价建议</Button>}
+      >
+        {benchmark && (
+          <Row gutter={16} style={{ marginBottom: 12 }}>
+            <Col span={6}>
+              <Card size="small">
+                <Text type="secondary">历史销售 (N={benchmark.sales_history.count})</Text>
+                <div><Text strong>均价: ¥{benchmark.sales_history.stats.avg?.toFixed(4) || "-"}</Text></div>
+                <Text type="secondary">范围: ¥{benchmark.sales_history.stats.min?.toFixed(4) || "-"} ~ ¥{benchmark.sales_history.stats.max?.toFixed(4) || "-"}</Text>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card size="small">
+                <Text type="secondary">活跃报价 (N={benchmark.active_quotations.count})</Text>
+                <div><Text strong>均价: ¥{benchmark.active_quotations.stats.avg?.toFixed(4) || "-"}</Text></div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card size="small">
+                <Text type="secondary">供应商成本 (N={benchmark.supplier_costs.count})</Text>
+                <div><Text strong>最低: ¥{benchmark.supplier_costs.stats.min?.toFixed(4) || "-"}</Text></div>
+                <Text type="secondary">平均: ¥{benchmark.supplier_costs.stats.avg?.toFixed(4) || "-"}</Text>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card size="small">
+                <Text type="secondary">成本供应商</Text>
+                {(benchmark.supplier_costs.suppliers || []).slice(0, 2).map((s: Record<string, unknown>, i: number) => (
+                  <div key={i}><Tag>{String(s.name)}</Tag> ¥{Number(s.cost_price).toFixed(4)}</div>
+                ))}
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {aiPrice && (
+          <Card size="small" type="inner" style={{ background: "#f6ffed", borderColor: "#b7eb8f" }}>
+            <Descriptions column={4} size="small">
+              <Descriptions.Item label="建议报价">¥{(aiPrice.recommended_price as number)?.toFixed(4)}</Descriptions.Item>
+              <Descriptions.Item label="价格范围">¥{(aiPrice.price_range as number[])?.[0]?.toFixed(4)} ~ ¥{(aiPrice.price_range as number[])?.[1]?.toFixed(4)}</Descriptions.Item>
+              <Descriptions.Item label="预估利润率">{(aiPrice.margin_pct as number)?.toFixed(1)}%</Descriptions.Item>
+              <Descriptions.Item label="谈判底价">¥{(aiPrice.negotiation_floor as number)?.toFixed(4)}</Descriptions.Item>
+              <Descriptions.Item label="置信度"><Tag color={aiPrice.confidence === "high" ? "green" : aiPrice.confidence === "medium" ? "orange" : "red"}>{String(aiPrice.confidence)}</Tag></Descriptions.Item>
+              <Descriptions.Item label="向上销售" span={2}>{String(aiPrice.upsell_suggestion || "无")}</Descriptions.Item>
+              <Descriptions.Item label="定价理由" span={4}>{String(aiPrice.rationale)}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+        )}
+      </Card>
+
+      {/* Procurement Optimization */}
+      {procurement && (
+        <Card title={<><ApartmentOutlined /> AI 采购优化</>} style={{ marginBottom: 16 }}
+          extra={
+            <Space>
+              <Text>需求量:</Text>
+              <InputNumber value={procurementQty} onChange={(v) => setProcurementQty(v || 1000)} min={1} style={{ width: 100 }} />
+              <Button size="small" onClick={handleGetProcurement} loading={procurementLoading}>重新计算</Button>
+            </Space>
+          }>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Card size="small"><Text type="secondary">总成本</Text><Title level={4} style={{ margin: 0 }}>¥{procurement.total_cost?.toFixed(2)}</Title></Card>
+            </Col>
+            <Col span={6}>
+              <Card size="small"><Text type="secondary">均价</Text><Title level={4} style={{ margin: 0 }}>¥{procurement.avg_unit_cost?.toFixed(4)}</Title></Card>
+            </Col>
+            <Col span={6}>
+              <Card size="small"><Text type="secondary">交期风险</Text>
+                <div><Tag color={procurement.delivery_risk === '低' ? 'green' : procurement.delivery_risk === '中' ? 'orange' : 'red'}>{procurement.delivery_risk}</Tag></div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card size="small"><Text type="secondary">推荐方案</Text><div>{procurement.recommended_plan}</div></Card>
+            </Col>
+          </Row>
+          <Table size="small" style={{ marginTop: 12 }} dataSource={procurement.allocations || []} pagination={false} rowKey="supplier_name"
+            columns={[
+              { title: "供应商", dataIndex: "supplier_name", width: 120 },
+              { title: "分配量", dataIndex: "quantity", width: 80 },
+              { title: "单价", dataIndex: "unit_cost", width: 80, render: (v: number) => v ? `¥${v.toFixed(4)}` : '-' },
+              { title: "小计", dataIndex: "subtotal", width: 100, render: (v: number) => v ? `¥${v.toFixed(2)}` : '-' },
+              { title: "交期(天)", dataIndex: "delivery_days", width: 80 },
+              { title: "理由", dataIndex: "reason", ellipsis: true },
+            ]}
+          />
+          {procurement.negotiation_tips?.length > 0 && (
+            <Card size="small" type="inner" style={{ marginTop: 12 }} title="议价建议">
+              <List size="small" dataSource={procurement.negotiation_tips} renderItem={(t: string) => <List.Item style={{ padding: '2px 0' }}>{t}</List.Item>} />
+            </Card>
+          )}
+          {procurement.alternative_plan && (
+            <Card size="small" type="inner" style={{ marginTop: 8 }} title="备用方案">
+              <Text>{procurement.alternative_plan}</Text>
+            </Card>
+          )}
+        </Card>
+      )}
+
+      {/* Lifecycle Warning */}
+      {lifecycle && (
+        <Card title={<><AlertOutlined /> 生命周期预警</>}
+          style={{ marginBottom: 16, borderColor: lifecycle.urgency === '紧急' ? '#ff4d4f' : lifecycle.urgency === '建议关注' ? '#faad14' : undefined }}>
+          <Row gutter={16}>
+            <Col span={4}>
+              <Card size="small" type="inner">
+                <Text type="secondary">阶段</Text>
+                <div><Tag color={lifecycle.lifecycle_stage === 'EOL' ? 'red' : lifecycle.lifecycle_stage === 'NRND' ? 'orange' : lifecycle.lifecycle_stage === '活跃' ? 'green' : 'blue'}>{lifecycle.lifecycle_stage}</Tag></div>
+              </Card>
+            </Col>
+            <Col span={4}>
+              <Card size="small" type="inner">
+                <Text type="secondary">置信度</Text>
+                <div><Progress percent={lifecycle.stage_confidence} size="small" status={lifecycle.stage_confidence > 70 ? 'success' : 'normal'} /></div>
+              </Card>
+            </Col>
+            <Col span={4}>
+              <Card size="small" type="inner" style={{ borderColor: lifecycle.eol_risk_score > 50 ? '#ff4d4f' : undefined }}>
+                <Text type="secondary">EOL风险</Text>
+                <div><Progress percent={lifecycle.eol_risk_score} size="small" status={lifecycle.eol_risk_score > 70 ? 'exception' : lifecycle.eol_risk_score > 40 ? 'normal' : 'success'} /></div>
+              </Card>
+            </Col>
+            <Col span={4}>
+              <Card size="small" type="inner">
+                <Text type="secondary">预计窗口</Text><div>{lifecycle.eol_estimated_months ? `${lifecycle.eol_estimated_months} 个月` : '不确定'}</div>
+              </Card>
+            </Col>
+            <Col span={4}>
+              <Card size="small" type="inner">
+                <Text type="secondary">备货策略</Text>
+                <div><Tag color={lifecycle.stock_strategy.includes('紧急') ? 'red' : lifecycle.stock_strategy.includes('不备') ? 'default' : 'blue'}>{lifecycle.stock_strategy}</Tag></div>
+              </Card>
+            </Col>
+            <Col span={4}>
+              <Card size="small" type="inner">
+                <Text type="secondary">建议数量</Text><div><Text strong>{lifecycle.suggested_quantity}</Text></div>
+              </Card>
+            </Col>
+          </Row>
+          {lifecycle.warning_signals?.length > 0 && (
+            <Card size="small" type="inner" style={{ marginTop: 12 }} title="风险信号">
+              {lifecycle.warning_signals.map((s: string, i: number) => <Tag key={i} color="red" style={{ marginBottom: 4 }}>{s}</Tag>)}
+            </Card>
+          )}
+          {lifecycle.migration_path && (
+            <Card size="small" type="inner" style={{ marginTop: 8 }} title="迁移路径">
+              <Text>{lifecycle.migration_path}</Text>
+            </Card>
+          )}
+        </Card>
+      )}
+
+      {/* Substitute Recommendations */}
+      {substitutes && (
+        <Card title={<><SwapOutlined /> AI 替代料推荐</>} style={{ marginBottom: 16 }}>
+          {(substitutes.direct_substitutes as string[])?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Text strong>直替代（pin-to-pin 兼容）：</Text>
+              <List size="small" dataSource={substitutes.direct_substitutes as string[]}
+                renderItem={(s) => <List.Item><Tag color="green">{s}</Tag></List.Item>} />
+            </div>
+          )}
+          {(substitutes.functional_substitutes as string[])?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Text strong>功能替代：</Text>
+              <List size="small" dataSource={substitutes.functional_substitutes as string[]}
+                renderItem={(s) => <List.Item><Tag color="blue">{s}</Tag></List.Item>} />
+            </div>
+          )}
+          {((substitutes.verification_notes as string[])?.length > 0) && (
+            <div>
+              <Text strong>验证注意事项：</Text>
+              <List size="small" dataSource={substitutes.verification_notes as string[]}
+                renderItem={(s) => <List.Item><Text type="secondary">{s}</Text></List.Item>} />
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}

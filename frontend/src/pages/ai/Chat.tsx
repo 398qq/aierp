@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Input, Button, Card, Typography, Space, Spin } from "antd";
 import { SendOutlined, RobotOutlined, UserOutlined } from "@ant-design/icons";
+import { useAuthStore } from "../../store/auth";
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -34,8 +35,8 @@ export default function AIChat() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
-      const resp = await fetch("/api/v1/ai/chat?query=" + encodeURIComponent(userMsg.content), {
+      const token = useAuthStore.getState().token;
+      const resp = await fetch(`/api/v1/ai/chat?query=${encodeURIComponent(userMsg.content)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

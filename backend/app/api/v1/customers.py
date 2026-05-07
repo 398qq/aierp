@@ -2,7 +2,7 @@ import csv
 import io
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.customer import AlertEvent, AlertRule, Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog, CustomerTag, customer_tag_table
+from app.models.customer import AlertEvent, AlertRule, Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog, CustomerTag, LevelRule, customer_tag_table
 from app.schemas.common import fail, ok
+from app.services.customer_service import calc_health, calc_lifecycle, detect_duplicates as detect_dups
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -177,6 +178,7 @@ async def list_customers(
     region: str | None = None,
     source: str | None = None,
     credit_level: str | None = None,
+    owner: str | None = None,
     created_from: str | None = None,
     created_to: str | None = None,
     tag_id: int | None = None,
@@ -195,7 +197,8 @@ async def list_customers(
         count_base = count_base.where(filt)
     for col, val in [(Customer.industry, industry), (Customer.level, level),
                      (Customer.customer_type, customer_type), (Customer.region, region),
-                     (Customer.source, source), (Customer.credit_level, credit_level)]:
+                     (Customer.source, source), (Customer.credit_level, credit_level),
+                     (Customer.owner, owner)]:
         if val:
             base = base.where(col == val)
             count_base = count_base.where(col == val)
@@ -261,7 +264,6 @@ async def import_customers(
         text = content.decode("gbk", errors="replace")
 
     reader = csv.DictReader(io.StringIO(text))
-    columns = reader.fieldnames or []
     created, skipped = 0, 0
 
     col_map = {
@@ -309,6 +311,7 @@ async def export_customers(
     region: str | None = None,
     source: str | None = None,
     credit_level: str | None = None,
+    owner: str | None = None,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -318,7 +321,8 @@ async def export_customers(
         base = base.where(or_(Customer.name.ilike(like), Customer.code.ilike(like), Customer.contact_person.ilike(like)))
     for col, val in [(Customer.industry, industry), (Customer.level, level),
                      (Customer.customer_type, customer_type), (Customer.region, region),
-                     (Customer.source, source), (Customer.credit_level, credit_level)]:
+                     (Customer.source, source), (Customer.credit_level, credit_level),
+                     (Customer.owner, owner)]:
         if val:
             base = base.where(col == val)
     rows = (await db.execute(base.order_by(Customer.id.desc()))).scalars().all()
@@ -346,37 +350,74 @@ async def export_customers(
 
 @router.get("/stats")
 async def customer_dashboard_stats(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    rows = (await db.execute(
-        select(Customer).where(Customer.deleted_at.is_(None))
-    )).scalars().all()
+    async def _agg(field):
+        col = getattr(Customer, field)
+        r = await db.execute(
+            select(col, func.count(Customer.id))
+            .where(Customer.deleted_at.is_(None))
+            .group_by(col)
+        )
+        return sorted(
+            [{"name": row[0] or "未设置", "value": row[1]} for row in r.all()],
+            key=lambda x: -x["value"],
+        )
 
-    total = len(rows)
-    if total == 0:
-        return ok({"total": 0, "by_industry": [], "by_level": [], "by_region": [], "by_source": [], "by_type": [], "monthly": []})
+    async def _monthly():
+        month_expr = func.date_trunc("month", Customer.created_at)
+        r = await db.execute(
+            select(month_expr, func.count(Customer.id))
+            .where(Customer.deleted_at.is_(None), Customer.created_at.isnot(None))
+            .group_by(month_expr)
+            .order_by(month_expr.desc())
+            .limit(12)
+        )
+        rows = r.all()
+        rows.reverse()
+        return [{"month": str(row[0])[:7], "count": row[1]} for row in rows]
 
-    def _count(field: str):
-        counts: dict[str, int] = {}
-        for r in rows:
-            v = getattr(r, field, None) or "未设置"
-            counts[v] = counts.get(v, 0) + 1
-        return sorted([{"name": k, "value": c} for k, c in counts.items()], key=lambda x: -x["value"])
-
-    monthly: dict[str, int] = {}
-    now = datetime.now(timezone.utc)
-    for r in rows:
-        month_key = r.created_at.strftime("%Y-%m")
-        monthly[month_key] = monthly.get(month_key, 0) + 1
-    monthly_list = sorted([{"month": k, "count": v} for k, v in monthly.items()])[-12:]
+    total_r = await db.execute(select(func.count(Customer.id)).where(Customer.deleted_at.is_(None)))
+    by_industry = await _agg("industry")
+    by_level = await _agg("level")
+    by_region = await _agg("region")
+    by_source = await _agg("source")
+    by_type = await _agg("customer_type")
+    monthly = await _monthly()
 
     return ok({
-        "total": total,
-        "by_industry": _count("industry"),
-        "by_level": _count("level"),
-        "by_region": _count("region"),
-        "by_source": _count("source"),
-        "by_type": _count("customer_type"),
-        "monthly": monthly_list,
+        "total": total_r.scalar() or 0,
+        "by_industry": by_industry,
+        "by_level": by_level,
+        "by_region": by_region,
+        "by_source": by_source,
+        "by_type": by_type,
+        "monthly": monthly,
     })
+
+
+@router.get("/recent-activity")
+async def recent_activity(limit: int = Query(20, le=100), db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Recent customer activity across all customers."""
+    logs = (await db.execute(
+        select(CustomerLog, Customer.name).join(
+            Customer, CustomerLog.customer_id == Customer.id
+        ).where(
+            CustomerLog.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+        ).order_by(CustomerLog.created_at.desc()).limit(limit)
+    )).all()
+
+    return ok([{
+        "id": row[0].id,
+        "customer_id": row[0].customer_id,
+        "customer_name": row[1],
+        "action": row[0].action,
+        "field_name": row[0].field_name,
+        "old_value": row[0].old_value,
+        "new_value": row[0].new_value,
+        "operator": row[0].operator,
+        "summary": row[0].summary,
+        "created_at": str(row[0].created_at) if row[0].created_at else None,
+    } for row in logs])
 
 
 # --- Overdue Follow-ups (reminders) ---
@@ -493,40 +534,404 @@ async def detect_duplicates(
     rows = (await db.execute(
         select(Customer).where(Customer.deleted_at.is_(None)).order_by(Customer.name)
     )).scalars().all()
+    pairs = detect_dups(rows, threshold)
+    return ok({"total": len(pairs), "pairs": pairs})
 
-    # Simple name-based fuzzy matching (normalize + trigram overlap)
-    import re
 
-    def normalize(s: str) -> str:
-        return re.sub(r'[（）\(\)\s\-_\.\,，、。有限公司有限责任控股集团分公司]', '', s or '').lower()
+# --- Alert Rules ---
 
-    pairs = []
-    norm_map = {c.id: normalize(c.name) for c in rows}
+class AlertRuleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    rule_type: str
+    threshold_days: int | None = None
+    threshold_pct: float | None = None
+    threshold_amount: float | None = None
+    enabled: bool = True
+    severity: str = "warning"
 
-    for i, a in enumerate(rows):
-        na = norm_map[a.id]
-        if len(na) < 2:
-            continue
-        for j in range(i + 1, len(rows)):
-            nb = norm_map[rows[j].id]
-            if len(nb) < 2:
-                continue
-            # Simple similarity: shared character ratio
-            common = len(set(na) & set(nb))
-            longer = max(len(na), len(nb))
-            if longer == 0:
-                continue
-            sim = common / longer
-            if sim >= threshold:
-                pairs.append({
-                    "similarity": round(sim, 3),
-                    "customer_a": {"id": a.id, "name": a.name, "phone": a.phone, "owner": a.owner},
-                    "customer_b": {"id": rows[j].id, "name": rows[j].name, "phone": rows[j].phone, "owner": rows[j].owner},
-                })
 
-    pairs.sort(key=lambda x: -x["similarity"])
-    return ok({"total": len(pairs), "pairs": pairs[:30]})
+class AlertRuleUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    threshold_days: int | None = None
+    threshold_pct: float | None = None
+    threshold_amount: float | None = None
+    enabled: bool | None = None
+    severity: str | None = None
 
+
+@router.get("/alerts/rules")
+async def list_alert_rules(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    rows = (await db.execute(
+        select(AlertRule).where(AlertRule.deleted_at.is_(None)).order_by(AlertRule.rule_type, AlertRule.name)
+    )).scalars().all()
+    return ok([{
+        "id": r.id, "name": r.name, "rule_type": r.rule_type,
+        "threshold_days": r.threshold_days, "threshold_pct": r.threshold_pct,
+        "threshold_amount": r.threshold_amount, "enabled": r.enabled, "severity": r.severity,
+    } for r in rows])
+
+
+@router.post("/alerts/rules", status_code=201)
+async def create_alert_rule(body: AlertRuleCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    rule = AlertRule(**body.model_dump())
+    db.add(rule)
+    await db.flush()
+    return ok({"id": rule.id, "name": rule.name})
+
+
+@router.put("/alerts/rules/{rule_id}")
+async def update_alert_rule(rule_id: int, body: AlertRuleUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(AlertRule).where(AlertRule.id == rule_id, AlertRule.deleted_at.is_(None))
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        return fail("Rule not found", 404)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(rule, k, v)
+    await db.flush()
+    return ok({"id": rule.id})
+
+
+@router.delete("/alerts/rules/{rule_id}")
+async def delete_alert_rule(rule_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(AlertRule).where(AlertRule.id == rule_id, AlertRule.deleted_at.is_(None))
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        return fail("Rule not found", 404)
+    rule.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="deleted")
+
+
+# --- Alert Events ---
+
+@router.get("/alerts")
+async def list_alert_events(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    severity: str | None = None,
+    rule_type: str | None = None,
+    is_read: bool | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    base = select(AlertEvent).where(AlertEvent.deleted_at.is_(None))
+    count_base = select(func.count(AlertEvent.id)).where(AlertEvent.deleted_at.is_(None))
+    if severity:
+        base = base.where(AlertEvent.severity == severity)
+        count_base = count_base.where(AlertEvent.severity == severity)
+    if rule_type:
+        base = base.where(AlertEvent.rule_type == rule_type)
+        count_base = count_base.where(AlertEvent.rule_type == rule_type)
+    if is_read is not None:
+        base = base.where(AlertEvent.is_read == is_read)
+        count_base = count_base.where(AlertEvent.is_read == is_read)
+    total = (await db.execute(count_base)).scalar() or 0
+    rows = (await db.execute(
+        base.order_by(AlertEvent.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return ok({
+        "list": [{
+            "id": e.id, "customer_id": e.customer_id, "rule_type": e.rule_type,
+            "rule_name": e.rule_name, "severity": e.severity, "message": e.message,
+            "is_read": e.is_read, "read_at": str(e.read_at) if e.read_at else None,
+            "created_at": str(e.created_at),
+        } for e in rows],
+        "total": total, "page": page, "page_size": page_size,
+    })
+
+
+@router.put("/alerts/{event_id}/read")
+async def mark_alert_read(event_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(AlertEvent).where(AlertEvent.id == event_id, AlertEvent.deleted_at.is_(None))
+    )
+    event = result.scalar_one_or_none()
+    if not event:
+        return fail("Alert event not found", 404)
+    event.is_read = True
+    event.read_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok({"id": event.id})
+
+
+@router.post("/alerts/read-all")
+async def mark_all_alerts_read(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    rows = (await db.execute(
+        select(AlertEvent).where(not AlertEvent.is_read, AlertEvent.deleted_at.is_(None))
+    )).scalars().all()
+    now = datetime.now(timezone.utc)
+    for e in rows:
+        e.is_read = True
+        e.read_at = now
+    await db.flush()
+    return ok({"marked": len(rows)})
+
+
+@router.post("/alerts/check")
+async def check_alerts(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.sales import SalesOrder
+    from app.models.transaction import Payment
+
+    rules = (await db.execute(
+        select(AlertRule).where(AlertRule.enabled, AlertRule.deleted_at.is_(None))
+    )).scalars().all()
+
+    customers = (await db.execute(
+        select(Customer).where(Customer.deleted_at.is_(None))
+    )).scalars().all()
+
+    now = datetime.now(timezone.utc)
+    generated = 0
+
+    for c in customers:
+        c_orders = (await db.execute(
+            select(SalesOrder).where(SalesOrder.customer_id == c.id, SalesOrder.deleted_at.is_(None))
+        )).scalars().all()
+
+        for rule in rules:
+            message = None
+            if rule.rule_type == "no_order" and rule.threshold_days:
+                latest_order = max((o.created_at for o in c_orders), default=None)
+                if latest_order:
+                    days_since = (now - latest_order.replace(tzinfo=timezone.utc)).days
+                    if days_since < rule.threshold_days:
+                        continue
+                    message = f"{c.name} 已 {days_since} 天未下单，触发规则「{rule.name}」"
+                elif c.created_at and (now - (c.created_at or now).replace(tzinfo=timezone.utc)).days > rule.threshold_days:
+                    message = f"{c.name} 创建 {(now - (c.created_at or now).replace(tzinfo=timezone.utc)).days} 天尚无订单，触发规则「{rule.name}」"
+
+            elif rule.rule_type == "credit_over":
+                cl = float(c.credit_limit or 0)
+                if cl > 0:
+                    pay_rows = (await db.execute(
+                        select(Payment).where(Payment.customer_id == c.id, Payment.deleted_at.is_(None), Payment.paid_at.is_(None))
+                    )).scalars().all()
+                    outstanding = sum(float(p.amount or 0) for p in pay_rows)
+                    usage = outstanding / cl * 100
+                    if usage >= 80:
+                        message = f"{c.name} 信用额度使用率达 {usage:.0f}%（¥{outstanding:.0f}/¥{cl:.0f}），触发规则「{rule.name}」"
+
+            elif rule.rule_type == "ar_overdue":
+                pay_rows = (await db.execute(
+                    select(Payment).where(Payment.customer_id == c.id, Payment.deleted_at.is_(None), Payment.paid_at.is_(None))
+                )).scalars().all()
+                for p in pay_rows:
+                    overdue_days = (now - p.created_at.replace(tzinfo=timezone.utc)).days
+                    if rule.threshold_days and overdue_days > rule.threshold_days:
+                        message = f"{c.name} 存在逾期 {overdue_days} 天应收款 ¥{float(p.amount or 0):.0f}，触发规则「{rule.name}」"
+                        break
+
+            elif rule.rule_type == "order_drop":
+                if len(c_orders) >= 2:
+                    recent = sum(float(o.total_amount or 0) for o in c_orders if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= 90)
+                    prior = sum(float(o.total_amount or 0) for o in c_orders if 90 < (now - o.created_at.replace(tzinfo=timezone.utc)).days <= 180)
+                    if prior > 0 and recent < prior * 0.5:
+                        message = f"{c.name} 近90天订单金额 ¥{recent:.0f} 较前值 ¥{prior:.0f} 骤降超50%，触发规则「{rule.name}」"
+
+            if message:
+                existing = (await db.execute(
+                    select(AlertEvent).where(
+                        AlertEvent.customer_id == c.id,
+                        AlertEvent.rule_type == rule.rule_type,
+                        AlertEvent.deleted_at.is_(None),
+                        AlertEvent.created_at > func.now() - func.make_interval(days=1),
+                    )
+                )).scalar_one_or_none()
+                if not existing:
+                    event = AlertEvent(
+                        customer_id=c.id, rule_type=rule.rule_type, rule_name=rule.name,
+                        severity=rule.severity, message=message,
+                    )
+                    db.add(event)
+                    generated += 1
+
+    await db.flush()
+    return ok({"generated": generated, "rules_checked": len(rules), "customers_checked": len(customers)})
+
+@router.post("/auto-level")
+async def auto_level_customers(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Run auto-leveling rules on all customers."""
+    from app.models.sales import SalesOrder
+
+    rules = (await db.execute(
+        select(LevelRule).where(LevelRule.enabled, LevelRule.deleted_at.is_(None)).order_by(LevelRule.priority)
+    )).scalars().all()
+
+    customers = (await db.execute(
+        select(Customer).where(Customer.deleted_at.is_(None))
+    )).scalars().all()
+
+    now = datetime.now(timezone.utc)
+    updated = 0
+    lifecycle_updated = 0
+
+    for c in customers:
+        c_orders = (await db.execute(
+            select(SalesOrder).where(SalesOrder.customer_id == c.id, SalesOrder.deleted_at.is_(None))
+        )).scalars().all()
+
+        # Auto-track lifecycle stage
+        latest_order = max((o.created_at.replace(tzinfo=timezone.utc) for o in c_orders if o.created_at), default=None)
+        new_lifecycle = calc_lifecycle(c, len(c_orders), latest_order, now)
+        if c.lifecycle != new_lifecycle:
+            c.lifecycle = new_lifecycle
+            lifecycle_updated += 1
+
+        for rule in rules:
+            if c.level == rule.target_level:
+                continue  # already at this level
+
+            match = False
+            if rule.condition_type == "revenue":
+                if rule.period_days:
+                    total = sum(float(o.total_amount or 0) for o in c_orders
+                               if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= rule.period_days)
+                else:
+                    total = sum(float(o.total_amount or 0) for o in c_orders)
+                match = _compare(total, rule.operator, rule.threshold_value)
+
+            elif rule.condition_type == "order_count":
+                if rule.period_days:
+                    count = len([o for o in c_orders
+                                if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= rule.period_days])
+                else:
+                    count = len(c_orders)
+                match = _compare(count, rule.operator, rule.threshold_value)
+
+            elif rule.condition_type == "no_order_days":
+                latest = max((o.created_at for o in c_orders), default=None)
+                days = (now - (latest or c.created_at or now).replace(tzinfo=timezone.utc)).days
+                match = _compare(days, rule.operator, rule.threshold_value)
+
+            if match:
+                old_level = c.level
+                c.level = rule.target_level
+                await _log(db, c.id, "update", field_name="level",
+                           old_value=old_level, new_value=rule.target_level,
+                           summary=f"自动升级: {rule.name}", operator="system")
+                updated += 1
+                break  # first matching rule wins
+
+    await db.flush()
+    return ok({"updated": updated, "lifecycle_updated": lifecycle_updated, "rules_checked": len(rules), "customers_checked": len(customers)})
+
+
+def _compare(value: float, op: str, threshold: float) -> bool:
+    if op == ">":
+        return value > threshold
+    elif op == "<":
+        return value < threshold
+    elif op == ">=":
+        return value >= threshold
+    elif op == "<=":
+        return value <= threshold
+    return False
+
+
+# --- Customer Insight ---
+@router.get("/level-rules")
+async def list_level_rules(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    rows = (await db.execute(
+        select(LevelRule).where(LevelRule.deleted_at.is_(None)).order_by(LevelRule.priority)
+    )).scalars().all()
+    return ok([{
+        "id": r.id, "name": r.name, "target_level": r.target_level,
+        "condition_type": r.condition_type, "operator": r.operator,
+        "threshold_value": r.threshold_value, "period_days": r.period_days,
+        "enabled": r.enabled, "priority": r.priority,
+    } for r in rows])
+
+@router.delete("/level-rules/{rule_id}")
+async def delete_level_rule(rule_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(LevelRule).where(LevelRule.id == rule_id, LevelRule.deleted_at.is_(None))
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        return fail("Rule not found", 404)
+    rule.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="deleted")
+
+
+
+class LevelRuleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    target_level: str
+    condition_type: str
+    operator: str
+    threshold_value: float
+    period_days: int | None = None
+    enabled: bool = True
+    priority: int = 0
+
+
+class LevelRuleUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    target_level: str | None = None
+    condition_type: str | None = None
+    operator: str | None = None
+    threshold_value: float | None = None
+    period_days: int | None = None
+    enabled: bool | None = None
+    priority: int | None = None
+
+
+
+@router.put("/level-rules/{rule_id}")
+async def update_level_rule(rule_id: int, body: LevelRuleUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(
+        select(LevelRule).where(LevelRule.id == rule_id, LevelRule.deleted_at.is_(None))
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        return fail("Rule not found", 404)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(rule, k, v)
+    await db.flush()
+    return ok({"id": rule.id})
+
+
+@router.post("/level-rules", status_code=201)
+async def create_level_rule(body: LevelRuleCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    rule = LevelRule(**body.model_dump())
+    db.add(rule)
+    await db.flush()
+    return ok({"id": rule.id, "name": rule.name})
+
+
+@router.get("/visits/upcoming")
+async def upcoming_visits(
+    days: int = Query(14, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.models.transaction import Visit
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=days)
+    rows = (await db.execute(
+        select(Visit, Customer.name).join(Customer, Visit.customer_id == Customer.id).where(
+            Visit.deleted_at.is_(None),
+            Visit.visit_date >= now,
+            Visit.visit_date <= cutoff,
+            Customer.deleted_at.is_(None),
+        ).order_by(Visit.visit_date.asc())
+    )).all()
+    return ok([{
+        "id": v.id, "visit_no": v.visit_no, "title": v.title,
+        "customer_id": v.customer_id, "customer_name": cn,
+        "visit_date": str(v.visit_date) if v.visit_date else None,
+        "type": v.type, "status": v.status, "purpose": v.purpose,
+        "stage": v.stage,
+    } for v, cn in rows])
+
+
+
+# --- Level Rules & Auto-Leveling ---
 
 @router.get("/{customer_id}")
 async def get_customer(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
@@ -548,19 +953,45 @@ async def get_customer(customer_id: int, db: AsyncSession = Depends(get_db), _us
         "planned_at": str(f.planned_at) if f.planned_at else None,
         "completed_at": str(f.completed_at) if f.completed_at else None,
         "priority": f.priority, "assigned_to": f.assigned_to,
-        "created_at": str(f.created_at),
+        "created_at": str(f.created_at) if f.created_at else None,
     } for f in (customer.follow_ups or [])]
     return ok(data)
 
 
 @router.post("", status_code=201)
 async def create_customer(body: CustomerCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    customer = Customer(**body.model_dump())
+    data = body.model_dump()
+    auto_code = not data.get("code")
+    customer = Customer(**data)
     db.add(customer)
     await db.flush()
+    if auto_code:
+        customer.code = _generate_code(customer.id, customer.region)
+        await db.flush()
     await _log(db, customer.id, "create", summary=f"创建客户: {customer.name}", operator=_user.get("username"))
     await db.flush()
-    return ok({"id": customer.id, "name": customer.name})
+    return ok({"id": customer.id, "name": customer.name, "code": customer.code})
+
+
+def _generate_code(customer_id: int, region: str | None = None) -> str:
+    """Generate customer code: CUST-{REGION_PREFIX}-{id:06d} or CUST-{id:06d}."""
+    region_prefix = _region_abbr(region)
+    if region_prefix:
+        return f"CUST-{region_prefix}-{customer_id:06d}"
+    return f"CUST-{customer_id:06d}"
+
+
+REGION_ABBR_MAP = {
+    "华东": "HD", "华南": "HN", "华北": "HB",
+    "华中": "HZ", "西南": "XN", "西北": "XB",
+    "东北": "DB", "海外": "HW",
+}
+
+
+def _region_abbr(region: str | None) -> str:
+    if not region:
+        return ""
+    return REGION_ABBR_MAP.get(region, region[:2].upper())
 
 
 @router.put("/{customer_id}")
@@ -812,7 +1243,7 @@ async def list_followups(customer_id: int, db: AsyncSession = Depends(get_db), _
         "planned_at": str(f.planned_at) if f.planned_at else None,
         "completed_at": str(f.completed_at) if f.completed_at else None,
         "priority": f.priority, "assigned_to": f.assigned_to,
-        "created_at": str(f.created_at),
+        "created_at": str(f.created_at) if f.created_at else None,
     } for f in rows])
 
 
@@ -909,7 +1340,7 @@ async def get_timeline(customer_id: int, db: AsyncSession = Depends(get_db), _us
             "type": "followup",
             "title": f"跟进: {f.method or '未指定'} - {f.status or '进行中'}",
             "detail": f.content or "",
-            "time": str(f.created_at),
+            "time": str(f.created_at) if f.created_at else None,
             "id": f.id,
         })
     for o in orders:
@@ -951,22 +1382,7 @@ async def customer_stats(customer_id: int, db: AsyncSession = Depends(get_db), _
     total_revenue = sum(float(o.total_amount or 0) for o in order_rows)
     last_order_date = max((o.created_at for o in order_rows), default=None)
 
-    # Lifecycle stage
-    created_days = (now - customer.created_at.replace(tzinfo=timezone.utc)).days
-    if order_count == 0:
-        lifecycle = "新客户" if created_days <= 30 else "沉默客户"
-    elif last_order_date:
-        days_since_last = (now - last_order_date.replace(tzinfo=timezone.utc)).days
-        if days_since_last <= 90:
-            lifecycle = "活跃"
-        elif days_since_last <= 365:
-            lifecycle = "衰退"
-        else:
-            lifecycle = "流失"
-    else:
-        lifecycle = "新客户"
-
-    # Credit usage
+    # Credit usage & AR aging
     credit_limit = float(customer.credit_limit or 0)
     pay_rows = (await db.execute(
         select(Payment).where(
@@ -994,9 +1410,11 @@ async def customer_stats(customer_id: int, db: AsyncSession = Depends(get_db), _
         else:
             aging["90+"] += amt
 
-    # Health score (0-100): composite of recency, frequency, credit, activity
-    health_score = _calc_health(customer, order_rows, pay_rows, created_days, now)
-    health_label = "优秀" if health_score >= 80 else "良好" if health_score >= 60 else "一般" if health_score >= 40 else "差"
+    # Lifecycle & health from service layer
+    created_at = customer.created_at
+    created_days = (now - created_at.replace(tzinfo=timezone.utc)).days if created_at else 0
+    lifecycle = calc_lifecycle(customer, order_count, last_order_date, now)
+    health_score, health_label = calc_health(customer, order_rows, pay_rows, now)
 
     return ok({
         "lifecycle": lifecycle,
@@ -1012,75 +1430,6 @@ async def customer_stats(customer_id: int, db: AsyncSession = Depends(get_db), _
         "health_score": health_score,
         "health_label": health_label,
     })
-
-
-def _calc_health(customer, order_rows: list, pay_rows: list, created_days: int, now: datetime) -> int:
-    """Composite health score 0-100."""
-    score = 50  # baseline
-
-    # Recency: more recent order = better (max +20)
-    if order_rows:
-        days_since_last = (now - order_rows[0].created_at.replace(tzinfo=timezone.utc)).days
-        if days_since_last <= 30:
-            score += 20
-        elif days_since_last <= 90:
-            score += 15
-        elif days_since_last <= 180:
-            score += 8
-        elif days_since_last <= 365:
-            score += 3
-        else:
-            score -= 5
-    elif created_days > 90:
-        score -= 10  # old customer with no orders
-
-    # Frequency: more orders relative to age = better (max +15)
-    if created_days > 0 and order_rows:
-        annual_rate = len(order_rows) / (created_days / 365)
-        if annual_rate >= 12:
-            score += 15
-        elif annual_rate >= 6:
-            score += 10
-        elif annual_rate >= 2:
-            score += 5
-        elif annual_rate >= 1:
-            score += 2
-
-    # Credit: low usage = better (max +15)
-    credit_limit = float(customer.credit_limit or 0)
-    if credit_limit > 0:
-        outstanding = sum(float(p.amount or 0) for p in pay_rows if p.paid_at is None)
-        ratio = outstanding / credit_limit
-        if ratio < 0.2:
-            score += 15
-        elif ratio < 0.5:
-            score += 10
-        elif ratio < 0.8:
-            score += 5
-        elif ratio > 0.95:
-            score -= 15
-        else:
-            score -= 5
-
-    # Activity: recent contacts/followups (max +10)
-    last_contact = customer.last_contacted_at
-    if last_contact:
-        days_since_contact = (now - last_contact.replace(tzinfo=timezone.utc)).days
-        if days_since_contact <= 30:
-            score += 10
-        elif days_since_contact <= 90:
-            score += 5
-        elif days_since_contact > 365:
-            score -= 5
-
-    # Customer level bonus
-    if customer.level == "A":
-        score += 5
-    elif customer.level in ("C", "D"):
-        score -= 5
-
-    return max(0, min(100, score))
-
 
 # --- Change Logs ---
 
@@ -1320,3 +1669,311 @@ async def delete_attachment(
     attachment.deleted_at = datetime.now(timezone.utc)
     await db.flush()
     return ok(msg="deleted")
+
+
+# --- Quotation History per Customer ---
+
+@router.get("/{customer_id}/quotation-history")
+async def get_quotation_history(
+    customer_id: int,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Get all quotations for a customer with optional status filter and conversion stats."""
+    from app.models.sales import Quotation as QModel
+    base = select(QModel).where(
+        QModel.customer_id == customer_id, QModel.deleted_at.is_(None)
+    ).order_by(QModel.created_at.desc())
+    if status:
+        base = base.where(QModel.status == status)
+    rows = (await db.execute(base)).scalars().all()
+
+    quotations = []
+    for q in rows:
+        items = []
+        if hasattr(q, 'items') and q.items:
+            items = [{"id": i.id, "product_id": i.product_id, "quantity": i.quantity,
+                       "unit_price": float(i.unit_price), "amount": float(i.amount)} for i in q.items]
+        quotations.append({
+            "id": q.id, "quotation_no": q.quotation_no, "status": q.status,
+            "total_amount": float(q.total_amount), "valid_until": str(q.valid_until) if q.valid_until else None,
+            "notes": q.notes, "created_at": str(q.created_at), "items": items,
+        })
+
+    # Conversion stats
+    total = len(rows)
+    won = len([q for q in rows if q.status == "won"])
+    lost = len([q for q in rows if q.status == "lost"])
+    pending = len([q for q in rows if q.status not in ("won", "lost")])
+    conversion_rate = round(won / total * 100, 1) if total > 0 else 0
+    total_won_amount = sum(float(q.total_amount or 0) for q in rows if q.status == "won")
+
+    return ok({
+        "quotations": quotations,
+        "total": total,
+        "stats": {
+            "won": won, "lost": lost, "pending": pending,
+            "conversion_rate": conversion_rate,
+            "total_won_amount": round(total_won_amount, 2),
+        },
+    })
+
+
+# --- Visits ---
+
+class VisitCreate(BaseModel):
+    title: str | None = None
+    visit_date: str | None = None
+    type: str | None = None
+    status: str | None = "planned"
+    content: str | None = None
+    result: str | None = None
+    next_plan: str | None = None
+    stage: str | None = None
+    purpose: str | None = None
+    main_product: str | None = None
+    key_points: str | None = None
+    contact_id: int | None = None
+    followup_date: str | None = None
+
+
+class VisitUpdate(BaseModel):
+    title: str | None = None
+    visit_date: str | None = None
+    type: str | None = None
+    status: str | None = None
+    content: str | None = None
+    result: str | None = None
+    next_plan: str | None = None
+    stage: str | None = None
+    purpose: str | None = None
+    main_product: str | None = None
+    key_points: str | None = None
+    contact_id: int | None = None
+    followup_date: str | None = None
+
+
+@router.get("/{customer_id}/visits")
+async def list_visits(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.transaction import Visit
+    rows = (await db.execute(
+        select(Visit).where(
+            Visit.customer_id == customer_id, Visit.deleted_at.is_(None)
+        ).order_by(Visit.visit_date.desc().nullslast())
+    )).scalars().all()
+    return ok([{
+        "id": v.id, "visit_no": v.visit_no, "title": v.title,
+        "visit_date": str(v.visit_date) if v.visit_date else None,
+        "type": v.type, "status": v.status, "content": v.content, "result": v.result,
+        "next_plan": v.next_plan, "stage": v.stage, "purpose": v.purpose,
+        "main_product": v.main_product, "key_points": v.key_points,
+        "contact_id": v.contact_id,
+        "followup_date": str(v.followup_date) if v.followup_date else None,
+        "created_at": str(v.created_at),
+    } for v in rows])
+
+
+@router.post("/{customer_id}/visits", status_code=201)
+async def create_visit(customer_id: int, body: VisitCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.transaction import Visit
+    data = body.model_dump()
+    if data.get("visit_date"):
+        data["visit_date"] = datetime.fromisoformat(data["visit_date"])
+    if data.get("followup_date"):
+        data["followup_date"] = datetime.fromisoformat(data["followup_date"])
+    data["customer_id"] = customer_id
+    visit = Visit(**data)
+    db.add(visit)
+    await db.flush()
+    # Update customer last_contacted_at
+    result = await db.execute(select(Customer).where(Customer.id == customer_id))
+    cust = result.scalar_one_or_none()
+    if cust:
+        cust.last_contacted_at = datetime.now(timezone.utc)
+    await _log(db, customer_id, "update", field_name="visit", summary=f"新建拜访: {body.title or '未指定'}", operator=_user.get("username"))
+    await db.flush()
+    return ok({"id": visit.id})
+
+
+@router.put("/{customer_id}/visits/{visit_id}")
+async def update_visit(customer_id: int, visit_id: int, body: VisitUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.transaction import Visit
+    result = await db.execute(
+        select(Visit).where(Visit.id == visit_id, Visit.customer_id == customer_id, Visit.deleted_at.is_(None))
+    )
+    visit = result.scalar_one_or_none()
+    if not visit:
+        return fail("Visit not found", 404)
+    data = body.model_dump(exclude_unset=True)
+    for date_field in ("visit_date", "followup_date"):
+        if data.get(date_field):
+            data[date_field] = datetime.fromisoformat(data[date_field])
+    for k, v in data.items():
+        setattr(visit, k, v)
+    await db.flush()
+    return ok({"id": visit.id})
+
+
+@router.delete("/{customer_id}/visits/{visit_id}")
+async def delete_visit(customer_id: int, visit_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.transaction import Visit
+    result = await db.execute(
+        select(Visit).where(Visit.id == visit_id, Visit.customer_id == customer_id, Visit.deleted_at.is_(None))
+    )
+    visit = result.scalar_one_or_none()
+    if not visit:
+        return fail("Visit not found", 404)
+    visit.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="deleted")
+
+
+
+
+
+
+
+@router.get("/{customer_id}/insight")
+async def get_customer_insight(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.models.sales import SalesOrder, SalesOrderItem, Opportunity
+    from app.models.product import Product as ProductModel
+
+    result = await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+    )
+    customer = result.scalar_one_or_none()
+    if customer is None:
+        return fail("Customer not found", 404)
+
+    # Order summary — SQL aggregation
+    order_stats = (await db.execute(
+        select(
+            func.count(SalesOrder.id),
+            func.coalesce(func.sum(SalesOrder.total_amount), 0),
+            func.max(SalesOrder.created_at),
+        ).where(SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None))
+    )).first()
+    total_orders = order_stats[0] or 0
+    total_amount = float(order_stats[1])
+    avg_order_amount = round(total_amount / total_orders, 2) if total_orders > 0 else 0
+    last_order_date = str(order_stats[2]) if order_stats[2] else None
+
+    # Product distribution — JOIN to avoid N+1
+    product_distribution = []
+    item_rows = (await db.execute(
+        select(
+            SalesOrderItem.product_id,
+            ProductModel.name,
+            func.sum(SalesOrderItem.quantity),
+            func.sum(SalesOrderItem.amount),
+        ).select_from(SalesOrderItem).join(
+            SalesOrder, SalesOrderItem.order_id == SalesOrder.id
+        ).join(
+            ProductModel, SalesOrderItem.product_id == ProductModel.id
+        ).where(
+            SalesOrder.customer_id == customer_id,
+            SalesOrder.deleted_at.is_(None),
+            SalesOrderItem.deleted_at.is_(None),
+        ).group_by(SalesOrderItem.product_id, ProductModel.name)
+        .order_by(func.sum(SalesOrderItem.amount).desc())
+    )).all()
+    for row in item_rows:
+        product_distribution.append({
+            "product_id": row[0], "product_name": row[1] or f"Product#{row[0]}",
+            "quantity": row[2], "amount": float(row[3]),
+        })
+
+    # Follow-up summary — SQL filters
+    now = datetime.now(timezone.utc)
+    total_followups = (await db.execute(
+        select(func.count(CustomerFollowUp.id)).where(
+            CustomerFollowUp.customer_id == customer_id, CustomerFollowUp.deleted_at.is_(None)
+        )
+    )).scalar() or 0
+    last_followup = (await db.execute(
+        select(func.max(CustomerFollowUp.created_at)).where(
+            CustomerFollowUp.customer_id == customer_id, CustomerFollowUp.deleted_at.is_(None)
+        )
+    )).scalar()
+    pending_count = (await db.execute(
+        select(func.count(CustomerFollowUp.id)).where(
+            CustomerFollowUp.customer_id == customer_id,
+            CustomerFollowUp.deleted_at.is_(None),
+            CustomerFollowUp.status == "pending",
+        )
+    )).scalar() or 0
+    overdue_count = (await db.execute(
+        select(func.count(CustomerFollowUp.id)).where(
+            CustomerFollowUp.customer_id == customer_id,
+            CustomerFollowUp.deleted_at.is_(None),
+            CustomerFollowUp.status == "pending",
+            CustomerFollowUp.planned_at.isnot(None),
+            CustomerFollowUp.planned_at < now,
+        )
+    )).scalar() or 0
+
+    # Opportunity summary — SQL filters
+    total_opps = (await db.execute(
+        select(func.count(Opportunity.id)).where(
+            Opportunity.customer_id == customer_id, Opportunity.deleted_at.is_(None)
+        )
+    )).scalar() or 0
+    active_opps = (await db.execute(
+        select(func.count(Opportunity.id)).where(
+            Opportunity.customer_id == customer_id,
+            Opportunity.deleted_at.is_(None),
+            Opportunity.stage.notin_(["won", "lost"]),
+        )
+    )).scalar() or 0
+    won_opps = (await db.execute(
+        select(func.count(Opportunity.id)).where(
+            Opportunity.customer_id == customer_id,
+            Opportunity.deleted_at.is_(None),
+            Opportunity.stage == "won",
+        )
+    )).scalar() or 0
+    win_prob = round(won_opps / total_opps * 100, 1) if total_opps else 0
+
+    # Suggestions
+    suggestions = []
+    if not last_order_date:
+        suggestions.append("客户暂无订单记录，建议首次合作推进")
+    elif (now - datetime.fromisoformat(str(last_order_date)).replace(tzinfo=timezone.utc)).days > 90:
+        suggestions.append("客户超过90天未下单，建议主动联系了解需求")
+    if overdue_count:
+        suggestions.append(f"有{overdue_count}个跟进任务已逾期，请及时处理")
+    if product_distribution:
+        suggestions.append(f"客户偏好产品: {product_distribution[0]['product_name']}，可推荐相关配件或升级产品")
+    if total_amount > 0 and avg_order_amount > 0:
+        suggestions.append(f"平均订单金额: {avg_order_amount}元，可推荐高价值产品以提升客单价")
+
+    return ok({
+        "customer": {
+            "id": customer.id, "name": customer.name, "code": customer.code,
+            "industry": customer.industry, "level": customer.level,
+            "contact_person": customer.contact_person, "phone": customer.phone,
+            "email": customer.email, "region": customer.region,
+        },
+        "order_summary": {
+            "total_orders": total_orders,
+            "total_amount": round(total_amount, 2),
+            "avg_order_amount": avg_order_amount,
+            "last_order_date": last_order_date,
+        },
+        "product_distribution": product_distribution,
+        "followup_summary": {
+            "total_followups": total_followups,
+            "last_followup": str(last_followup) if last_followup else None,
+            "pending_count": pending_count,
+            "overdue_count": overdue_count,
+        },
+        "opportunity_summary": {
+            "total": total_opps,
+            "active": active_opps,
+            "won": won_opps,
+            "win_probability": win_prob,
+        },
+        "suggestions": suggestions,
+    })
+

@@ -36,10 +36,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const resp = await getMe();
       const data = resp.data.data as { username?: string } | undefined;
-      set({ username: data?.username ?? null, loading: false });
+      set({ token, username: data?.username ?? null, loading: false });
     } catch {
       localStorage.removeItem("token");
-      set({ token: null, loading: false });
+      set({ token: null, username: null, loading: false });
     }
   },
 }));

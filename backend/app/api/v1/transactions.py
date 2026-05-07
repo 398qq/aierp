@@ -1,6 +1,6 @@
 """Transaction management API — purchase orders, payments, tickets, visits, samples."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.transaction import PurchaseOrder, PurchaseOrderItem, Payment, Ticket, Visit, Sample
-from app.schemas.common import fail, ok
+from app.models.transaction import PurchaseOrder, Payment, Ticket, Visit, Sample
+from app.schemas.common import ok
 
 router = APIRouter(tags=["transactions"])
 

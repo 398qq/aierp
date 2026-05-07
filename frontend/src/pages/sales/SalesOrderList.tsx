@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm } from "antd";
+import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Result } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, ExportOutlined, ImportOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { getSalesOrders, createSalesOrder, updateSalesOrder, deleteSalesOrder, getCustomers, batchDeleteSalesOrders, exportSalesOrders, importSalesOrders } from "../../api";
@@ -23,9 +23,11 @@ export default function SalesOrderList() {
 
   const [filters, setFilters] = useState({ customer_id: "", status: "" });
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [error, setError] = useState(false);
 
   const fetch = async (p = page) => {
     setLoading(true);
+    setError(false);
     try {
       const params: Record<string, unknown> = { page: p, page_size: 20 };
       if (filters.customer_id) params.customer_id = Number(filters.customer_id);
@@ -34,6 +36,7 @@ export default function SalesOrderList() {
       setData(resp.data.data.list);
       setTotal(resp.data.data.total);
     } catch {
+      setError(true);
       message.error("加载销售订单失败");
     } finally {
       setLoading(false);
@@ -153,8 +156,13 @@ export default function SalesOrderList() {
         </Space>
       )}
 
-      <Table rowKey="id" rowSelection={rowSelection} columns={columns} dataSource={data} loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t: number) => `共 ${t} 条` }} />
+      {error ? (
+        <Result status="warning" title="加载失败" subTitle="无法加载销售订单数据" extra={<Button onClick={() => fetch()}>重试</Button>} />
+      ) : (
+        <Table rowKey="id" rowSelection={rowSelection} columns={columns} dataSource={data} loading={loading}
+          locale={{ emptyText: "暂无销售订单" }}
+          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t: number) => `共 ${t} 条` }} />
+      )}
       <Modal title={editingId ? "编辑销售订单" : "新建销售订单"} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item name="order_no" label="订单号"><Input /></Form.Item>

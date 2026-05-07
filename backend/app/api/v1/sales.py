@@ -23,9 +23,6 @@ from app.schemas.sales import (
     SalesOrderCreate, SalesOrderItemCreate, SalesOrderItemUpdate, SalesOrderUpdate,
 )
 
-router = APIRouter(tags=["sales"])
-
-
 def _parse_date(value: str | None) -> datetime | None:
     if value:
         return datetime.fromisoformat(value)
@@ -34,22 +31,6 @@ def _parse_date(value: str | None) -> datetime | None:
 
 def _serialize_dt(dt: datetime | None) -> str | None:
     return str(dt) if dt else None
-
-
-async def _generate_doc_no(db: AsyncSession, prefix: str, model) -> str:
-    """Generate document number like QO-20260506-001 by auto-detecting _no column."""
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    pattern = f"{prefix}-{today}-%"
-    # auto-detect column ending with '_no'
-    no_col_name = next(
-        c.name for c in model.__table__.columns if c.name.endswith("_no")
-    )
-    col = getattr(model, no_col_name)
-    result = await db.execute(
-        select(func.count(model.id)).where(col.like(pattern), model.deleted_at.is_(None))
-    )
-    seq = (result.scalar() or 0) + 1
-    return f"{prefix}-{today}-{seq:03d}"
 
 
 async def _next_seq(db: AsyncSession, prefix: str, model, no_col: str) -> str:
@@ -719,7 +700,6 @@ async def get_sales_trend(
     _user: dict = Depends(get_current_user),
 ):
     trunc = "month" if period == "monthly" else "quarter"
-    fmt = "YYYY-MM" if period == "monthly" else "YYYY-Q"
 
     conditions = [SalesOrder.deleted_at.is_(None)]
     if start_date:
@@ -809,6 +789,14 @@ async def convert_order_to_delivery(order_id: int, db: AsyncSession = Depends(ge
     if order is None:
         return fail("Sales order not found", 404)
 
+    existing = (await db.execute(
+        select(func.count(DeliveryNote.id)).where(
+            DeliveryNote.sales_order_id == order_id, DeliveryNote.deleted_at.is_(None)
+        )
+    )).scalar() or 0
+    if existing > 0:
+        return fail("该销售订单已生成送货单，不可重复转换", 409)
+
     items_result = await db.execute(
         select(SalesOrderItem).where(SalesOrderItem.order_id == order_id, SalesOrderItem.deleted_at.is_(None))
     )
@@ -894,10 +882,24 @@ async def batch_delete_sales_orders(body: BatchDeleteRequest, db: AsyncSession =
     return ok({"deleted": len(rows)})
 
 
+@dn_router.post("/batch-delete")
+async def batch_delete_delivery_notes(body: BatchDeleteRequest, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(DeliveryNote).where(DeliveryNote.id.in_(body.ids), DeliveryNote.deleted_at.is_(None))
+    )
+    rows = result.scalars().all()
+    for row in rows:
+        row.deleted_at = now
+    await db.flush()
+    return ok({"deleted": len(rows)})
+
+
 # --- Excel Import/Export ---
 
 QUO_EXPORT_HEADERS = ["报价单号", "客户ID", "状态", "总金额", "有效期至", "备注", "创建时间"]
 SO_EXPORT_HEADERS = ["订单号", "客户ID", "状态", "总金额", "交货日期", "备注", "创建时间"]
+DN_EXPORT_HEADERS = ["送货单号", "销售订单ID", "客户ID", "状态", "交货日期", "备注", "创建时间"]
 
 
 def _export_excel(headers: list[str], rows: list[list], filename: str) -> StreamingResponse:
@@ -1019,6 +1021,62 @@ async def import_sales_orders(
         data["order_no"] = await _next_seq(db, "SO", SalesOrder, "order_no")
         order = SalesOrder(**data)
         db.add(order)
+        imported += 1
+    await db.flush()
+    return ok({"imported": imported})
+
+
+# --- Delivery Notes Export/Import ---
+
+@dn_router.get("/export")
+async def export_delivery_notes(
+    customer_id: int | None = None,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    base = select(DeliveryNote).where(DeliveryNote.deleted_at.is_(None))
+    if customer_id:
+        base = base.where(DeliveryNote.customer_id == customer_id)
+    if status:
+        base = base.where(DeliveryNote.status == status)
+    rows = (await db.execute(base.order_by(DeliveryNote.id.desc()))).scalars().all()
+    data = [[
+        d.note_no or "",
+        d.sales_order_id,
+        d.customer_id,
+        d.status,
+        str(d.delivery_date)[:10] if d.delivery_date else "",
+        d.notes or "",
+        str(d.created_at)[:19],
+    ] for d in rows]
+    return _export_excel(DN_EXPORT_HEADERS, data, "delivery_notes.xlsx")
+
+
+@dn_router.post("/import")
+async def import_delivery_notes(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    contents = await file.read()
+    wb = openpyxl.load_workbook(io.BytesIO(contents))
+    ws = wb.active
+    imported = 0
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or not row[1]:
+            continue
+        data = {
+            "sales_order_id": int(row[1]) if row[1] else 0,
+            "customer_id": int(row[2]) if len(row) > 2 and row[2] else 0,
+            "status": str(row[3]) if len(row) > 3 and row[3] else "pending",
+            "notes": str(row[5]) if len(row) > 5 and row[5] else None,
+        }
+        if len(row) > 4 and row[4]:
+            data["delivery_date"] = str(row[4])
+        data["note_no"] = await _next_seq(db, "DN", DeliveryNote, "note_no")
+        note = DeliveryNote(**data)
+        db.add(note)
         imported += 1
     await db.flush()
     return ok({"imported": imported})

@@ -26,23 +26,37 @@ export default function AIInsight({ customerId }: Props) {
   const [churn, setChurn] = useState<ChurnRisk | null>(null);
   const [suggestion, setSuggestion] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState<string[]>([]);
   const { token } = theme.useToken();
 
   useEffect(() => {
     let cancelled = false;
+    const errs: string[] = [];
     async function fetch() {
       try {
-        const [rfmRes, churnRes, sugRes] = await Promise.all([
+        const results = await Promise.allSettled([
           getRFMAnalysis(customerId),
           getChurnRisk(customerId),
           getFollowUpSuggestion(customerId),
         ]);
         if (cancelled) return;
-        setRfm(rfmRes.data.data as RFMAnalysis);
-        setChurn(churnRes.data.data as ChurnRisk);
-        setSuggestion(sugRes.data.data as Record<string, unknown>);
-      } catch {
-        // silently fail
+
+        if (results[0].status === "fulfilled") {
+          setRfm(results[0].value.data.data as RFMAnalysis);
+        } else {
+          errs.push("RFM分析加载失败");
+        }
+        if (results[1].status === "fulfilled") {
+          setChurn(results[1].value.data.data as ChurnRisk);
+        } else {
+          errs.push("流失风险评估加载失败");
+        }
+        if (results[2].status === "fulfilled") {
+          setSuggestion(results[2].value.data.data as Record<string, unknown>);
+        } else {
+          errs.push("跟进建议加载失败");
+        }
+        if (errs.length) setErrors(errs);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -52,6 +66,9 @@ export default function AIInsight({ customerId }: Props) {
   }, [customerId]);
 
   if (loading) return <Spin />;
+  if (!rfm && !churn && !suggestion && errors.length) {
+    return <Text type="secondary">AI 分析暂时不可用</Text>;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

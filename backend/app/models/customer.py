@@ -1,6 +1,7 @@
 import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -34,8 +35,11 @@ class Customer(TimestampMixin, Base):
     credit_limit: Mapped[float | None] = mapped_column(nullable=True)
     credit_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_contacted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lifecycle: Mapped[str | None] = mapped_column(String(20), nullable=True)
     owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    ai_insights: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     contacts = relationship("CustomerContact", back_populates="customer", lazy="selectin")
     follow_ups = relationship("CustomerFollowUp", back_populates="customer", lazy="selectin")
@@ -128,3 +132,16 @@ class AlertEvent(TimestampMixin, Base):
     message: Mapped[str] = mapped_column(String(500))
     is_read: Mapped[bool] = mapped_column(default=False)
     read_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LevelRule(TimestampMixin, Base):
+    __tablename__ = "level_rules"
+
+    name: Mapped[str] = mapped_column(String(100))
+    target_level: Mapped[str] = mapped_column(String(20))  # A, B, C, D
+    condition_type: Mapped[str] = mapped_column(String(50))  # revenue, order_count, days
+    operator: Mapped[str] = mapped_column(String(10))  # >, <, >=, <=
+    threshold_value: Mapped[float] = mapped_column()
+    period_days: Mapped[int | None] = mapped_column(nullable=True)  # evaluation period in days
+    enabled: Mapped[bool] = mapped_column(default=True)
+    priority: Mapped[int] = mapped_column(default=0)

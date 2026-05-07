@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, Tag, Select, Row, Col, message, Popconfirm, Card, Modal, Upload, Tooltip, List, Typography, Empty } from "antd";
-import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { Table, Button, Input, Space, Tag, Select, Row, Col, message, Popconfirm, Card, Modal, Upload, Tooltip, List, Typography, Empty, Popover, Checkbox } from "antd";
+import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined, SettingOutlined } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { getCustomers, deleteCustomer, exportCustomers, batchDeleteCustomers, batchTagCustomers, getTags, downloadImportTemplate, importCustomers, getOverdueFollowUps, detectDuplicates, mergeCustomers } from "../../api";
-import type { Customer, DuplicatePair, OverdueFollowUp, Tag as TagType } from "../../types";
+import { getCustomers, deleteCustomer, exportCustomers, batchDeleteCustomers, batchTagCustomers, getTags, downloadImportTemplate, importCustomers, getOverdueFollowUps, detectDuplicates, mergeCustomers, getAlertEvents, markAllAlertsRead, checkAlerts } from "../../api";
+import type { AlertEvent, Customer, DuplicatePair, OverdueFollowUp, Tag as TagType } from "../../types";
 
 const INDUSTRIES = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗设备", "安防监控", "其他"];
 const LEVELS = ["A", "B", "C", "D"];
@@ -38,8 +38,13 @@ export default function CustomerList() {
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [merging, setMerging] = useState(false);
   const [mergeSource, setMergeSource] = useState<DuplicatePair | null>(null);
+  const [alertCount, setAlertCount] = useState(0);
+  const [alertChecking, setAlertChecking] = useState(false);
+  const allColKeys = ["code", "name", "industry", "level", "region", "tags", "owner", "contact_person", "source", "created_at", "actions"];
+  const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetch = async (p = page, ps = pageSize, search = q) => {
     setLoading(true);
@@ -61,12 +66,21 @@ export default function CustomerList() {
     }
   };
 
+  // Debounced search: auto-fetches 350ms after user stops typing
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { setPage(1); fetch(1, pageSize, q); }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [q]);
+
   useEffect(() => { fetch(); }, [page, pageSize, industry, level, region, source, creditLevel, sortBy, sortOrder]);
 
   useEffect(() => {
     getTags().then((r) => setTags(r.data.data)).catch(() => {});
     getOverdueFollowUps().then((r) => setOverdueList(r.data.data?.items || [])).catch(() => {});
+    getAlertEvents({ page: 1, page_size: 1, is_read: false }).then((r) => setAlertCount(r.data.data?.total || 0)).catch(() => {});
   }, []);
+
 
   const handleDelete = async (id: number) => {
     try { await deleteCustomer(id); message.success("已删除"); fetch(); } catch { message.error("删除失败"); }
@@ -149,6 +163,16 @@ export default function CustomerList() {
     finally { setMerging(false); }
   };
 
+  const handleCheckAlerts = async () => {
+    setAlertChecking(true);
+    try {
+      const resp = await checkAlerts();
+      message.success(`预警检查完成，生成 ${resp.data.data.generated} 条`);
+      getAlertEvents({ page: 1, page_size: 1, is_read: false }).then((r) => setAlertCount(r.data.data?.total || 0)).catch(() => {});
+    } catch { message.error("预警检查失败"); }
+    finally { setAlertChecking(false); }
+  };
+
   const handleTableChange = (
     pag: TablePaginationConfig,
     _filters: unknown,
@@ -164,16 +188,16 @@ export default function CustomerList() {
   };
 
   const columns: ColumnsType<Customer> = [
-    { title: "客户编码", dataIndex: "code", width: 120, sorter: true, sortOrder: sortBy === "code" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "客户名称", dataIndex: "name", width: 200, sorter: true, sortOrder: sortBy === "name" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (text: string, r: Customer) => (<a onClick={() => navigate(`/customers/${r.id}`)}>{text}</a>) },
-    { title: "行业", dataIndex: "industry", width: 100, sorter: true, sortOrder: sortBy === "industry" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "等级", dataIndex: "level", width: 80, sorter: true, sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (v: string) => <Tag color={v === "A" ? "red" : v === "B" ? "orange" : "default"}>{v}</Tag> },
-    { title: "区域", dataIndex: "region", width: 100, sorter: true, sortOrder: sortBy === "region" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "标签", dataIndex: "tags", width: 160, render: (tags: TagType[]) => tags?.map((t) => <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>) },
-    { title: "负责人", dataIndex: "owner", width: 80 },
-    { title: "联系人", dataIndex: "contact_person", width: 100 },
-    { title: "来源", dataIndex: "source", width: 80, sorter: true, sortOrder: sortBy === "source" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "创建时间", dataIndex: "created_at", width: 100, sorter: true, sortOrder: sortBy === "created_at" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (v: string) => v?.slice(0, 10) },
+    { title: "客户编码", dataIndex: "code", key: "code", width: 120, sorter: true, sortOrder: sortBy === "code" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
+    { title: "客户名称", dataIndex: "name", key: "name", width: 200, sorter: true, sortOrder: sortBy === "name" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (text: string, r: Customer) => (<a onClick={() => navigate(`/customers/${r.id}`)}>{text}</a>) },
+    { title: "行业", dataIndex: "industry", key: "industry", width: 100, sorter: true, sortOrder: sortBy === "industry" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
+    { title: "等级", dataIndex: "level", key: "level", width: 80, sorter: true, sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (v: string) => <Tag color={v === "A" ? "red" : v === "B" ? "orange" : "default"}>{v}</Tag> },
+    { title: "区域", dataIndex: "region", key: "region", width: 100, sorter: true, sortOrder: sortBy === "region" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
+    { title: "标签", dataIndex: "tags", key: "tags", width: 160, render: (tags: TagType[]) => tags?.map((t) => <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>) },
+    { title: "负责人", dataIndex: "owner", key: "owner", width: 80 },
+    { title: "联系人", dataIndex: "contact_person", key: "contact_person", width: 100 },
+    { title: "来源", dataIndex: "source", key: "source", width: 80, sorter: true, sortOrder: sortBy === "source" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
+    { title: "创建时间", dataIndex: "created_at", key: "created_at", width: 100, sorter: true, sortOrder: sortBy === "created_at" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (v: string) => v?.slice(0, 10) },
     {
       title: "操作", key: "actions", width: 220, render: (_: unknown, r: Customer) => (
         <Space size={4}>
@@ -202,7 +226,7 @@ export default function CustomerList() {
               prefix={<SearchOutlined />}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              onPressEnter={() => { setPage(1); fetch(1, pageSize, q); }}
+              allowClear
               style={{ width: 240 }}
             />
           </Col>
@@ -211,7 +235,6 @@ export default function CustomerList() {
           <Col><Select allowClear placeholder="区域" style={{ width: 100 }} value={region} onChange={(v) => { setRegion(v); setPage(1); }} options={REGIONS.map((v) => ({ value: v, label: v }))} /></Col>
           <Col><Select allowClear placeholder="来源" style={{ width: 100 }} value={source} onChange={(v) => { setSource(v); setPage(1); }} options={SOURCES.map((v) => ({ value: v, label: v }))} /></Col>
           <Col><Select allowClear placeholder="信用等级" style={{ width: 100 }} value={creditLevel} onChange={(v) => { setCreditLevel(v); setPage(1); }} options={LEVELS.map((v) => ({ value: v, label: v }))} /></Col>
-          <Col><Button onClick={() => { setPage(1); fetch(1, pageSize, q); }}>搜索</Button></Col>
           <Col flex="auto" />
           <Col>
             <Space>
@@ -229,7 +252,26 @@ export default function CustomerList() {
               <Button onClick={handleTemplate}>模板</Button>
               <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
               <Button icon={<BarChartOutlined />} onClick={() => navigate("/customers/stats")}>统计</Button>
+              <Popover
+                content={
+                  <Checkbox.Group
+                    options={allColKeys.map((k) => {
+                      const labelMap: Record<string, string> = { code: "编码", name: "名称", industry: "行业", level: "等级", region: "区域", tags: "标签", owner: "负责人", contact_person: "联系人", source: "来源", created_at: "创建时间", actions: "操作" };
+                      return { label: labelMap[k] || k, value: k };
+                    })}
+                    value={visibleCols}
+                    onChange={(vals) => setVisibleCols(vals as string[])}
+                  />
+                }
+                title="显示列"
+                trigger="click"
+              >
+                <Button icon={<SettingOutlined />}>列</Button>
+              </Popover>
               <Button icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>查重</Button>
+              <Button danger={alertCount > 0} loading={alertChecking} onClick={handleCheckAlerts}>
+                {alertCount > 0 ? `预警(${alertCount})` : "预警"}
+              </Button>
               <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/customers/new")}>新建客户</Button>
             </Space>
           </Col>
@@ -255,7 +297,7 @@ export default function CustomerList() {
 
       <Table
         rowKey="id"
-        columns={columns}
+        columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
         dataSource={data}
         loading={loading}
         onChange={handleTableChange}

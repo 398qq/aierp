@@ -38,7 +38,7 @@ class AIClient:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def chat(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> str:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=180) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self.headers,
@@ -80,15 +80,24 @@ class AIClient:
                         except (json.JSONDecodeError, KeyError, IndexError):
                             continue
 
-    async def chat_structured(self, messages: list[dict], output_schema: dict, temperature: float = 0.3) -> dict:
+    async def chat_structured(self, messages: list[dict], output_schema: dict, temperature: float = 0.3, max_tokens: int = 8192) -> dict:
         """Get structured JSON output matching the given schema."""
         system_msg = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         schema_str = json.dumps(output_schema, indent=2, ensure_ascii=False)
         messages[0] = {
             "role": "system",
-            "content": f"{system_msg}\n\n你必须返回符合以下 JSON Schema 的有效 JSON，不要输出任何解释：\n```json\n{schema_str}\n```",
+            "content": (
+                f"{system_msg}\n\n"
+                "【重要指令】你必须返回严格符合以下 JSON Schema 的有效 JSON 对象。\n"
+                "1. 只输出纯JSON对象，不要任何解释、注释或markdown标记\n"
+                "2. 所有字段名必须与schema完全一致，不要发明新字段\n"
+                "3. 数值字段只能是数字，绝对不能包含文字说明\n"
+                "4. 字符串字段使用双引号，不要使用单引号\n"
+                "5. 数组和对象使用 [] 和 {{}}，括号必须成对闭合\n"
+                f"```json\n{schema_str}\n```"
+            ),
         }
-        text = await self.chat(messages, temperature=temperature, max_tokens=4096)
+        text = await self.chat(messages, temperature=temperature, max_tokens=max_tokens)
         text = text.strip()
         # Sanitize control characters and invalid Unicode that break JSON
         import unicodedata
@@ -115,6 +124,10 @@ class AIClient:
                 text = text[start:end + 1]
         # Fix common model JSON errors
         import re
+        # Replace fullwidth punctuation that breaks JSON
+        text = text.replace('，', ',')
+        text = text.replace('：', ':')
+        text = text.replace('“', '"').replace('”', '"')
         text = re.sub(r'"\s+"', '", "', text)
         text = re.sub(r'"\s+null"', '", null', text)
         # Fix missing commas between adjacent objects: }{\s*{
@@ -139,6 +152,16 @@ class AIClient:
         text = re.sub(r',\s*]', ']', text)
         # Fix unclosed strings by removing trailing lone quotes before comma/closing
         text = re.sub(r'"\s*"\s*([,}\]])', r'"\1', text)
+        # Fix string values where closing quote is missing before next field key
+        # e.g., "field": "value without close\n  "next_key": → add closing quote
+        text = re.sub(r'(":\s*"[^\n"]+?)(\n\s*"[a-z_]+"\s*:)', r'\1"\2', text)
+        # Fix integer values with trailing Chinese/commentary text (AI hallucination)
+        # e.g., "score": 50正常范围的评分, → "score": 50,
+        text = re.sub(
+            r'(?<=[:\s])(-?\d+)([^\d,\s\}\]\n\"]{1,100}?)(\s*[,}\]\n])',
+            lambda m: m.group(1) + m.group(3) if any(ord(c) > 127 for c in m.group(2)) else m.group(0),
+            text,
+        )
         try:
             result = json.loads(text)
             result = _coerce_numbers(result)
@@ -165,7 +188,7 @@ class AIClient:
             return result
         except (json.JSONDecodeError, ValueError):
             import logging
-            logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:800]}")
+            logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:1200]}")
             raise ValueError(f"AI returned invalid JSON: {text[:300]}")
 
 
