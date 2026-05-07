@@ -40,6 +40,10 @@ def engine():
     ext = {}
     if "sqlite" in TEST_DATABASE_URL:
         ext["connect_args"] = {"check_same_thread": False}
+    else:
+        # PostgreSQL: single connection to avoid "another operation in progress" errors
+        ext["pool_size"] = 1
+        ext["max_overflow"] = 0
     return create_async_engine(TEST_DATABASE_URL, echo=False, **ext)
 
 
