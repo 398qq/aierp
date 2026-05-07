@@ -101,6 +101,21 @@ class AIClient:
         text = text.strip()
         # Sanitize control characters and invalid Unicode that break JSON
         import unicodedata
+        # Detect hallucination loops (excessive repetition)
+        if len(text) > 800:
+            # Check for any single character dominating the text
+            from collections import Counter
+            char_counts = Counter(text)
+            if char_counts:
+                top_char, top_count = char_counts.most_common(1)[0]
+                top_ratio = top_count / len(text)
+                # If any single char >50%, it's hallucination
+                if top_ratio > 0.5:
+                    raise ValueError(f"AI hallucination detected: excessive '{top_char}' repetition ({top_ratio:.0%})")
+            # Low character diversity: text is long but very few unique chars
+            unique_ratio = len(char_counts) / len(text)
+            if len(text) > 1500 and unique_ratio < 0.03:
+                raise ValueError(f"AI hallucination detected: low character diversity ({unique_ratio:.2%})")
         text = ''.join(
             ch if unicodedata.category(ch)[0] != 'C' or ch in ('\n', '\r', '\t') else ' '
             for ch in text
@@ -128,68 +143,56 @@ class AIClient:
         text = text.replace('，', ',')
         text = text.replace('：', ':')
         text = text.replace('“', '"').replace('”', '"')
-        text = re.sub(r'"\s+"', '", "', text)
-        text = re.sub(r'"\s+null"', '", null', text)
         # Fix missing commas between adjacent objects: }{\s*{
         text = re.sub(r'}\s*{', r'}, {', text)
         # Fix missing commas in arrays: }\s*\n\s*{
         text = re.sub(r'}(\s*\n\s*){', r'},\n{', text)
-        # Fix malformed number followed by quote: 97" -> 9,"
-        text = re.sub(r'(\d+)"(\s*\n\s*"dimension")', r'\1,\2', text)
         # Fix double colon: "key":: -> "key":
         text = re.sub(r'"\s*::\s*', '": ', text)
+        # Fix double colon with space: "key": :value -> "key": value
+        text = re.sub(r'":\s+:', '": ', text)
+        # Fix bare comma between fields: ],\n,\n  "next" -> ],\n  "next"
+        text = re.sub(r',\s*\n\s*,', ',', text)
         # Fix extra quote after number: 23" -> 23
         text = re.sub(r'(\d+)"(\s*[,}\]\n])', r'\1\2', text)
-        # Fix number with trailing comma inside string: "6, -> "6,
-        text = re.sub(r'"\s*(\d+),(\s*[,}\]\n"\s])', r'"\1"\2', text)
-        text = re.sub(r'"\s*(\d+),(\s*[,}\]\n"])', r'"\1"\2', text)
-        # Fix misspelled win_probability field name (common AI hallucination)
-        text = re.sub(r'"wi_probability"', '"win_probability"', text)
-        # Fix missing colon: "key" value -> "key": value
-        text = re.sub(r'"\s*}\s*"', '": "', text)
         # Remove trailing commas before ] or }
         text = re.sub(r',\s*}', '}', text)
         text = re.sub(r',\s*]', ']', text)
-        # Fix unclosed strings by removing trailing lone quotes before comma/closing
-        text = re.sub(r'"\s*"\s*([,}\]])', r'"\1', text)
         # Fix string values where closing quote is missing before next field key
-        # e.g., "field": "value without close\n  "next_key": → add closing quote
         text = re.sub(r'(":\s*"[^\n"]+?)(\n\s*"[a-z_]+"\s*:)', r'\1"\2', text)
-        # Fix integer values with trailing Chinese/commentary text (AI hallucination)
-        # e.g., "score": 50正常范围的评分, → "score": 50,
-        text = re.sub(
-            r'(?<=[:\s])(-?\d+)([^\d,\s\}\]\n\"]{1,100}?)(\s*[,}\]\n])',
-            lambda m: m.group(1) + m.group(3) if any(ord(c) > 127 for c in m.group(2)) else m.group(0),
-            text,
-        )
+        # Fix number wrapped in extra quotes: "780," → 780,
+        text = re.sub(r'"(-?\d+\.?\d*)"(\s*[,}\]])', r'\1\2', text)
+        # Fix number with double-quote prefix: " "85 → 85
+        text = re.sub(r'"\s*"(\d+)', r'\1', text)
         try:
             result = json.loads(text)
             result = _coerce_numbers(result)
             return result
         except (json.JSONDecodeError, ValueError):
             pass
-        # Third attempt: specific fixes for known AI hallucination patterns
-        text2 = text
-        text2 = re.sub(r'"wi_probability"', '"win_probability"', text2)
-        text2 = re.sub(r'"win_probability"[:\s]*"(\d+),"', r'"win_probability": \1,', text2)
+        # Third attempt: salvage truncated JSON by closing brackets and strings
         try:
-            result = json.loads(text2)
-            result = _coerce_numbers(result)
-            return result
+            t = text.rstrip()
+            # If text ends without closing a string value, add closing quote
+            if t and t[-1] != '"' and t[-1] not in ']}0123456789':
+                # Check if we're inside a string value (last key: has " before value)
+                last_colon = t.rfind('": "')
+                last_close = max(t.rfind('}'), t.rfind(']'))
+                if last_colon > last_close:
+                    t = t + '"'
+            open_braces = t.count("{") - t.count("}")
+            open_brackets = t.count("[") - t.count("]")
+            if open_braces > 0 or open_brackets > 0:
+                suffix = "]" * max(0, open_brackets) + "}" * max(0, open_braces)
+                result = json.loads(t + suffix)
+                result = _coerce_numbers(result)
+                return result
         except (json.JSONDecodeError, ValueError):
             pass
-        # Fourth attempt: try to salvage by counting braces and appending missing closers
-        try:
-            open_braces = text.count("{") - text.count("}")
-            open_brackets = text.count("[") - text.count("]")
-            suffix = "]" * max(0, open_brackets) + "}" * max(0, open_braces)
-            result = json.loads(text + suffix)
-            result = _coerce_numbers(result)
-            return result
-        except (json.JSONDecodeError, ValueError):
-            import logging
-            logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:1200]}")
-            raise ValueError(f"AI returned invalid JSON: {text[:300]}")
+        # All attempts failed
+        import logging
+        logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:2000]}")
+        raise ValueError(f"AI returned invalid JSON: {text[:300]}")
 
 
     async def embed(self, texts: list[str]) -> list[list[float]]:

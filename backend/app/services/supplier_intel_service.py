@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,11 +145,26 @@ async def get_supplier_scorecard(db: AsyncSession, supplier_id: int) -> dict:
         "tier": "string: A/B/C/D",
         "recommendations": ["string"],
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件供应链管理专家，擅长供应商绩效评估和评分卡设计。"},
-         {"role": "user", "content": supplier_scorecard_prompt(sc_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件供应链管理专家，擅长供应商绩效评估和评分卡设计。"},
+             {"role": "user", "content": supplier_scorecard_prompt(sc_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"get_supplier_scorecard AI failed: {e}")
+        result = {
+            "overall_score": 50,
+            "delivery_score": 50,
+            "quality_score": 50,
+            "price_score": 50,
+            "stability_score": 50,
+            "assessment": "AI分析暂时不可用",
+            "strengths": [],
+            "weaknesses": [],
+            "tier": "C",
+            "recommendations": [],
+        }
     result["context"] = sc_data
     return result
 
@@ -246,11 +262,23 @@ async def predict_supplier_delay(db: AsyncSession, supplier_id: int) -> dict:
         "mitigation": ["string"],
         "alternative_suggestion": "string",
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件供应链风险分析师，擅长预测交付延迟和制定缓解方案。"},
-         {"role": "user", "content": supplier_delay_prediction_prompt(delay_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件供应链风险分析师，擅长预测交付延迟和制定缓解方案。"},
+             {"role": "user", "content": supplier_delay_prediction_prompt(delay_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"predict_supplier_delay AI failed: {e}")
+        result = {
+            "delay_risk": "中",
+            "risk_score": 50,
+            "predicted_delay_days": 7,
+            "probability": 50,
+            "risk_factors": [],
+            "mitigation": [],
+            "alternative_suggestion": "AI分析暂时不可用",
+        }
     result["context"] = delay_data
     return result
 
@@ -360,11 +388,20 @@ async def get_supplier_alternatives(db: AsyncSession, supplier_id: int) -> dict:
         "diversification_strategy": ["string"],
         "risk_assessment": "string",
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件供应链优化专家，擅长供应商替代分析和多元化策略。"},
-         {"role": "user", "content": supplier_alternatives_prompt(alt_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件供应链优化专家，擅长供应商替代分析和多元化策略。"},
+             {"role": "user", "content": supplier_alternatives_prompt(alt_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"get_supplier_alternatives AI failed: {e}")
+        result = {
+            "urgency": "中",
+            "recommended_alternatives": [],
+            "diversification_strategy": [],
+            "risk_assessment": "AI分析暂时不可用",
+        }
     result["context"] = alt_data
     result["candidates"] = candidates
     return result
@@ -527,10 +564,318 @@ async def detect_supplier_price_variance(db: AsyncSession, supplier_id: int) -> 
         "cost_saving_opportunities": ["string"],
         "negotiation_points": ["string"],
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件采购成本分析师，擅长价格异常检测和降本策略。"},
-         {"role": "user", "content": supplier_price_variance_prompt(variance_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件采购成本分析师，擅长价格异常检测和降本策略。"},
+             {"role": "user", "content": supplier_price_variance_prompt(variance_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"Price variance AI failed for supplier {supplier_id}: {e}")
+        result = {
+            "price_status": "正常",
+            "variance_score": 50,
+            "anomaly_products": [],
+            "trend_analysis": "AI分析暂时不可用",
+            "cost_saving_opportunities": [],
+            "negotiation_points": [],
+        }
     result["context"] = variance_data
     return result
+
+
+# ---------------------------------------------------------------------------
+# 6. get_supplier_360
+# ---------------------------------------------------------------------------
+
+
+async def get_supplier_360(db: AsyncSession, supplier_id: int) -> dict:
+    """Comprehensive 360° supplier analysis that aggregates data from all supplier
+    intelligence functions into one holistic view."""
+    from datetime import datetime, timedelta, timezone
+
+    result = await db.execute(
+        select(Supplier).where(Supplier.id == supplier_id, Supplier.deleted_at.is_(None))
+    )
+    supplier = result.scalar_one_or_none()
+    if not supplier:
+        return {"error": f"供应商 #{supplier_id} 不存在"}
+
+    now = datetime.now(timezone.utc)
+    six_months_ago = now - timedelta(days=180)
+
+    # PO history
+    po_result = await db.execute(
+        select(PurchaseOrder).where(
+            PurchaseOrder.supplier_id == supplier_id,
+            PurchaseOrder.created_at >= six_months_ago,
+        )
+    )
+    pos = po_result.scalars().all()
+    total_amount = sum(float(po.total_amount) for po in pos)
+    delivery_days = []
+    for po in pos:
+        if po.expected_date and po.created_at:
+            d = (po.expected_date - po.created_at).days if hasattr(po.expected_date - po.created_at, 'days') else 0
+            delivery_days.append(d)
+    on_time = sum(1 for po in pos if po.status == "completed")
+    po_history = {
+        "total_pos": len(pos),
+        "total_amount": total_amount,
+        "avg_delivery_days": round(sum(delivery_days) / len(delivery_days), 1) if delivery_days else 0,
+        "on_time_rate": round(on_time / len(pos) * 100, 1) if pos else 0,
+    }
+
+    # Use a single efficient AI call with pre-computed context data
+    from app.services.ai.client import ai_client
+
+    context_data = {
+        "name": supplier.name,
+        "supplier_type": supplier.supplier_type or "未知",
+        "certifications": supplier.certifications or "无",
+        "region": supplier.region or "未知",
+        "product_lines": supplier.product_lines or "未知",
+        "financial_rating": supplier.financial_rating or "C",
+        "total_pos": po_history["total_pos"],
+        "total_amount": po_history["total_amount"],
+        "linked_product_count": (await db.execute(
+            select(func.count(SupplierProduct.product_id)).where(SupplierProduct.supplier_id == supplier_id)
+        )).scalar() or 0,
+    }
+
+    output_schema = {
+        "overall_score": "integer 0-100",
+        "tier": "string: A/B/C/D",
+        "summary": "string",
+        "assessment": "string",
+        "key_strengths": "list of strings",
+        "key_weaknesses": "list of strings",
+        "recommendations": "list of strings",
+    }
+
+    try:
+        ai_result = await ai_client.chat_structured(
+            [
+                {"role": "system", "content": "你是一个电子元器件分销行业供应商管理专家。返回简洁有效的JSON。"},
+                {"role": "user", "content": (
+                    f"对供应商{context_data['name']}做360度评估。"
+                    f"类型:{context_data['supplier_type']}，认证:{context_data['certifications']}，"
+                    f"区域:{context_data['region']}，产品线:{context_data['product_lines']}，"
+                    f"财务评级:{context_data['financial_rating']}，"
+                    f"采购订单{context_data['total_pos']}笔总额{context_data['total_amount']}元，"
+                    f"关联产品{context_data['linked_product_count']}个。"
+                    f"给出综合评分(0-100)、等级(A/B/C/D)、一句话总结、详细评估(50-100字)、"
+                    f"3-5个优势、2-3个劣势、3-5条建议。"
+                )},
+            ],
+            output_schema,
+            max_tokens=2048,
+        )
+        ai_result["po_history_summary"] = po_history
+        return ai_result
+    except Exception as e:
+        logger.error(f"Supplier 360 failed #{supplier_id}: {e}")
+        return {
+            "overall_score": 50, "tier": "C",
+            "summary": f"AI分析暂时不可用",
+            "assessment": "",
+            "key_strengths": [], "key_weaknesses": [], "recommendations": [],
+            "po_history_summary": po_history,
+        }
+
+
+# ---------------------------------------------------------------------------
+# 7. compare_suppliers
+# ---------------------------------------------------------------------------
+
+
+async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
+    """Compare multiple suppliers across dimensions. Uses local scoring for ranking
+    and AI for qualitative analysis only."""
+
+    if len(supplier_ids) < 2:
+        return {"error": "至少需要2个供应商进行比较"}
+
+    from app.models.transaction import PurchaseOrder
+    from app.services.ai.client import ai_client
+
+    suppliers_data = []
+    for sid in supplier_ids:
+        result = await db.execute(
+            select(Supplier).where(Supplier.id == sid, Supplier.deleted_at.is_(None))
+        )
+        supplier = result.scalar_one_or_none()
+        if not supplier:
+            continue
+
+        po_result = await db.execute(
+            select(PurchaseOrder).where(PurchaseOrder.supplier_id == sid)
+        )
+        pos = po_result.scalars().all()
+        total_po_amount = sum(float(po.total_amount) for po in pos)
+
+        sp_result = await db.execute(
+            select(SupplierProduct).where(SupplierProduct.supplier_id == sid)
+        )
+        sps = sp_result.scalars().all()
+
+        # Local scoring per supplier
+        cert_score = 20 if supplier.certifications else 5
+        fin_score = {"A": 20, "B": 15, "C": 10, "D": 5}.get(supplier.financial_rating or "C", 10)
+        po_score = min(len(pos) * 3, 20)
+        prod_score = min(len(sps) * 4, 20)
+        type_score = 20 if supplier.supplier_type in ("授权分销商", "原厂") else 12
+        total_score = cert_score + fin_score + po_score + prod_score + type_score
+
+        suppliers_data.append({
+            "name": supplier.name,
+            "type": supplier.supplier_type or "未知",
+            "region": supplier.region or "未知",
+            "certifications": supplier.certifications or "无",
+            "financial_rating": supplier.financial_rating or "C",
+            "product_lines": supplier.product_lines or "未知",
+            "total_po_amount": total_po_amount,
+            "po_count": len(pos),
+            "linked_products": len(sps),
+            "total_score": total_score,
+            "tier": "A" if total_score >= 80 else "B" if total_score >= 60 else "C" if total_score >= 40 else "D",
+        })
+
+    # Sort by total_score descending
+    suppliers_data.sort(key=lambda x: x["total_score"], reverse=True)
+    ranking = [
+        {"rank": i + 1, "supplier_name": s["name"], "total_score": s["total_score"], "tier": s["tier"]}
+        for i, s in enumerate(suppliers_data)
+    ]
+
+    # Build comparison matrix locally
+    dimensions = [
+        {"dimension": "认证资质", "weight": 20, "scores": {}},
+        {"dimension": "财务评级", "weight": 20, "scores": {}},
+        {"dimension": "采购历史", "weight": 20, "scores": {}},
+        {"dimension": "产品覆盖", "weight": 20, "scores": {}},
+        {"dimension": "供应商类型", "weight": 20, "scores": {}},
+    ]
+    for s in suppliers_data:
+        dimensions[0]["scores"][s["name"]] = 20 if s["certifications"] and s["certifications"] != "无" else 5
+        dimensions[1]["scores"][s["name"]] = {"A": 20, "B": 15, "C": 10, "D": 5}.get(s["financial_rating"], 10)
+        dimensions[2]["scores"][s["name"]] = min(s["po_count"] * 3, 20)
+        dimensions[3]["scores"][s["name"]] = min(s["linked_products"] * 4, 20)
+        dimensions[4]["scores"][s["name"]] = 20 if s["type"] in ("授权分销商", "原厂") else 12
+
+    # Generate data-driven summary without AI call
+    top = ranking[0]
+    summary = f"共比较{len(ranking)}家供应商。{top['supplier_name']}综合评分最高({top['total_score']}分)，在资质、产品覆盖、采购历史等维度表现突出。"
+    recommendation = f"推荐首选: {top['supplier_name']} (评分: {top['total_score']})"
+
+    return {
+        "comparison_matrix": dimensions,
+        "overall_ranking": ranking,
+        "best_in_category": [
+            {"category": "最高综合评分", "winner": ranking[0]["supplier_name"], "reason": f"总分{ranking[0]['total_score']}"},
+        ],
+        "recommendation": recommendation,
+        "summary": summary,
+        "context": {"compared_ids": supplier_ids},
+    }
+
+
+# ---------------------------------------------------------------------------
+# 8. get_supplier_negotiation
+# ---------------------------------------------------------------------------
+
+
+async def get_supplier_negotiation(db: AsyncSession, supplier_id: int) -> dict:
+    """AI-powered negotiation strategy generator for procurement talks with a supplier."""
+    from app.models.transaction import PurchaseOrder
+    from app.services.ai.client import ai_client
+    from app.services.ai.prompts import supplier_negotiation_prompt
+
+    result = await db.execute(
+        select(Supplier).where(Supplier.id == supplier_id, Supplier.deleted_at.is_(None))
+    )
+    supplier = result.scalar_one_or_none()
+    if not supplier:
+        return {"error": f"供应商 #{supplier_id} 不存在"}
+
+    # PO history
+    po_result = await db.execute(
+        select(PurchaseOrder).where(PurchaseOrder.supplier_id == supplier_id)
+    )
+    pos = po_result.scalars().all()
+    total_amount = sum(float(po.total_amount) for po in pos)
+
+    # Product count
+    sp_count = (await db.execute(
+        select(func.count(SupplierProduct.product_id)).where(SupplierProduct.supplier_id == supplier_id)
+    )).scalar() or 0
+
+    # Average price from supplier_products
+    avg_price_result = await db.execute(
+        select(func.avg(SupplierProduct.cost_price)).where(
+            SupplierProduct.supplier_id == supplier_id,
+            SupplierProduct.cost_price.is_not(None),
+        )
+    )
+    avg_price = avg_price_result.scalar()
+    avg_price_str = f"{float(avg_price):.4f}" if avg_price else "无数据"
+
+    # Alternative count: suppliers with overlapping products
+    alt_count = 0
+    if sp_count > 0:
+        sp_product_ids = (await db.execute(
+            select(SupplierProduct.product_id).where(SupplierProduct.supplier_id == supplier_id)
+        )).scalars().all()
+        if sp_product_ids:
+            alt_count = (await db.execute(
+                select(func.count(func.distinct(SupplierProduct.supplier_id))).where(
+                    SupplierProduct.product_id.in_(sp_product_ids),
+                    SupplierProduct.supplier_id != supplier_id,
+                )
+            )).scalar() or 0
+
+    neg_data = {
+        "name": supplier.name,
+        "supplier_type": supplier.supplier_type or "未知",
+        "product_lines": supplier.product_lines or "未知",
+        "financial_rating": supplier.financial_rating or "未知",
+        "region": supplier.region or "未知",
+        "total_amount": total_amount,
+        "po_count": len(pos),
+        "product_count": sp_count,
+        "avg_price": avg_price_str,
+        "alternative_count": alt_count,
+        "price_competitiveness": "请根据市场数据评估",
+    }
+
+    output_schema = {
+        "negotiation_strategy": "string",
+        "price_target": "string",
+        "talking_points": "list of strings",
+        "leverage_points": "list of strings",
+        "fallback_plan": "string",
+        "suggested_approach": "string",
+    }
+
+    try:
+        ai_result = await ai_client.chat_structured(
+            [
+                {"role": "system", "content": "你是一个电子元器件采购谈判专家。返回简洁有效的JSON。"},
+                {"role": "user", "content": supplier_negotiation_prompt(neg_data)},
+            ],
+            output_schema,
+            max_tokens=2048,
+        )
+        ai_result["context"] = neg_data
+        return ai_result
+    except Exception as e:
+        logger.error(f"Negotiation assistant failed for #{supplier_id}: {e}")
+        return {
+            "negotiation_strategy": f"AI分析暂时不可用: {e}",
+            "price_target": "",
+            "talking_points": [],
+            "leverage_points": [],
+            "fallback_plan": "",
+            "suggested_approach": "",
+            "context": {"error": str(e)},
+        }

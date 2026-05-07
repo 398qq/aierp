@@ -231,6 +231,41 @@ class SupplierCreate(BaseModel):
     address: str | None = None
     product_lines: str | None = None
     notes: str | None = None
+    supplier_type: str | None = None
+    certifications: str | None = None
+    payment_terms: str | None = None
+    region: str | None = None
+    website: str | None = None
+    financial_rating: str | None = None
+
+
+class SupplierUpdate(BaseModel):
+    name: str | None = None
+    contact_person: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+    product_lines: str | None = None
+    notes: str | None = None
+    supplier_type: str | None = None
+    certifications: str | None = None
+    payment_terms: str | None = None
+    region: str | None = None
+    website: str | None = None
+    financial_rating: str | None = None
+
+
+def _supplier_to_dict(s: Supplier) -> dict:
+    return {
+        "id": s.id, "name": s.name, "contact_person": s.contact_person,
+        "phone": s.phone, "email": s.email, "address": s.address,
+        "product_lines": s.product_lines, "notes": s.notes,
+        "supplier_type": s.supplier_type, "certifications": s.certifications,
+        "payment_terms": s.payment_terms, "region": s.region,
+        "website": s.website, "financial_rating": s.financial_rating,
+        "created_at": str(s.created_at),
+        "updated_at": str(s.updated_at) if s.updated_at else None,
+    }
 
 
 @suppliers_router.get("")
@@ -255,10 +290,7 @@ async def list_suppliers(
     )).scalars().all()
 
     return ok({
-        "list": [{"id": s.id, "name": s.name, "contact_person": s.contact_person,
-                  "phone": s.phone, "email": s.email, "address": s.address,
-                  "product_lines": s.product_lines, "notes": s.notes,
-                  "created_at": str(s.created_at)} for s in rows],
+        "list": [_supplier_to_dict(s) for s in rows],
         "total": total, "page": page, "page_size": page_size,
     })
 
@@ -269,9 +301,7 @@ async def get_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _us
     supplier = result.scalar_one_or_none()
     if supplier is None:
         return fail("Supplier not found", 404)
-    return ok({"id": supplier.id, "name": supplier.name, "contact_person": supplier.contact_person,
-               "phone": supplier.phone, "email": supplier.email, "address": supplier.address,
-               "product_lines": supplier.product_lines, "notes": supplier.notes})
+    return ok(_supplier_to_dict(supplier))
 
 
 @suppliers_router.post("", status_code=201)
@@ -280,6 +310,89 @@ async def create_supplier(body: SupplierCreate, db: AsyncSession = Depends(get_d
     db.add(supplier)
     await db.flush()
     return ok({"id": supplier.id, "name": supplier.name})
+
+
+@suppliers_router.put("/{supplier_id}")
+async def update_supplier(supplier_id: int, body: SupplierUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    result = await db.execute(select(Supplier).where(Supplier.id == supplier_id, Supplier.deleted_at.is_(None)))
+    supplier = result.scalar_one_or_none()
+    if supplier is None:
+        return fail("Supplier not found", 404)
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(supplier, field, value)
+    await db.flush()
+    await db.refresh(supplier)
+    return ok(_supplier_to_dict(supplier))
+
+
+@suppliers_router.get("/stats/summary")
+async def supplier_stats(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Supplier dashboard statistics."""
+    total = (await db.execute(select(func.count(Supplier.id)).where(Supplier.deleted_at.is_(None)))).scalar() or 0
+
+    # By type
+    type_rows = (await db.execute(
+        select(Supplier.supplier_type, func.count(Supplier.id))
+        .where(Supplier.deleted_at.is_(None), Supplier.supplier_type.is_not(None))
+        .group_by(Supplier.supplier_type)
+    )).all()
+    by_type = [{"type": t or "未知", "count": c} for t, c in type_rows]
+
+    # By region
+    region_rows = (await db.execute(
+        select(Supplier.region, func.count(Supplier.id))
+        .where(Supplier.deleted_at.is_(None), Supplier.region.is_not(None))
+        .group_by(Supplier.region)
+    )).all()
+    by_region = [{"region": r or "未知", "count": c} for r, c in region_rows]
+
+    # By financial rating
+    rating_rows = (await db.execute(
+        select(Supplier.financial_rating, func.count(Supplier.id))
+        .where(Supplier.deleted_at.is_(None), Supplier.financial_rating.is_not(None))
+        .group_by(Supplier.financial_rating)
+    )).all()
+    by_rating = [{"rating": r or "未评级", "count": c} for r, c in rating_rows]
+
+    # With certifications
+    cert_count = (await db.execute(
+        select(func.count(Supplier.id)).where(
+            Supplier.deleted_at.is_(None),
+            Supplier.certifications.is_not(None),
+            Supplier.certifications != "",
+        )
+    )).scalar() or 0
+
+    # Recent suppliers (last 30 days)
+    from datetime import timedelta
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    recent_count = (await db.execute(
+        select(func.count(Supplier.id)).where(
+            Supplier.deleted_at.is_(None),
+            Supplier.created_at >= thirty_days_ago,
+        )
+    )).scalar() or 0
+
+    # Top suppliers by product count
+    top_rows = (await db.execute(
+        select(Supplier.id, Supplier.name, func.count(SupplierProduct.product_id).label("pc"))
+        .join(SupplierProduct, Supplier.id == SupplierProduct.supplier_id, isouter=True)
+        .where(Supplier.deleted_at.is_(None))
+        .group_by(Supplier.id)
+        .order_by(func.count(SupplierProduct.product_id).desc())
+        .limit(10)
+    )).all()
+    top_suppliers = [{"id": r.id, "name": r.name, "product_count": r.pc} for r in top_rows]
+
+    return ok({
+        "total": total,
+        "certified": cert_count,
+        "recent_30d": recent_count,
+        "by_type": by_type,
+        "by_region": by_region,
+        "by_rating": by_rating,
+        "top_suppliers": top_suppliers,
+    })
 
 
 # --- Supplier-Product Linkage ---

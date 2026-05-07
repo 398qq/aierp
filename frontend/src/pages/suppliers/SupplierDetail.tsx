@@ -200,6 +200,8 @@ export default function SupplierDetail() {
           <Descriptions.Item label="电话">{supplier.phone || "-"}</Descriptions.Item>
           <Descriptions.Item label="邮箱">{supplier.email || "-"}</Descriptions.Item>
           <Descriptions.Item label="地址" span={2}>{supplier.address || "-"}</Descriptions.Item>
+          <Descriptions.Item label="创建时间">{supplier.created_at ? new Date(supplier.created_at).toLocaleDateString("zh-CN") : "-"}</Descriptions.Item>
+          <Descriptions.Item label="更新时间">{supplier.updated_at ? new Date(supplier.updated_at).toLocaleDateString("zh-CN") : "-"}</Descriptions.Item>
           <Descriptions.Item label="产品线" span={3}>
             <Text>{supplier.product_lines || "-"}</Text>
           </Descriptions.Item>

@@ -43,6 +43,13 @@ class Supplier(TimestampMixin, Base):
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_lines: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supplier_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    certifications: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    financial_rating: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
 
 class Warehouse(TimestampMixin, Base):

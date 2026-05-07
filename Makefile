@@ -44,6 +44,16 @@ lint: ## Run linters
 	cd $(BACKEND_DIR) && ruff check app/ && mypy app/ --ignore-missing-imports
 	cd $(FRONTEND_DIR) && npx tsc --noEmit
 
-test: ## Run tests
+test: test-backend test-frontend ## Run all tests
+
+test-backend: ## Run backend tests
 	cd $(BACKEND_DIR) && pytest -v
+
+test-backend-cov: ## Run backend tests with coverage
+	cd $(BACKEND_DIR) && pytest -v --cov=app --cov-report=term-missing --cov-report=html
+
+test-frontend: ## Run frontend tests
 	cd $(FRONTEND_DIR) && npx vitest run
+
+test-frontend-cov: ## Run frontend tests with coverage
+	cd $(FRONTEND_DIR) && npx vitest run --coverage

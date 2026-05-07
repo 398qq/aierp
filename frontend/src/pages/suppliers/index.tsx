@@ -55,6 +55,14 @@ export default function SupplierList() {
       title: "产品线", dataIndex: "product_lines", width: 200, ellipsis: true,
       render: (v) => v || "-",
     },
+    {
+      title: "创建时间", dataIndex: "created_at", width: 100,
+      render: (v: string) => v?.slice(0, 10) || "-",
+    },
+    {
+      title: "更新时间", dataIndex: "updated_at", width: 100,
+      render: (v: string | null) => v?.slice(0, 10) || "-",
+    },
   ];
 
   return (

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getQuotationHistory, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer } from "../../api";
-import type { CustomerProductMatch } from "../../types";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getQuotationHistory, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, detectCrossSell } from "../../api";
+import type { CustomerProductMatch, CrossSellResult } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
 import LoadingGuard from "../../components/shared/LoadingGuard";
 import CustomerFormFields from "./CustomerForm";
@@ -29,6 +29,9 @@ export default function CustomerDetail() {
   const [recModalOpen, setRecModalOpen] = useState(false);
   const [recResult, setRecResult] = useState<CustomerProductMatch | null>(null);
   const [recLoading, setRecLoading] = useState(false);
+  const [crossSellResult, setCrossSellResult] = useState<CrossSellResult | null>(null);
+  const [crossSellLoading, setCrossSellLoading] = useState(false);
+  const [crossSellOpen, setCrossSellOpen] = useState(false);
 
   const customerId = Number(id);
 
@@ -81,6 +84,16 @@ export default function CustomerDetail() {
     finally { setRecLoading(false); }
   };
 
+  const handleCrossSell = async () => {
+    setCrossSellLoading(true);
+    try {
+      const resp = await detectCrossSell(customerId);
+      const data = (resp as { data?: { data?: CrossSellResult } })?.data?.data;
+      if (data) { setCrossSellResult(data); setCrossSellOpen(true); }
+    } catch { message.error("交叉销售分析失败"); }
+    finally { setCrossSellLoading(false); }
+  };
+
   return (
     <div>
       <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")} style={{ marginBottom: 16 }}>
@@ -88,6 +101,9 @@ export default function CustomerDetail() {
       </Button>
       <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs} style={{ marginBottom: 16, marginLeft: 8 }}>
         AI 产品推荐
+      </Button>
+      <Button icon={<RiseOutlined />} loading={crossSellLoading} onClick={handleCrossSell} style={{ marginBottom: 16, marginLeft: 8 }}>
+        交叉销售分析
       </Button>
 
       <LoadingGuard loading={loading} error={error} data={customer}>
@@ -257,6 +273,54 @@ export default function CustomerDetail() {
                   <Card size="small" type="inner" style={{ marginTop: 12, background: "#fffbe6" }}>
                     <Typography.Text strong>推荐策略：</Typography.Text><Typography.Text>{recResult.approach_strategy}</Typography.Text>
                   </Card>
+                </div>
+              )}
+            </Modal>
+
+            {/* Cross-sell Modal */}
+            <Modal title={<><RiseOutlined /> 交叉销售 & 追加销售分析</>} open={crossSellOpen}
+              onCancel={() => setCrossSellOpen(false)} width={700}
+              footer={<Button onClick={() => setCrossSellOpen(false)}>关闭</Button>}>
+              {crossSellResult && (
+                <div>
+                  <Alert type="info" message={crossSellResult.priority_recommendation} style={{ marginBottom: 12 }} />
+                  <Statistic title="预估总价值" value={crossSellResult.total_estimated_value} prefix="¥"
+                    valueStyle={{ color: "#52c41a" }} style={{ marginBottom: 12 }} />
+
+                  {crossSellResult.cross_sell_opportunities?.length > 0 && (
+                    <Card size="small" title="交叉销售机会" style={{ marginBottom: 12 }}>
+                      <Table size="small" dataSource={crossSellResult.cross_sell_opportunities}
+                        rowKey={(r) => r.category + r.suggestion} pagination={false}
+                        columns={[
+                          { title: "品类", dataIndex: "category", width: 100, render: (v: string) => <Tag color="blue">{v}</Tag> },
+                          { title: "建议", dataIndex: "suggestion" },
+                          { title: "原因", dataIndex: "reasoning" },
+                          { title: "预估价值", dataIndex: "estimated_value", render: (v: number) => `¥${v}` },
+                        ]}
+                      />
+                    </Card>
+                  )}
+
+                  {crossSellResult.upsell_opportunities?.length > 0 && (
+                    <Card size="small" title="追加销售机会" style={{ marginBottom: 12 }}>
+                      <Table size="small" dataSource={crossSellResult.upsell_opportunities}
+                        rowKey={(r) => r.current_product} pagination={false}
+                        columns={[
+                          { title: "当前产品", dataIndex: "current_product" },
+                          { title: "升级建议", dataIndex: "upgrade_suggestion" },
+                          { title: "原因", dataIndex: "reason" },
+                        ]}
+                      />
+                    </Card>
+                  )}
+
+                  {crossSellResult.bundle_suggestions?.length > 0 && (
+                    <Card size="small" title="捆绑建议">
+                      {crossSellResult.bundle_suggestions.map((b, i) => (
+                        <Tag key={i} color="purple" style={{ marginBottom: 4 }}>{b}</Tag>
+                      ))}
+                    </Card>
+                  )}
                 </div>
               )}
             </Modal>

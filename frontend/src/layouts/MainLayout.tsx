@@ -82,7 +82,12 @@ export default function MainLayout() {
       children: [
         { key: "/products", icon: <ShopOutlined />, label: "产品列表" },
         { key: "/brands", icon: <TagOutlined />, label: "品牌管理" },
-        { key: "/suppliers", icon: <TeamOutlined />, label: "供应商" },
+        { key: "/suppliers", icon: <TeamOutlined />, label: "供应商",
+          children: [
+            { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
+            { key: "/suppliers", icon: <TeamOutlined />, label: "供应商列表" },
+          ],
+        },
         { key: "/inventory", icon: <StockOutlined />, label: "库存管理" },
       ],
     },

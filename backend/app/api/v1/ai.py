@@ -976,6 +976,50 @@ async def quote_assist(req: QuoteAssistRequest, db: AsyncSession = Depends(get_d
 
 
 # ============================================================
+#  Sales Intelligence Routes
+# ============================================================
+
+@router.post("/sales/opportunities/{opportunity_id}/score")
+async def opportunity_score(opportunity_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.sales_intel_service import score_opportunity
+    try:
+        result = await score_opportunity(db, opportunity_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/sales/pipeline-health")
+async def pipeline_health(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.sales_intel_service import analyze_pipeline_health
+    try:
+        result = await analyze_pipeline_health(db)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 500)
+
+
+@router.post("/sales/quotations/{quotation_id}/optimize")
+async def quotation_optimize(quotation_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.sales_intel_service import optimize_quotation
+    try:
+        result = await optimize_quotation(db, quotation_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/sales/customers/{customer_id}/cross-sell")
+async def customer_cross_sell(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.sales_intel_service import detect_cross_sell
+    try:
+        result = await detect_cross_sell(db, customer_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+# ============================================================
 #  AI Watchtower — System-wide anomaly scan
 # ============================================================
 
@@ -1093,6 +1137,39 @@ async def supplier_price_variance(supplier_id: int, db: AsyncSession = Depends(g
     from app.services.supplier_intel_service import detect_supplier_price_variance
     try:
         result = await detect_supplier_price_variance(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/negotiation")
+async def supplier_negotiation(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import get_supplier_negotiation
+    try:
+        result = await get_supplier_negotiation(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/360")
+async def supplier_360(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import get_supplier_360
+    try:
+        result = await get_supplier_360(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/compare")
+async def supplier_compare(body: dict, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import compare_suppliers
+    supplier_ids = body.get("supplier_ids", [])
+    if not isinstance(supplier_ids, list) or len(supplier_ids) < 2:
+        return fail("supplier_ids 必须是至少包含2个ID的数组", 400)
+    try:
+        result = await compare_suppliers(db, supplier_ids)
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)

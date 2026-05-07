@@ -150,11 +150,22 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
         "risk_flags": ["string"],
         "total_saving_estimate": "number",
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件采购优化专家。"},
-         {"role": "user", "content": po_optimization_prompt(po_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件采购优化专家。"},
+             {"role": "user", "content": po_optimization_prompt(po_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"optimize_purchase_order AI failed: {e}")
+        result = {
+            "optimization_score": 50,
+            "quantity_advice": [],
+            "supplier_split": [],
+            "timing_advice": "AI分析暂时不可用",
+            "risk_flags": [],
+            "total_saving_estimate": 0,
+        }
     result["context"] = po_data
     return result
 
@@ -289,11 +300,21 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
         "prioritization": "string",
         "inventory_health_score": "integer 0-100",
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件库存管理专家。"},
-         {"role": "user", "content": po_auto_suggest_prompt(po_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件库存管理专家。"},
+             {"role": "user", "content": po_auto_suggest_prompt(po_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"suggest_purchase_orders AI failed: {e}")
+        result = {
+            "urgency_level": "中",
+            "suggested_pos": [],
+            "total_estimated_amount": 0,
+            "prioritization": "AI分析暂时不可用",
+            "inventory_health_score": 50,
+        }
     result["context"] = {
         "low_stock_count": len(low_stock_rows),
         "supplier_count": len(set(r[2].id for r in supplier_quote_rows)) if supplier_quote_rows else 0,
@@ -517,11 +538,24 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
         "mitigation_plan": ["string"],
         "go_no_go": "string: 执行/暂缓/取消",
     }
-    result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件采购风控专家。"},
-         {"role": "user", "content": po_risk_assessment_prompt(po_data)}],
-        schema,
-    )
+    try:
+        result = await ai_client.chat_structured(
+            [{"role": "system", "content": "你是一个电子元器件采购风控专家。"},
+             {"role": "user", "content": po_risk_assessment_prompt(po_data)}],
+            schema,
+        )
+    except ValueError as e:
+        logging.getLogger(__name__).warning(f"assess_po_risk AI failed: {e}")
+        result = {
+            "overall_risk": "中",
+            "risk_score": 50,
+            "risk_factors": [],
+            "delivery_risk": "AI分析暂时不可用",
+            "price_risk": "AI分析暂时不可用",
+            "quality_risk": "AI分析暂时不可用",
+            "mitigation_plan": [],
+            "go_no_go": "暂缓",
+        }
     result["context"] = {
         "order_id": order_id,
         "supplier_id": po.supplier_id,

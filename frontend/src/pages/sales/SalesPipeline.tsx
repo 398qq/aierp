@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef, DragEvent } from "react";
-import { Card, Tag, Typography, message, Spin, Dropdown, Button, Avatar, Tooltip } from "antd";
-import { PlusOutlined, MoreOutlined, UserOutlined } from "@ant-design/icons";
-import { getOpportunities, updateOpportunity } from "../../api";
-import type { Opportunity } from "../../types";
+import { Card, Tag, Typography, message, Spin, Dropdown, Button, Tooltip } from "antd";
+import { PlusOutlined, MoreOutlined, UserOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { getOpportunities, updateOpportunity, scoreOpportunity } from "../../api";
+import type { Opportunity, OpportunityScoreResult } from "../../types";
 
 interface OppWithCustomer extends Opportunity {
   customer_name?: string;
@@ -31,6 +31,8 @@ export default function SalesPipeline() {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragOverCol = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [scores, setScores] = useState<Record<number, OpportunityScoreResult>>({});
+  const [scoringId, setScoringId] = useState<number | null>(null);
 
   const fetchOpps = async () => {
     try {
@@ -85,6 +87,17 @@ export default function SalesPipeline() {
 
   const handleDragEnd = () => setDrag(null);
 
+  const handleScore = async (oppId: number) => {
+    setScoringId(oppId);
+    try {
+      const res = await scoreOpportunity(oppId);
+      const data = (res as { data?: { data?: OpportunityScoreResult } })?.data?.data;
+      if (data) setScores((prev) => ({ ...prev, [oppId]: data }));
+      message.success("AI 评分完成");
+    } catch { message.error("AI 评分失败"); }
+    finally { setScoringId(null); }
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: "center" }}><Spin size="large" /></div>;
 
   return (
@@ -135,6 +148,9 @@ export default function SalesPipeline() {
                   isDragging={drag?.oppId === opp.id}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  score={scores[opp.id]}
+                  scoring={scoringId === opp.id}
+                  onScore={handleScore}
                 />
               ))}
             </div>
@@ -156,15 +172,15 @@ export default function SalesPipeline() {
 }
 
 function OppCard({
-  opp,
-  isDragging,
-  onDragStart,
-  onDragEnd,
+  opp, isDragging, onDragStart, onDragEnd, score, scoring, onScore,
 }: {
   opp: OppWithCustomer;
   isDragging: boolean;
   onDragStart: (e: DragEvent, o: OppWithCustomer) => void;
   onDragEnd: () => void;
+  score?: OpportunityScoreResult;
+  scoring: boolean;
+  onScore: (oppId: number) => void;
 }) {
   const probColor = opp.probability
     ? opp.probability >= 80 ? "#52c41a"
@@ -240,7 +256,31 @@ function OppCard({
             {dayjs(opp.expected_close_date).format("MM/DD")}
           </Text>
         )}
+
+        <Tooltip title="AI 评分">
+          <Button type="text" size="small" icon={<ThunderboltOutlined />}
+            loading={scoring}
+            onClick={(e) => { e.stopPropagation(); onScore(opp.id); }}
+            style={{ color: score ? "#722ed1" : "#8c8c8c" }}
+          />
+        </Tooltip>
       </div>
+
+      {/* AI Score */}
+      {score && (
+        <div style={{ marginTop: 4, padding: "4px 6px", background: "#f9f0ff", borderRadius: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Tag color={score.risk_level === "高" ? "red" : score.risk_level === "中" ? "orange" : "green"}
+              style={{ fontSize: 10, lineHeight: "16px" }}>
+              {score.risk_level}风险
+            </Tag>
+            <Text strong style={{ fontSize: 12, color: "#722ed1" }}>AI {score.score}分</Text>
+          </div>
+          {score.next_best_action && (
+            <Text style={{ fontSize: 11, color: "#666" }}>{score.next_best_action}</Text>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,12 +1,12 @@
 import client from "./client";
 import type {
-  AlertEvent, AlertRule, APIResponse, Attachment, AttainmentPrediction, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix, CashFlowForecast, ChurnRisk, Contract, ContractExpiry, ContractExtraction, ContractRebate, ContractRisk, CreditRiskAssessment, Customer, Customer360, CustomerInsight, CustomerLog, CustomerProductMatch, CustomerStats,
+  AlertEvent, AlertRule, APIResponse, Attachment, AttainmentPrediction, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix, CashFlowForecast, ChurnRisk, Contract, ContractExpiry, ContractExtraction, ContractRebate, ContractRisk, CreditRiskAssessment, CrossSellResult, Customer, Customer360, CustomerInsight, CustomerLog, CustomerProductMatch, CustomerStats,
   DashboardOverview, DashboardRealtime, DashboardStats,
   DeliveryNote, DeliveryNoteItem, DunningStrategy, DuplicatePair, FollowUp, Global360, GroupStats, Invoice, LevelRule, LifecycleAnalysis, MergeResult, NLPQueryResult,
   NotificationItem, NormalizedSpec, OverdueFollowUp,
-  InventoryItem, LoginData, Opportunity, PageData, Payment, PaymentDelayPrediction, PaymentRecord, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360,
-  ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder, Quotation, QuotationHistory, QuotationItem, QuoteAssistResult, RFMAnalysis, SalesOrder, SalesOrderItem, SalesTarget,
-  PaymentSummary, Sample, SimilarBrand, Supplier, SupplierAlternatives, SupplierDelayPrediction, SupplierPriceVariance, SupplierProductLink, SupplierScorecard, Tag, TargetEarlyWarning, TargetRecommendation, TargetSummary, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent, Visit, VisitEffectiveness, VisitReport, VisitSentiment, Warehouse, WatchtowerResult,
+  InventoryItem, LoginData, Opportunity, OpportunityScoreResult, PageData, Payment, PaymentDelayPrediction, PaymentRecord, PipelineHealthResult, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360,
+  ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder, Quotation, QuotationHistory, QuotationItem, QuotationOptimizeResult, QuoteAssistResult, RFMAnalysis, SalesOrder, SalesOrderItem, SalesTarget,
+  PaymentSummary, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard, Tag, TargetEarlyWarning, TargetRecommendation, TargetSummary, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent, Visit, VisitEffectiveness, VisitReport, VisitSentiment, Warehouse, WatchtowerResult,
 } from "../types";
 
 // Auth
@@ -163,6 +163,12 @@ export const getSupplier = (id: number) =>
 
 export const createSupplier = (data: Record<string, unknown>) =>
   client.post<APIResponse>("/suppliers", data);
+
+export const updateSupplier = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Supplier>>(`/suppliers/${id}`, data);
+
+export const getSupplierStats = () =>
+  client.get<APIResponse<Record<string, unknown>>>("/suppliers/stats/summary");
 
 // Supplier-Product Linkage
 export const getSupplierProducts = (supplierId: number) =>
@@ -539,6 +545,18 @@ export const getSalesRecommendation = (customerId: number) =>
 export const getWinPrediction = (opportunityId: number) =>
   client.post<APIResponse<WinPrediction>>(`/ai/sales/predict?opportunity_id=${opportunityId}`);
 
+export const scoreOpportunity = (opportunityId: number) =>
+  client.post<APIResponse<OpportunityScoreResult>>(`/ai/sales/opportunities/${opportunityId}/score`);
+
+export const analyzePipelineHealth = () =>
+  client.post<APIResponse<PipelineHealthResult>>("/ai/sales/pipeline-health");
+
+export const optimizeQuotation = (quotationId: number) =>
+  client.post<APIResponse<QuotationOptimizeResult>>(`/ai/sales/quotations/${quotationId}/optimize`);
+
+export const detectCrossSell = (customerId: number) =>
+  client.post<APIResponse<CrossSellResult>>(`/ai/sales/customers/${customerId}/cross-sell`);
+
 // Group Relationships
 export const linkParent = (customerId: number, parentId: number) =>
   client.post<APIResponse>(`/customers/${customerId}/link-parent`, { parent_id: parentId });
@@ -724,6 +742,15 @@ export const getSupplierAlternatives = (supplierId: number) =>
 
 export const detectSupplierPriceVariance = (supplierId: number) =>
   client.post<APIResponse<SupplierPriceVariance>>(`/ai/suppliers/${supplierId}/price-variance`);
+
+export const getSupplier360 = (supplierId: number) =>
+  client.post<APIResponse<Supplier360>>(`/ai/suppliers/${supplierId}/360`);
+
+export const getSupplierNegotiation = (supplierId: number) =>
+  client.post<APIResponse<SupplierNegotiation>>(`/ai/suppliers/${supplierId}/negotiation`);
+
+export const compareSuppliers = (supplierIds: number[]) =>
+  client.post<APIResponse<SupplierComparison>>('/ai/suppliers/compare', { supplier_ids: supplierIds });
 
 // ============================================================
 // Purchase Order Intelligence (AI)

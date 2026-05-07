@@ -158,7 +158,9 @@ export interface Brand {
 export interface Supplier {
   id: number; name: string; contact_person: string | null; phone: string | null;
   email: string | null; address: string | null; product_lines: string | null;
-  notes: string | null; created_at: string;
+  notes: string | null; supplier_type: string | null; certifications: string | null;
+  payment_terms: string | null; region: string | null; website: string | null;
+  financial_rating: string | null; created_at: string; updated_at?: string | null;
 }
 
 export interface Warehouse {
@@ -605,6 +607,37 @@ export interface QuoteAssistResult {
   enriched_items?: QuoteAssistEnrichedItem[];
 }
 
+// Sales Intelligence
+export interface OpportunityScoreResult {
+  win_probability: number; score: number; risk_level: string;
+  risk_factors: string[]; positive_signals: string[];
+  recommended_actions: string[]; next_best_action: string;
+  context?: Record<string, unknown>;
+}
+
+export interface PipelineHealthResult {
+  health_score: number; health_status: string; pipeline_assessment: string;
+  bottlenecks: string[]; recommendations: string[];
+  context?: Record<string, unknown>;
+}
+
+export interface QuotationOptimizeResult {
+  optimal_total: number; discount_room: number;
+  win_probability_current: number; win_probability_optimal: number;
+  pricing_strategy: string;
+  item_adjustments: { product_name: string; current_price: number; suggested_price: number; reason: string }[];
+  negotiation_guardrails: string;
+  context?: Record<string, unknown>;
+}
+
+export interface CrossSellResult {
+  cross_sell_opportunities: { category: string; suggestion: string; reasoning: string; estimated_value: number }[];
+  upsell_opportunities: { current_product: string; upgrade_suggestion: string; reason: string }[];
+  bundle_suggestions: string[]; total_estimated_value: number;
+  priority_recommendation: string;
+  context?: Record<string, unknown>;
+}
+
 // Watchtower
 export interface WatchtowerResult {
   scanned_at: string; total_alerts: number; severity: string; summary: string;
@@ -779,6 +812,37 @@ export interface SupplierPriceVariance {
   trend_analysis: string;
   cost_saving_opportunities: string[];
   negotiation_points: string[];
+  context?: Record<string, unknown>;
+}
+
+export interface Supplier360 {
+  overall_score: number;
+  tier: string;
+  summary: string;
+  assessment: string;
+  key_strengths: string[];
+  key_weaknesses: string[];
+  recommendations: string[];
+  po_history_summary: { total_pos: number; total_amount: number; avg_delivery_days: number; on_time_rate: number };
+  context?: Record<string, unknown>;
+}
+
+export interface SupplierNegotiation {
+  negotiation_strategy: string;
+  price_target: string;
+  talking_points: string[];
+  leverage_points: string[];
+  fallback_plan: string;
+  suggested_approach: string;
+  context?: Record<string, unknown>;
+}
+
+export interface SupplierComparison {
+  comparison_matrix: { dimension: string; weight: number; scores: Record<string, number> }[];
+  overall_ranking: { rank: number; supplier_name: string; total_score: number; tier: string }[];
+  best_in_category: { category: string; winner: string; reason: string }[];
+  recommendation: string;
+  summary: string;
   context?: Record<string, unknown>;
 }
 
