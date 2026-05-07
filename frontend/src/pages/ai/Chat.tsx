@@ -1,15 +1,24 @@
 import { useState, useRef, useEffect } from "react";
 import { Input, Button, Card, Typography, Space, Spin } from "antd";
-import { SendOutlined, RobotOutlined, UserOutlined } from "@ant-design/icons";
-import { useAuthStore } from "../../store/auth";
+import { SendOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { aiChat } from "../../api";
 
 const { TextArea } = Input;
-const { Text, Paragraph } = Typography;
+const { Paragraph } = Typography;
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
+
+const QUICK_PROMPTS = [
+  "本月销售概览",
+  "高价值客户分析",
+  "流失风险预警",
+  "库存优化建议",
+  "销售目标进度",
+  "近期跟进建议",
+];
 
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -27,19 +36,15 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const send = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg: Message = { role: "user", content: input.trim() };
+  const sendQuery = async (query: string) => {
+    if (!query.trim() || loading) return;
+    const userMsg: Message = { role: "user", content: query.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
 
     try {
-      const token = useAuthStore.getState().token;
-      const resp = await fetch(`/api/v1/ai/chat?query=${encodeURIComponent(userMsg.content)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      const resp = await aiChat(userMsg.content);
       const reader = resp.body?.getReader();
       if (!reader) return;
 
@@ -78,8 +83,24 @@ export default function AIChat() {
     }
   };
 
+  const handleSend = () => sendQuery(input);
+  const handlePromptClick = (prompt: string) => sendQuery(prompt);
+
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", height: "calc(100vh - 200px)", display: "flex", flexDirection: "column" }}>
+      <div style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {QUICK_PROMPTS.map((prompt) => (
+          <Button
+            key={prompt}
+            size="small"
+            icon={<ThunderboltOutlined />}
+            onClick={() => handlePromptClick(prompt)}
+            disabled={loading}
+          >
+            {prompt}
+          </Button>
+        ))}
+      </div>
       <Card
         title={<><RobotOutlined /> AI 助手</>}
         style={{ flex: 1, overflow: "auto", marginBottom: 16 }}
@@ -97,7 +118,7 @@ export default function AIChat() {
               <Card
                 size="small"
                 style={{
-                  maxWidth: "80%",
+                  maxWidth: "75%",
                   background: msg.role === "user" ? "#1677ff" : "#f0f0f0",
                   color: msg.role === "user" ? "#fff" : "#000",
                 }}
@@ -118,11 +139,11 @@ export default function AIChat() {
         <TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); send(); } }}
+          onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
           placeholder="输入你的问题，按 Enter 发送..."
           autoSize={{ minRows: 2, maxRows: 4 }}
         />
-        <Button type="primary" icon={<SendOutlined />} onClick={send} loading={loading} style={{ height: "auto" }}>
+        <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading} style={{ height: "auto" }}>
           发送
         </Button>
       </Space.Compact>

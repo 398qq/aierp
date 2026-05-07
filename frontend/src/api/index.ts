@@ -823,3 +823,11 @@ export const orchestrateGlobal360 = () =>
 // ============================================================
 export const naturalLanguageQuery = (query: string) =>
   client.post<APIResponse<NLPQueryResult>>("/ai/query", { query });
+
+// AI Chat (SSE)
+export const aiChat = (query: string) => {
+  const token = localStorage.getItem("token");
+  return fetch(`/api/v1/ai/chat?query=${encodeURIComponent(query)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+};

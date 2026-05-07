@@ -1074,10 +1074,10 @@ export interface Product360 {
 export interface Global360 {
   enterprise_health_score: number;
   executive_summary: string;
-  top_opportunities: { area: string; description: string; potential_value: number; effort: string; timeframe: string }[];
-  top_risks: { area: string; description: string; severity: string; probability: string; mitigation: string }[];
-  cross_domain_correlations: { domains: string; finding: string; significance: string }[];
-  strategic_recommendations: { recommendation: string; domain: string; priority: string; rationale: string }[];
+  top_opportunities: { area: string; description: string; potential_value: number; effort?: string; timeframe?: string }[];
+  top_risks: { area: string; description: string; severity: string; probability?: string; mitigation?: string }[];
+  cross_domain_correlations: { domains: string; finding: string; significance?: string }[];
+  strategic_recommendations: { recommendation: string; domain: string; priority: string; rationale?: string }[];
   kpi_health: { kpi: string; current: string; target: string; status: string }[];
   focus_areas: string[];
   context?: Record<string, unknown>;

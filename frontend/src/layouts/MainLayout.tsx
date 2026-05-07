@@ -57,7 +57,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/customers", "/sales", "/products", "/brands", "/suppliers", "/inventory", "/notifications", "/ai-chat", "/settings"];
+  const menuKeys = ["/", "/customers", "/sales", "/products", "/brands", "/suppliers", "/inventory", "/notifications", "/ai/chat", "/settings"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || (k !== "/" && location.pathname.startsWith(k + "/")))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -104,7 +104,7 @@ export default function MainLayout() {
       ],
     },
     { key: "/notifications", icon: <BellOutlined />, label: "消息提醒" },
-    { key: "/ai-chat", icon: <RobotOutlined />, label: "AI 助手" },
+    { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
     { key: "/settings", icon: <SettingOutlined />, label: "设置" },
   ];
 

@@ -122,7 +122,7 @@ export default function App() {
               <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
               <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryList /></Suspense>} />
               <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-              <Route path="/ai-chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
+              <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
