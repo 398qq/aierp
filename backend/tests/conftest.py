@@ -1,4 +1,10 @@
 import os
+import sys
+
+# Ensure backend/ is on the import path so 'from app ...' works
+_BACKEND = os.path.join(os.path.dirname(__file__), "..")
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
 import pytest
 import pytest_asyncio
