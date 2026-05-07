@@ -82,3 +82,45 @@ class FollowUpCreate(BaseModel):
     completed_at: str | None = None
     priority: str | None = None
     assigned_to: str | None = None
+
+
+class AlertRuleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    rule_type: str = Field(min_length=1, max_length=50)  # no_order, credit_over, order_drop, ar_overdue
+    threshold_days: int | None = None
+    threshold_pct: float | None = None
+    threshold_amount: float | None = None
+    enabled: bool = True
+    severity: str = "warning"
+
+
+class AlertRuleUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    rule_type: str | None = None
+    threshold_days: int | None = None
+    threshold_pct: float | None = None
+    threshold_amount: float | None = None
+    enabled: bool | None = None
+    severity: str | None = None
+
+
+class LevelRuleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    target_level: str = Field(min_length=1, max_length=20)  # A, B, C, D
+    condition_type: str = Field(min_length=1, max_length=50)  # revenue, order_count, days
+    operator: str = Field(min_length=1, max_length=10)  # >, <, >=, <=
+    threshold_value: float
+    period_days: int | None = None
+    enabled: bool = True
+    priority: int = 0
+
+
+class LevelRuleUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    target_level: str | None = None
+    condition_type: str | None = None
+    operator: str | None = None
+    threshold_value: float | None = None
+    period_days: int | None = None
+    enabled: bool | None = None
+    priority: int | None = None

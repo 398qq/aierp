@@ -90,6 +90,30 @@ async def list_opportunities(
     })
 
 
+@opp_router.get("/funnel")
+async def get_sales_funnel(
+    customer_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    base = select(
+        Opportunity.stage,
+        func.count(Opportunity.id),
+        func.coalesce(func.sum(Opportunity.amount), 0),
+    ).where(Opportunity.deleted_at.is_(None))
+    if customer_id:
+        base = base.where(Opportunity.customer_id == customer_id)
+    base = base.group_by(Opportunity.stage)
+
+    rows = (await db.execute(base)).all()
+    stage_order = {"lead": 0, "qualified": 1, "proposal": 2, "negotiation": 3, "won": 4, "lost": 5}
+    funnel = []
+    for row in rows:
+        funnel.append({"stage": row[0], "count": row[1], "amount": float(row[2])})
+    funnel.sort(key=lambda x: stage_order.get(x["stage"], 99))
+    return ok(funnel)
+
+
 @opp_router.get("/{opp_id}")
 async def get_opportunity(opp_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     result = await db.execute(
@@ -633,32 +657,6 @@ async def delete_delivery_note_item(note_id: int, item_id: int, db: AsyncSession
     item.deleted_at = datetime.now(timezone.utc)
     await db.flush()
     return ok(msg="deleted")
-
-
-# --- Sales Funnel ---
-
-@opp_router.get("/funnel")
-async def get_sales_funnel(
-    customer_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    base = select(
-        Opportunity.stage,
-        func.count(Opportunity.id),
-        func.coalesce(func.sum(Opportunity.amount), 0),
-    ).where(Opportunity.deleted_at.is_(None))
-    if customer_id:
-        base = base.where(Opportunity.customer_id == customer_id)
-    base = base.group_by(Opportunity.stage)
-
-    rows = (await db.execute(base)).all()
-    stage_order = {"lead": 0, "qualified": 1, "proposal": 2, "negotiation": 3, "won": 4, "lost": 5}
-    funnel = []
-    for row in rows:
-        funnel.append({"stage": row[0], "count": row[1], "amount": float(row[2])})
-    funnel.sort(key=lambda x: stage_order.get(x["stage"], 99))
-    return ok(funnel)
 
 
 # --- Sales Stats ---
