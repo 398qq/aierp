@@ -9,20 +9,6 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: aierp
-          POSTGRES_PASSWORD: aierp
-          POSTGRES_DB: aierp_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +32,7 @@ jobs:
 
       - name: Test with pytest
         env:
-          TEST_DATABASE_URL: postgresql+asyncpg://aierp:aierp@localhost:5432/aierp_test
+          TEST_DATABASE_URL: sqlite+aiosqlite:///./test.db
           JWT_SECRET: ci-test-secret
         run: |
           cd backend
