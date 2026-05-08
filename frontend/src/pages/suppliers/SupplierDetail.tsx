@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, Modal, Input, InputNumber, message, Switch, Typography, Popconfirm, Progress, Badge, List, Col, Row } from "antd";
-import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined, PieChartOutlined, FileTextOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getSupplier, getSupplierProducts, linkSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance } from "../../api";
-import type { Supplier, SupplierProductLink, Product, SupplierScorecard, SupplierDelayPrediction, SupplierAlternatives, SupplierPriceVariance } from "../../types";
+import { getSupplier, getSupplierProducts, linkSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation } from "../../api";
+import type { Supplier, SupplierProductLink, Product, SupplierScorecard, SupplierDelayPrediction, SupplierAlternatives, SupplierPriceVariance, SupplierNegotiation } from "../../types";
 
 const { Text } = Typography;
 
@@ -32,6 +32,8 @@ export default function SupplierDetail() {
   const [altLoading, setAltLoading] = useState(false);
   const [priceVariance, setPriceVariance] = useState<SupplierPriceVariance | null>(null);
   const [priceVarLoading, setPriceVarLoading] = useState(false);
+  const [negotiation, setNegotiation] = useState<SupplierNegotiation | null>(null);
+  const [negotiationLoading, setNegotiationLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -145,6 +147,15 @@ export default function SupplierDetail() {
     finally { setPriceVarLoading(false); }
   };
 
+  const loadNegotiation = async () => {
+    setNegotiationLoading(true);
+    try {
+      const resp = await getSupplierNegotiation(Number(id));
+      if (resp.data.code === 0) setNegotiation(resp.data.data as SupplierNegotiation);
+    } catch { message.error("谈判建议加载失败"); }
+    finally { setNegotiationLoading(false); }
+  };
+
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!supplier) return <Alert type="error" message="供应商未找到" />;
 
@@ -191,6 +202,8 @@ export default function SupplierDetail() {
         <Button icon={<ClockCircleOutlined />} loading={delayLoading} onClick={loadDelayPrediction}>延迟预测</Button>
         <Button icon={<SwapOutlined />} loading={altLoading} onClick={loadAlternatives}>替代方案</Button>
         <Button icon={<DollarOutlined />} loading={priceVarLoading} onClick={loadPriceVariance}>价格异常</Button>
+        <Button icon={<FileTextOutlined />} loading={negotiationLoading} onClick={loadNegotiation}>谈判建议</Button>
+        <Link to={`/suppliers/${id}/360`}><Button icon={<PieChartOutlined />}>360</Button></Link>
       </Space>
 
       <Card title="供应商信息" style={{ marginBottom: 16 }}>
@@ -526,6 +539,34 @@ export default function SupplierDetail() {
               </Card>
             </Col>
           </Row>
+        )}
+      </Modal>
+
+      {/* Negotiation Modal */}
+      <Modal
+        title="谈判建议" open={!!negotiation} onCancel={() => setNegotiation(null)}
+        footer={<Button onClick={() => setNegotiation(null)}>关闭</Button>}
+        width={640}
+      >
+        {negotiation && (
+          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Card size="small" title="谈判策略"><Text>{negotiation.negotiation_strategy}</Text></Card>
+            <Card size="small" title="价格目标"><Text strong style={{ fontSize: 16 }}>{negotiation.price_target}</Text></Card>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Card size="small" title="谈判要点">
+                  <List size="small" dataSource={negotiation.talking_points} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}>{s}</List.Item>} />
+                </Card>
+              </Col>
+              <Col span={12}>
+                <Card size="small" title="优势点">
+                  <List size="small" dataSource={negotiation.leverage_points} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="blue">{s}</Tag></List.Item>} />
+                </Card>
+              </Col>
+            </Row>
+            <Card size="small" title="备选方案"><Text>{negotiation.fallback_plan}</Text></Card>
+            <Card size="small" title="建议方法"><Text>{negotiation.suggested_approach}</Text></Card>
+          </Space>
         )}
       </Modal>
     </div>

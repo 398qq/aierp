@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class OpportunityCreate(BaseModel):
     customer_id: int
+    product_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
     status: str = "active"
@@ -24,6 +25,7 @@ class OpportunityCreate(BaseModel):
 
 class OpportunityUpdate(BaseModel):
     customer_id: int | None = None
+    product_id: int | None = None
     title: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
     status: str | None = None

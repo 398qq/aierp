@@ -149,7 +149,22 @@ export interface Product {
 }
 
 export interface Brand {
-  id: number; name: string; name_cn: string | null; website: string | null; category: string | null; notes: string | null;
+  id: number;
+  // 基础
+  code: string | null; name: string; name_cn: string | null; short_name: string | null;
+  logo: string | null; brand_type: string | null; status: string;
+  category: string | null; description: string | null; notes: string | null;
+  // 商业
+  level: string | null; positioning: string | null; owner: string | null;
+  product_lines: string | null; target_markets: string | null; website: string | null;
+  // 供应链
+  supplier_id: number | null; manufacturer_name: string | null;
+  authorization_status: string | null; lifecycle_stage: string | null;
+  is_automotive: boolean; moq: number | null; lead_time_days: number | null;
+  risk_level: string | null; rohs_status: string | null;
+  // AI
+  ai_keywords: string | null; risk_score: number | null; alternative_brands: string | null;
+  // meta
   product_count?: number;
   created_at?: string;
   updated_at?: string | null;

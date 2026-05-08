@@ -20,6 +20,8 @@ import {
   DollarOutlined,
   ProfileOutlined,
   AimOutlined,
+  WarningOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 import { getUnreadCount, naturalLanguageQuery } from "../api";
@@ -58,7 +60,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/customers", "/products", "/brands", "/suppliers", "/inventory", "/ai/chat", "/settings", "/sales"];
+  const menuKeys = ["/", "/dashboard", "/customers", "/products", "/brands", "/suppliers", "/inventory", "/ai/chat", "/settings", "/sales"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || (k !== "/" && location.pathname.startsWith(k + "/")))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -76,7 +78,14 @@ export default function MainLayout() {
   }, []);
 
   const menuItems = [
-    { key: "/", icon: <DashboardOutlined />, label: "仪表板" },
+    {
+      key: "/", icon: <DashboardOutlined />, label: "仪表板",
+      children: [
+        { key: "/", icon: <DashboardOutlined />, label: "经营总览" },
+        { key: "/dashboard/global360", icon: <PieChartOutlined />, label: "全局360" },
+        { key: "/dashboard/watchtower", icon: <WarningOutlined />, label: "全局监控" },
+      ],
+    },
     {
       key: "/customers", icon: <TeamOutlined />, label: "客户管理",
       children: [
@@ -93,6 +102,7 @@ export default function MainLayout() {
           children: [
             { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
             { key: "/suppliers", icon: <TeamOutlined />, label: "供应商列表" },
+            { key: "/suppliers/compare", icon: <SwapOutlined />, label: "供应商对比" },
           ],
         },
         { key: "/inventory", icon: <StockOutlined />, label: "库存管理" },

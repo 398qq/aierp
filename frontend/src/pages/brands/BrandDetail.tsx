@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input } from "antd";
-import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, SwapOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, SwapOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends } from "../../api";
+import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand } from "../../api";
 import type { Brand, Product, BrandProfile, BrandPortfolio, SimilarBrand, BrandComparison, BrandHealth, BrandRisk, BrandSupplierMatrix, BrandRecommendation, BrandProductPerformance, BrandCustomerPenetration, BrandLifecycle, BrandPriceTrends } from "../../types";
 
 const { Text, Title } = Typography;
@@ -44,6 +44,7 @@ export default function BrandDetail() {
   const [lifecycleLoading, setLifecycleLoading] = useState(false);
   const [priceTrends, setPriceTrends] = useState<BrandPriceTrends | null>(null);
   const [priceTrendsLoading, setPriceTrendsLoading] = useState(false);
+  const [autoCompleteLoading, setAutoCompleteLoading] = useState(false);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -181,6 +182,19 @@ export default function BrandDetail() {
     catch { message.error("价格趋势分析失败"); } finally { setPriceTrendsLoading(false); }
   };
 
+  const handleAutoComplete = async () => {
+    setAutoCompleteLoading(true);
+    try {
+      const resp = await autoCompleteBrand(Number(id));
+      if (resp.data.code === 0) {
+        const d = resp.data.data as { filled: Record<string, string>; message: string };
+        message.success(d.message);
+        await loadData();
+      }
+    } catch { message.error("AI补全失败"); }
+    finally { setAutoCompleteLoading(false); }
+  };
+
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!brand) return <Alert type="error" message="品牌未找到" />;
 
@@ -212,22 +226,73 @@ export default function BrandDetail() {
         <Button icon={<TeamOutlined />} loading={penetrationLoading} onClick={loadPenetration}>客户渗透</Button>
         <Button icon={<RocketOutlined />} loading={lifecycleLoading} onClick={loadLifecycle}>生命周期</Button>
         <Button icon={<LineChartOutlined />} loading={priceTrendsLoading} onClick={loadPriceTrends}>价格走势</Button>
+        <Button icon={<RobotOutlined />} loading={autoCompleteLoading} onClick={handleAutoComplete}>AI 补全</Button>
         <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>AI 导入</Button>
       </Space>
 
       {/* Brand Info */}
       <Card title="品牌信息" style={{ marginBottom: 16 }}>
-        <Descriptions bordered column={3} size="small">
+        <Descriptions bordered column={3} size="small" title="基础信息" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="编码">{brand.code || "-"}</Descriptions.Item>
           <Descriptions.Item label="名称">{brand.name}</Descriptions.Item>
           <Descriptions.Item label="中文名">{brand.name_cn || "-"}</Descriptions.Item>
+          <Descriptions.Item label="简称">{brand.short_name || "-"}</Descriptions.Item>
+          <Descriptions.Item label="状态">
+            <Tag color={brand.status === "active" ? "green" : brand.status === "inactive" ? "orange" : "red"}>
+              {brand.status === "active" ? "启用" : brand.status === "inactive" ? "停用" : brand.status === "frozen" ? "冻结" : brand.status}
+            </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="类型">
+            {brand.brand_type === "own_brand" ? "自有品牌" : brand.brand_type === "agency" ? "代理品牌" : brand.brand_type === "oem" ? "OEM" : brand.brand_type || "-"}
+          </Descriptions.Item>
           <Descriptions.Item label="分类">{brand.category || "-"}</Descriptions.Item>
+          <Descriptions.Item label="产品数"><Tag color="blue">{brand.product_count || products.length}</Tag></Descriptions.Item>
+          <Descriptions.Item label="Logo">{brand.logo ? <a href={brand.logo} target="_blank" rel="noopener noreferrer">查看</a> : "-"}</Descriptions.Item>
           <Descriptions.Item label="官网">
             {brand.website ? <a href={brand.website} target="_blank" rel="noopener noreferrer">{brand.website}</a> : "-"}
           </Descriptions.Item>
-          <Descriptions.Item label="产品数"><Tag color="blue">{brand.product_count || products.length}</Tag></Descriptions.Item>
+          <Descriptions.Item label="品牌介绍" span={2}>{brand.description || "-"}</Descriptions.Item>
+        </Descriptions>
+
+        <Descriptions bordered column={3} size="small" title="商业信息" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="品牌等级">
+            {brand.level ? <Tag color={brand.level === "A" ? "red" : brand.level === "B" ? "blue" : "default"}>{brand.level}级</Tag> : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="品牌定位">
+            {brand.positioning === "high" ? "高端" : brand.positioning === "mid" ? "中端" : brand.positioning === "low" ? "低端" : brand.positioning || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="负责人">{brand.owner || "-"}</Descriptions.Item>
+          <Descriptions.Item label="产品线" span={3}>{brand.product_lines || "-"}</Descriptions.Item>
+          <Descriptions.Item label="目标市场" span={3}>{brand.target_markets || "-"}</Descriptions.Item>
+        </Descriptions>
+
+        <Descriptions bordered column={3} size="small" title="供应链信息" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="原厂">{brand.manufacturer_name || "-"}</Descriptions.Item>
+          <Descriptions.Item label="授权状态">
+            {brand.authorization_status === "authorized" ? <Tag color="green">已授权</Tag> : brand.authorization_status === "unauthorized" ? <Tag color="red">未授权</Tag> : brand.authorization_status || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="生命周期">
+            {brand.lifecycle_stage ? <Tag color={brand.lifecycle_stage === "active" ? "green" : brand.lifecycle_stage === "nrnd" ? "orange" : "red"}>{brand.lifecycle_stage.toUpperCase()}</Tag> : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="车规">{brand.is_automotive ? <Tag color="blue">是</Tag> : "否"}</Descriptions.Item>
+          <Descriptions.Item label="MOQ">{brand.moq ?? "-"}</Descriptions.Item>
+          <Descriptions.Item label="交期">{brand.lead_time_days ? `${brand.lead_time_days}天` : "-"}</Descriptions.Item>
+          <Descriptions.Item label="风险等级">
+            {brand.risk_level ? <Tag color={brand.risk_level === "low" ? "green" : brand.risk_level === "medium" ? "orange" : brand.risk_level === "high" ? "red" : "red"}>{brand.risk_level === "low" ? "低" : brand.risk_level === "medium" ? "中" : brand.risk_level === "high" ? "高" : "严重"}</Tag> : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="RoHS">
+            {brand.rohs_status ? <Tag color={brand.rohs_status === "compliant" ? "green" : "red"}>{brand.rohs_status === "compliant" ? "合规" : brand.rohs_status === "non_compliant" ? "不合规" : brand.rohs_status === "exempt" ? "豁免" : brand.rohs_status}</Tag> : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="关联供应商">{brand.supplier_id ?? "-"}</Descriptions.Item>
+        </Descriptions>
+
+        <Descriptions bordered column={3} size="small" title="AI & 元数据">
+          <Descriptions.Item label="AI关键词">{brand.ai_keywords || "-"}</Descriptions.Item>
+          <Descriptions.Item label="风险评分">{brand.risk_score != null ? <Progress percent={Math.round(brand.risk_score)} size="small" status={brand.risk_score > 70 ? "exception" : brand.risk_score > 40 ? "active" : "success"} /> : "-"}</Descriptions.Item>
+          <Descriptions.Item label="替代品牌">{brand.alternative_brands || "-"}</Descriptions.Item>
           <Descriptions.Item label="创建时间">{brand.created_at ? new Date(brand.created_at).toLocaleDateString("zh-CN") : "-"}</Descriptions.Item>
           <Descriptions.Item label="更新时间">{brand.updated_at ? new Date(brand.updated_at).toLocaleDateString("zh-CN") : "-"}</Descriptions.Item>
-          <Descriptions.Item label="备注" span={3}>{brand.notes || "-"}</Descriptions.Item>
+          <Descriptions.Item label="备注">{brand.notes || "-"}</Descriptions.Item>
         </Descriptions>
       </Card>
 

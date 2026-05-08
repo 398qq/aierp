@@ -5,12 +5,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
+from app.models.product import Product
 
 
 class Opportunity(TimestampMixin, Base):
     __tablename__ = "opportunities"
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
@@ -22,6 +24,7 @@ class Opportunity(TimestampMixin, Base):
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    product = relationship("Product", foreign_keys=[product_id])
     quotations = relationship("Quotation", back_populates="opportunity", lazy="selectin")
 
 
@@ -53,6 +56,7 @@ class QuotationItem(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     quotation = relationship("Quotation", back_populates="items")
+    product = relationship("Product", foreign_keys=[product_id])
 
 
 class SalesOrder(TimestampMixin, Base):
@@ -82,6 +86,7 @@ class SalesOrderItem(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     order = relationship("SalesOrder", back_populates="items")
+    product = relationship("Product", foreign_keys=[product_id])
 
 
 class DeliveryNote(TimestampMixin, Base):
@@ -108,5 +113,6 @@ class DeliveryNoteItem(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     delivery_note = relationship("DeliveryNote", back_populates="items")
+    product = relationship("Product", foreign_keys=[product_id])
 
 

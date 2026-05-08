@@ -956,6 +956,16 @@ async def brand_price_trends(brand_id: int, db: AsyncSession = Depends(get_db), 
         return fail(str(e), 404)
 
 
+@router.post("/brands/{brand_id}/auto-complete")
+async def brand_auto_complete(brand_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.brand_intel_service import auto_complete_brand
+    try:
+        result = await auto_complete_brand(db, brand_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
 @router.post("/suppliers/compare")
 async def compare_suppliers_route(supplier_ids: list[int] = Body(...), db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.supplier_intel_service import compare_suppliers
@@ -963,6 +973,70 @@ async def compare_suppliers_route(supplier_ids: list[int] = Body(...), db: Async
         return fail("supplier_ids 必须是至少包含2个ID的数组", 400)
     try:
         result = await compare_suppliers(db, supplier_ids)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+# ============================================================
+#  Supplier Intelligence Routes
+# ============================================================
+
+@router.post("/suppliers/{supplier_id}/scorecard")
+async def supplier_scorecard(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import get_supplier_scorecard
+    try:
+        result = await get_supplier_scorecard(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/delay-prediction")
+async def supplier_delay_prediction(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import predict_supplier_delay
+    try:
+        result = await predict_supplier_delay(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/alternatives")
+async def supplier_alternatives(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import get_supplier_alternatives
+    try:
+        result = await get_supplier_alternatives(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/price-variance")
+async def supplier_price_variance(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import detect_supplier_price_variance
+    try:
+        result = await detect_supplier_price_variance(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/360")
+async def supplier_360(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import get_supplier_360
+    try:
+        result = await get_supplier_360(db, supplier_id)
+        return ok(result)
+    except ValueError as e:
+        return fail(str(e), 404)
+
+
+@router.post("/suppliers/{supplier_id}/negotiation")
+async def supplier_negotiation(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.supplier_intel_service import get_supplier_negotiation
+    try:
+        result = await get_supplier_negotiation(db, supplier_id)
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)

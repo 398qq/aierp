@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button } from "antd";
-import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined } from "@ant-design/icons";
+import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getInventory, getInventoryOverview, adjustInventory } from "../../api";
+import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast } from "../../api";
 import type { InventoryItem } from "../../types";
 
 const { Text } = Typography;
@@ -19,6 +19,8 @@ export default function InventoryList() {
   const [adjustQty, setAdjustQty] = useState(0);
   const [adjustReason, setAdjustReason] = useState("");
   const [adjusting, setAdjusting] = useState(false);
+  const [forecastData, setForecastData] = useState<Record<string, unknown>[]>([]);
+  const [forecastLoading, setForecastLoading] = useState(false);
   const navigate = useNavigate();
 
   const fetch = async (p = page) => {
@@ -39,6 +41,14 @@ export default function InventoryList() {
   };
 
   useEffect(() => { fetch(); }, [page]);
+
+  useEffect(() => {
+    setForecastLoading(true);
+    getDemandForecast(undefined, 20)
+      .then((r) => setForecastData((r.data.data || []) as Record<string, unknown>[]))
+      .catch(() => {})
+      .finally(() => setForecastLoading(false));
+  }, []);
 
   const handleAdjust = async () => {
     if (!adjustProduct || adjustQty === 0) return;
@@ -281,6 +291,56 @@ export default function InventoryList() {
           </>
         )}
       </Modal>
+
+      {/* Demand Forecast Section */}
+      <Card
+        title={<><BarChartOutlined /> AI 需求预测（前20）</>}
+        style={{ marginTop: 24 }}
+        loading={forecastLoading}
+      >
+        {forecastData.length > 0 ? (
+          <Table
+            size="small"
+            dataSource={forecastData as Record<string, unknown>[]}
+            rowKey="product_id"
+            pagination={false}
+            columns={[
+              { title: "SKU", dataIndex: "sku", width: 100, ellipsis: true },
+              { title: "产品名", dataIndex: "name", ellipsis: true },
+              {
+                title: "月预测需求", dataIndex: "monthly_forecast", width: 110,
+                render: (v: number) => v != null ? v.toFixed(0) : "-",
+              },
+              {
+                title: "趋势", dataIndex: "trend", width: 80,
+                render: (t: string) => {
+                  const color = t === "上升" ? "green" : t === "下降" || t === "衰退" ? "red" : t === "新增长" ? "blue" : "default";
+                  return <Tag color={color}>{t}</Tag>;
+                },
+              },
+              {
+                title: "安全库存", dataIndex: "suggested_safety_stock", width: 90,
+                render: (v: number, r: Record<string, unknown>) => {
+                  const current = Number(r.current_safety_stock) || 0;
+                  const suggested = Number(v) || 0;
+                  const gap = suggested - current;
+                  const color = gap > 10 ? "red" : gap > 0 ? "orange" : "green";
+                  return <Tag color={color}>{suggested}{gap > 0 ? ` (+${gap})` : ""}</Tag>;
+                },
+              },
+              {
+                title: "置信度", dataIndex: "confidence", width: 70,
+                render: (c: string) => <Tag color={c === "高" ? "green" : c === "中" ? "orange" : "red"}>{c}</Tag>,
+              },
+              { title: "交货期(天)", dataIndex: "lead_time_days", width: 80 },
+            ]}
+          />
+        ) : (
+          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 24 }}>
+            暂无预测数据（需有销售历史记录）
+          </Text>
+        )}
+      </Card>
     </div>
   );
 }

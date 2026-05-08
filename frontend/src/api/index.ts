@@ -148,6 +148,9 @@ export const updateProduct = (id: number, data: Record<string, unknown>) =>
 export const deleteProduct = (id: number) =>
   client.delete<APIResponse>(`/products/${id}`);
 
+export const getProductSales = (productId: number) =>
+  client.get<APIResponse<{ quotations: Record<string, unknown>[]; orders: Record<string, unknown>[]; deliveries: Record<string, unknown>[] }>>(`/products/${productId}/sales`);
+
 // Brands
 export const getBrands = (params?: Record<string, unknown>) =>
   client.get<APIResponse<Brand[]>>("/brands", { params });
@@ -273,6 +276,9 @@ export const getBrandLifecycle = (brandId: number) =>
 // Brand Price Trends
 export const getBrandPriceTrends = (brandId: number) =>
   client.post<APIResponse<BrandPriceTrends>>(`/ai/brands/${brandId}/price-trends`);
+
+export const autoCompleteBrand = (brandId: number) =>
+  client.post<APIResponse<{filled: Record<string, string>; message: string}>>(`/ai/brands/${brandId}/auto-complete`);
 
 // Warehouses & Inventory
 export const getWarehouses = () =>
@@ -494,6 +500,34 @@ export const orchestrateProduct360 = (productId: number) =>
 
 export const orchestrateGlobal360 = () =>
   client.post<APIResponse<Global360>>("/ai/orchestrate/global");
+
+// ============================================================
+// Watchtower & Demand Forecast (AI)
+// ============================================================
+export const getWatchtowerScan = (daysBack = 90) =>
+  client.get<APIResponse<{
+    scanned_at: string;
+    total_alerts: number;
+    severity: string;
+    summary: string;
+    top_actions: string[];
+    risk_areas: string[];
+    anomalies: Record<string, Record<string, unknown>[]>;
+  }>>(`/ai/watchtower/scan?days_back=${daysBack}`);
+
+export const getDemandForecast = (category?: string, topK = 20) => {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  params.set("top_k", String(topK));
+  return client.get<APIResponse<{
+    product_id: number; sku: string; name: string; category: string;
+    monthly_forecast: number; trend: string; trend_score: number;
+    seasonal_factor: number; suggested_safety_stock: number;
+    current_safety_stock: number; current_quantity: number;
+    lead_time_days: number; confidence: string; last_sold: string;
+    monthly_history: Record<string, number>;
+  }[]>>(`/ai/inventory/demand-forecast?${params.toString()}`);
+};
 
 // ============================================================
 // NLP Query (AI)

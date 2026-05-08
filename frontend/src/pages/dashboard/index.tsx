@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Badge, Empty } from "antd";
+import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Empty, Space, Badge } from "antd";
 import {
   TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined,
 } from "@ant-design/icons";
@@ -8,7 +8,7 @@ import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFoll
 import type { DashboardStats, Visit, CustomerLog, Global360, OverdueFollowUp } from "../../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const COLORS = ["#1890ff", "#52c41a", "#faad14", "#ff4d4f", "#722ed1", "#13c2c2"];
 
 export default function Dashboard() {
@@ -27,6 +27,7 @@ export default function Dashboard() {
       getUpcomingVisits(14),
       getRecentActivity(10),
       getOverdueFollowUps(),
+      orchestrateGlobal360().then((r) => setGlobal360(r.data.data)).catch(() => {}),
     ])
       .then(([s, uv, ra, od]) => {
         setStats(s.data.data);
@@ -44,6 +45,19 @@ export default function Dashboard() {
   return (
     <div>
       <Title level={4}>欢迎回来，{username}</Title>
+
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Text type="secondary">AI 问答建议：</Text>
+        {["本月销售趋势如何？", "哪些客户有流失风险？", "库存周转率最高的产品？", "逾期付款情况？", "供应商准时交付率排名？"].map((q) => (
+          <Tag key={q} color="processing" style={{ cursor: "pointer" }}
+            onClick={() => {
+              const btn = document.querySelector<HTMLElement>('[class*="floating"]') || document.querySelector('[style*="fixed"][style*="bottom"]');
+              if (btn) btn.click();
+            }}>
+            {q}
+          </Tag>
+        ))}
+      </Space>
 
       {/* Customer Stats */}
       {stats && (
@@ -186,9 +200,9 @@ export default function Dashboard() {
         title={<><AimOutlined style={{ marginRight: 8 }} />AI 全局诊断 (Global 360)</>}
         extra={<Button icon={<ReloadOutlined />} loading={g360Loading} onClick={async () => {
           setG360Loading(true);
-          try { const r = await orchestrateGlobal360(); setGlobal360(r.data.data as Global360); } catch {}
+          try { const r = await orchestrateGlobal360(); setGlobal360(r.data.data); } catch {}
           finally { setG360Loading(false); }
-        }}>{global360 ? "重新诊断" : "开始诊断"}</Button>}
+        }}>重新诊断</Button>}
       >
         {global360 ? (
           <div>
@@ -353,7 +367,7 @@ export default function Dashboard() {
             />
           </div>
         ) : (
-          <p>点击"开始诊断"让 AI 联合多个 Agent 执行企业全面诊断，生成健康评分、商机优先级、风险清单和战略建议。</p>
+          <div style={{ textAlign: "center", padding: 24 }}><Spin tip="AI 正在分析企业全局数据..." /></div>
         )}
       </Card>
     </div>

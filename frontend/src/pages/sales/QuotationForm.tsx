@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message, Space } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getQuotation, createQuotation, updateQuotation, getCustomers } from "../../api";
+import { getQuotation, createQuotation, updateQuotation, getCustomers, getProducts } from "../../api";
 import dayjs from "dayjs";
-import type { Customer } from "../../types";
+import type { Customer, Product } from "../../types";
 import FormAIWarning from "../../components/sales/FormAIWarning";
 
 export default function QuotationForm() {
@@ -13,6 +13,8 @@ export default function QuotationForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [productOptions, setProductOptions] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState("");
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const isEdit = !!id;
 
@@ -25,6 +27,15 @@ export default function QuotationForm() {
       });
     }
   }, [id]);
+
+  const handleProductSearch = async (v: string) => {
+    setProductSearch(v);
+    if (v.length < 1) { setProductOptions([]); return; }
+    try {
+      const resp = await getProducts({ q: v, page_size: 20 });
+      setProductOptions((resp.data.data.list || []) as Product[]);
+    } catch { /* */ }
+  };
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
@@ -65,7 +76,13 @@ export default function QuotationForm() {
             <>
               {fields.map(({ key, name, ...rest }) => (
                 <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
-                  <Form.Item {...rest} name={[name, "product_name"]} label="产品"><Input placeholder="产品名称" /></Form.Item>
+                  <Form.Item {...rest} name={[name, "product_name"]} hidden />
+                  <Form.Item {...rest} name={[name, "product_id"]} label="产品" rules={[{ required: true, message: "请选择产品" }]}>
+                    <Select
+                      showSearch placeholder="搜索并选择产品" filterOption={false} onSearch={handleProductSearch}
+                      options={productOptions.map((p) => ({ value: p.id, label: `[${p.sku || "?"}] ${p.name}` }))}
+                    />
+                  </Form.Item>
                   <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
                   <Form.Item {...rest} name={[name, "unit_price"]} label="单价"><InputNumber prefix="¥" /></Form.Item>
                   <Form.Item {...rest} name={[name, "total_price"]} label="小计"><InputNumber prefix="¥" /></Form.Item>

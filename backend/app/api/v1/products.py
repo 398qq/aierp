@@ -127,28 +127,148 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
     return ok(msg="deleted")
 
 
+@router.get("/{product_id}/sales")
+async def get_product_sales(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.models.sales import Quotation, QuotationItem, SalesOrder, SalesOrderItem, DeliveryNote, DeliveryNoteItem
+
+    # Quotations
+    qi_rows = (await db.execute(
+        select(QuotationItem, Quotation).join(Quotation, QuotationItem.quotation_id == Quotation.id)
+        .where(QuotationItem.product_id == product_id, Quotation.deleted_at.is_(None), QuotationItem.deleted_at.is_(None))
+        .order_by(Quotation.id.desc()).limit(5)
+    )).all()
+    quotations = [{
+        "id": q.id, "quotation_no": q.quotation_no, "customer_id": q.customer_id,
+        "status": q.status, "total_amount": float(q.total_amount),
+        "quantity": qi.quantity, "unit_price": float(qi.unit_price) if qi.unit_price else None,
+        "created_at": str(q.created_at),
+    } for qi, q in qi_rows]
+
+    # Sales Orders
+    soi_rows = (await db.execute(
+        select(SalesOrderItem, SalesOrder).join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+        .where(SalesOrderItem.product_id == product_id, SalesOrder.deleted_at.is_(None), SalesOrderItem.deleted_at.is_(None))
+        .order_by(SalesOrder.id.desc()).limit(5)
+    )).all()
+    orders = [{
+        "id": o.id, "order_no": o.order_no, "customer_id": o.customer_id,
+        "status": o.status, "total_amount": float(o.total_amount),
+        "quantity": soi.quantity, "unit_price": float(soi.unit_price) if soi.unit_price else None,
+        "created_at": str(o.created_at),
+    } for soi, o in soi_rows]
+
+    # Delivery Notes
+    dni_rows = (await db.execute(
+        select(DeliveryNoteItem, DeliveryNote).join(DeliveryNote, DeliveryNoteItem.delivery_note_id == DeliveryNote.id)
+        .where(DeliveryNoteItem.product_id == product_id, DeliveryNote.deleted_at.is_(None), DeliveryNoteItem.deleted_at.is_(None))
+        .order_by(DeliveryNote.id.desc()).limit(5)
+    )).all()
+    deliveries = [{
+        "id": d.id, "delivery_no": d.delivery_no, "customer_id": d.customer_id,
+        "status": d.status, "quantity": dni.quantity,
+        "created_at": str(d.created_at),
+    } for dni, d in dni_rows]
+
+    return ok({"quotations": quotations, "orders": orders, "deliveries": deliveries})
+
+
 # --- Brands ---
 
 brands_router = APIRouter(prefix="/brands", tags=["brands"])
 
 
 class BrandCreate(BaseModel):
+    # 基础
+    code: str | None = None
     name: str = Field(min_length=1, max_length=255)
     name_cn: str | None = None
-    website: str | None = None
+    short_name: str | None = None
+    logo: str | None = None
+    brand_type: str | None = None
+    status: str = "active"
     category: str | None = None
     description: str | None = None
     notes: str | None = None
+    # 商业
+    level: str | None = None
+    positioning: str | None = None
+    owner: str | None = None
+    product_lines: str | None = None
+    target_markets: str | None = None
+    website: str | None = None
+    # 供应链
+    supplier_id: int | None = None
+    manufacturer_name: str | None = None
+    authorization_status: str | None = None
+    lifecycle_stage: str | None = None
+    is_automotive: bool = False
+    moq: int | None = None
+    lead_time_days: int | None = None
+    risk_level: str | None = None
+    rohs_status: str | None = None
+    # AI
+    ai_keywords: str | None = None
+    risk_score: float | None = None
+    alternative_brands: str | None = None
 
 
 class BrandUpdate(BaseModel):
+    # 基础
+    code: str | None = None
     name: str | None = Field(None, min_length=1, max_length=255)
     name_cn: str | None = None
-    website: str | None = None
+    short_name: str | None = None
+    logo: str | None = None
+    brand_type: str | None = None
+    status: str | None = None
     category: str | None = None
     description: str | None = None
     notes: str | None = None
+    # 商业
+    level: str | None = None
+    positioning: str | None = None
+    owner: str | None = None
+    product_lines: str | None = None
+    target_markets: str | None = None
+    website: str | None = None
+    # 供应链
     supplier_id: int | None = None
+    manufacturer_name: str | None = None
+    authorization_status: str | None = None
+    lifecycle_stage: str | None = None
+    is_automotive: bool | None = None
+    moq: int | None = None
+    lead_time_days: int | None = None
+    risk_level: str | None = None
+    rohs_status: str | None = None
+    # AI
+    ai_keywords: str | None = None
+    risk_score: float | None = None
+    alternative_brands: str | None = None
+
+
+def _brand_row(b: Brand) -> dict:
+    return {
+        "id": b.id,
+        "code": b.code, "name": b.name, "name_cn": b.name_cn, "short_name": b.short_name,
+        "logo": b.logo, "brand_type": b.brand_type, "status": b.status,
+        "category": b.category, "description": b.description, "notes": b.notes,
+        "level": b.level, "positioning": b.positioning, "owner": b.owner,
+        "product_lines": b.product_lines, "target_markets": b.target_markets,
+        "website": b.website,
+        "supplier_id": b.supplier_id, "manufacturer_name": b.manufacturer_name,
+        "authorization_status": b.authorization_status, "lifecycle_stage": b.lifecycle_stage,
+        "is_automotive": b.is_automotive, "moq": b.moq, "lead_time_days": b.lead_time_days,
+        "risk_level": b.risk_level, "rohs_status": b.rohs_status,
+        "ai_keywords": b.ai_keywords, "risk_score": b.risk_score,
+        "alternative_brands": b.alternative_brands,
+        "created_at": str(b.created_at) if b.created_at else None,
+        "updated_at": str(b.updated_at) if b.updated_at else None,
+    }
 
 
 @brands_router.get("")
@@ -161,7 +281,7 @@ async def list_brands(
     if q:
         base = base.where(Brand.name.ilike(f"%{q}%"))
     rows = (await db.execute(base.order_by(Brand.name))).scalars().all()
-    return ok([{"id": b.id, "name": b.name, "name_cn": b.name_cn, "website": b.website, "category": b.category, "notes": b.notes, "supplier_id": b.supplier_id, "created_at": str(b.created_at) if b.created_at else None, "updated_at": str(b.updated_at) if b.updated_at else None} for b in rows])
+    return ok([_brand_row(b) for b in rows])
 
 
 @brands_router.get("/{brand_id}")
@@ -180,12 +300,8 @@ async def get_brand(brand_id: int, db: AsyncSession = Depends(get_db), _user: di
     )).scalar() or 0
 
     return ok({
-        "id": brand.id, "name": brand.name, "name_cn": brand.name_cn,
-        "website": brand.website, "category": brand.category, "notes": brand.notes,
-        "supplier_id": brand.supplier_id,
+        **_brand_row(brand),
         "product_count": product_count,
-        "created_at": str(brand.created_at) if brand.created_at else None,
-        "updated_at": str(brand.updated_at) if brand.updated_at else None,
     })
 
 

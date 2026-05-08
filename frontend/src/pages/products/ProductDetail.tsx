@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse } from "antd";
-import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined } from "@ant-design/icons";
-import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle } from "../../api";
-import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis } from "../../types";
+import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
+import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct } from "../../api";
+import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch } from "../../types";
 
 const { Text, Title } = Typography;
 
@@ -32,6 +32,10 @@ export default function ProductDetail() {
   const [lifecycle, setLifecycle] = useState<LifecycleAnalysis | null>(null);
   const [lifecycleLoading, setLifecycleLoading] = useState(false);
   const [specLoading, setSpecLoading] = useState(false);
+  const [salesDocs, setSalesDocs] = useState<{ quotations: Record<string, unknown>[]; orders: Record<string, unknown>[]; deliveries: Record<string, unknown>[] } | null>(null);
+  const [salesDocsLoading, setSalesDocsLoading] = useState(false);
+  const [recommendCustomers, setRecommendCustomers] = useState<ProductCustomerMatch | null>(null);
+  const [recommendLoading, setRecommendLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -99,6 +103,15 @@ export default function ProductDetail() {
         setBenchmark(benchRes.value.data.data as PriceBenchmark);
       }
     } catch { /* */ }
+  };
+
+  const loadSalesDocs = async () => {
+    setSalesDocsLoading(true);
+    try {
+      const resp = await getProductSales(Number(id));
+      if (resp.data.code === 0) setSalesDocs(resp.data.data as { quotations: Record<string, unknown>[]; orders: Record<string, unknown>[]; deliveries: Record<string, unknown>[] });
+    } catch { message.error("加载销售数据失败"); }
+    finally { setSalesDocsLoading(false); }
   };
 
   const handleGetAiPrice = async () => {
@@ -170,6 +183,15 @@ export default function ProductDetail() {
     finally { setEmbedding(false); }
   };
 
+  const handleRecommendCustomers = async () => {
+    setRecommendLoading(true);
+    try {
+      const resp = await recommendCustomersForProduct(Number(id));
+      if (resp.data.code === 0) setRecommendCustomers(resp.data.data as ProductCustomerMatch);
+    } catch { message.error("推荐客户加载失败"); }
+    finally { setRecommendLoading(false); }
+  };
+
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!product) return <Alert type="error" message="产品未找到" />;
 
@@ -187,6 +209,8 @@ export default function ProductDetail() {
         <Button icon={<NodeIndexOutlined />} loading={assocLoading} onClick={handleGetAssociations}>关联产品</Button>
         <Button icon={<ApartmentOutlined />} loading={procurementLoading} onClick={handleGetProcurement}>采购优化</Button>
         <Button icon={<AlertOutlined />} loading={lifecycleLoading} onClick={handleGetLifecycle}>生命周期</Button>
+        <Button icon={<SmileOutlined />} loading={recommendLoading} onClick={handleRecommendCustomers}>推荐客户</Button>
+        <Link to={`/products/${id}/360`}><Button icon={<PieChartOutlined />}>360</Button></Link>
       </Space>
 
       {/* Product Info */}
@@ -557,6 +581,73 @@ export default function ProductDetail() {
           )}
         </Card>
       )}
+
+      {/* Recommend Customers */}
+      {recommendCustomers && (
+        <Card title={<><SmileOutlined /> AI 推荐客户</>} style={{ marginBottom: 16 }}>
+          {recommendCustomers.recommendations?.length > 0 && (
+            <List size="small" dataSource={recommendCustomers.recommendations}
+              renderItem={(item) => (
+                <List.Item>
+                  <Space>
+                    <Tag color="blue">{item.customer_name}</Tag>
+                    <Tag color={item.priority === "高" ? "red" : item.priority === "中" ? "orange" : "default"}>{item.priority}优先级</Tag>
+                    <Text type="secondary">{item.reason}</Text>
+                    {item.estimated_potential && <Text type="secondary">— {item.estimated_potential}</Text>}
+                  </Space>
+                </List.Item>
+              )}
+            />
+          )}
+          {recommendCustomers.summary && (
+            <Card size="small" type="inner" style={{ marginTop: 12 }}>
+              <Text>{recommendCustomers.summary}</Text>
+            </Card>
+          )}
+        </Card>
+      )}
+
+      {/* Related Sales Documents */}
+      <Card
+        title="关联销售单据"
+        style={{ marginBottom: 16 }}
+        extra={<Button loading={salesDocsLoading} onClick={loadSalesDocs}>{salesDocs ? "刷新" : "加载"}</Button>}
+      >
+        {salesDocs ? (
+          <Row gutter={16}>
+            <Col span={8}>
+              <Title level={5}>报价单 ({salesDocs.quotations.length})</Title>
+              {salesDocs.quotations.length === 0 ? <Text type="secondary">无</Text> : (
+                <List size="small" dataSource={salesDocs.quotations} renderItem={(q: Record<string, unknown>) => (
+                  <List.Item actions={[<a onClick={() => navigate(`/sales/quotations/${q.id}`)}>查看</a>]}>
+                    <List.Item.Meta title={String(q.quotation_no || `#${q.id}`)} description={`${String(q.status)} · x${String(q.quantity)} · ¥${Number(q.unit_price || 0).toFixed(2)}`} />
+                  </List.Item>
+                )} />
+              )}
+            </Col>
+            <Col span={8}>
+              <Title level={5}>销售订单 ({salesDocs.orders.length})</Title>
+              {salesDocs.orders.length === 0 ? <Text type="secondary">无</Text> : (
+                <List size="small" dataSource={salesDocs.orders} renderItem={(o: Record<string, unknown>) => (
+                  <List.Item actions={[<a onClick={() => navigate(`/sales/orders/${o.id}`)}>查看</a>]}>
+                    <List.Item.Meta title={String(o.order_no || `#${o.id}`)} description={`${String(o.status)} · x${String(o.quantity)} · ¥${Number(o.unit_price || 0).toFixed(2)}`} />
+                  </List.Item>
+                )} />
+              )}
+            </Col>
+            <Col span={8}>
+              <Title level={5}>发货单 ({salesDocs.deliveries.length})</Title>
+              {salesDocs.deliveries.length === 0 ? <Text type="secondary">无</Text> : (
+                <List size="small" dataSource={salesDocs.deliveries} renderItem={(d: Record<string, unknown>) => (
+                  <List.Item actions={[<a onClick={() => navigate(`/sales/delivery-notes/${d.id}`)}>查看</a>]}>
+                    <List.Item.Meta title={String(d.delivery_no || `#${d.id}`)} description={`${String(d.status)} · x${String(d.quantity)}`} />
+                  </List.Item>
+                )} />
+              )}
+            </Col>
+          </Row>
+        ) : <Text type="secondary">点击"加载"查看此产品关联的报价单、销售订单和发货单</Text>}
+      </Card>
     </div>
   );
 }

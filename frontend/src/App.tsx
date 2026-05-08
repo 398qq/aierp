@@ -49,6 +49,11 @@ const TargetList = lazy(() => import("./pages/sales/TargetList"));
 const TargetForm = lazy(() => import("./pages/sales/TargetForm"));
 const SalesDashboard = lazy(() => import("./pages/sales/SalesDashboard"));
 const NotificationList = lazy(() => import("./pages/notifications/index"));
+const Product360 = lazy(() => import("./pages/products/Product360"));
+const Supplier360 = lazy(() => import("./pages/suppliers/Supplier360"));
+const SupplierCompare = lazy(() => import("./pages/suppliers/SupplierCompare"));
+const WatchtowerDashboard = lazy(() => import("./pages/dashboard/WatchtowerDashboard"));
+const Global360 = lazy(() => import("./pages/dashboard/Global360"));
 
 function PageLoader() {
   return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
@@ -82,6 +87,8 @@ export default function App() {
               }
             >
               <Route path="/" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+              <Route path="/dashboard/watchtower" element={<Suspense fallback={<PageLoader />}><WatchtowerDashboard /></Suspense>} />
+              <Route path="/dashboard/global360" element={<Suspense fallback={<PageLoader />}><Global360 /></Suspense>} />
               <Route path="/customers" element={<Suspense fallback={<PageLoader />}><CustomerList /></Suspense>} />
               <Route path="/customers/stats" element={<Suspense fallback={<PageLoader />}><CustomerDashboard /></Suspense>} />
               <Route path="/customers/new" element={<Suspense fallback={<PageLoader />}><CustomerNew /></Suspense>} />
@@ -91,9 +98,12 @@ export default function App() {
               <Route path="/customers/segments" element={<Suspense fallback={<PageLoader />}><CustomerSegments /></Suspense>} />
               <Route path="/products" element={<Suspense fallback={<PageLoader />}><ProductList /></Suspense>} />
               <Route path="/products/:id" element={<Suspense fallback={<PageLoader />}><ProductDetail /></Suspense>} />
+              <Route path="/products/:id/360" element={<Suspense fallback={<PageLoader />}><Product360 /></Suspense>} />
               <Route path="/suppliers" element={<Suspense fallback={<PageLoader />}><SupplierList /></Suspense>} />
               <Route path="/suppliers/stats" element={<Suspense fallback={<PageLoader />}><SupplierDashboard /></Suspense>} />
               <Route path="/suppliers/:id" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
+              <Route path="/suppliers/:id/360" element={<Suspense fallback={<PageLoader />}><Supplier360 /></Suspense>} />
+              <Route path="/suppliers/compare" element={<Suspense fallback={<PageLoader />}><SupplierCompare /></Suspense>} />
               <Route path="/brands" element={<Suspense fallback={<PageLoader />}><BrandList /></Suspense>} />
               <Route path="/brands/:id" element={<Suspense fallback={<PageLoader />}><BrandDetail /></Suspense>} />
               <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryList /></Suspense>} />

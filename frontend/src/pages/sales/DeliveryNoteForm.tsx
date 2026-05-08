@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message, Space } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getDeliveryNote, createDeliveryNote, updateDeliveryNote, getCustomers, getSalesOrders } from "../../api";
+import { getDeliveryNote, createDeliveryNote, updateDeliveryNote, getCustomers, getSalesOrders, getProducts } from "../../api";
 import dayjs from "dayjs";
-import type { Customer, SalesOrder } from "../../types";
+import type { Customer, Product, SalesOrder } from "../../types";
 
 export default function DeliveryNoteForm() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +13,7 @@ export default function DeliveryNoteForm() {
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [productOptions, setProductOptions] = useState<Product[]>([]);
   const isEdit = !!id;
 
   useEffect(() => {
@@ -25,6 +26,14 @@ export default function DeliveryNoteForm() {
       });
     }
   }, [id]);
+
+  const handleProductSearch = async (v: string) => {
+    if (v.length < 1) { setProductOptions([]); return; }
+    try {
+      const resp = await getProducts({ q: v, page_size: 20 });
+      setProductOptions((resp.data.data.list || []) as Product[]);
+    } catch { /* */ }
+  };
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
@@ -71,7 +80,13 @@ export default function DeliveryNoteForm() {
             <>
               {fields.map(({ key, name, ...rest }) => (
                 <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
-                  <Form.Item {...rest} name={[name, "product_name"]} label="产品"><Input placeholder="产品名称" /></Form.Item>
+                  <Form.Item {...rest} name={[name, "product_name"]} hidden />
+                  <Form.Item {...rest} name={[name, "product_id"]} label="产品" rules={[{ required: true, message: "请选择产品" }]}>
+                    <Select
+                      showSearch placeholder="搜索并选择产品" filterOption={false} onSearch={handleProductSearch}
+                      options={productOptions.map((p) => ({ value: p.id, label: `[${p.sku || "?"}] ${p.name}` }))}
+                    />
+                  </Form.Item>
                   <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
                   <Button icon={<DeleteOutlined />} onClick={() => remove(name)} />
                 </Space>
