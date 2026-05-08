@@ -49,11 +49,24 @@ export default function SupplierComparePage() {
         { title: "权重", dataIndex: "weight", width: 60, render: (w: number) => `${(w * 100).toFixed(0)}%` },
         ...Object.keys(data.comparison_matrix[0].scores).map((name) => ({
           title: name,
-          dataIndex: ["scores", name],
-          render: (s: number) => s != null ? s.toFixed(1) : "-",
+          dataIndex: "dimension",
+          render: (_: unknown, record: { scores: Record<string, number> }) => {
+            const val = record.scores?.[name];
+            return val != null ? val.toFixed(1) : "-";
+          },
         })),
       ]
     : [];
+
+  // Derive per-dimension winners from comparison_matrix when best_in_category is insufficient
+  const displayBestInCategory = data?.best_in_category && data.best_in_category.length > 1
+    ? data.best_in_category
+    : (data?.comparison_matrix?.map((row) => {
+        const scores = row.scores || {};
+        const winnerName = Object.entries(scores).reduce((best, [name, score]) =>
+          score > (scores[best] ?? -Infinity) ? name : best, Object.keys(scores)[0] || "");
+        return { category: row.dimension, winner: winnerName, reason: "维度最高评分" };
+      }) || []);
 
   return (
     <div style={{ padding: 24 }}>
@@ -79,7 +92,7 @@ export default function SupplierComparePage() {
         </Space>
       </Card>
 
-      {error && <Alert type="error" message={error} style={{ marginBottom: 24 }} />}
+      {error && !loading && <Alert type="error" message={error} style={{ marginBottom: 24 }} />}
       {loading && <Spin size="large" style={{ display: "block", margin: "40px auto" }} />}
 
       {data && (
@@ -87,7 +100,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={24}>
               <Card title={<><TrophyOutlined /> 总体排名</>}>
-                <Table columns={rankColumns} dataSource={data.overall_ranking} rowKey="supplier_name" pagination={false} size="small" />
+                <Table columns={rankColumns} dataSource={data?.overall_ranking} rowKey={(r) => r.rank + "-" + r.supplier_name} pagination={false} size="small" />
               </Card>
             </Col>
           </Row>
@@ -95,7 +108,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={12}>
               <Card title="最佳供应商">
-                {data.best_in_category?.map((b, i) => (
+                {displayBestInCategory.map((b, i) => (
                   <div key={i} style={{ marginBottom: 8 }}>
                     <Text strong>{b.category}: </Text>
                     <Tag color="green">{b.winner}</Tag>
@@ -112,7 +125,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={24}>
               <Card title={<><DashboardOutlined /> 维度对比矩阵</>}>
-                <Table columns={matrixColumns} dataSource={data.comparison_matrix} rowKey="dimension" pagination={false} size="small" />
+                <Table columns={matrixColumns} dataSource={data?.comparison_matrix} rowKey="dimension" pagination={false} size="small" />
               </Card>
             </Col>
           </Row>

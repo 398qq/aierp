@@ -690,35 +690,50 @@ async def get_supplier_360(db: AsyncSession, supplier_id: int) -> dict:
 
 
 async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
-    """Compare multiple suppliers across dimensions. Uses local scoring for ranking
-    and AI for qualitative analysis only."""
+    """Compare multiple suppliers across dimensions using local scoring."""
 
     if len(supplier_ids) < 2:
         return {"error": "至少需要2个供应商进行比较"}
 
+    from collections import defaultdict
     from app.models.transaction import PurchaseOrder
+
+    # 批量查询，避免 N+1
+    supplier_rows = await db.execute(
+        select(Supplier).where(Supplier.id.in_(supplier_ids), Supplier.deleted_at.is_(None))
+    )
+    supplier_map = {s.id: s for s in supplier_rows.scalars().all()}
+
+    po_rows = await db.execute(
+        select(PurchaseOrder).where(PurchaseOrder.supplier_id.in_(supplier_ids))
+    )
+    po_by_supplier: dict[int, list] = defaultdict(list)
+    for po in po_rows.scalars().all():
+        po_by_supplier[po.supplier_id].append(po)
+
+    sp_rows = await db.execute(
+        select(SupplierProduct).where(SupplierProduct.supplier_id.in_(supplier_ids))
+    )
+    sp_by_supplier: dict[int, list] = defaultdict(list)
+    for sp in sp_rows.scalars().all():
+        sp_by_supplier[sp.supplier_id].append(sp)
 
     suppliers_data = []
     for sid in supplier_ids:
-        result = await db.execute(
-            select(Supplier).where(Supplier.id == sid, Supplier.deleted_at.is_(None))
-        )
-        supplier = result.scalar_one_or_none()
+        supplier = supplier_map.get(sid)
         if not supplier:
             continue
 
-        po_result = await db.execute(
-            select(PurchaseOrder).where(PurchaseOrder.supplier_id == sid)
-        )
-        pos = po_result.scalars().all()
+        pos = po_by_supplier.get(sid, [])
+        sps = sp_by_supplier.get(sid, [])
         total_po_amount = sum(float(po.total_amount) for po in pos)
 
-        sp_result = await db.execute(
-            select(SupplierProduct).where(SupplierProduct.supplier_id == sid)
-        )
-        sps = sp_result.scalars().all()
-
-        # Local scoring per supplier
+        # 评分说明：
+        # - 认证资质：证书存在得20分，否则5分（参考ISO9001等认证标准）
+        # - 财务评级：A=20/B=15/C=10/D=5（参照标准普尔评级映射）
+        # - 采购历史：每张PO 3分，上限20分（历史合作深度指标）
+        # - 产品覆盖：每关联1个产品4分，上限20分（供应链广度指标）
+        # - 供应商类型：原厂/授权分销商20分，其他12分（供货可靠性保障）
         cert_score = 20 if supplier.certifications else 5
         fin_score = {"A": 20, "B": 15, "C": 10, "D": 5}.get(supplier.financial_rating or "C", 10)
         po_score = min(len(pos) * 3, 20)
@@ -762,7 +777,29 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
         dimensions[3]["scores"][s["name"]] = min(s["linked_products"] * 4, 20)
         dimensions[4]["scores"][s["name"]] = 20 if s["type"] in ("授权分销商", "原厂") else 12
 
-    # Generate data-driven summary without AI call
+    # 空结果保护
+    if not suppliers_data:
+        return {
+            "error": "未找到有效的供应商数据",
+            "comparison_matrix": [],
+            "overall_ranking": [],
+            "best_in_category": [],
+            "recommendation": "",
+            "summary": "",
+            "context": {"compared_ids": supplier_ids},
+        }
+
+    # 每个维度的 winner
+    best_in_category = []
+    for dim in dimensions:
+        winner_name = max(dim["scores"], key=dim["scores"].get)
+        winner_score = dim["scores"][winner_name]
+        best_in_category.append({
+            "category": dim["dimension"],
+            "winner": winner_name,
+            "reason": f"得分{winner_score}",
+        })
+
     top = ranking[0]
     summary = f"共比较{len(ranking)}家供应商。{top['supplier_name']}综合评分最高({top['total_score']}分)，在资质、产品覆盖、采购历史等维度表现突出。"
     recommendation = f"推荐首选: {top['supplier_name']} (评分: {top['total_score']})"
@@ -770,9 +807,7 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
     return {
         "comparison_matrix": dimensions,
         "overall_ranking": ranking,
-        "best_in_category": [
-            {"category": "最高综合评分", "winner": ranking[0]["supplier_name"], "reason": f"总分{ranking[0]['total_score']}"},
-        ],
+        "best_in_category": best_in_category,
         "recommendation": recommendation,
         "summary": summary,
         "context": {"compared_ids": supplier_ids},
