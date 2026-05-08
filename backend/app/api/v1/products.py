@@ -450,6 +450,19 @@ async def update_supplier(supplier_id: int, body: SupplierUpdate, db: AsyncSessi
     return ok(_supplier_to_dict(supplier))
 
 
+
+@suppliers_router.delete("/{supplier_id}")
+async def delete_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from datetime import datetime, timezone
+    result = await db.execute(select(Supplier).where(Supplier.id == supplier_id, Supplier.deleted_at.is_(None)))
+    supplier = result.scalar_one_or_none()
+    if supplier is None:
+        return fail("Supplier not found", 404)
+    supplier.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="deleted")
+
+
 @suppliers_router.get("/stats/summary")
 async def supplier_stats(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     """Supplier dashboard statistics."""
