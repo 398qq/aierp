@@ -462,17 +462,16 @@ async def assess_brand_risk(db: AsyncSession, brand_id: int) -> dict:
         single_source_count = sum(1 for r in supplier_counts if r[1] == 1)
         single_source_pct = round(single_source_count / product_count * 100, 1) if product_count > 0 else 0
 
-        # Top supplier share
-        supplier_product_counts = {}
-        for r in supplier_counts:
-            # Re-query to get supplier details per product
-            sp_rows = (await db.execute(
+        # Top supplier share — single query instead of N+1
+        supplier_product_counts: dict[int, int] = {}
+        if product_ids:
+            sp_all = (await db.execute(
                 select(SupplierProduct.supplier_id).where(
-                    SupplierProduct.product_id == r[0],
+                    SupplierProduct.product_id.in_(product_ids),
                     SupplierProduct.deleted_at.is_(None),
                 )
             )).all()
-            for sp in sp_rows:
+            for sp in sp_all:
                 supplier_product_counts[sp[0]] = supplier_product_counts.get(sp[0], 0) + 1
 
         top_supplier_share = f"{max(supplier_product_counts.values()) / product_count * 100:.0f}%" if supplier_product_counts else "0%"
@@ -752,7 +751,7 @@ async def recommend_brands(db: AsyncSession, brand_id: int, top_k: int = 5) -> d
 
     co_purchase_data = (
         "\n".join(
-            f"- {r[1]}{f' ({r[2]})' if r[2] else ''}: {r[3]} 共同客户, {r[4]} 共同产品"
+            f"- {r[1]}{f' ({r[2]})' if r[2] else ''}: {r[4]} 共同客户, {r[5]} 共同产品"
             for r in co_purchase_rows
         )
     )
@@ -760,7 +759,7 @@ async def recommend_brands(db: AsyncSession, brand_id: int, top_k: int = 5) -> d
     candidate_brands = (
         "\n".join(
             f"- {r[1]}{f' ({r[2]})' if r[2] else ''} | 分类: {r[3] or '未知'} | "
-            f"客户重叠: {r[3]} | 共同产品数: {r[4]}"
+            f"客户重叠: {r[4]} | 共同产品数: {r[5]}"
             for r in co_purchase_rows
         )
     )
