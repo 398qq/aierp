@@ -661,7 +661,7 @@ async def mark_alert_read(event_id: int, db: AsyncSession = Depends(get_db), _us
 @router.post("/alerts/read-all")
 async def mark_all_alerts_read(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     rows = (await db.execute(
-        select(AlertEvent).where(not AlertEvent.is_read, AlertEvent.deleted_at.is_(None))
+        select(AlertEvent).where(~AlertEvent.is_read, AlertEvent.deleted_at.is_(None))
     )).scalars().all()
     now = datetime.now(timezone.utc)
     for e in rows:
@@ -1696,7 +1696,7 @@ async def get_quotation_history(
         items = []
         if hasattr(q, 'items') and q.items:
             items = [{"id": i.id, "product_id": i.product_id, "quantity": i.quantity,
-                       "unit_price": float(i.unit_price), "amount": float(i.amount)} for i in q.items]
+                       "unit_price": float(i.unit_price or 0), "total_price": float(i.total_price or 0)} for i in q.items]
         quotations.append({
             "id": q.id, "quotation_no": q.quotation_no, "status": q.status,
             "total_amount": float(q.total_amount), "valid_until": str(q.valid_until) if q.valid_until else None,

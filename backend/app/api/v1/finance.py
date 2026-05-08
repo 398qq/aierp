@@ -47,7 +47,7 @@ async def get_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: di
 async def create_invoice(body: InvoiceCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import create_invoice as svc_create
     inv = await svc_create(db, body.model_dump())
-    return ok(inv, code=201)
+    return ok(inv)
 
 
 @router.put("/invoices/{inv_id}")
@@ -108,7 +108,7 @@ async def get_payment(pay_id: int, db: AsyncSession = Depends(get_db), _user: di
 async def create_payment(body: PaymentRecordCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import create_payment as svc_create
     pay = await svc_create(db, body.model_dump())
-    return ok(pay, code=201)
+    return ok(pay)
 
 
 @router.put("/payments/{pay_id}")
@@ -161,7 +161,7 @@ async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db), _us
 async def create_contract(body: ContractCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import create_contract as svc_create
     ct = await svc_create(db, body.model_dump())
-    return ok(ct, code=201)
+    return ok(ct)
 
 
 @router.put("/contracts/{contract_id}")
@@ -222,7 +222,7 @@ async def get_target(target_id: int, db: AsyncSession = Depends(get_db), _user: 
 async def create_target(body: SalesTargetCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import create_target as svc_create
     t = await svc_create(db, body.model_dump())
-    return ok(t, code=201)
+    return ok(t)
 
 
 @router.put("/targets/{target_id}")

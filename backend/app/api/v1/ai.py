@@ -447,15 +447,15 @@ async def ai_chat(
 
 @router.post("/inventory/analyze")
 async def analyze_inventory(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.models.product import Product, InventoryItem
+    from app.models.product import Product, Inventory
 
     items = (await db.execute(
         select(
-            Product.name, InventoryItem.quantity, InventoryItem.safety_stock,
-        ).select_from(InventoryItem).join(
-            Product, InventoryItem.product_id == Product.id
+            Product.name, Inventory.quantity, Inventory.safety_stock,
+        ).select_from(Inventory).join(
+            Product, Inventory.product_id == Product.id
         ).where(
-            InventoryItem.deleted_at.is_(None), Product.deleted_at.is_(None),
+            Inventory.deleted_at.is_(None), Product.deleted_at.is_(None),
         )
     )).all()
 

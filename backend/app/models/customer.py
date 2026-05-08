@@ -50,9 +50,9 @@ class Customer(TimestampMixin, Base):
     quotations = relationship("Quotation", back_populates="customer", lazy="selectin")
     sales_orders = relationship("SalesOrder", back_populates="customer", lazy="selectin")
     delivery_notes = relationship("DeliveryNote", back_populates="customer", lazy="selectin")
-    tickets = relationship("Ticket", foreign_keys="Ticket.customer_id", lazy="selectin")
-    visits = relationship("Visit", foreign_keys="Visit.customer_id", lazy="selectin")
-    samples = relationship("Sample", foreign_keys="Sample.customer_id", lazy="selectin")
+    tickets = relationship("Ticket", back_populates="customer", lazy="selectin")
+    visits = relationship("Visit", back_populates="customer", lazy="selectin")
+    samples = relationship("Sample", back_populates="customer", lazy="selectin")
 
 
 class CustomerContact(TimestampMixin, Base):

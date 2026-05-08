@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
 import { getContract, createContract, updateContract, getCustomers, getSalesOrders } from "../../api";
-import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
 import type { Customer, SalesOrder } from "../../types";
 
 export default function ContractForm() {

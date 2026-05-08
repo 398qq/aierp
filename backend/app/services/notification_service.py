@@ -21,8 +21,8 @@ async def get_notifications(
         Notification.user_id == user_id,
     )
     if unread_only:
-        base = base.where(not Notification.is_read)
-        cnt = cnt.where(not Notification.is_read)
+        base = base.where(~Notification.is_read)
+        cnt = cnt.where(~Notification.is_read)
     if type:
         base = base.where(Notification.type == type)
         cnt = cnt.where(Notification.type == type)
@@ -40,7 +40,7 @@ async def get_notifications(
         select(func.count(Notification.id)).where(
             Notification.deleted_at.is_(None),
             Notification.user_id == user_id,
-            not Notification.is_read,
+            ~Notification.is_read,
         )
     )).scalar() or 0
     return {"list": rows, "total": total, "page": page, "page_size": page_size, "unread_count": unread}
@@ -51,7 +51,7 @@ async def get_unread_count(db: AsyncSession, *, user_id: int) -> int:
         select(func.count(Notification.id)).where(
             Notification.deleted_at.is_(None),
             Notification.user_id == user_id,
-            not Notification.is_read,
+            ~Notification.is_read,
         )
     )
     return result.scalar() or 0

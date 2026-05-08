@@ -65,7 +65,7 @@ class Ticket(TimestampMixin, Base):
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    customer = relationship("Customer", foreign_keys=[customer_id])
+    customer = relationship("Customer", back_populates="tickets")
 
 class Visit(TimestampMixin, Base):
     __tablename__ = "visits"
@@ -86,7 +86,7 @@ class Visit(TimestampMixin, Base):
     key_points: Mapped[str | None] = mapped_column(Text, nullable=True)
     followup_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    customer = relationship("Customer", foreign_keys=[customer_id])
+    customer = relationship("Customer", back_populates="visits")
     contact = relationship("CustomerContact", foreign_keys=[contact_id])
 
 
@@ -104,5 +104,5 @@ class Sample(TimestampMixin, Base):
     tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    customer = relationship("Customer", foreign_keys=[customer_id])
+    customer = relationship("Customer", back_populates="samples")
     product = relationship("Product", foreign_keys=[product_id])
