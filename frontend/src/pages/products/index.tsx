@@ -25,8 +25,6 @@ export default function ProductList() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const navigate = useNavigate();
 
-  const brandMap = new Map(brands.map((b) => [b.id, b.name]));
-
   const fetch = async (p = page, search = q) => {
     setLoading(true);
     try {
@@ -43,7 +41,13 @@ export default function ProductList() {
   };
 
   const loadBrands = async () => {
-    try { const r = await getBrands(); setBrands(r.data.data || []); } catch { /* */ }
+    try {
+      const r = await getBrands();
+      const list = (r.data.data || []) as Brand[];
+      setBrands(list);
+    } catch (err: any) {
+      console.error("加载品牌失败", err?.response?.status, err?.message);
+    }
   };
 
   useEffect(() => { loadBrands(); }, []);
@@ -156,8 +160,8 @@ export default function ProductList() {
     },
     { title: "单位", dataIndex: "unit", key: "unit", width: 60 },
     {
-      title: "品牌", dataIndex: "brand_id", key: "brand_id", width: 100,
-      render: (id: number) => id ? brandMap.get(id) || `#${id}` : "-",
+      title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 100,
+      render: (v: string | null) => v || "-",
     },
     {
       title: "操作", key: "actions", width: 160,
@@ -241,7 +245,7 @@ export default function ProductList() {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="brand_id" label="品牌">
-                <Select allowClear placeholder="选择品牌" options={brands.map((b) => ({ value: b.id, label: b.name }))} />
+                <Select allowClear placeholder="选择品牌" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
               </Form.Item>
             </Col>
             <Col span={12}>

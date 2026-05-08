@@ -47,19 +47,22 @@ export default function ProductDetail() {
           similarProducts(Number(id)),
         ]);
         let pid = Number(id);
+        let resolvedBrandName = "";
         if (prodRes.status === "fulfilled") {
           const p = prodRes.value.data.data;
           setProduct(p);
           pid = p.id;
+          if (p.brand_name) resolvedBrandName = p.brand_name;
           if (p.specs) {
             try { setSpecsObj(JSON.parse(p.specs)); } catch { setSpecsObj({ raw: p.specs }); }
           }
         }
-        if (brandsRes.status === "fulfilled") {
+        if (!resolvedBrandName && brandsRes.status === "fulfilled") {
           const brands = (brandsRes.value.data.data || []) as Brand[];
-          const b = brands.find((x) => x.id === product?.brand_id);
-          if (b) setBrandName(b.name_cn || b.name);
+          const b = brands.find((x) => x.id === (prodRes.status === "fulfilled" ? prodRes.value.data.data.brand_id : undefined));
+          if (b) resolvedBrandName = b.name_cn || b.name;
         }
+        if (resolvedBrandName) setBrandName(resolvedBrandName);
         if (invRes.status === "fulfilled") {
           setInventory(invRes.value.data.data.list || []);
         }

@@ -47,7 +47,7 @@ class Brand(TimestampMixin, Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
-    products = relationship("Product", foreign_keys="Product.brand_id", lazy="selectin")
+    products = relationship("Product", back_populates="brand", lazy="selectin")
 
 
 class Product(TimestampMixin, Base):
@@ -64,6 +64,7 @@ class Product(TimestampMixin, Base):
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
+    brand = relationship("Brand", back_populates="products", lazy="selectin")
     quotation_items = relationship("QuotationItem", back_populates="product", lazy="selectin")
     sales_order_items = relationship("SalesOrderItem", back_populates="product", lazy="selectin")
     delivery_note_items = relationship("DeliveryNoteItem", back_populates="product", lazy="selectin")

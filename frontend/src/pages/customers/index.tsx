@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, Tag, Select, Row, Col, message, Popconfirm, Card, Modal, Upload, Tooltip, List, Typography, Empty, Popover, Checkbox } from "antd";
-import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined, SettingOutlined, SendOutlined } from "@ant-design/icons";
+import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined, SettingOutlined, SendOutlined, SwapOutlined } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
 import { getCustomers, deleteCustomer, exportCustomers, batchDeleteCustomers, batchTagCustomers, getTags, downloadImportTemplate, importCustomers, getOverdueFollowUps, detectDuplicates, mergeCustomers, getAlertEvents, markAllAlertsRead, checkAlerts, searchSimilarCustomers } from "../../api";
+import VendAsSupplierModal from "./VendAsSupplierModal";
 import type { AlertEvent, Customer, DuplicatePair, OverdueFollowUp, SimilarCustomer, Tag as TagType } from "../../types";
 
 const INDUSTRIES = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗设备", "安防监控", "其他"];
@@ -44,6 +45,7 @@ export default function CustomerList() {
   const [semanticQ, setSemanticQ] = useState("");
   const [semanticResults, setSemanticResults] = useState<SimilarCustomer[]>([]);
   const [semanticLoading, setSemanticLoading] = useState(false);
+  const [vendCustomer, setVendCustomer] = useState<Customer | null>(null);
   const allColKeys = ["code", "name", "industry", "level", "region", "tags", "owner", "contact_person", "source", "created_at", "actions"];
   const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
   const navigate = useNavigate();
@@ -221,6 +223,9 @@ export default function CustomerList() {
           </Tooltip>
           <Tooltip title="新增跟进">
             <Button size="small" icon={<PhoneOutlined />} onClick={() => navigate(`/customers/${r.id}?tab=followups`)} />
+          </Tooltip>
+          <Tooltip title="转为供应商">
+            <Button size="small" icon={<SwapOutlined />} onClick={() => setVendCustomer(r)} />
           </Tooltip>
           <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
             <Button size="small" danger>删除</Button>
@@ -427,6 +432,14 @@ export default function CustomerList() {
           </div>
         )}
       </Modal>
+      {vendCustomer && (
+        <VendAsSupplierModal
+          customer={vendCustomer}
+          open={!!vendCustomer}
+          onCancel={() => setVendCustomer(null)}
+          onSuccess={() => { setVendCustomer(null); fetch(); }}
+        />
+      )}
     </div>
   );
 }

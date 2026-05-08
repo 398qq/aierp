@@ -44,6 +44,7 @@ class ProductUpdate(BaseModel):
 def _product_row(p: Product) -> dict:
     return {
         "id": p.id, "sku": p.sku, "name": p.name, "brand_id": p.brand_id,
+        "brand_name": p.brand.name_cn or p.brand.name if p.brand else None,
         "category": p.category, "package_type": p.package_type,
         "specs": p.specs, "unit": p.unit, "notes": p.notes,
         "image_url": p.image_url,

@@ -143,6 +143,7 @@ export type LoginData = { token: string; username: string; role: string };
 // Product & Inventory
 export interface Product {
   id: number; sku: string | null; name: string; brand_id: number | null;
+  brand_name: string | null;
   category: string | null; package_type: string | null; specs: string | null;
   unit: string | null; notes: string | null; image_url: string | null;
   created_at: string;

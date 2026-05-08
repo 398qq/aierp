@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
 import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
 import CustomerFormFields from "./CustomerForm";
+import VendAsSupplierModal from "./VendAsSupplierModal";
 import dayjs from "dayjs";
 import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, Visit } from "../../types";
 
@@ -28,6 +29,7 @@ export default function CustomerDetail() {
   const [recModalOpen, setRecModalOpen] = useState(false);
   const [recResult, setRecResult] = useState<CustomerProductMatch | null>(null);
   const [recLoading, setRecLoading] = useState(false);
+  const [vendModalOpen, setVendModalOpen] = useState(false);
 
   const customerId = Number(id);
 
@@ -88,6 +90,9 @@ export default function CustomerDetail() {
       </Button>
       <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs} style={{ marginBottom: 16, marginLeft: 8 }}>
         AI 产品推荐
+      </Button>
+      <Button icon={<SwapOutlined />} onClick={() => setVendModalOpen(true)} style={{ marginBottom: 16, marginLeft: 8 }}>
+        转为供应商
       </Button>
       <Button icon={<PieChartOutlined />} onClick={() => navigate(`/customers/${customerId}/360`)} style={{ marginBottom: 16, marginLeft: 8 }}>
         AI 360
@@ -271,6 +276,12 @@ export default function CustomerDetail() {
               )}
             </Modal>
 
+            <VendAsSupplierModal
+              customer={customer}
+              open={vendModalOpen}
+              onCancel={() => setVendModalOpen(false)}
+              onSuccess={() => setVendModalOpen(false)}
+            />
           </>
         )}
     </div>
