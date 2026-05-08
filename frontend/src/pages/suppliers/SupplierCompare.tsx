@@ -87,7 +87,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={24}>
               <Card title={<><TrophyOutlined /> 总体排名</>}>
-                <Table columns={rankColumns} dataSource={data.overall_ranking} rowKey={(row) => `${row.rank}-${row.supplier_id}`} pagination={false} size="small" />
+                <Table columns={rankColumns} dataSource={data.overall_ranking} rowKey="supplier_name" pagination={false} size="small" />
               </Card>
             </Col>
           </Row>

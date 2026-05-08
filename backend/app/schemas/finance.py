@@ -58,6 +58,8 @@ class SalesTargetCreate(BaseModel):
     user_id: int
     target_amount: float = 0
     target_type: str = "monthly"
+    period: str | None = None
+    target_orders: int | None = None
     period_start: str | None = None
     period_end: str | None = None
     actual_amount: float = 0
@@ -68,6 +70,8 @@ class SalesTargetUpdate(BaseModel):
     user_id: int | None = None
     target_amount: float | None = None
     target_type: str | None = None
+    period: str | None = None
+    target_orders: int | None = None
     period_start: str | None = None
     period_end: str | None = None
     actual_amount: float | None = None
@@ -148,6 +152,8 @@ class SalesTargetResponse(BaseModel):
     user_id: int
     target_amount: float
     target_type: str
+    period: str | None = None
+    target_orders: int | None = None
     period_start: str | None = None
     period_end: str | None = None
     actual_amount: float

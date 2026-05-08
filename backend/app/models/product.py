@@ -64,9 +64,9 @@ class Product(TimestampMixin, Base):
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
-    quotation_items = relationship("QuotationItem", foreign_keys="QuotationItem.product_id", lazy="selectin")
-    sales_order_items = relationship("SalesOrderItem", foreign_keys="SalesOrderItem.product_id", lazy="selectin")
-    delivery_note_items = relationship("DeliveryNoteItem", foreign_keys="DeliveryNoteItem.product_id", lazy="selectin")
+    quotation_items = relationship("QuotationItem", back_populates="product", lazy="selectin")
+    sales_order_items = relationship("SalesOrderItem", back_populates="product", lazy="selectin")
+    delivery_note_items = relationship("DeliveryNoteItem", back_populates="product", lazy="selectin")
 
 
 class Supplier(TimestampMixin, Base):

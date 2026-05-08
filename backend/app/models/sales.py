@@ -23,6 +23,7 @@ class Opportunity(TimestampMixin, Base):
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    customer = relationship("Customer", back_populates="opportunities")
     product = relationship("Product", foreign_keys=[product_id])
     quotations = relationship("Quotation", back_populates="opportunity", lazy="selectin")
 
@@ -39,6 +40,7 @@ class Quotation(TimestampMixin, Base):
     valid_until: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    customer = relationship("Customer", back_populates="quotations")
     opportunity = relationship("Opportunity", back_populates="quotations")
     items = relationship("QuotationItem", back_populates="quotation", lazy="selectin", cascade="all, delete-orphan")
 
@@ -55,7 +57,7 @@ class QuotationItem(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     quotation = relationship("Quotation", back_populates="items")
-    product = relationship("Product", foreign_keys=[product_id])
+    product = relationship("Product", back_populates="quotation_items")
 
 
 class SalesOrder(TimestampMixin, Base):
@@ -70,6 +72,8 @@ class SalesOrder(TimestampMixin, Base):
     delivery_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    customer = relationship("Customer", back_populates="sales_orders")
+    quotation = relationship("Quotation", foreign_keys=[quotation_id])
     items = relationship("SalesOrderItem", back_populates="order", lazy="selectin", cascade="all, delete-orphan")
 
 
@@ -85,7 +89,7 @@ class SalesOrderItem(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     order = relationship("SalesOrder", back_populates="items")
-    product = relationship("Product", foreign_keys=[product_id])
+    product = relationship("Product", back_populates="sales_order_items")
 
 
 class DeliveryNote(TimestampMixin, Base):
@@ -99,6 +103,8 @@ class DeliveryNote(TimestampMixin, Base):
     received_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    customer = relationship("Customer", back_populates="delivery_notes")
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     items = relationship("DeliveryNoteItem", back_populates="delivery_note", lazy="selectin", cascade="all, delete-orphan")
 
 
@@ -112,6 +118,6 @@ class DeliveryNoteItem(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     delivery_note = relationship("DeliveryNote", back_populates="items")
-    product = relationship("Product", foreign_keys=[product_id])
+    product = relationship("Product", back_populates="delivery_note_items")
 
 

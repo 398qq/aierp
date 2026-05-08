@@ -341,10 +341,7 @@ export interface Contract {
   sales_order_id: number | null; title: string; amount: number;
   signed_date: string | null; expire_date: string | null;
   status: string; file_url: string | null; notes: string | null;
-  created_at: string;
-  sales_order?: { id: number; order_no: string | null; status: string; total_amount: number };
-  invoices?: { id: number; invoice_no: string | null; amount: number; status: string }[];
-  payments?: { id: number; amount: number; payment_method: string; status: string }[];
+  created_at: string; updated_at?: string | null;
 }
 
 // Notification
@@ -920,6 +917,7 @@ export interface NLPQueryResult {
 export interface Opportunity {
   id: number;
   customer_id: number;
+  product_id: number | null;
   title: string;
   description: string | null;
   status: string;

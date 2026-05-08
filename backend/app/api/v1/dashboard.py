@@ -150,7 +150,7 @@ async def dashboard_alerts(
     alerts = (await db.execute(
         select(Notification).where(
             Notification.deleted_at.is_(None),
-            not Notification.is_read,
+            ~Notification.is_read,
             Notification.type.in_(["risk_alert", "overdue", "target_warning", "contract_expiry"]),
         ).order_by(Notification.id.desc()).limit(limit)
     )).scalars().all()
