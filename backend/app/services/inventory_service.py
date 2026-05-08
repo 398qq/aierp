@@ -186,8 +186,8 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
     """
     now = datetime.now(timezone.utc)
     d365 = now - timedelta(days=365)
-    d180 = now - timedelta(days=180)
-    d90 = now - timedelta(days=90)
+    now - timedelta(days=180)
+    now - timedelta(days=90)
     d45 = now - timedelta(days=45)
 
     # Base query: products with sales history
@@ -304,7 +304,7 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
         if len(monthly_values) >= 6:
             avg_monthly = sum(monthly_values) / len(monthly_values)
             peak = max(monthly_values)
-            trough = min(monthly_values)
+            min(monthly_values)
             seasonal_factor = round(peak / max(avg_monthly, 1), 2)  # > 1.5 = seasonal
         else:
             avg_monthly = sold_365 / max(len(monthly_values), 1)

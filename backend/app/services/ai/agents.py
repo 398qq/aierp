@@ -566,7 +566,7 @@ class WatchtowerService:
         from sqlalchemy import func, select
         from app.models.customer import Customer
         from app.models.product import Inventory
-        from app.models.sales import Opportunity, SalesOrder
+        from app.models.sales import Opportunity
         from app.models.finance import Invoice
 
         findings = []
@@ -649,7 +649,6 @@ class WatchtowerService:
     @staticmethod
     async def scan_and_notify(db) -> dict:
         """Scan all domains and create notification entries for findings."""
-        from app.models.finance import Notification
         from app.services.notification_service import create_notification
 
         findings = await WatchtowerService.scan_all(db)

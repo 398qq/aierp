@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -85,7 +85,7 @@ async def dashboard_trends(
     months: int = Query(12, ge=1, le=24),
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
-    from app.models.sales import Opportunity, Quotation, SalesOrder
+    from app.models.sales import Opportunity, SalesOrder
 
     now = datetime.now(timezone.utc)
     trend = []
@@ -150,7 +150,7 @@ async def dashboard_alerts(
     alerts = (await db.execute(
         select(Notification).where(
             Notification.deleted_at.is_(None),
-            Notification.is_read == False,
+            not Notification.is_read,
             Notification.type.in_(["risk_alert", "overdue", "target_warning", "contract_expiry"]),
         ).order_by(Notification.id.desc()).limit(limit)
     )).scalars().all()

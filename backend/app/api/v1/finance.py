@@ -38,7 +38,8 @@ async def list_invoices(
 async def get_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_invoice as svc_get
     inv = await svc_get(db, inv_id)
-    if not inv: return fail("发票不存在", 404)
+    if not inv:
+        return fail("发票不存在", 404)
     return ok(inv)
 
 
@@ -53,7 +54,8 @@ async def create_invoice(body: InvoiceCreate, db: AsyncSession = Depends(get_db)
 async def update_invoice(inv_id: int, body: InvoiceUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_invoice as svc_get, update_invoice as svc_update
     inv = await svc_get(db, inv_id)
-    if not inv: return fail("发票不存在", 404)
+    if not inv:
+        return fail("发票不存在", 404)
     inv = await svc_update(db, inv, body.model_dump(exclude_none=True))
     return ok(inv)
 
@@ -62,7 +64,8 @@ async def update_invoice(inv_id: int, body: InvoiceUpdate, db: AsyncSession = De
 async def delete_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_invoice as svc_get, delete_invoice as svc_del
     inv = await svc_get(db, inv_id)
-    if not inv: return fail("发票不存在", 404)
+    if not inv:
+        return fail("发票不存在", 404)
     await svc_del(db, inv)
     return ok({"deleted": inv_id})
 
@@ -96,7 +99,8 @@ async def get_payment_stats(db: AsyncSession = Depends(get_db), _user: dict = De
 async def get_payment(pay_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_payment as svc_get
     pay = await svc_get(db, pay_id)
-    if not pay: return fail("回款记录不存在", 404)
+    if not pay:
+        return fail("回款记录不存在", 404)
     return ok(pay)
 
 
@@ -111,7 +115,8 @@ async def create_payment(body: PaymentRecordCreate, db: AsyncSession = Depends(g
 async def update_payment(pay_id: int, body: PaymentRecordUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_payment as svc_get, update_payment as svc_update
     pay = await svc_get(db, pay_id)
-    if not pay: return fail("回款记录不存在", 404)
+    if not pay:
+        return fail("回款记录不存在", 404)
     pay = await svc_update(db, pay, body.model_dump(exclude_none=True))
     return ok(pay)
 
@@ -120,7 +125,8 @@ async def update_payment(pay_id: int, body: PaymentRecordUpdate, db: AsyncSessio
 async def delete_payment(pay_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_payment as svc_get, delete_payment as svc_del
     pay = await svc_get(db, pay_id)
-    if not pay: return fail("回款记录不存在", 404)
+    if not pay:
+        return fail("回款记录不存在", 404)
     await svc_del(db, pay)
     return ok({"deleted": pay_id})
 
@@ -146,7 +152,8 @@ async def list_contracts(
 async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_contract as svc_get
     ct = await svc_get(db, contract_id)
-    if not ct: return fail("合同不存在", 404)
+    if not ct:
+        return fail("合同不存在", 404)
     return ok(ct)
 
 
@@ -161,7 +168,8 @@ async def create_contract(body: ContractCreate, db: AsyncSession = Depends(get_d
 async def update_contract(contract_id: int, body: ContractUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_contract as svc_get, update_contract as svc_update
     ct = await svc_get(db, contract_id)
-    if not ct: return fail("合同不存在", 404)
+    if not ct:
+        return fail("合同不存在", 404)
     ct = await svc_update(db, ct, body.model_dump(exclude_none=True))
     return ok(ct)
 
@@ -170,7 +178,8 @@ async def update_contract(contract_id: int, body: ContractUpdate, db: AsyncSessi
 async def delete_contract(contract_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_contract as svc_get, delete_contract as svc_del
     ct = await svc_get(db, contract_id)
-    if not ct: return fail("合同不存在", 404)
+    if not ct:
+        return fail("合同不存在", 404)
     await svc_del(db, ct)
     return ok({"deleted": contract_id})
 
@@ -204,7 +213,8 @@ async def get_target_stats(db: AsyncSession = Depends(get_db), _user: dict = Dep
 async def get_target(target_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_target as svc_get
     t = await svc_get(db, target_id)
-    if not t: return fail("目标不存在", 404)
+    if not t:
+        return fail("目标不存在", 404)
     return ok(t)
 
 
@@ -219,7 +229,8 @@ async def create_target(body: SalesTargetCreate, db: AsyncSession = Depends(get_
 async def update_target(target_id: int, body: SalesTargetUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_target as svc_get, update_target as svc_update
     t = await svc_get(db, target_id)
-    if not t: return fail("目标不存在", 404)
+    if not t:
+        return fail("目标不存在", 404)
     t = await svc_update(db, t, body.model_dump(exclude_none=True))
     return ok(t)
 
@@ -228,6 +239,7 @@ async def update_target(target_id: int, body: SalesTargetUpdate, db: AsyncSessio
 async def delete_target(target_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.finance_service import get_target as svc_get, delete_target as svc_del
     t = await svc_get(db, target_id)
-    if not t: return fail("目标不存在", 404)
+    if not t:
+        return fail("目标不存在", 404)
     await svc_del(db, t)
     return ok({"deleted": target_id})

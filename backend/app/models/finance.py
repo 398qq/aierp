@@ -1,7 +1,7 @@
 import datetime
 
 from sqlalchemy import DECIMAL, Boolean, DateTime, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
@@ -18,6 +18,9 @@ class PaymentRecord(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+    customer = relationship("Customer", foreign_keys=[customer_id])
+
 
 class Invoice(TimestampMixin, Base):
     __tablename__ = "invoices"
@@ -32,6 +35,9 @@ class Invoice(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="draft")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+    customer = relationship("Customer", foreign_keys=[customer_id])
+
 
 class SalesTarget(TimestampMixin, Base):
     __tablename__ = "sales_targets"
@@ -45,6 +51,8 @@ class SalesTarget(TimestampMixin, Base):
     period_end: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actual_amount: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
     status: Mapped[str] = mapped_column(String(20), default="active")
+
+    user = relationship("User", foreign_keys=[user_id])
 
 
 class Contract(TimestampMixin, Base):
@@ -61,6 +69,9 @@ class Contract(TimestampMixin, Base):
     file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    customer = relationship("Customer", foreign_keys=[customer_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+
 
 class Notification(TimestampMixin, Base):
     __tablename__ = "notifications"
@@ -71,3 +82,5 @@ class Notification(TimestampMixin, Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     related_id: Mapped[int | None] = mapped_column(nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    user = relationship("User", foreign_keys=[user_id])

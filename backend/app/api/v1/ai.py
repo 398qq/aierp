@@ -4,7 +4,6 @@ import json
 import logging
 from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 

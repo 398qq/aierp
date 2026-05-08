@@ -46,6 +46,13 @@ class Customer(TimestampMixin, Base):
     tags = relationship("CustomerTag", secondary=customer_tag_table, lazy="selectin")
     children = relationship("Customer", back_populates="parent", lazy="selectin", remote_side="Customer.id")
     parent = relationship("Customer", back_populates="children", remote_side="Customer.parent_id", lazy="selectin")
+    opportunities = relationship("Opportunity", foreign_keys="Opportunity.customer_id", lazy="selectin")
+    quotations = relationship("Quotation", foreign_keys="Quotation.customer_id", lazy="selectin")
+    sales_orders = relationship("SalesOrder", foreign_keys="SalesOrder.customer_id", lazy="selectin")
+    delivery_notes = relationship("DeliveryNote", foreign_keys="DeliveryNote.customer_id", lazy="selectin")
+    tickets = relationship("Ticket", foreign_keys="Ticket.customer_id", lazy="selectin")
+    visits = relationship("Visit", foreign_keys="Visit.customer_id", lazy="selectin")
+    samples = relationship("Sample", foreign_keys="Sample.customer_id", lazy="selectin")
 
 
 class CustomerContact(TimestampMixin, Base):

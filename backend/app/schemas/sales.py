@@ -41,6 +41,7 @@ class OpportunityUpdate(BaseModel):
 class OpportunityResponse(BaseModel):
     id: int
     customer_id: int
+    product_id: int | None = None
     title: str
     description: str | None = None
     status: str

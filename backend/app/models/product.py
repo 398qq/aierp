@@ -1,6 +1,6 @@
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, DECIMAL, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
@@ -46,6 +46,9 @@ class Brand(TimestampMixin, Base):
     alternative_brands: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
+    supplier = relationship("Supplier", foreign_keys=[supplier_id])
+    products = relationship("Product", foreign_keys="Product.brand_id", lazy="selectin")
+
 
 class Product(TimestampMixin, Base):
     __tablename__ = "products"
@@ -60,6 +63,10 @@ class Product(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+
+    quotation_items = relationship("QuotationItem", foreign_keys="QuotationItem.product_id", lazy="selectin")
+    sales_order_items = relationship("SalesOrderItem", foreign_keys="SalesOrderItem.product_id", lazy="selectin")
+    delivery_note_items = relationship("DeliveryNoteItem", foreign_keys="DeliveryNoteItem.product_id", lazy="selectin")
 
 
 class Supplier(TimestampMixin, Base):
@@ -79,6 +86,8 @@ class Supplier(TimestampMixin, Base):
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     financial_rating: Mapped[str | None] = mapped_column(String(10), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+
+    supplier_products = relationship("SupplierProduct", foreign_keys="SupplierProduct.supplier_id", lazy="selectin")
 
 
 class Warehouse(TimestampMixin, Base):

@@ -677,7 +677,7 @@ async def get_supplier_360(db: AsyncSession, supplier_id: int) -> dict:
         logger.error(f"Supplier 360 failed #{supplier_id}: {e}")
         return {
             "overall_score": 50, "tier": "C",
-            "summary": f"AI分析暂时不可用",
+            "summary": "AI分析暂时不可用",
             "assessment": "",
             "key_strengths": [], "key_weaknesses": [], "recommendations": [],
             "po_history_summary": po_history,
@@ -697,7 +697,6 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
         return {"error": "至少需要2个供应商进行比较"}
 
     from app.models.transaction import PurchaseOrder
-    from app.services.ai.client import ai_client
 
     suppliers_data = []
     for sid in supplier_ids:

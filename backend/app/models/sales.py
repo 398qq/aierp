@@ -1,11 +1,10 @@
 import datetime
 
-from sqlalchemy import DECIMAL, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DECIMAL, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
-from app.models.product import Product
 
 
 class Opportunity(TimestampMixin, Base):

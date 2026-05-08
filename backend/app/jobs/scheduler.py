@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 
@@ -90,8 +89,7 @@ async def _check_overdue_payments():
 async def _check_target_progress():
     """Warn on targets significantly behind schedule."""
     try:
-        from datetime import timedelta
-        from app.models.finance import SalesTarget, Notification
+        from app.models.finance import SalesTarget
         from app.services.notification_service import create_notification
         async with async_session() as db:
             targets = (await db.execute(
@@ -114,7 +112,7 @@ async def _check_target_progress():
                 if t.actual_amount < expected * 0.5:  # less than 50% of expected
                     await create_notification(
                         db, user_id=t.user_id, type="target_warning",
-                        title=f"销售目标进度落后",
+                        title="销售目标进度落后",
                         content=f"目标 ¥{t.target_amount:,.2f}，当前完成 ¥{t.actual_amount:,.2f}（{t.actual_amount/t.target_amount*100:.1f}%），预期进度 {elapsed_pct*100:.1f}%",
                         related_id=t.id,
                     )
@@ -126,7 +124,7 @@ async def _check_contract_expiry():
     """Alert on contracts expiring within 30 days."""
     try:
         from datetime import timedelta
-        from app.models.finance import Contract, Notification
+        from app.models.finance import Contract
         from app.services.notification_service import create_notification
         async with async_session() as db:
             soon = datetime.now(timezone.utc) + timedelta(days=30)
@@ -232,7 +230,6 @@ async def _populate_customer_insights():
                     rfm = await CustomerAgent.rfm_analysis(customer_data)
                     churn = await CustomerAgent.churn_risk(customer_data)
 
-                    import json
                     cust.ai_insights = {
                         "rfm": rfm,
                         "churn_risk": churn,
@@ -279,7 +276,6 @@ def start():
     logger.info("Scheduler started with 8 jobs")
 
     # Trigger one-off initial runs for embedding + insight population
-    import asyncio
     async def _initial_bootstrap():
         await asyncio.sleep(5)  # wait for DB to be ready
         try:
