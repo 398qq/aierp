@@ -19,7 +19,7 @@ export default function SupplierComparePage() {
         const list = r.data.data?.list || r.data.data || [];
         setSupplierOptions(list.map((s: { id: number; name: string }) => ({ value: s.id, label: s.name })));
       })
-      .catch(() => {});
+      .catch(() => setError("加载供应商列表失败"));
   }, []);
 
   const handleCompare = async () => {
@@ -43,15 +43,17 @@ export default function SupplierComparePage() {
     { title: "等级", dataIndex: "tier", render: (t: string) => <Tag color={t === "A" ? "green" : t === "B" ? "blue" : "orange"}>{t}</Tag> },
   ];
 
-  const matrixColumns = [
-    { title: "维度", dataIndex: "dimension", width: 100 },
-    { title: "权重", dataIndex: "weight", width: 60, render: (w: number) => `${(w * 100).toFixed(0)}%` },
-    ...Object.keys(data?.comparison_matrix?.[0]?.scores || {}).map((name) => ({
-      title: name,
-      dataIndex: ["scores", name],
-      render: (s: number) => s != null ? s.toFixed(1) : "-",
-    })),
-  ];
+  const matrixColumns = data?.comparison_matrix?.[0]?.scores
+    ? [
+        { title: "维度", dataIndex: "dimension", width: 100 },
+        { title: "权重", dataIndex: "weight", width: 60, render: (w: number) => `${(w * 100).toFixed(0)}%` },
+        ...Object.keys(data.comparison_matrix[0].scores).map((name) => ({
+          title: name,
+          dataIndex: ["scores", name],
+          render: (s: number) => s != null ? s.toFixed(1) : "-",
+        })),
+      ]
+    : [];
 
   return (
     <div style={{ padding: 24 }}>
@@ -85,7 +87,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={24}>
               <Card title={<><TrophyOutlined /> 总体排名</>}>
-                <Table columns={rankColumns} dataSource={data.overall_ranking} rowKey="rank" pagination={false} size="small" />
+                <Table columns={rankColumns} dataSource={data.overall_ranking} rowKey={(row) => `${row.rank}-${row.supplier_id}`} pagination={false} size="small" />
               </Card>
             </Col>
           </Row>

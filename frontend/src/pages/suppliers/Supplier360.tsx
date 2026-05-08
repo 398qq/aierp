@@ -15,8 +15,14 @@ export default function Supplier360Page() {
 
   useEffect(() => {
     if (!id) return;
+    const supplierId = Number(id);
+    if (!Number.isFinite(supplierId) || supplierId <= 0) {
+      setError("无效的供应商 ID");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    getSupplier360(Number(id))
+    getSupplier360(supplierId)
       .then((r) => setData(r.data.data))
       .catch(() => setError("AI 分析失败，请稍后重试"))
       .finally(() => setLoading(false));

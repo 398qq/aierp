@@ -23,7 +23,7 @@ export default function Global360Page() {
   if (error) return <Alert type="error" message={error} style={{ margin: 24 }} />;
   if (!data) return null;
 
-  const scoreColor = data.enterprise_health_score >= 80 ? "#52c41a" : data.enterprise_health_score >= 60 ? "#faad14" : "#ff4d4f";
+  const scoreColor = (data.enterprise_health_score ?? 0) >= 80 ? "#52c41a" : (data.enterprise_health_score ?? 0) >= 60 ? "#faad14" : "#ff4d4f";
 
   const opportunityColumns = [
     { title: "领域", dataIndex: "area", width: 80, render: (a: string) => <Tag>{a}</Tag> },

@@ -19,7 +19,19 @@ const domainLabels: Record<string, string> = {
   out_of_stock: "缺货",
 };
 
+const SCAN_LOOKBACK_DAYS = 90;
 const severityColor = (s: string) => s === "紧急" ? "red" : s === "需关注" ? "orange" : "green";
+
+const safeFormatDate = (d: string | undefined | null): string => {
+  if (!d) return "未知时间";
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return "无效时间";
+    return date.toLocaleString();
+  } catch {
+    return "无效时间";
+  }
+};
 
 export default function WatchtowerDashboard() {
   const [data, setData] = useState<{
@@ -37,7 +49,7 @@ export default function WatchtowerDashboard() {
   const fetchData = () => {
     setLoading(true);
     setError("");
-    getWatchtowerScan(90)
+    getWatchtowerScan(SCAN_LOOKBACK_DAYS)
       .then((r) => setData(r.data.data))
       .catch(() => setError("监控扫描失败，请稍后重试"))
       .finally(() => setLoading(false));
@@ -72,7 +84,7 @@ export default function WatchtowerDashboard() {
           <WarningOutlined /> 全局监控中心
         </Title>
         <Space>
-          <Text type="secondary">扫描时间: {new Date(data.scanned_at).toLocaleString()}</Text>
+          <Text type="secondary">扫描时间: {safeFormatDate(data.scanned_at)}</Text>
           <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>刷新</Button>
         </Space>
       </div>

@@ -1,7 +1,6 @@
 """Brand intelligence — AI-powered brand profile, portfolio analysis, comparison, import, health, risk, supplier matrix, recommendation."""
 
 import datetime
-import json
 import logging
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
