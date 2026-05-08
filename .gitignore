@@ -60,3 +60,15 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Test databases
+*.db
+test.db
+backend/test.db
+backend/test_debug.db
+backend/test_debug2.db
+backend/test_f.db
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+
