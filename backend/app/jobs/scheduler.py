@@ -278,6 +278,21 @@ def start():
     scheduler.start()
     logger.info("Scheduler started with 8 jobs")
 
+    # Trigger one-off initial runs for embedding + insight population
+    import asyncio
+    async def _initial_bootstrap():
+        await asyncio.sleep(5)  # wait for DB to be ready
+        try:
+            await _refresh_embeddings()
+        except Exception as e:
+            logger.warning(f"Initial embedding refresh failed: {e}")
+        try:
+            await _populate_customer_insights()
+        except Exception as e:
+            logger.warning(f"Initial insight population failed: {e}")
+
+    asyncio.create_task(_initial_bootstrap())
+
 
 def shutdown():
     scheduler.shutdown(wait=False)
