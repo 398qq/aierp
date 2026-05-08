@@ -1699,7 +1699,7 @@ async def get_quotation_history(
                        "unit_price": float(i.unit_price or 0), "total_price": float(i.total_price or 0)} for i in q.items]
         quotations.append({
             "id": q.id, "quotation_no": q.quotation_no, "status": q.status,
-            "total_amount": float(q.total_amount), "valid_until": str(q.valid_until) if q.valid_until else None,
+            "total_amount": float(q.total_amount or 0), "valid_until": str(q.valid_until) if q.valid_until else None,
             "notes": q.notes, "created_at": str(q.created_at) if q.created_at else None, "items": items,
         })
 
@@ -1868,7 +1868,7 @@ async def get_customer_insight(customer_id: int, db: AsyncSession = Depends(get_
             SalesOrderItem.product_id,
             ProductModel.name,
             func.sum(SalesOrderItem.quantity),
-            func.sum(SalesOrderItem.amount),
+            func.sum(SalesOrderItem.total_price),
         ).select_from(SalesOrderItem).join(
             SalesOrder, SalesOrderItem.order_id == SalesOrder.id
         ).join(
@@ -1878,7 +1878,7 @@ async def get_customer_insight(customer_id: int, db: AsyncSession = Depends(get_
             SalesOrder.deleted_at.is_(None),
             SalesOrderItem.deleted_at.is_(None),
         ).group_by(SalesOrderItem.product_id, ProductModel.name)
-        .order_by(func.sum(SalesOrderItem.amount).desc())
+        .order_by(func.sum(SalesOrderItem.total_price).desc())
     )).all()
     for row in item_rows:
         product_distribution.append({

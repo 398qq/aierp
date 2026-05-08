@@ -21,10 +21,18 @@ from app.models.finance import SalesTarget
 # Document Number Generation
 # ============================================================
 
+_NO_COLUMN_MAP = {
+    "QT": "quotation_no",
+    "SO": "order_no",
+    "DN": "delivery_no",
+}
+
+
 async def _gen_no(db: AsyncSession, prefix: str, model) -> str:
     now = datetime.now(timezone.utc)
     date_part = now.strftime("%Y%m%d")
-    col = getattr(model, list(model.__table__.columns.keys())[1])  # second column is the no field
+    col_name = _NO_COLUMN_MAP.get(prefix, list(model.__table__.columns.keys())[1])
+    col = getattr(model, col_name)
     result = await db.execute(
         select(func.count()).where(col.like(f"{prefix}{date_part}%"))
     )
@@ -60,6 +68,8 @@ async def list_opportunities(
 
     total = (await db.execute(cnt)).scalar() or 0
 
+    allowed_sorts = {"id", "title", "amount", "status", "stage", "win_probability", "expected_close_date", "created_at", "updated_at"}
+    sort_by = sort_by if sort_by in allowed_sorts else "id"
     sort_col = getattr(Opportunity, sort_by, Opportunity.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
     rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
@@ -117,6 +127,8 @@ async def list_quotations(
 
     total = (await db.execute(cnt)).scalar() or 0
 
+    allowed_sorts = {"id", "quotation_no", "total_amount", "status", "created_at", "updated_at"}
+    sort_by = sort_by if sort_by in allowed_sorts else "id"
     sort_col = getattr(Quotation, sort_by, Quotation.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
     rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
@@ -183,6 +195,8 @@ async def list_sales_orders(
 
     total = (await db.execute(cnt)).scalar() or 0
 
+    allowed_sorts = {"id", "order_no", "total_amount", "status", "order_date", "delivery_date", "created_at", "updated_at"}
+    sort_by = sort_by if sort_by in allowed_sorts else "id"
     sort_col = getattr(SalesOrder, sort_by, SalesOrder.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
     rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
@@ -255,6 +269,8 @@ async def list_delivery_notes(
 
     total = (await db.execute(cnt)).scalar() or 0
 
+    allowed_sorts = {"id", "delivery_no", "status", "delivery_date", "received_date", "created_at", "updated_at"}
+    sort_by = sort_by if sort_by in allowed_sorts else "id"
     sort_col = getattr(DeliveryNote, sort_by, DeliveryNote.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
     rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
@@ -379,7 +395,10 @@ async def list_targets(db: AsyncSession, page: int = 1, page_size: int = 20) -> 
 
 
 async def get_target(db: AsyncSession, target_id: int) -> SalesTarget | None:
-    return await db.get(SalesTarget, target_id)
+    result = await db.execute(
+        select(SalesTarget).where(SalesTarget.id == target_id, SalesTarget.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
 
 
 async def create_target(db: AsyncSession, data: dict) -> SalesTarget:

@@ -52,12 +52,14 @@ async def get_opportunity(
     opp = await svc.get_opportunity(db, opp_id)
     if not opp:
         return fail("商机不存在", 404)
-    result = opp
     if include_ai:
         from app.services.sales_ai_service import enrich_opportunity
         ai_data = await enrich_opportunity(db, opp)
-        result = {**opp.__dict__, "ai": ai_data}
-    return ok(result)
+        from app.schemas.sales import OpportunityResponse
+        result = OpportunityResponse.model_validate(opp).model_dump()
+        result["ai"] = ai_data
+        return ok(result)
+    return ok(opp)
 
 
 @router.post("/opportunities", status_code=201)
@@ -165,8 +167,11 @@ async def get_quotation(
     if include_ai:
         from app.services.sales_ai_service import enrich_quotation
         ai_data = await enrich_quotation(db, quote)
-        result = {**quote.__dict__, "ai": ai_data}
-    return ok(result)
+        from app.schemas.sales import QuotationResponse
+        result = QuotationResponse.model_validate(quote).model_dump()
+        result["ai"] = ai_data
+        return ok(result)
+    return ok(quote)
 
 
 @router.post("/quotations", status_code=201)
@@ -256,8 +261,11 @@ async def get_sales_order(
     if include_ai:
         from app.services.sales_ai_service import enrich_sales_order
         ai_data = await enrich_sales_order(db, order)
-        result = {**order.__dict__, "ai": ai_data}
-    return ok(result)
+        from app.schemas.sales import SalesOrderResponse
+        result = SalesOrderResponse.model_validate(order).model_dump()
+        result["ai"] = ai_data
+        return ok(result)
+    return ok(order)
 
 
 @router.post("/sales-orders", status_code=201)
@@ -345,8 +353,11 @@ async def get_delivery_note(
     if include_ai:
         from app.services.sales_ai_service import enrich_delivery_note
         ai_data = await enrich_delivery_note(db, note)
-        result = {**note.__dict__, "ai": ai_data}
-    return ok(result)
+        from app.schemas.sales import DeliveryNoteResponse
+        result = DeliveryNoteResponse.model_validate(note).model_dump()
+        result["ai"] = ai_data
+        return ok(result)
+    return ok(note)
 
 
 @router.post("/delivery-notes", status_code=201)

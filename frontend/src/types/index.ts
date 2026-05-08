@@ -587,16 +587,6 @@ export interface LifecycleAnalysis {
   context?: Record<string, unknown>;
 }
 
-// Customer Insight
-export interface CustomerInsight {
-  customer: Record<string, unknown>;
-  order_summary: { total_orders: number; total_amount: number; avg_order_amount: number; last_order_date: string | null };
-  product_distribution: { product_id: number; product_name: string; quantity: number; amount: number }[];
-  followup_summary: { total_followups: number; last_followup: string | null; pending_count: number; overdue_count: number };
-  opportunity_summary: { total: number; active: number; won: number; win_probability: number };
-  suggestions: string[];
-}
-
 // Supplier-Product Linkage
 export interface SupplierProductLink {
   id: number;

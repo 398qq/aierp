@@ -186,8 +186,6 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
     """
     now = datetime.now(timezone.utc)
     d365 = now - timedelta(days=365)
-    now - timedelta(days=180)
-    now - timedelta(days=90)
     d45 = now - timedelta(days=45)
 
     # Base query: products with sales history

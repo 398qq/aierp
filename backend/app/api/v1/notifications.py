@@ -42,5 +42,5 @@ async def mark_read(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    affected = await svc.mark_read(db, user_id=_user["user_id"], ids=body.ids, all=body.all)
+    affected = await svc.mark_read(db, user_id=_user["user_id"], ids=body.ids, mark_all=body.all)
     return {"code": 0, "msg": "success", "data": {"affected": affected}}

@@ -710,7 +710,7 @@ export const deleteContract = (id: number) =>
 // ============================================================
 
 export const getTargets = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<SalesTarget>>>("/targets", { params });
+  client.get<APIResponse<PageData<SalesTarget>>>("/sales/targets", { params });
 
 export const getTargetStats = () =>
   client.get<APIResponse<{ total_target: number; total_actual: number; achievement_pct: number; count: number; completed: number }>>("/targets/stats");
@@ -719,7 +719,7 @@ export const getTarget = (id: number) =>
   client.get<APIResponse<SalesTarget>>(`/targets/${id}`);
 
 export const createTarget = (data: Record<string, unknown>) =>
-  client.post<APIResponse<SalesTarget>>("/targets", data);
+  client.post<APIResponse<SalesTarget>>("/sales/targets", data);
 
 export const updateTarget = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<SalesTarget>>(`/targets/${id}`, data);

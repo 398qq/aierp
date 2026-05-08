@@ -17,7 +17,7 @@ class OpportunityCreate(BaseModel):
     stage: str | None = None
     amount: float | None = None
     win_probability: int | None = None
-    expected_close_date: str | None = None
+    expected_close_date: datetime | None = None
     assigned_to: str | None = None
     source: str | None = None
     notes: str | None = None
@@ -32,7 +32,7 @@ class OpportunityUpdate(BaseModel):
     stage: str | None = None
     amount: float | None = None
     win_probability: int | None = None
-    expected_close_date: str | None = None
+    expected_close_date: datetime | None = None
     assigned_to: str | None = None
     source: str | None = None
     notes: str | None = None
@@ -99,7 +99,7 @@ class QuotationCreate(BaseModel):
     title: str | None = None
     total_amount: float = 0
     status: str = "draft"
-    valid_until: str | None = None
+    valid_until: datetime | None = None
     notes: str | None = None
     items: list[QuotationItemCreate] = []
 
@@ -111,7 +111,7 @@ class QuotationUpdate(BaseModel):
     title: str | None = None
     total_amount: float | None = None
     status: str | None = None
-    valid_until: str | None = None
+    valid_until: datetime | None = None
     notes: str | None = None
 
 
@@ -172,8 +172,8 @@ class SalesOrderCreate(BaseModel):
     quotation_id: int | None = None
     total_amount: float = 0
     status: str = "pending"
-    order_date: str | None = None
-    delivery_date: str | None = None
+    order_date: datetime | None = None
+    delivery_date: datetime | None = None
     notes: str | None = None
     items: list[SalesOrderItemCreate] = []
 
@@ -184,8 +184,8 @@ class SalesOrderUpdate(BaseModel):
     quotation_id: int | None = None
     total_amount: float | None = None
     status: str | None = None
-    order_date: str | None = None
-    delivery_date: str | None = None
+    order_date: datetime | None = None
+    delivery_date: datetime | None = None
     notes: str | None = None
 
 
@@ -239,8 +239,8 @@ class DeliveryNoteCreate(BaseModel):
     sales_order_id: int
     customer_id: int
     status: str = "pending"
-    delivery_date: str | None = None
-    received_date: str | None = None
+    delivery_date: datetime | None = None
+    received_date: datetime | None = None
     notes: str | None = None
     items: list[DeliveryNoteItemCreate] = []
 
@@ -250,8 +250,8 @@ class DeliveryNoteUpdate(BaseModel):
     sales_order_id: int | None = None
     customer_id: int | None = None
     status: str | None = None
-    delivery_date: str | None = None
-    received_date: str | None = None
+    delivery_date: datetime | None = None
+    received_date: datetime | None = None
     notes: str | None = None
 
 

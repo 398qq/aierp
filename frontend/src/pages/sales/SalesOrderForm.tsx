@@ -50,7 +50,7 @@ export default function SalesOrderForm() {
         message.success("订单已创建");
       }
       navigate("/sales/orders");
-    } catch { message.error("保存失败"); }
+    } catch (err: any) { message.error(err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "保存失败"); }
     finally { setLoading(false); }
   };
 

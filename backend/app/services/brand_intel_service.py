@@ -276,7 +276,7 @@ async def get_brand_health(db: AsyncSession, brand_id: int) -> dict:
         )
     ).all()]
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     twelve_months_ago = now - datetime.timedelta(days=365)
 
     if product_ids:
@@ -284,7 +284,7 @@ async def get_brand_health(db: AsyncSession, brand_id: int) -> dict:
         monthly_rows = (await db.execute(
             select(
                 func.date_trunc('month', SalesOrder.created_at).label('month'),
-                func.sum(SalesOrderItem.amount).label('revenue'),
+                func.sum(SalesOrderItem.total_price).label('revenue'),
             )
             .select_from(SalesOrderItem)
             .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
@@ -323,7 +323,7 @@ async def get_brand_health(db: AsyncSession, brand_id: int) -> dict:
 
         # Revenue growth (last 3 months vs previous 3 months)
         r3m = (await db.execute(
-            select(func.sum(SalesOrderItem.amount))
+            select(func.sum(SalesOrderItem.total_price))
             .select_from(SalesOrderItem)
             .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
             .where(
@@ -336,7 +336,7 @@ async def get_brand_health(db: AsyncSession, brand_id: int) -> dict:
         )).scalar() or 0
 
         r3m_prev = (await db.execute(
-            select(func.sum(SalesOrderItem.amount))
+            select(func.sum(SalesOrderItem.total_price))
             .select_from(SalesOrderItem)
             .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
             .where(
@@ -476,11 +476,11 @@ async def assess_brand_risk(db: AsyncSession, brand_id: int) -> dict:
         top_supplier_share = f"{max(supplier_product_counts.values()) / product_count * 100:.0f}%" if supplier_product_counts else "0%"
 
         # Customer concentration
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         cust_revenue = (await db.execute(
             select(
                 SalesOrder.customer_id,
-                func.sum(SalesOrderItem.amount).label('rev'),
+                func.sum(SalesOrderItem.total_price).label('rev'),
             )
             .select_from(SalesOrderItem)
             .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
@@ -803,7 +803,7 @@ async def get_brand_product_performance(db: AsyncSession, brand_id: int) -> dict
     """Rank products within a brand by sales/margin, AI labels stars vs dogs."""
     ctx = await _brand_context(db, brand_id)
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     six_months_ago = now - datetime.timedelta(days=180)
 
     product_ids = [r[0] for r in (
@@ -823,7 +823,7 @@ async def get_brand_product_performance(db: AsyncSession, brand_id: int) -> dict
         rev_rows = (await db.execute(
             select(
                 SalesOrderItem.product_id,
-                func.sum(SalesOrderItem.amount).label("revenue"),
+                func.sum(SalesOrderItem.total_price).label("revenue"),
                 func.sum(SalesOrderItem.quantity).label("qty"),
             )
             .select_from(SalesOrderItem)
@@ -1041,7 +1041,7 @@ async def predict_brand_lifecycle(db: AsyncSession, brand_id: int) -> dict:
     """AI predicts brand lifecycle stage based on product, sales, and supplier trends."""
     ctx = await _brand_context(db, brand_id)
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     twelve_months_ago = now - datetime.timedelta(days=365)
     six_mo_ago = now - datetime.timedelta(days=180)
 
@@ -1057,7 +1057,7 @@ async def predict_brand_lifecycle(db: AsyncSession, brand_id: int) -> dict:
     revenue_growth = "无数据"
     if product_ids:
         rev_12m = (await db.execute(
-            select(func.coalesce(func.sum(SalesOrderItem.amount), 0))
+            select(func.coalesce(func.sum(SalesOrderItem.total_price), 0))
             .select_from(SalesOrderItem)
             .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
             .where(
@@ -1070,7 +1070,7 @@ async def predict_brand_lifecycle(db: AsyncSession, brand_id: int) -> dict:
         )).scalar() or 0
 
         rev_prev = (await db.execute(
-            select(func.coalesce(func.sum(SalesOrderItem.amount), 0))
+            select(func.coalesce(func.sum(SalesOrderItem.total_price), 0))
             .select_from(SalesOrderItem)
             .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
             .where(
@@ -1126,7 +1126,7 @@ async def get_brand_price_trends(db: AsyncSession, brand_id: int) -> dict:
     """Analyze brand price trends over 12 months with margin and competitiveness assessment."""
     ctx = await _brand_context(db, brand_id)
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     twelve_months_ago = now - datetime.timedelta(days=365)
 
     product_ids = [r[0] for r in (

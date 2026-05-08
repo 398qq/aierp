@@ -323,7 +323,7 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     sales_items_result = await db.execute(
         select(
             func.count(SalesOrderItem.id).label("line_count"),
-            func.coalesce(func.sum(SalesOrderItem.amount), 0).label("total_revenue"),
+            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label("total_revenue"),
             func.coalesce(func.sum(SalesOrderItem.quantity), 0).label("total_qty"),
         )
         .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
@@ -338,7 +338,7 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     recent_sales_result = await db.execute(
         select(
             func.count(SalesOrderItem.id).label("line_count"),
-            func.coalesce(func.sum(SalesOrderItem.amount), 0).label("revenue"),
+            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label("revenue"),
             func.coalesce(func.sum(SalesOrderItem.quantity), 0).label("qty"),
         )
         .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
@@ -434,7 +434,7 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
         select(
             Customer.id,
             Customer.name,
-            func.coalesce(func.sum(SalesOrderItem.amount), 0).label("total_amount"),
+            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label("total_amount"),
             func.count(func.distinct(SalesOrder.id)).label("order_count"),
         )
         .join(SalesOrder, SalesOrder.customer_id == Customer.id)
@@ -446,7 +446,7 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
             Customer.deleted_at.is_(None),
         )
         .group_by(Customer.id, Customer.name)
-        .order_by(func.sum(SalesOrderItem.amount).desc())
+        .order_by(func.sum(SalesOrderItem.total_price).desc())
         .limit(10)
     )
     top_customers = top_customers_result.all()
@@ -608,7 +608,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
             Product.id,
             Product.name,
             Product.sku,
-            func.coalesce(func.sum(SalesOrderItem.amount), 0).label("revenue"),
+            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label("revenue"),
         )
         .join(SalesOrderItem, SalesOrderItem.product_id == Product.id)
         .join(SalesOrder, SalesOrder.id == SalesOrderItem.order_id)
@@ -619,7 +619,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
             Product.deleted_at.is_(None),
         )
         .group_by(Product.id, Product.name, Product.sku)
-        .order_by(func.sum(SalesOrderItem.amount).desc())
+        .order_by(func.sum(SalesOrderItem.total_price).desc())
         .limit(5)
     )
     top_products = top_products_result.all()
