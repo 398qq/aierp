@@ -368,7 +368,7 @@ class EmbeddingService:
         if len(rows) < n_clusters:
             return {"clusters": [], "error": f"Need at least {n_clusters} customers with embeddings"}
 
-        embeddings = [r[2] for r in rows]
+        embeddings = [list(r[2]) for r in rows]  # Convert pgvector/numpy to Python list
         dim = len(embeddings[0])
 
         # K-means++ initialization
@@ -441,7 +441,7 @@ class EmbeddingService:
 
 
 def _euclidean_sq(a: list[float], b: list[float]) -> float:
-    return sum((x - y) ** 2 for x, y in zip(a, b))
+    return float(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
 class InventoryAgent:
