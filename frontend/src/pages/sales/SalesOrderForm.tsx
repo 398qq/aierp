@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Form, Input, Select, Button, message, Card, Space, InputNumber, Table } from "antd";
+import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message, Space } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getSalesOrder, createSalesOrder, updateSalesOrder, getSalesOrderItems, createSalesOrderItem, deleteSalesOrderItem, getCustomers, getProducts } from "../../api";
-import type { Customer, Product, SalesOrderItem } from "../../types";
-
-const statusColors: Record<string, string> = {
-  pending: "orange", confirmed: "blue", shipped: "cyan", delivered: "green", cancelled: "red",
-};
+import { getSalesOrder, createSalesOrder, updateSalesOrder, getCustomers } from "../../api";
+import dayjs from "dayjs";
+import type { Customer } from "../../types";
 
 export default function SalesOrderForm() {
   const { id } = useParams<{ id: string }>();
@@ -15,117 +12,78 @@ export default function SalesOrderForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [items, setItems] = useState<Partial<SalesOrderItem>[]>([]);
-  const isEdit = Boolean(id);
-
-  const loadCustomers = async (q?: string) => {
-    try { const r = await getCustomers({ page: 1, page_size: 100, q }); setCustomers(r.data.data.list || []); } catch {}
-  };
-  const loadProducts = async (q?: string) => {
-    try { const r = await getProducts({ page: 1, page_size: 100, q }); setProducts(r.data.data.list || []); } catch {}
-  };
+  const isEdit = !!id;
 
   useEffect(() => {
-    loadCustomers();
-    loadProducts();
-    if (id) {
-      Promise.all([getSalesOrder(Number(id)), getSalesOrderItems(Number(id))]).then(([orderR, itemsR]) => {
-        form.setFieldsValue(orderR.data.data);
-        setItems((itemsR.data.data as SalesOrderItem[]) || []);
-      }).catch(() => message.error("加载失败"));
+    getCustomers({ page: 1, page_size: 200 }).then((r) => setCustomers(r.data.data.list || []));
+    if (isEdit) {
+      getSalesOrder(Number(id)).then((r) => {
+        const o = r.data.data;
+        form.setFieldsValue({ ...o, order_date: o.order_date ? dayjs(o.order_date) : null, delivery_date: o.delivery_date ? dayjs(o.delivery_date) : null });
+      });
     }
-  }, [id, form]);
+  }, [id]);
 
-  const addItem = () => setItems([...items, { product_id: 0, quantity: 1, unit_price: 0, amount: 0 }]);
-
-  const updateItemField = (idx: number, field: string, value: number) => {
-    const newItems = [...items];
-    newItems[idx] = { ...newItems[idx], [field]: value };
-    if (field === "quantity" || field === "unit_price") {
-      const qty = newItems[idx].quantity || 0;
-      const price = newItems[idx].unit_price || 0;
-      newItems[idx].amount = qty * price;
-    }
-    setItems(newItems);
-  };
-
-  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
-
-  const handleSubmit = async (values: Record<string, unknown>) => {
+  const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
-      const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
-      const payload = { ...values, total_amount: totalAmount };
-      const parentId = isEdit
-        ? (await updateSalesOrder(Number(id), payload), Number(id))
-        : ((await createSalesOrder(payload)).data.data as { id: number }).id;
-
+      const payload: Record<string, unknown> = {
+        ...values,
+        order_date: values.order_date ? (values.order_date as string) : null,
+        delivery_date: values.delivery_date ? (values.delivery_date as string) : null,
+        items: values.items || [],
+      };
       if (isEdit) {
-        const existing = (await getSalesOrderItems(Number(id))).data.data as SalesOrderItem[];
-        for (const ex of existing) await deleteSalesOrderItem(Number(id), ex.id);
+        await updateSalesOrder(Number(id), payload);
+        message.success("订单已更新");
+      } else {
+        await createSalesOrder(payload);
+        message.success("订单已创建");
       }
-      for (const item of items) {
-        if (item.product_id) {
-          await createSalesOrderItem(parentId, item as Record<string, unknown>);
-        }
-      }
-
-      message.success(isEdit ? "更新成功" : "创建成功");
       navigate("/sales/orders");
-    } catch { message.error("操作失败"); } finally { setLoading(false); }
+    } catch { message.error("保存失败"); }
+    finally { setLoading(false); }
   };
 
-  const itemColumns = [
-    { title: "产品", width: 200, render: (_: unknown, __: unknown, idx: number) => (
-      <Select showSearch value={items[idx].product_id || undefined} onChange={(v) => updateItemField(idx, "product_id", v)}
-        onSearch={loadProducts} filterOption={false} style={{ width: "100%" }} placeholder="选择产品">
-        {products.map((p) => <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>)}
-      </Select>
-    )},
-    { title: "数量", width: 100, render: (_: unknown, __: unknown, idx: number) => (
-      <InputNumber min={1} value={items[idx].quantity} onChange={(v) => updateItemField(idx, "quantity", v || 0)} />
-    )},
-    { title: "单价", width: 120, render: (_: unknown, __: unknown, idx: number) => (
-      <InputNumber min={0} value={items[idx].unit_price} onChange={(v) => updateItemField(idx, "unit_price", v || 0)} />
-    )},
-    { title: "金额", width: 120, render: (_: unknown, __: unknown, idx: number) => (
-      `¥${(items[idx].amount || 0).toLocaleString()}`
-    )},
-    {
-      title: "", width: 60, render: (_: unknown, __: unknown, idx: number) => (
-        <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeItem(idx)} />
-      ),
-    },
-  ];
-
   return (
-    <div>
-      <h3>{isEdit ? "编辑销售订单" : "新建销售订单"}</h3>
-      <Card style={{ maxWidth: 800, marginBottom: 16 }}>
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="order_no" label="订单号"><Input /></Form.Item>
-          <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-            <Select showSearch allowClear placeholder="选择客户" onSearch={loadCustomers} filterOption={false}>
-              {customers.map((c) => <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>)}
-            </Select>
-          </Form.Item>
-          <Space>
-            <Form.Item name="status" label="状态">
-              <Select style={{ width: 120 }}>{Object.keys(statusColors).map((k) => <Select.Option key={k} value={k}>{k}</Select.Option>)}</Select>
-            </Form.Item>
-            <Form.Item name="delivery_date" label="交货日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-          </Space>
-          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-        </Form>
-      </Card>
+    <Card title={isEdit ? "编辑销售订单" : "新增销售订单"}>
+      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", items: [{}] }}>
+        <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
+          <Select showSearch placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+        </Form.Item>
+        <Form.Item name="order_no" label="订单号"><Input placeholder="留空自动生成" /></Form.Item>
+        <Form.Item name="total_amount" label="总金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
+        <Form.Item name="status" label="状态">
+          <Select options={[
+            { value: "pending", label: "待处理" }, { value: "confirmed", label: "已确认" }, { value: "shipped", label: "已发货" },
+          ]} />
+        </Form.Item>
+        <Form.Item name="order_date" label="下单日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="delivery_date" label="预计交货"><DatePicker style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
 
-      <Card title="订单项" extra={<Button icon={<PlusOutlined />} onClick={addItem}>添加行</Button>} style={{ marginBottom: 16 }}>
-        <Table rowKey="idx" columns={itemColumns} dataSource={items.map((item, idx) => ({ ...item, idx }))} pagination={false} />
-      </Card>
+        <Form.List name="items">
+          {(fields, { add, remove }) => (
+            <>
+              {fields.map(({ key, name, ...rest }) => (
+                <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
+                  <Form.Item {...rest} name={[name, "product_name"]} label="产品"><Input placeholder="产品名称" /></Form.Item>
+                  <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
+                  <Form.Item {...rest} name={[name, "unit_price"]} label="单价"><InputNumber prefix="¥" /></Form.Item>
+                  <Form.Item {...rest} name={[name, "total_price"]} label="小计"><InputNumber prefix="¥" /></Form.Item>
+                  <Button icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                </Space>
+              ))}
+              <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>添加品项</Button>
+            </>
+          )}
+        </Form.List>
 
-      <Button type="primary" loading={loading} onClick={() => form.submit()}>{isEdit ? "保存" : "创建"}</Button>
-      <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/orders")}>取消</Button>
-    </div>
+        <Form.Item style={{ marginTop: 16 }}>
+          <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
+          <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/orders")}>取消</Button>
+        </Form.Item>
+      </Form>
+    </Card>
   );
 }

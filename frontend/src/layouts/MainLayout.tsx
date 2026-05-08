@@ -6,19 +6,20 @@ import {
   TeamOutlined,
   ShopOutlined,
   StockOutlined,
-  FileTextOutlined,
-  DollarOutlined,
   SettingOutlined,
   LogoutOutlined,
+  PieChartOutlined,
   RobotOutlined,
-  CarOutlined,
-  SnippetsOutlined,
-  FilterOutlined,
-  BarChartOutlined,
   BellOutlined,
-  FileProtectOutlined,
-  AimOutlined,
   TagOutlined,
+  ThunderboltOutlined,
+  FileTextOutlined,
+  ShoppingCartOutlined,
+  CarOutlined,
+  FileDoneOutlined,
+  DollarOutlined,
+  ProfileOutlined,
+  AimOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 import { getUnreadCount, naturalLanguageQuery } from "../api";
@@ -57,7 +58,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/customers", "/sales", "/products", "/brands", "/suppliers", "/inventory", "/notifications", "/ai/chat", "/settings"];
+  const menuKeys = ["/", "/customers", "/products", "/brands", "/suppliers", "/inventory", "/ai/chat", "/settings", "/sales"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || (k !== "/" && location.pathname.startsWith(k + "/")))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -76,7 +77,13 @@ export default function MainLayout() {
 
   const menuItems = [
     { key: "/", icon: <DashboardOutlined />, label: "仪表板" },
-    { key: "/customers", icon: <TeamOutlined />, label: "客户管理" },
+    {
+      key: "/customers", icon: <TeamOutlined />, label: "客户管理",
+      children: [
+        { key: "/customers", icon: <TeamOutlined />, label: "客户列表" },
+        { key: "/customers/segments", icon: <PieChartOutlined />, label: "客户分群" },
+      ],
+    },
     {
       key: "/products", icon: <ShopOutlined />, label: "产品管理",
       children: [
@@ -92,23 +99,19 @@ export default function MainLayout() {
       ],
     },
     {
-      key: "/sales", icon: <DollarOutlined />, label: "销售管理",
+      key: "/sales", icon: <ThunderboltOutlined />, label: "销售管理",
       children: [
-        { key: "/sales/opportunities", icon: <FileTextOutlined />, label: "机会列表" },
-        { key: "/sales/pipeline", icon: <DashboardOutlined />, label: "Pipeline看板" },
-        { key: "/sales/funnel", icon: <FilterOutlined />, label: "销售漏斗" },
-        { key: "/sales/stats", icon: <BarChartOutlined />, label: "销售统计" },
-        { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "数据看板" },
-        { key: "/sales/quotations", icon: <SnippetsOutlined />, label: "报价单" },
-        { key: "/sales/orders", icon: <DollarOutlined />, label: "销售订单" },
-        { key: "/sales/delivery-notes", icon: <CarOutlined />, label: "送货单" },
+        { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "销售看板" },
+        { key: "/sales/opportunities", icon: <ThunderboltOutlined />, label: "商机管理" },
+        { key: "/sales/quotations", icon: <FileTextOutlined />, label: "报价管理" },
+        { key: "/sales/orders", icon: <ShoppingCartOutlined />, label: "销售订单" },
+        { key: "/sales/delivery-notes", icon: <CarOutlined />, label: "发货管理" },
+        { key: "/sales/invoices", icon: <FileDoneOutlined />, label: "发票管理" },
         { key: "/sales/payments", icon: <DollarOutlined />, label: "回款管理" },
-        { key: "/sales/invoices", icon: <FileProtectOutlined />, label: "发票管理" },
+        { key: "/sales/contracts", icon: <ProfileOutlined />, label: "合同管理" },
         { key: "/sales/targets", icon: <AimOutlined />, label: "销售目标" },
-        { key: "/sales/contracts", icon: <FileTextOutlined />, label: "合同管理" },
       ],
     },
-    { key: "/notifications", icon: <BellOutlined />, label: "消息提醒" },
     { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
     { key: "/settings", icon: <SettingOutlined />, label: "设置" },
   ];
@@ -218,11 +221,12 @@ export default function MainLayout() {
                       const routeMap: Record<string, string> = {
                         customer: "/customers",
                         product: "/products",
-                        order: "/sales/orders",
-                        quotation: "/sales/quotations",
                         opportunity: "/sales/opportunities",
-                        contract: "/sales/contracts",
+                        quotation: "/sales/quotations",
+                        order: "/sales/orders",
                         invoice: "/sales/invoices",
+                        contract: "/sales/contracts",
+                        payment: "/sales/payments",
                       };
                       const route = routeMap[entity.type];
                       return (

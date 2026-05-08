@@ -102,7 +102,7 @@ export default function BrandList() {
     { title: "备注", dataIndex: "notes", width: 150, ellipsis: true },
     {
       title: "创建时间", dataIndex: "created_at", width: 100,
-      render: (v: string) => v?.slice(0, 10) || "-",
+      render: (v: string | null) => (v && v !== "None") ? v.slice(0, 10) : "-",
     },
     {
       title: "更新时间", dataIndex: "updated_at", width: 100,

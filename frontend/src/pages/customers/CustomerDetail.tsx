@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getQuotationHistory, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, detectCrossSell } from "../../api";
-import type { CustomerProductMatch, CrossSellResult } from "../../types";
+import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined } from "@ant-design/icons";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
+import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
-import LoadingGuard from "../../components/shared/LoadingGuard";
 import CustomerFormFields from "./CustomerForm";
 import dayjs from "dayjs";
-import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, QuotationHistory, Visit } from "../../types";
+import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, Visit } from "../../types";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,9 +28,6 @@ export default function CustomerDetail() {
   const [recModalOpen, setRecModalOpen] = useState(false);
   const [recResult, setRecResult] = useState<CustomerProductMatch | null>(null);
   const [recLoading, setRecLoading] = useState(false);
-  const [crossSellResult, setCrossSellResult] = useState<CrossSellResult | null>(null);
-  const [crossSellLoading, setCrossSellLoading] = useState(false);
-  const [crossSellOpen, setCrossSellOpen] = useState(false);
 
   const customerId = Number(id);
 
@@ -84,15 +80,6 @@ export default function CustomerDetail() {
     finally { setRecLoading(false); }
   };
 
-  const handleCrossSell = async () => {
-    setCrossSellLoading(true);
-    try {
-      const resp = await detectCrossSell(customerId);
-      const data = (resp as { data?: { data?: CrossSellResult } })?.data?.data;
-      if (data) { setCrossSellResult(data); setCrossSellOpen(true); }
-    } catch { message.error("交叉销售分析失败"); }
-    finally { setCrossSellLoading(false); }
-  };
 
   return (
     <div>
@@ -102,12 +89,14 @@ export default function CustomerDetail() {
       <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs} style={{ marginBottom: 16, marginLeft: 8 }}>
         AI 产品推荐
       </Button>
-      <Button icon={<RiseOutlined />} loading={crossSellLoading} onClick={handleCrossSell} style={{ marginBottom: 16, marginLeft: 8 }}>
-        交叉销售分析
+      <Button icon={<PieChartOutlined />} onClick={() => navigate(`/customers/${customerId}/360`)} style={{ marginBottom: 16, marginLeft: 8 }}>
+        AI 360
       </Button>
 
-      <LoadingGuard loading={loading} error={error} data={customer}>
-        {customer && (
+      {loading && <Spin style={{ display: "block", margin: "100px auto" }} />}
+      {error && <Alert type="error" message={error} />}
+      {!loading && !error && !customer && <Empty description="未找到客户" />}
+      {!loading && !error && customer && (
           <>
             <Card
               style={{ marginBottom: 16 }}
@@ -238,12 +227,17 @@ export default function CustomerDetail() {
                 {
                   key: "quotations",
                   label: "报价历史",
-                  children: <QuotationHistoryPanel customerId={customerId} />,
+                  children: <Empty description="销售模块重建中" />,
                 },
                 {
                   key: "visits",
                   label: "拜访计划",
                   children: <VisitPanel customerId={customerId} />,
+                },
+                {
+                  key: "similar",
+                  label: "相似客户",
+                  children: <SimilarCustomersPanel customerId={customerId} />,
                 },
               ]}
             />
@@ -277,56 +271,8 @@ export default function CustomerDetail() {
               )}
             </Modal>
 
-            {/* Cross-sell Modal */}
-            <Modal title={<><RiseOutlined /> 交叉销售 & 追加销售分析</>} open={crossSellOpen}
-              onCancel={() => setCrossSellOpen(false)} width={700}
-              footer={<Button onClick={() => setCrossSellOpen(false)}>关闭</Button>}>
-              {crossSellResult && (
-                <div>
-                  <Alert type="info" message={crossSellResult.priority_recommendation} style={{ marginBottom: 12 }} />
-                  <Statistic title="预估总价值" value={crossSellResult.total_estimated_value} prefix="¥"
-                    valueStyle={{ color: "#52c41a" }} style={{ marginBottom: 12 }} />
-
-                  {crossSellResult.cross_sell_opportunities?.length > 0 && (
-                    <Card size="small" title="交叉销售机会" style={{ marginBottom: 12 }}>
-                      <Table size="small" dataSource={crossSellResult.cross_sell_opportunities}
-                        rowKey={(r) => r.category + r.suggestion} pagination={false}
-                        columns={[
-                          { title: "品类", dataIndex: "category", width: 100, render: (v: string) => <Tag color="blue">{v}</Tag> },
-                          { title: "建议", dataIndex: "suggestion" },
-                          { title: "原因", dataIndex: "reasoning" },
-                          { title: "预估价值", dataIndex: "estimated_value", render: (v: number) => `¥${v}` },
-                        ]}
-                      />
-                    </Card>
-                  )}
-
-                  {crossSellResult.upsell_opportunities?.length > 0 && (
-                    <Card size="small" title="追加销售机会" style={{ marginBottom: 12 }}>
-                      <Table size="small" dataSource={crossSellResult.upsell_opportunities}
-                        rowKey={(r) => r.current_product} pagination={false}
-                        columns={[
-                          { title: "当前产品", dataIndex: "current_product" },
-                          { title: "升级建议", dataIndex: "upgrade_suggestion" },
-                          { title: "原因", dataIndex: "reason" },
-                        ]}
-                      />
-                    </Card>
-                  )}
-
-                  {crossSellResult.bundle_suggestions?.length > 0 && (
-                    <Card size="small" title="捆绑建议">
-                      {crossSellResult.bundle_suggestions.map((b, i) => (
-                        <Tag key={i} color="purple" style={{ marginBottom: 4 }}>{b}</Tag>
-                      ))}
-                    </Card>
-                  )}
-                </div>
-              )}
-            </Modal>
           </>
         )}
-      </LoadingGuard>
     </div>
   );
 }
@@ -795,48 +741,47 @@ function GroupPanel({ customerId, customerName }: { customerId: number; customer
   );
 }
 
-// --- Quotation History Panel ---
+// --- Similar Customers Panel ---
 
-function QuotationHistoryPanel({ customerId }: { customerId: number }) {
-  const [data, setData] = useState<QuotationHistory | null>(null);
+function SimilarCustomersPanel({ customerId }: { customerId: number }) {
+  const [similar, setSimilar] = useState<SimilarCustomer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getQuotationHistory(customerId).then((r) => {
-      setData(r.data.data as QuotationHistory);
-    }).catch(() => {}).finally(() => setLoading(false));
+    getSimilarCustomers(customerId)
+      .then((r) => setSimilar((r.data.data as SimilarCustomer[]) || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [customerId]);
 
   if (loading) return <Spin />;
-  if (!data || data.total === 0) return <Empty description="暂无报价记录" />;
-
-  const STATUS: Record<string, { color: string; label: string }> = {
-    draft: { color: "default", label: "草稿" }, won: { color: "green", label: "成交" },
-    lost: { color: "red", label: "丢失" }, pending: { color: "processing", label: "待定" },
-  };
+  if (similar.length === 0) return <Empty description="暂无相似客户（需先生成嵌入向量）" />;
 
   return (
-    <div>
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={6}><Card size="small"><Statistic title="报价次数" value={data.total} /></Card></Col>
-        <Col xs={12} sm={6}><Card size="small"><Statistic title="转化率" value={data.stats.conversion_rate} suffix="%" valueStyle={{ color: data.stats.conversion_rate >= 30 ? "#52c41a" : "#faad14" }} /></Card></Col>
-        <Col xs={12} sm={6}><Card size="small"><Statistic title="成交额" value={data.stats.total_won_amount} prefix="¥" precision={0} /></Card></Col>
-        <Col xs={12} sm={6}><Card size="small"><Statistic title="进行中" value={data.stats.pending} /></Card></Col>
-      </Row>
-
-      <Table dataSource={data.quotations} rowKey="id" size="small"
-        columns={[
-          { title: "报价单号", dataIndex: "quotation_no", width: 120 },
-          { title: "金额", dataIndex: "total_amount", render: (v: number) => `¥${v.toLocaleString()}` },
-          { title: "状态", dataIndex: "status", render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
-          { title: "有效期", dataIndex: "valid_until", render: (v: string) => v?.slice(0, 10) || "-" },
-          { title: "创建时间", dataIndex: "created_at", render: (v: string) => v?.slice(0, 10) },
-        ]}
-        pagination={{ pageSize: 10, size: "small" }}
-      />
-    </div>
+    <Table<SimilarCustomer>
+      dataSource={similar}
+      rowKey="id"
+      size="small"
+      pagination={false}
+      columns={[
+        {
+          title: "客户名称", dataIndex: "name", key: "name",
+          render: (name: string, r: SimilarCustomer) => (
+            <a href={`/customers/${r.id}`}>{name}</a>
+          ),
+        },
+        { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <Tag>{v || "-"}</Tag> },
+        { title: "区域", dataIndex: "region", key: "region" },
+        {
+          title: "相似度", dataIndex: "similarity", key: "similarity",
+          render: (v: number) => `${(v * 100).toFixed(1)}%`,
+          sorter: (a: SimilarCustomer, b: SimilarCustomer) => a.similarity - b.similarity,
+        },
+      ]}
+    />
   );
 }
+
 
 // --- Visit Panel ---
 

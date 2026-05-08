@@ -44,7 +44,12 @@ export default function AIChat() {
     setLoading(true);
 
     try {
-      const resp = await aiChat(userMsg.content);
+      // Build conversation history from previous messages (skip welcome message)
+      const history = messages
+        .filter((m) => !m.content.includes("你好！我是 AIERP 智能助手"))
+        .slice(-20)
+        .map((m) => ({ role: m.role, content: m.content }));
+      const resp = await aiChat(userMsg.content, history);
       const reader = resp.body?.getReader();
       if (!reader) return;
 

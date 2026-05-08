@@ -174,50 +174,6 @@ export interface InventoryItem {
   brand_name?: string; warehouse_name?: string;
 }
 
-// Sales
-export interface Opportunity {
-  id: number; customer_id: number; name: string; amount: number;
-  stage: string; probability: number;
-  expected_close_date: string | null; actual_close_date: string | null;
-  notes: string | null; created_at: string;
-}
-
-export interface QuotationItem {
-  id: number; quotation_id: number; product_id: number;
-  quantity: number; unit_price: number; amount: number;
-}
-
-export interface Quotation {
-  id: number; quotation_no: string | null; customer_id: number;
-  status: string; total_amount: number; valid_until: string | null;
-  notes: string | null; created_at: string;
-  items?: QuotationItem[];
-}
-
-export interface SalesOrderItem {
-  id: number; order_id: number; product_id: number;
-  quantity: number; unit_price: number; amount: number;
-}
-
-export interface SalesOrder {
-  id: number; order_no: string | null; customer_id: number;
-  status: string; total_amount: number; delivery_date: string | null;
-  notes: string | null; created_at: string;
-  items?: SalesOrderItem[];
-}
-
-export interface DeliveryNoteItem {
-  id: number; delivery_note_id: number; product_id: number; quantity: number;
-}
-
-export interface DeliveryNote {
-  id: number; note_no: string | null; sales_order_id: number;
-  customer_id: number; status: string;
-  delivery_date: string | null; signed_at: string | null;
-  notes: string | null; created_at: string;
-  items?: DeliveryNoteItem[];
-}
-
 // Transactions
 export interface PurchaseOrder {
   id: number; order_no: string | null; supplier_id: number;
@@ -225,11 +181,25 @@ export interface PurchaseOrder {
   notes: string | null; created_at: string;
 }
 
-export interface Payment {
-  id: number; payment_no: string | null; customer_id: number | null;
-  supplier_id: number | null; type: string; amount: number;
-  method: string | null; paid_at: string | null;
-  notes: string | null; created_at: string;
+export interface PaymentRecord {
+  id: number; sales_order_id: number; customer_id: number;
+  amount: number; payment_date: string | null;
+  payment_method: string; status: string;
+  notes: string | null; created_at: string; updated_at: string | null;
+}
+
+export interface Invoice {
+  id: number; invoice_no: string | null; sales_order_id: number;
+  customer_id: number; amount: number; tax_amount: number;
+  invoice_date: string | null; invoice_type: string; status: string;
+  notes: string | null; created_at: string; updated_at: string | null;
+}
+
+export interface SalesTarget {
+  id: number; user_id: number; target_amount: number;
+  target_type: string; period_start: string | null; period_end: string | null;
+  actual_amount: number; status: string;
+  created_at: string; updated_at: string | null;
 }
 
 export interface Ticket {
@@ -280,46 +250,21 @@ export interface MergeResult {
   transferred: Record<string, number>;
 }
 
-// Sales Funnel
-export interface FunnelStage {
-  stage: string;
-  count: number;
-  amount: number;
+// Customer Insight
+export interface CustomerInsight {
+  customer: Record<string, unknown>;
+  order_summary: { total_orders: number; total_amount: number; avg_order_amount: number; last_order_date: string | null };
+  product_distribution: { product_id: number; product_name: string; quantity: number; amount: number }[];
+  followup_summary: { total_followups: number; last_followup: string | null; pending_count: number; overdue_count: number };
+  opportunity_summary: { total: number; active: number; won: number; win_probability: number };
+  suggestions: string[];
 }
 
-// Sales Stats
-export interface SalesSummary {
-  total_orders: number;
-  total_amount: number;
-  avg_amount: number;
-  active_opportunities: number;
-}
-
-export interface TrendPoint {
-  period: string;
-  order_count: number;
-  total_amount: number;
-}
-
-export interface StageDistribution {
-  stage: string;
-  count: number;
-  percentage: number;
-}
-
-// AI Sales
-export interface SalesRecommendation {
-  recommended_products: string[];
-  opportunity_suggestion: string;
-  cross_sell_opportunities: string;
-  priority_action: string;
-}
-
-export interface WinPrediction {
-  win_probability: number;
-  confidence: string;
-  key_factors: string[];
-  recommendation: string;
+// Notification
+export interface NotificationItem {
+  id: number; user_id: number; type: string; title: string;
+  content: string | null; related_id: number | null;
+  is_read: boolean; created_at: string;
 }
 
 // Group & Alerts
@@ -354,17 +299,6 @@ export interface AlertEvent {
   created_at: string;
 }
 
-export interface QuotationHistory {
-  quotations: Quotation[];
-  total: number;
-  stats: {
-    won: number;
-    lost: number;
-    pending: number;
-    conversion_rate: number;
-    total_won_amount: number;
-  };
-}
 
 export interface LevelRule {
   id: number;
@@ -379,36 +313,12 @@ export interface LevelRule {
 }
 
 // Payment Records
-export interface PaymentRecord {
-  id: number; sales_order_id: number; customer_id: number;
-  amount: number; payment_date: string | null; payment_method: string;
-  status: string; notes: string | null; created_at: string;
-}
 
-export interface PaymentSummary {
-  received_total: number; pending_total: number; overdue_total: number;
-}
 
 // Invoice
-export interface Invoice {
-  id: number; invoice_no: string | null; sales_order_id: number;
-  customer_id: number; amount: number; tax_amount: number;
-  invoice_date: string | null; invoice_type: string; status: string;
-  notes: string | null; created_at: string;
-}
 
 // Sales Target
-export interface SalesTarget {
-  id: number; user_id: number; target_amount: number;
-  target_type: string; actual_amount: number;
-  period_start: string | null; period_end: string | null;
-  status: string; created_at: string;
-}
 
-export interface TargetSummary {
-  items: SalesTarget[]; total_target: number; total_actual: number;
-  overall_completion_rate: number;
-}
 
 // Contract
 export interface Contract {
@@ -423,24 +333,9 @@ export interface Contract {
 }
 
 // Notification
-export interface NotificationItem {
-  id: number; user_id: number; type: string; title: string;
-  content: string | null; related_id: number | null;
-  is_read: boolean; created_at: string;
-}
 
 // Dashboard
-export interface DashboardOverview {
-  today_orders: number; today_order_amount: number;
-  today_opportunities: number; active_opportunities: number;
-  won_amount: number; total_customers: number;
-}
 
-export interface DashboardRealtime {
-  order_status: { status: string; count: number; amount: number }[];
-  top_customers: { name: string; amount: number }[];
-  top_products: { name: string; count: number }[];
-}
 
 // Product Intelligence
 export interface ProductProfile {
@@ -592,63 +487,22 @@ export interface BrandRecommendation {
 }
 
 // Quote Assistant
-export interface QuoteAssistEnrichedItem {
-  product_id: number; product_name: string; brand: string; category: string;
-  quantity: number; stock_qty: number; supplier_count: number; min_cost: number | null;
-  historical_prices: number[]; risk_flags: string[];
-}
 
-export interface QuoteAssistResult {
-  win_probability: number; win_probability_reason: string;
-  pricing_recommendations: { product_name: string; recommended_price: number; price_range_low: number; price_range_high: number; margin_pct: number; rationale: string }[];
-  cross_sell_suggestions: { brand_name: string; product_name: string; reason: string; estimated_value: number }[];
-  risk_summary: string; negotiation_tips: string[];
-  customer_info?: Record<string, unknown>;
-  enriched_items?: QuoteAssistEnrichedItem[];
-}
+
+// ============================================================
+// Embedded AI Insights (include_ai=true on entity endpoints)
+// ============================================================
+
+
+
+
 
 // Sales Intelligence
-export interface OpportunityScoreResult {
-  win_probability: number; score: number; risk_level: string;
-  risk_factors: string[]; positive_signals: string[];
-  recommended_actions: string[]; next_best_action: string;
-  context?: Record<string, unknown>;
-}
 
-export interface PipelineHealthResult {
-  health_score: number; health_status: string; pipeline_assessment: string;
-  bottlenecks: string[]; recommendations: string[];
-  context?: Record<string, unknown>;
-}
 
-export interface QuotationOptimizeResult {
-  optimal_total: number; discount_room: number;
-  win_probability_current: number; win_probability_optimal: number;
-  pricing_strategy: string;
-  item_adjustments: { product_name: string; current_price: number; suggested_price: number; reason: string }[];
-  negotiation_guardrails: string;
-  context?: Record<string, unknown>;
-}
 
-export interface CrossSellResult {
-  cross_sell_opportunities: { category: string; suggestion: string; reasoning: string; estimated_value: number }[];
-  upsell_opportunities: { current_product: string; upgrade_suggestion: string; reason: string }[];
-  bundle_suggestions: string[]; total_estimated_value: number;
-  priority_recommendation: string;
-  context?: Record<string, unknown>;
-}
 
 // Watchtower
-export interface WatchtowerResult {
-  scanned_at: string; total_alerts: number; severity: string; summary: string;
-  top_actions: string[]; risk_areas: string[];
-  anomalies: {
-    churn_risk: { customer_id: number; name: string; level: string; industry: string; signal: string }[];
-    order_drop: { customer_id: number; name: string; prev_orders: number; recent_orders: number; drop_pct: number }[];
-    low_stock: { product_id: number; product_name: string; brand: string; qty: number; safety: number }[];
-    out_of_stock: { product_id: number; product_name: string; brand: string }[];
-  };
-}
 
 // Smart Matching
 export interface CustomerProductMatch {
@@ -883,88 +737,15 @@ export interface PORiskAssessment {
 // ============================================================
 // Payment & AR Intelligence
 // ============================================================
-export interface PaymentDelayPrediction {
-  overall_risk: string;
-  risk_score: number;
-  late_invoice_predictions: { invoice_no: string; amount: number; due_date: string; predicted_delay_days: number; probability: number; reason: string }[];
-  dso_forecast: number;
-  cash_flow_impact: string;
-  recommendations: string[];
-  context?: Record<string, unknown>;
-}
 
-export interface CashFlowForecast {
-  cash_flow_health: string;
-  health_score: number;
-  forecast_7d: number;
-  forecast_30d: number;
-  forecast_90d: number;
-  shortage_risk: string;
-  shortage_timing: string;
-  recommendations: string[];
-  alerts: string[];
-  context?: Record<string, unknown>;
-}
 
-export interface DunningStrategy {
-  dunning_level: string;
-  suggested_contact: string;
-  suggested_timing: string;
-  message_template: string;
-  escalation_timeline: string;
-  negotiation_strategy: string;
-  risk_of_default: string;
-  context?: Record<string, unknown>;
-}
 
-export interface CreditRiskAssessment {
-  credit_rating: string;
-  credit_score: number;
-  recommended_credit_limit: number;
-  payment_terms_recommendation: string;
-  risk_factors: string[];
-  positive_signals: string[];
-  watch_list: boolean;
-  action_recommendation: string;
-  context?: Record<string, unknown>;
-}
 
 // ============================================================
 // Sales Target Intelligence
 // ============================================================
-export interface TargetRecommendation {
-  recommended_target: number;
-  conservative_target: number;
-  ambitious_target: number;
-  confidence: number;
-  growth_rate: number;
-  key_drivers: string[];
-  risk_factors: string[];
-  strategy: string[];
-  context?: Record<string, unknown>;
-}
 
-export interface AttainmentPrediction {
-  predicted_attainment: number;
-  predicted_amount: number;
-  gap: number;
-  confidence: number;
-  trend: string;
-  key_opportunities: string[];
-  catch_up_plan: string[];
-  early_warning: boolean;
-  context?: Record<string, unknown>;
-}
 
-export interface TargetEarlyWarning {
-  overall_status: string;
-  risk_targets: { user_name: string; target: number; actual: number; attainment_pct: number; risk_level: string; reason: string }[];
-  top_performers: { user_name: string; attainment_pct: number; highlight: string }[];
-  systemic_issues: string[];
-  recommendations: string[];
-  forecast_attainment: number;
-  context?: Record<string, unknown>;
-}
 
 // ============================================================
 // Visit Intelligence
@@ -1057,52 +838,9 @@ export interface TicketCluster {
 // ============================================================
 // Contract Intelligence
 // ============================================================
-export interface ContractExtraction {
-  contract_type: string;
-  key_terms: { clause: string; content: string; importance: string; risk_flag: string }[];
-  payment_terms: string;
-  delivery_terms: string;
-  warranty_terms: string;
-  liability_clauses: string;
-  termination_clauses: string;
-  special_conditions: string;
-  missing_clauses: string[];
-  overall_risk: string;
-  context?: Record<string, unknown>;
-}
 
-export interface ContractRisk {
-  risk_score: number;
-  risk_level: string;
-  financial_risk: string;
-  legal_risk: string;
-  operational_risk: string;
-  risk_items: { item: string; risk: string; impact: string; mitigation: string }[];
-  recommendation: string;
-  negotiation_priority: string[];
-  context?: Record<string, unknown>;
-}
 
-export interface ContractExpiry {
-  expiring_soon: { contract_no: string; customer_name: string; amount: number; expire_date: string; days_left: number; renewal_probability: number; action: string }[];
-  high_risk_expiries: string[];
-  renewal_opportunities: string[];
-  total_at_risk_amount: number;
-  priority_actions: string[];
-  auto_renewal_candidates: string[];
-  context?: Record<string, unknown>;
-}
 
-export interface ContractRebate {
-  rebate_achieved: number;
-  rebate_projected: number;
-  rebate_tier_progress: string;
-  gap_to_next_tier: number;
-  optimization_suggestions: string[];
-  upsell_opportunities: string[];
-  margin_impact: string;
-  context?: Record<string, unknown>;
-}
 
 // ============================================================
 // Multi-Agent Orchestration
@@ -1158,4 +896,201 @@ export interface NLPQueryResult {
   actions: { action: string; type: string; entity: string; urgency: string }[];
   confidence: number;
   context?: Record<string, unknown>;
+}
+
+// ============================================================
+// Sales Entities
+// ============================================================
+
+export interface Opportunity {
+  id: number;
+  customer_id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  stage: string | null;
+  amount: number | null;
+  win_probability: number | null;
+  expected_close_date: string | null;
+  assigned_to: string | null;
+  source: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  ai?: OpportunityAI | null;
+}
+
+export interface QuotationItem {
+  id: number;
+  quotation_id: number;
+  product_id: number | null;
+  product_name: string | null;
+  quantity: number;
+  unit_price: number | null;
+  total_price: number | null;
+  notes: string | null;
+}
+
+export interface Quotation {
+  id: number;
+  quotation_no: string | null;
+  customer_id: number;
+  opportunity_id: number | null;
+  title: string | null;
+  total_amount: number;
+  status: string;
+  valid_until: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  items: QuotationItem[];
+  ai?: QuotationAI | null;
+}
+
+export interface SalesOrderItem {
+  id: number;
+  order_id: number;
+  product_id: number | null;
+  product_name: string | null;
+  quantity: number;
+  unit_price: number | null;
+  total_price: number | null;
+  notes: string | null;
+}
+
+export interface SalesOrder {
+  id: number;
+  order_no: string | null;
+  customer_id: number;
+  quotation_id: number | null;
+  total_amount: number;
+  status: string;
+  order_date: string | null;
+  delivery_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  items: SalesOrderItem[];
+  ai?: SalesOrderAI | null;
+}
+
+export interface DeliveryNoteItem {
+  id: number;
+  delivery_note_id: number;
+  product_id: number | null;
+  product_name: string | null;
+  quantity: number;
+  notes: string | null;
+}
+
+export interface DeliveryNote {
+  id: number;
+  delivery_no: string | null;
+  sales_order_id: number;
+  customer_id: number;
+  status: string;
+  delivery_date: string | null;
+  received_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  items: DeliveryNoteItem[];
+  ai?: DeliveryNoteAI | null;
+}
+
+// ============================================================
+// AI Insight Types (embedded in entity responses via ?include_ai=true)
+// ============================================================
+
+export interface OpportunityAI {
+  risk_level: string;
+  win_probability: number;
+  next_best_action: string | null;
+  key_concerns: string[];
+}
+
+export interface QuotationAI {
+  pricing_health: string;
+  win_probability: number;
+  margin_assessment: string | null;
+  improvement_suggestions: string[];
+}
+
+export interface SalesOrderAI {
+  delivery_risk: string;
+  payment_risk: string;
+  health_score: number;
+  flags: string[];
+}
+
+export interface DeliveryNoteAI {
+  completion_risk: string;
+  signing_delay_probability: number;
+  issues: string[];
+}
+
+// ============================================================
+// Sales Dashboard
+// ============================================================
+
+export interface FunnelStage {
+  stage: string;
+  count: number;
+  amount: number;
+}
+
+export interface SalesDashboardOverview {
+  funnel: FunnelStage[];
+  open_opportunities: number;
+  won_opportunities: number;
+  total_pipeline: number;
+  quote_to_order_rate: number;
+  opp_to_quote_rate: number;
+}
+
+export interface TrendPoint {
+  month: string;
+  opportunities: number;
+  orders: number;
+  revenue: number;
+}
+
+export interface SalesDashboardTrends {
+  trends: TrendPoint[];
+}
+
+export interface AIAlert {
+  id: number;
+  type: string;
+  title: string;
+  content: string | null;
+  created_at: string | null;
+}
+
+export interface SalesDashboardAlerts {
+  alerts: AIAlert[];
+}
+
+export interface ConversionValidation {
+  risk_level: string;
+  warnings: string[];
+  recommendations: string[];
+}
+
+export interface SegmentCluster {
+  id: number;
+  label: string;
+  size: number;
+  avg_similarity: number;
+  sample_names: string[];
+  common_industry: string;
+  common_level: string;
+}
+
+export interface SimilarCustomer {
+  id: number;
+  name: string;
+  industry: string;
+  region: string;
+  similarity: number;
 }

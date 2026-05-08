@@ -1,295 +1,233 @@
-"""Finance API — payment records and invoices."""
-
-from datetime import datetime, timezone
+"""Finance API — invoices, payments, contracts, targets."""
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.finance import Invoice, PaymentRecord
 from app.schemas.common import fail, ok
 from app.schemas.finance import (
+    ContractCreate, ContractUpdate,
     InvoiceCreate, InvoiceUpdate,
     PaymentRecordCreate, PaymentRecordUpdate,
+    SalesTargetCreate, SalesTargetUpdate,
 )
 
+router = APIRouter(tags=["finance"])
 
-def _parse_date(value: str | None) -> datetime | None:
-    if value:
-        return datetime.fromisoformat(value)
-    return None
+# ============================================================
+# Invoices
+# ============================================================
 
-
-def _serialize_dt(dt: datetime | None) -> str | None:
-    return str(dt) if dt else None
-
-
-# --- Payment Records ---
-
-pay_router = APIRouter(prefix="/sales/payments", tags=["payments"])
-
-
-def _pay_row(p: PaymentRecord) -> dict:
-    return {
-        "id": p.id, "sales_order_id": p.sales_order_id, "customer_id": p.customer_id,
-        "amount": float(p.amount), "payment_date": _serialize_dt(p.payment_date),
-        "payment_method": p.payment_method, "status": p.status,
-        "notes": p.notes, "created_at": str(p.created_at),
-    }
-
-
-@pay_router.get("")
-async def list_payments(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    customer_id: int | None = None,
-    order_id: int | None = None,
-    status: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    base = select(PaymentRecord).where(PaymentRecord.deleted_at.is_(None))
-    count_base = select(func.count(PaymentRecord.id)).where(PaymentRecord.deleted_at.is_(None))
-
-    if customer_id:
-        base = base.where(PaymentRecord.customer_id == customer_id)
-        count_base = count_base.where(PaymentRecord.customer_id == customer_id)
-    if order_id:
-        base = base.where(PaymentRecord.sales_order_id == order_id)
-        count_base = count_base.where(PaymentRecord.sales_order_id == order_id)
-    if status:
-        base = base.where(PaymentRecord.status == status)
-        count_base = count_base.where(PaymentRecord.status == status)
-    if start_date:
-        dt = _parse_date(start_date)
-        if dt:
-            base = base.where(PaymentRecord.payment_date >= dt)
-            count_base = count_base.where(PaymentRecord.payment_date >= dt)
-    if end_date:
-        dt = _parse_date(end_date)
-        if dt:
-            base = base.where(PaymentRecord.payment_date <= dt)
-            count_base = count_base.where(PaymentRecord.payment_date <= dt)
-
-    total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(PaymentRecord.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
-
-    return ok({
-        "list": [_pay_row(p) for p in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
-
-
-@pay_router.get("/summary")
-async def get_payment_summary(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    received = (await db.execute(
-        select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-            PaymentRecord.deleted_at.is_(None), PaymentRecord.status == "received"
-        )
-    )).scalar() or 0
-
-    pending = (await db.execute(
-        select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-            PaymentRecord.deleted_at.is_(None), PaymentRecord.status == "pending"
-        )
-    )).scalar() or 0
-
-    overdue = (await db.execute(
-        select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-            PaymentRecord.deleted_at.is_(None), PaymentRecord.status == "overdue"
-        )
-    )).scalar() or 0
-
-    return ok({
-        "received_total": float(received),
-        "pending_total": float(pending),
-        "overdue_total": float(overdue),
-    })
-
-
-@pay_router.get("/{payment_id}")
-async def get_payment(payment_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(PaymentRecord).where(PaymentRecord.id == payment_id, PaymentRecord.deleted_at.is_(None))
-    )
-    pay = result.scalar_one_or_none()
-    if pay is None:
-        return fail("Payment not found", 404)
-    return ok(_pay_row(pay))
-
-
-@pay_router.post("", status_code=201)
-async def create_payment(body: PaymentRecordCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    data = body.model_dump()
-    if data.get("payment_date"):
-        data["payment_date"] = _parse_date(data["payment_date"])
-    pay = PaymentRecord(**data)
-    db.add(pay)
-    await db.flush()
-    return ok({"id": pay.id})
-
-
-@pay_router.put("/{payment_id}")
-async def update_payment(payment_id: int, body: PaymentRecordUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(PaymentRecord).where(PaymentRecord.id == payment_id, PaymentRecord.deleted_at.is_(None))
-    )
-    pay = result.scalar_one_or_none()
-    if pay is None:
-        return fail("Payment not found", 404)
-    data = body.model_dump(exclude_unset=True)
-    if data.get("payment_date"):
-        data["payment_date"] = _parse_date(data["payment_date"])
-    for key, val in data.items():
-        setattr(pay, key, val)
-    await db.flush()
-    return ok({"id": pay.id})
-
-
-@pay_router.delete("/{payment_id}")
-async def delete_payment(payment_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(PaymentRecord).where(PaymentRecord.id == payment_id, PaymentRecord.deleted_at.is_(None))
-    )
-    pay = result.scalar_one_or_none()
-    if pay is None:
-        return fail("Payment not found", 404)
-    pay.deleted_at = datetime.now(timezone.utc)
-    await db.flush()
-    return ok(msg="deleted")
-
-
-# --- Invoices ---
-
-inv_router = APIRouter(prefix="/sales/invoices", tags=["invoices"])
-
-
-def _inv_row(i: Invoice) -> dict:
-    return {
-        "id": i.id, "invoice_no": i.invoice_no, "sales_order_id": i.sales_order_id,
-        "customer_id": i.customer_id, "amount": float(i.amount),
-        "tax_amount": float(i.tax_amount), "invoice_date": _serialize_dt(i.invoice_date),
-        "invoice_type": i.invoice_type, "status": i.status,
-        "notes": i.notes, "created_at": str(i.created_at),
-    }
-
-
-@inv_router.get("")
+@router.get("/invoices")
 async def list_invoices(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    customer_id: int | None = None,
-    order_id: int | None = None,
-    status: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    customer_id: int | None = None, status: str | None = None,
+    sales_order_id: int | None = None,
+    sort_by: str = "id", sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
-    base = select(Invoice).where(Invoice.deleted_at.is_(None))
-    count_base = select(func.count(Invoice.id)).where(Invoice.deleted_at.is_(None))
-
-    if customer_id:
-        base = base.where(Invoice.customer_id == customer_id)
-        count_base = count_base.where(Invoice.customer_id == customer_id)
-    if order_id:
-        base = base.where(Invoice.sales_order_id == order_id)
-        count_base = count_base.where(Invoice.sales_order_id == order_id)
-    if status:
-        base = base.where(Invoice.status == status)
-        count_base = count_base.where(Invoice.status == status)
-
-    total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(Invoice.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
-
-    return ok({
-        "list": [_inv_row(i) for i in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
+    from app.services.finance_service import list_invoices as svc_list
+    result = await svc_list(db, page=page, page_size=page_size, customer_id=customer_id,
+                          status=status, sales_order_id=sales_order_id,
+                          sort_by=sort_by, sort_order=sort_order)
+    return ok(result)
 
 
-@inv_router.get("/{invoice_id}")
-async def get_invoice(invoice_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
-    )
-    inv = result.scalar_one_or_none()
-    if inv is None:
-        return fail("Invoice not found", 404)
-    return ok(_inv_row(inv))
+@router.get("/invoices/{inv_id}")
+async def get_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_invoice as svc_get
+    inv = await svc_get(db, inv_id)
+    if not inv: return fail("发票不存在", 404)
+    return ok(inv)
 
 
-@inv_router.post("", status_code=201)
+@router.post("/invoices")
 async def create_invoice(body: InvoiceCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    data = body.model_dump()
-    if data.get("invoice_date"):
-        data["invoice_date"] = _parse_date(data["invoice_date"])
-    inv = Invoice(**data)
-    db.add(inv)
-    await db.flush()
-    return ok({"id": inv.id, "invoice_no": inv.invoice_no})
+    from app.services.finance_service import create_invoice as svc_create
+    inv = await svc_create(db, body.model_dump())
+    return ok(inv, code=201)
 
 
-@inv_router.put("/{invoice_id}")
-async def update_invoice(invoice_id: int, body: InvoiceUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
-    )
-    inv = result.scalar_one_or_none()
-    if inv is None:
-        return fail("Invoice not found", 404)
-    data = body.model_dump(exclude_unset=True)
-    if data.get("invoice_date"):
-        data["invoice_date"] = _parse_date(data["invoice_date"])
-    for key, val in data.items():
-        setattr(inv, key, val)
-    await db.flush()
-    return ok({"id": inv.id})
+@router.put("/invoices/{inv_id}")
+async def update_invoice(inv_id: int, body: InvoiceUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_invoice as svc_get, update_invoice as svc_update
+    inv = await svc_get(db, inv_id)
+    if not inv: return fail("发票不存在", 404)
+    inv = await svc_update(db, inv, body.model_dump(exclude_none=True))
+    return ok(inv)
 
 
-@inv_router.delete("/{invoice_id}")
-async def delete_invoice(invoice_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
-    )
-    inv = result.scalar_one_or_none()
-    if inv is None:
-        return fail("Invoice not found", 404)
-    inv.deleted_at = datetime.now(timezone.utc)
-    await db.flush()
-    return ok(msg="deleted")
+@router.delete("/invoices/{inv_id}")
+async def delete_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_invoice as svc_get, delete_invoice as svc_del
+    inv = await svc_get(db, inv_id)
+    if not inv: return fail("发票不存在", 404)
+    await svc_del(db, inv)
+    return ok({"deleted": inv_id})
 
 
-@inv_router.post("/{invoice_id}/issue")
-async def issue_invoice(invoice_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
-    )
-    inv = result.scalar_one_or_none()
-    if inv is None:
-        return fail("Invoice not found", 404)
-    if inv.status != "draft":
-        return fail("Only draft invoices can be issued")
-    inv.status = "issued"
-    inv.invoice_date = datetime.now(timezone.utc)
-    await db.flush()
-    return ok({"id": inv.id, "status": inv.status})
+# ============================================================
+# Payments
+# ============================================================
+
+@router.get("/payments")
+async def list_payments(
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    customer_id: int | None = None, status: str | None = None,
+    sales_order_id: int | None = None,
+    sort_by: str = "id", sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import list_payments as svc_list
+    result = await svc_list(db, page=page, page_size=page_size, customer_id=customer_id,
+                          status=status, sales_order_id=sales_order_id,
+                          sort_by=sort_by, sort_order=sort_order)
+    return ok(result)
 
 
-@inv_router.post("/{invoice_id}/void")
-async def void_invoice(invoice_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
-    )
-    inv = result.scalar_one_or_none()
-    if inv is None:
-        return fail("Invoice not found", 404)
-    inv.status = "void"
-    await db.flush()
-    return ok({"id": inv.id, "status": inv.status})
+@router.get("/payments/stats")
+async def get_payment_stats(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import payment_stats
+    return ok(await payment_stats(db))
+
+
+@router.get("/payments/{pay_id}")
+async def get_payment(pay_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_payment as svc_get
+    pay = await svc_get(db, pay_id)
+    if not pay: return fail("回款记录不存在", 404)
+    return ok(pay)
+
+
+@router.post("/payments")
+async def create_payment(body: PaymentRecordCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import create_payment as svc_create
+    pay = await svc_create(db, body.model_dump())
+    return ok(pay, code=201)
+
+
+@router.put("/payments/{pay_id}")
+async def update_payment(pay_id: int, body: PaymentRecordUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_payment as svc_get, update_payment as svc_update
+    pay = await svc_get(db, pay_id)
+    if not pay: return fail("回款记录不存在", 404)
+    pay = await svc_update(db, pay, body.model_dump(exclude_none=True))
+    return ok(pay)
+
+
+@router.delete("/payments/{pay_id}")
+async def delete_payment(pay_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_payment as svc_get, delete_payment as svc_del
+    pay = await svc_get(db, pay_id)
+    if not pay: return fail("回款记录不存在", 404)
+    await svc_del(db, pay)
+    return ok({"deleted": pay_id})
+
+
+# ============================================================
+# Contracts
+# ============================================================
+
+@router.get("/contracts")
+async def list_contracts(
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    customer_id: int | None = None, status: str | None = None,
+    sort_by: str = "id", sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import list_contracts as svc_list
+    result = await svc_list(db, page=page, page_size=page_size, customer_id=customer_id,
+                          status=status, sort_by=sort_by, sort_order=sort_order)
+    return ok(result)
+
+
+@router.get("/contracts/{contract_id}")
+async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_contract as svc_get
+    ct = await svc_get(db, contract_id)
+    if not ct: return fail("合同不存在", 404)
+    return ok(ct)
+
+
+@router.post("/contracts")
+async def create_contract(body: ContractCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import create_contract as svc_create
+    ct = await svc_create(db, body.model_dump())
+    return ok(ct, code=201)
+
+
+@router.put("/contracts/{contract_id}")
+async def update_contract(contract_id: int, body: ContractUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_contract as svc_get, update_contract as svc_update
+    ct = await svc_get(db, contract_id)
+    if not ct: return fail("合同不存在", 404)
+    ct = await svc_update(db, ct, body.model_dump(exclude_none=True))
+    return ok(ct)
+
+
+@router.delete("/contracts/{contract_id}")
+async def delete_contract(contract_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_contract as svc_get, delete_contract as svc_del
+    ct = await svc_get(db, contract_id)
+    if not ct: return fail("合同不存在", 404)
+    await svc_del(db, ct)
+    return ok({"deleted": contract_id})
+
+
+# ============================================================
+# Sales Targets
+# ============================================================
+
+@router.get("/targets")
+async def list_targets(
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    user_id: int | None = None, status: str | None = None,
+    target_type: str | None = None,
+    sort_by: str = "id", sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import list_targets as svc_list
+    result = await svc_list(db, page=page, page_size=page_size, user_id=user_id,
+                          status=status, target_type=target_type,
+                          sort_by=sort_by, sort_order=sort_order)
+    return ok(result)
+
+
+@router.get("/targets/stats")
+async def get_target_stats(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import target_stats
+    return ok(await target_stats(db))
+
+
+@router.get("/targets/{target_id}")
+async def get_target(target_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_target as svc_get
+    t = await svc_get(db, target_id)
+    if not t: return fail("目标不存在", 404)
+    return ok(t)
+
+
+@router.post("/targets")
+async def create_target(body: SalesTargetCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import create_target as svc_create
+    t = await svc_create(db, body.model_dump())
+    return ok(t, code=201)
+
+
+@router.put("/targets/{target_id}")
+async def update_target(target_id: int, body: SalesTargetUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_target as svc_get, update_target as svc_update
+    t = await svc_get(db, target_id)
+    if not t: return fail("目标不存在", 404)
+    t = await svc_update(db, t, body.model_dump(exclude_none=True))
+    return ok(t)
+
+
+@router.delete("/targets/{target_id}")
+async def delete_target(target_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    from app.services.finance_service import get_target as svc_get, delete_target as svc_del
+    t = await svc_get(db, target_id)
+    if not t: return fail("目标不存在", 404)
+    await svc_del(db, t)
+    return ok({"deleted": target_id})

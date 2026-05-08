@@ -158,7 +158,7 @@ def _customer_row(c: Customer) -> dict:
         "credit_limit": float(c.credit_limit) if c.credit_limit else None,
         "credit_level": c.credit_level,
         "last_contacted_at": str(c.last_contacted_at) if c.last_contacted_at else None,
-        "created_at": str(c.created_at),
+        "created_at": str(c.created_at) if c.created_at else None,
         "owner": c.owner,
         "parent_id": c.parent_id,
         "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in (c.tags or [])],
@@ -336,7 +336,7 @@ async def export_customers(
             c.id, c.code, c.name, c.short_name, c.industry, c.level, c.region, c.source,
             c.customer_type, c.credit_level, c.credit_limit, c.contact_person, c.phone,
             c.email, c.address, c.notes, str(c.last_contacted_at) if c.last_contacted_at else "",
-            str(c.created_at),
+            str(c.created_at) if c.created_at else "",
         ])
     output.seek(0)
     return StreamingResponse(
@@ -638,7 +638,7 @@ async def list_alert_events(
             "id": e.id, "customer_id": e.customer_id, "rule_type": e.rule_type,
             "rule_name": e.rule_name, "severity": e.severity, "message": e.message,
             "is_read": e.is_read, "read_at": str(e.read_at) if e.read_at else None,
-            "created_at": str(e.created_at),
+            "created_at": str(e.created_at) if e.created_at else None,
         } for e in rows],
         "total": total, "page": page, "page_size": page_size,
     })
@@ -970,6 +970,8 @@ async def create_customer(body: CustomerCreate, db: AsyncSession = Depends(get_d
         await db.flush()
     await _log(db, customer.id, "create", summary=f"创建客户: {customer.name}", operator=_user.get("username"))
     await db.flush()
+    from app.services.embedding_pipeline import after_customer_save
+    after_customer_save(customer.id)
     return ok({"id": customer.id, "name": customer.name, "code": customer.code})
 
 
@@ -1006,6 +1008,8 @@ async def update_customer(customer_id: int, body: CustomerUpdate, db: AsyncSessi
         if str(old) != str(val) and key != "notes":
             await _log(db, customer_id, "update", field_name=key, old_value=str(old), new_value=str(val), operator=_user.get("username"))
     await db.flush()
+    from app.services.embedding_pipeline import after_customer_save
+    after_customer_save(customer.id)
     return ok({"id": customer.id})
 
 
@@ -1332,7 +1336,7 @@ async def get_timeline(customer_id: int, db: AsyncSession = Depends(get_db), _us
             "type": "contact",
             "title": f"新建联系人: {c.name}",
             "detail": c.title or "",
-            "time": str(c.created_at),
+            "time": str(c.created_at) if c.created_at else None,
             "id": c.id,
         })
     for f in followups:
@@ -1348,7 +1352,7 @@ async def get_timeline(customer_id: int, db: AsyncSession = Depends(get_db), _us
             "type": "order",
             "title": f"销售订单: {o.order_no or 'NO-{}'.format(o.id)}",
             "detail": f"金额: {o.total_amount or 0:.2f}, 状态: {o.status}",
-            "time": str(o.created_at),
+            "time": str(o.created_at) if o.created_at else None,
             "id": o.id,
         })
 
@@ -1456,7 +1460,7 @@ async def get_customer_logs(customer_id: int, db: AsyncSession = Depends(get_db)
         "new_value": r.new_value,
         "operator": r.operator,
         "summary": r.summary,
-        "created_at": str(r.created_at),
+        "created_at": str(r.created_at) if r.created_at else None,
     } for r in rows])
 
 
@@ -1574,10 +1578,8 @@ async def list_attachments(customer_id: int, db: AsyncSession = Depends(get_db),
     return ok([{
         "id": a.id, "original_name": a.original_name, "file_size": a.file_size,
         "content_type": a.content_type, "category": a.category,
-        "created_at": str(a.created_at),
+        "created_at": str(a.created_at) if a.created_at else None,
     } for a in rows])
-
-
 @router.post("/{customer_id}/attachments", status_code=201)
 async def upload_attachment(
     customer_id: int,
@@ -1698,7 +1700,7 @@ async def get_quotation_history(
         quotations.append({
             "id": q.id, "quotation_no": q.quotation_no, "status": q.status,
             "total_amount": float(q.total_amount), "valid_until": str(q.valid_until) if q.valid_until else None,
-            "notes": q.notes, "created_at": str(q.created_at), "items": items,
+            "notes": q.notes, "created_at": str(q.created_at) if q.created_at else None, "items": items,
         })
 
     # Conversion stats
@@ -1770,7 +1772,7 @@ async def list_visits(customer_id: int, db: AsyncSession = Depends(get_db), _use
         "main_product": v.main_product, "key_points": v.key_points,
         "contact_id": v.contact_id,
         "followup_date": str(v.followup_date) if v.followup_date else None,
-        "created_at": str(v.created_at),
+        "created_at": str(v.created_at) if v.created_at else None,
     } for v in rows])
 
 

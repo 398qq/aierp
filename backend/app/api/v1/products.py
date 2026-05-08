@@ -47,7 +47,7 @@ def _product_row(p: Product) -> dict:
         "category": p.category, "package_type": p.package_type,
         "specs": p.specs, "unit": p.unit, "notes": p.notes,
         "image_url": p.image_url,
-        "created_at": str(p.created_at),
+        "created_at": str(p.created_at) if p.created_at else None,
     }
 
 
@@ -97,6 +97,8 @@ async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db)
     product = Product(**body.model_dump())
     db.add(product)
     await db.flush()
+    from app.services.embedding_pipeline import after_product_save
+    after_product_save(product.id)
     return ok({"id": product.id, "name": product.name})
 
 
@@ -109,6 +111,8 @@ async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession 
     for key, val in body.model_dump(exclude_unset=True).items():
         setattr(product, key, val)
     await db.flush()
+    from app.services.embedding_pipeline import after_product_save
+    after_product_save(product.id)
     return ok({"id": product.id})
 
 
@@ -157,7 +161,7 @@ async def list_brands(
     if q:
         base = base.where(Brand.name.ilike(f"%{q}%"))
     rows = (await db.execute(base.order_by(Brand.name))).scalars().all()
-    return ok([{"id": b.id, "name": b.name, "name_cn": b.name_cn, "website": b.website, "category": b.category, "notes": b.notes, "supplier_id": b.supplier_id, "created_at": str(b.created_at), "updated_at": str(b.updated_at) if b.updated_at else None} for b in rows])
+    return ok([{"id": b.id, "name": b.name, "name_cn": b.name_cn, "website": b.website, "category": b.category, "notes": b.notes, "supplier_id": b.supplier_id, "created_at": str(b.created_at) if b.created_at else None, "updated_at": str(b.updated_at) if b.updated_at else None} for b in rows])
 
 
 @brands_router.get("/{brand_id}")
@@ -180,7 +184,7 @@ async def get_brand(brand_id: int, db: AsyncSession = Depends(get_db), _user: di
         "website": brand.website, "category": brand.category, "notes": brand.notes,
         "supplier_id": brand.supplier_id,
         "product_count": product_count,
-        "created_at": str(brand.created_at),
+        "created_at": str(brand.created_at) if brand.created_at else None,
         "updated_at": str(brand.updated_at) if brand.updated_at else None,
     })
 
@@ -263,7 +267,7 @@ def _supplier_to_dict(s: Supplier) -> dict:
         "supplier_type": s.supplier_type, "certifications": s.certifications,
         "payment_terms": s.payment_terms, "region": s.region,
         "website": s.website, "financial_rating": s.financial_rating,
-        "created_at": str(s.created_at),
+        "created_at": str(s.created_at) if s.created_at else None,
         "updated_at": str(s.updated_at) if s.updated_at else None,
     }
 
@@ -309,6 +313,8 @@ async def create_supplier(body: SupplierCreate, db: AsyncSession = Depends(get_d
     supplier = Supplier(**body.model_dump())
     db.add(supplier)
     await db.flush()
+    from app.services.embedding_pipeline import after_supplier_save
+    after_supplier_save(supplier.id)
     return ok({"id": supplier.id, "name": supplier.name})
 
 
@@ -322,6 +328,8 @@ async def update_supplier(supplier_id: int, body: SupplierUpdate, db: AsyncSessi
         setattr(supplier, field, value)
     await db.flush()
     await db.refresh(supplier)
+    from app.services.embedding_pipeline import after_supplier_save
+    after_supplier_save(supplier.id)
     return ok(_supplier_to_dict(supplier))
 
 
@@ -553,7 +561,7 @@ async def list_inventory(
     return ok({
         "list": [{
             "id": r[0], "product_id": r[1], "warehouse_id": r[2],
-            "quantity": r[3], "safety_stock": r[4], "created_at": str(r[5]),
+            "quantity": r[3], "safety_stock": r[4], "created_at": str(r[5]) if r[5] else None,
             "sku": r[6], "product_name": r[7], "category": r[8],
             "brand_name": r[9] or r[10], "warehouse_name": r[11],
         } for r in rows],

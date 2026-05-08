@@ -1,12 +1,22 @@
 import client from "./client";
 import type {
-  AlertEvent, AlertRule, APIResponse, Attachment, AttainmentPrediction, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix, CashFlowForecast, ChurnRisk, Contract, ContractExpiry, ContractExtraction, ContractRebate, ContractRisk, CreditRiskAssessment, CrossSellResult, Customer, Customer360, CustomerInsight, CustomerLog, CustomerProductMatch, CustomerStats,
-  DashboardOverview, DashboardRealtime, DashboardStats,
-  DeliveryNote, DeliveryNoteItem, DunningStrategy, DuplicatePair, FollowUp, Global360, GroupStats, Invoice, LevelRule, LifecycleAnalysis, MergeResult, NLPQueryResult,
-  NotificationItem, NormalizedSpec, OverdueFollowUp,
-  InventoryItem, LoginData, Opportunity, OpportunityScoreResult, PageData, Payment, PaymentDelayPrediction, PaymentRecord, PipelineHealthResult, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360,
-  ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder, Quotation, QuotationHistory, QuotationItem, QuotationOptimizeResult, QuoteAssistResult, RFMAnalysis, SalesOrder, SalesOrderItem, SalesTarget,
-  PaymentSummary, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard, Tag, TargetEarlyWarning, TargetRecommendation, TargetSummary, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent, Visit, VisitEffectiveness, VisitReport, VisitSentiment, Warehouse, WatchtowerResult,
+  AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
+  ChurnRisk, Contract, Customer, Customer360, CustomerLog, CustomerProductMatch, CustomerStats,
+  DashboardStats, DeliveryNote, DeliveryNoteAI, DuplicatePair,
+  FollowUp,
+  Global360, GroupStats,
+  Invoice, LevelRule, LifecycleAnalysis, LoginData,
+  MergeResult,
+  NLPQueryResult, NormalizedSpec,
+  InventoryItem,
+  NotificationItem,
+  Opportunity, OpportunityAI, OverdueFollowUp,
+  PageData, PaymentRecord, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360, ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder,
+  Quotation, QuotationAI, RFMAnalysis,
+  SalesOrder, SalesOrderAI, SalesTarget, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard,
+  Tag, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent,
+  Visit, VisitEffectiveness, VisitReport, VisitSentiment,
+  Warehouse,
 } from "../types";
 
 // Auth
@@ -241,14 +251,6 @@ export const getBrandSupplierMatrix = (brandId: number) =>
 export const getBrandRecommendations = (brandId: number, topK = 5) =>
   client.post<APIResponse<BrandRecommendation>>(`/ai/brands/${brandId}/recommendations?top_k=${topK}`);
 
-// Quote Assistant
-export const getQuoteAssist = (customerId: number, items: { product_id: number; quantity: number }[]) =>
-  client.post<APIResponse<QuoteAssistResult>>("/ai/quotations/assist", { customer_id: customerId, items });
-
-// Watchtower
-export const scanWatchtower = (daysBack = 90) =>
-  client.get<APIResponse<WatchtowerResult>>(`/ai/watchtower/scan?days_back=${daysBack}`);
-
 // Smart Matching
 export const recommendProductsForCustomer = (customerId: number, topK = 5) =>
   client.post<APIResponse<CustomerProductMatch>>(`/ai/customers/${customerId}/recommend-products?top_k=${topK}`);
@@ -308,122 +310,12 @@ export const similarProducts = (id: number, top_k = 10) =>
 export const productSubstitutes = (id: number) =>
   client.get<APIResponse>(`/ai/products/${id}/substitutes`);
 
-// Opportunities
-export const getOpportunities = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Opportunity>>>("/opportunities", { params });
-
-export const getOpportunity = (id: number) =>
-  client.get<APIResponse<Opportunity>>(`/opportunities/${id}`);
-
-export const createOpportunity = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/opportunities", data);
-
-export const updateOpportunity = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/opportunities/${id}`, data);
-
-export const deleteOpportunity = (id: number) =>
-  client.delete<APIResponse>(`/opportunities/${id}`);
-
-// Quotations
-export const getQuotations = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Quotation>>>("/quotations", { params });
-
-export const getQuotation = (id: number) =>
-  client.get<APIResponse<Quotation>>(`/quotations/${id}`);
-
-export const createQuotation = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/quotations", data);
-
-export const updateQuotation = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/quotations/${id}`, data);
-
-export const deleteQuotation = (id: number) =>
-  client.delete<APIResponse>(`/quotations/${id}`);
-
-// Quotation Items
-export const getQuotationItems = (quotationId: number) =>
-  client.get<APIResponse<QuotationItem[]>>(`/quotations/${quotationId}/items`);
-
-export const createQuotationItem = (quotationId: number, data: Record<string, unknown>) =>
-  client.post<APIResponse>(`/quotations/${quotationId}/items`, data);
-
-export const updateQuotationItem = (quotationId: number, itemId: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/quotations/${quotationId}/items/${itemId}`, data);
-
-export const deleteQuotationItem = (quotationId: number, itemId: number) =>
-  client.delete<APIResponse>(`/quotations/${quotationId}/items/${itemId}`);
-
-// Sales Orders
-export const getSalesOrders = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<SalesOrder>>>("/sales-orders", { params });
-
-export const getSalesOrder = (id: number) =>
-  client.get<APIResponse<SalesOrder>>(`/sales-orders/${id}`);
-
-export const createSalesOrder = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/sales-orders", data);
-
-export const updateSalesOrder = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/sales-orders/${id}`, data);
-
-export const deleteSalesOrder = (id: number) =>
-  client.delete<APIResponse>(`/sales-orders/${id}`);
-
-// Sales Order Items
-export const getSalesOrderItems = (orderId: number) =>
-  client.get<APIResponse<SalesOrderItem[]>>(`/sales-orders/${orderId}/items`);
-
-export const createSalesOrderItem = (orderId: number, data: Record<string, unknown>) =>
-  client.post<APIResponse>(`/sales-orders/${orderId}/items`, data);
-
-export const updateSalesOrderItem = (orderId: number, itemId: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/sales-orders/${orderId}/items/${itemId}`, data);
-
-export const deleteSalesOrderItem = (orderId: number, itemId: number) =>
-  client.delete<APIResponse>(`/sales-orders/${orderId}/items/${itemId}`);
-
-// Delivery Notes
-export const getDeliveryNotes = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<DeliveryNote>>>("/delivery-notes", { params });
-
-export const getDeliveryNote = (id: number) =>
-  client.get<APIResponse<DeliveryNote>>(`/delivery-notes/${id}`);
-
-export const createDeliveryNote = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/delivery-notes", data);
-
-export const updateDeliveryNote = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/delivery-notes/${id}`, data);
-
-export const deleteDeliveryNote = (id: number) =>
-  client.delete<APIResponse>(`/delivery-notes/${id}`);
-
-// Delivery Note Items
-export const getDeliveryNoteItems = (noteId: number) =>
-  client.get<APIResponse<DeliveryNoteItem[]>>(`/delivery-notes/${noteId}/items`);
-
-export const createDeliveryNoteItem = (noteId: number, data: Record<string, unknown>) =>
-  client.post<APIResponse>(`/delivery-notes/${noteId}/items`, data);
-
-export const updateDeliveryNoteItem = (noteId: number, itemId: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/delivery-notes/${noteId}/items/${itemId}`, data);
-
-export const deleteDeliveryNoteItem = (noteId: number, itemId: number) =>
-  client.delete<APIResponse>(`/delivery-notes/${noteId}/items/${itemId}`);
-
 // Purchase Orders
 export const getPurchaseOrders = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<PurchaseOrder>>>("/purchase-orders", { params });
 
 export const createPurchaseOrder = (data: Record<string, unknown>) =>
   client.post<APIResponse>("/purchase-orders", data);
-
-// Payments
-export const getPayments = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Payment>>>("/payments", { params });
-
-export const createPayment = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/payments", data);
 
 // Tickets
 export const getTickets = (params: Record<string, unknown>) =>
@@ -471,92 +363,6 @@ export const mergeCustomers = (source_id: number, target_id: number) =>
 export const detectDuplicates = (threshold = 0.7) =>
   client.get<APIResponse<{ total: number; pairs: DuplicatePair[] }>>("/customers/duplicates", { params: { threshold } });
 
-// Sales Funnel
-import type { FunnelStage, SalesSummary, TrendPoint, StageDistribution, SalesRecommendation, WinPrediction } from "../types";
-
-export const getSalesFunnel = (params?: Record<string, unknown>) =>
-  client.get<APIResponse<FunnelStage[]>>("/opportunities/funnel", { params });
-
-// Sales Stats
-export const getSalesSummary = () =>
-  client.get<APIResponse<SalesSummary>>("/sales/stats/summary");
-
-export const getSalesTrend = (params: Record<string, unknown>) =>
-  client.get<APIResponse<TrendPoint[]>>("/sales/stats/trend", { params });
-
-export const getStageDistribution = () =>
-  client.get<APIResponse<StageDistribution[]>>("/sales/stats/stage-distribution");
-
-// Flow Conversion
-export const convertQuotationToOrder = (quotationId: number) =>
-  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/quotations/${quotationId}/convert-to-order`);
-
-export const convertOrderToDelivery = (orderId: number) =>
-  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/sales-orders/${orderId}/convert-to-delivery`);
-
-// Batch Operations
-export const batchDeleteOpportunities = (ids: number[]) =>
-  client.post<APIResponse>("/opportunities/batch-delete", { ids });
-
-export const batchUpdateOpportunities = (ids: number[], stage?: string, probability?: number) =>
-  client.post<APIResponse>("/opportunities/batch-update", { ids, stage, probability });
-
-export const batchDeleteQuotations = (ids: number[]) =>
-  client.post<APIResponse>("/quotations/batch-delete", { ids });
-
-export const batchDeleteSalesOrders = (ids: number[]) =>
-  client.post<APIResponse>("/sales-orders/batch-delete", { ids });
-
-export const batchDeleteDeliveryNotes = (ids: number[]) =>
-  client.post<APIResponse>("/delivery-notes/batch-delete", { ids });
-
-// Excel Import/Export
-export const exportQuotations = (params?: Record<string, unknown>) =>
-  client.get("/quotations/export", { params, responseType: "blob" });
-
-export const importQuotations = (file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return client.post("/quotations/import", form, { headers: { "Content-Type": "multipart/form-data" } });
-};
-
-export const exportSalesOrders = (params?: Record<string, unknown>) =>
-  client.get("/sales-orders/export", { params, responseType: "blob" });
-
-export const importSalesOrders = (file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return client.post("/sales-orders/import", form, { headers: { "Content-Type": "multipart/form-data" } });
-};
-
-export const exportDeliveryNotes = (params?: Record<string, unknown>) =>
-  client.get("/delivery-notes/export", { params, responseType: "blob" });
-
-export const importDeliveryNotes = (file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return client.post("/delivery-notes/import", form, { headers: { "Content-Type": "multipart/form-data" } });
-};
-
-// AI Sales
-export const getSalesRecommendation = (customerId: number) =>
-  client.post<APIResponse<SalesRecommendation>>(`/ai/sales/recommend?customer_id=${customerId}`);
-
-export const getWinPrediction = (opportunityId: number) =>
-  client.post<APIResponse<WinPrediction>>(`/ai/sales/predict?opportunity_id=${opportunityId}`);
-
-export const scoreOpportunity = (opportunityId: number) =>
-  client.post<APIResponse<OpportunityScoreResult>>(`/ai/sales/opportunities/${opportunityId}/score`);
-
-export const analyzePipelineHealth = () =>
-  client.post<APIResponse<PipelineHealthResult>>("/ai/sales/pipeline-health");
-
-export const optimizeQuotation = (quotationId: number) =>
-  client.post<APIResponse<QuotationOptimizeResult>>(`/ai/sales/quotations/${quotationId}/optimize`);
-
-export const detectCrossSell = (customerId: number) =>
-  client.post<APIResponse<CrossSellResult>>(`/ai/sales/customers/${customerId}/cross-sell`);
-
 // Group Relationships
 export const linkParent = (customerId: number, parentId: number) =>
   client.post<APIResponse>(`/customers/${customerId}/link-parent`, { parent_id: parentId });
@@ -595,9 +401,9 @@ export const markAllAlertsRead = () =>
 export const checkAlerts = () =>
   client.post<APIResponse<{ generated: number; rules_checked: number; customers_checked: number }>>("/customers/alerts/check");
 
-// Quotation History
-export const getQuotationHistory = (customerId: number) =>
-  client.get<APIResponse<QuotationHistory>>(`/customers/${customerId}/quotation-history`);
+// Customer Insight
+export const getCustomerInsight = (id: number) =>
+  client.get<APIResponse<import("../types").CustomerInsight>>(`/customers/${id}/insight`);
 
 // Customer Visits
 export const getCustomerVisits = (customerId: number) =>
@@ -631,82 +437,6 @@ export const deleteLevelRule = (id: number) =>
 export const autoLevel = () =>
   client.post<APIResponse<{ updated: number }>>("/customers/auto-level");
 
-// Payment Records
-export const getPaymentRecords = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<PaymentRecord>>>("/sales/payments", { params });
-
-export const getPaymentRecord = (id: number) =>
-  client.get<APIResponse<PaymentRecord>>(`/sales/payments/${id}`);
-
-export const createPaymentRecord = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/sales/payments", data);
-
-export const updatePaymentRecord = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/sales/payments/${id}`, data);
-
-export const deletePaymentRecord = (id: number) =>
-  client.delete<APIResponse>(`/sales/payments/${id}`);
-
-export const getPaymentSummary = () =>
-  client.get<APIResponse<PaymentSummary>>("/sales/payments/summary");
-
-// Invoices
-export const getInvoices = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Invoice>>>("/sales/invoices", { params });
-
-export const getInvoice = (id: number) =>
-  client.get<APIResponse<Invoice>>(`/sales/invoices/${id}`);
-
-export const createInvoice = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/sales/invoices", data);
-
-export const updateInvoice = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/sales/invoices/${id}`, data);
-
-export const deleteInvoice = (id: number) =>
-  client.delete<APIResponse>(`/sales/invoices/${id}`);
-
-export const issueInvoice = (id: number) =>
-  client.post<APIResponse>(`/sales/invoices/${id}/issue`);
-
-export const voidInvoice = (id: number) =>
-  client.post<APIResponse>(`/sales/invoices/${id}/void`);
-
-// Sales Targets
-export const getSalesTargets = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<SalesTarget>>>("/sales/targets", { params });
-
-export const getSalesTarget = (id: number) =>
-  client.get<APIResponse<SalesTarget>>(`/sales/targets/${id}`);
-
-export const createSalesTarget = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/sales/targets", data);
-
-export const updateSalesTarget = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/sales/targets/${id}`, data);
-
-export const deleteSalesTarget = (id: number) =>
-  client.delete<APIResponse>(`/sales/targets/${id}`);
-
-export const getTargetSummary = () =>
-  client.get<APIResponse<TargetSummary>>("/sales/targets/summary");
-
-// Contracts
-export const getContracts = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Contract>>>("/sales/contracts", { params });
-
-export const getContract = (id: number) =>
-  client.get<APIResponse<Contract>>(`/sales/contracts/${id}`);
-
-export const createContract = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/sales/contracts", data);
-
-export const updateContract = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/sales/contracts/${id}`, data);
-
-export const deleteContract = (id: number) =>
-  client.delete<APIResponse>(`/sales/contracts/${id}`);
-
 // Notifications
 export const getNotifications = (params: Record<string, unknown>) =>
   client.get<APIResponse<{ list: NotificationItem[]; total: number; page: number; page_size: number; unread_count: number }>>("/notifications", { params });
@@ -716,17 +446,6 @@ export const getUnreadCount = () =>
 
 export const markNotificationsRead = (data: { ids?: number[]; all?: boolean }) =>
   client.post<APIResponse>("/notifications/mark-read", data);
-
-// Dashboard
-export const getDashboardOverview = () =>
-  client.get<APIResponse<DashboardOverview>>("/sales/dashboard/overview");
-
-export const getDashboardRealtime = () =>
-  client.get<APIResponse<DashboardRealtime>>("/sales/dashboard/realtime");
-
-// Customer Insight
-export const getCustomerInsight = (id: number) =>
-  client.get<APIResponse<CustomerInsight>>(`/customers/${id}/insight`);
 
 // ============================================================
 // Supplier Intelligence (AI)
@@ -765,75 +484,6 @@ export const assessPORisk = (orderId: number) =>
   client.post<APIResponse<PORiskAssessment>>(`/ai/purchase-orders/${orderId}/risk`);
 
 // ============================================================
-// Payment & AR Intelligence (AI)
-// ============================================================
-export const predictPaymentDelays = () =>
-  client.post<APIResponse<PaymentDelayPrediction>>("/ai/finance/payment-prediction");
-
-export const forecastCashFlow = () =>
-  client.post<APIResponse<CashFlowForecast>>("/ai/finance/cash-flow");
-
-export const generateDunningStrategy = (invoiceId: number) =>
-  client.post<APIResponse<DunningStrategy>>(`/ai/finance/dunning/${invoiceId}`);
-
-export const assessCreditRisk = (customerId: number) =>
-  client.post<APIResponse<CreditRiskAssessment>>(`/ai/finance/credit-risk/${customerId}`);
-
-// ============================================================
-// Sales Target Intelligence (AI)
-// ============================================================
-export const recommendTargets = (userId: number) =>
-  client.post<APIResponse<TargetRecommendation>>(`/ai/targets/recommend/${userId}`);
-
-export const predictAttainment = (targetId: number) =>
-  client.post<APIResponse<AttainmentPrediction>>(`/ai/targets/${targetId}/attainment`);
-
-export const scanTargetEarlyWarning = () =>
-  client.post<APIResponse<TargetEarlyWarning>>("/ai/targets/early-warning");
-
-// ============================================================
-// Visit Intelligence (AI)
-// ============================================================
-export const generateVisitReport = (visitId: number) =>
-  client.post<APIResponse<VisitReport>>(`/ai/visits/${visitId}/report`);
-
-export const analyzeVisitSentiment = (visitId: number) =>
-  client.post<APIResponse<VisitSentiment>>(`/ai/visits/${visitId}/sentiment`);
-
-export const evaluateVisitEffectiveness = () =>
-  client.post<APIResponse<VisitEffectiveness>>("/ai/visits/effectiveness");
-
-// ============================================================
-// Ticket Intelligence (AI)
-// ============================================================
-export const classifyTicket = (ticketId: number) =>
-  client.post<APIResponse<TicketClassification>>(`/ai/tickets/${ticketId}/classify`);
-
-export const suggestTicketResponse = (ticketId: number) =>
-  client.post<APIResponse<TicketResponse>>(`/ai/tickets/${ticketId}/suggest-response`);
-
-export const predictTicketResolution = (ticketId: number) =>
-  client.post<APIResponse<TicketResolutionPrediction>>(`/ai/tickets/${ticketId}/predict-resolution`);
-
-export const clusterTickets = () =>
-  client.post<APIResponse<TicketCluster>>("/ai/tickets/cluster");
-
-// ============================================================
-// Contract Intelligence (AI)
-// ============================================================
-export const extractContractTerms = (contractId: number) =>
-  client.post<APIResponse<ContractExtraction>>(`/ai/contracts/${contractId}/extract`);
-
-export const assessContractRisk = (contractId: number) =>
-  client.post<APIResponse<ContractRisk>>(`/ai/contracts/${contractId}/risk`);
-
-export const scanContractExpiry = () =>
-  client.post<APIResponse<ContractExpiry>>("/ai/contracts/expiry-alerts");
-
-export const trackContractRebate = (contractId: number) =>
-  client.post<APIResponse<ContractRebate>>(`/ai/contracts/${contractId}/rebate-tracking`);
-
-// ============================================================
 // Multi-Agent Orchestration (AI)
 // ============================================================
 export const orchestrateCustomer360 = (customerId: number) =>
@@ -852,9 +502,219 @@ export const naturalLanguageQuery = (query: string) =>
   client.post<APIResponse<NLPQueryResult>>("/ai/query", { query });
 
 // AI Chat (SSE)
-export const aiChat = (query: string) => {
+export const aiChat = (query: string, history?: { role: string; content: string }[]) => {
   const token = localStorage.getItem("token");
   return fetch(`/api/v1/ai/chat?query=${encodeURIComponent(query)}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ history: history || [] }),
   });
 };
+
+// ============================================================
+// Sales — Opportunities
+// ============================================================
+
+export const getOpportunities = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Opportunity> & { ai?: Record<number, OpportunityAI> }>>("/opportunities", { params });
+
+export const getOpportunity = (id: number, includeAi = false) =>
+  client.get<APIResponse<Opportunity>>(`/opportunities/${id}?include_ai=${includeAi}`);
+
+export const createOpportunity = (data: Record<string, unknown>) =>
+  client.post<APIResponse<Opportunity>>("/opportunities", data);
+
+export const updateOpportunity = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Opportunity>>(`/opportunities/${id}`, data);
+
+export const deleteOpportunity = (id: number) =>
+  client.delete<APIResponse>(`/opportunities/${id}`);
+
+export const batchDeleteOpportunities = (ids: number[]) =>
+  client.post<APIResponse>("/opportunities/batch-delete", { ids });
+
+export const batchUpdateOpportunities = (ids: number[], stage?: string, win_probability?: number) =>
+  client.post<APIResponse>("/opportunities/batch-update", { ids, stage, win_probability });
+
+// ============================================================
+// Sales — Quotations
+// ============================================================
+
+export const getQuotations = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Quotation> & { ai?: Record<number, QuotationAI> }>>("/quotations", { params });
+
+export const getQuotation = (id: number, includeAi = false) =>
+  client.get<APIResponse<Quotation>>(`/quotations/${id}?include_ai=${includeAi}`);
+
+export const createQuotation = (data: Record<string, unknown>) =>
+  client.post<APIResponse<Quotation>>("/quotations", data);
+
+export const updateQuotation = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Quotation>>(`/quotations/${id}`, data);
+
+export const deleteQuotation = (id: number) =>
+  client.delete<APIResponse>(`/quotations/${id}`);
+
+export const batchDeleteQuotations = (ids: number[]) =>
+  client.post<APIResponse>("/quotations/batch-delete", { ids });
+
+export const convertQuotationToOrder = (id: number) =>
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/quotations/${id}/convert-to-order`);
+
+// ============================================================
+// Sales — Sales Orders
+// ============================================================
+
+export const getSalesOrders = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<SalesOrder> & { ai?: Record<number, SalesOrderAI> }>>("/sales-orders", { params });
+
+export const getSalesOrder = (id: number, includeAi = false) =>
+  client.get<APIResponse<SalesOrder>>(`/sales-orders/${id}?include_ai=${includeAi}`);
+
+export const createSalesOrder = (data: Record<string, unknown>) =>
+  client.post<APIResponse<SalesOrder>>("/sales-orders", data);
+
+export const updateSalesOrder = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<SalesOrder>>(`/sales-orders/${id}`, data);
+
+export const deleteSalesOrder = (id: number) =>
+  client.delete<APIResponse>(`/sales-orders/${id}`);
+
+export const batchDeleteSalesOrders = (ids: number[]) =>
+  client.post<APIResponse>("/sales-orders/batch-delete", { ids });
+
+export const convertSalesOrderToDelivery = (id: number) =>
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/sales-orders/${id}/convert-to-delivery`);
+
+// ============================================================
+// Sales — Delivery Notes
+// ============================================================
+
+export const getDeliveryNotes = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<DeliveryNote> & { ai?: Record<number, DeliveryNoteAI> }>>("/delivery-notes", { params });
+
+export const getDeliveryNote = (id: number, includeAi = false) =>
+  client.get<APIResponse<DeliveryNote>>(`/delivery-notes/${id}?include_ai=${includeAi}`);
+
+export const createDeliveryNote = (data: Record<string, unknown>) =>
+  client.post<APIResponse<DeliveryNote>>("/delivery-notes", data);
+
+export const updateDeliveryNote = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<DeliveryNote>>(`/delivery-notes/${id}`, data);
+
+export const deleteDeliveryNote = (id: number) =>
+  client.delete<APIResponse>(`/delivery-notes/${id}`);
+
+export const batchDeleteDeliveryNotes = (ids: number[]) =>
+  client.post<APIResponse>("/delivery-notes/batch-delete", { ids });
+
+// ============================================================
+// Finance — Invoices
+// ============================================================
+
+export const getInvoices = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Invoice>>>("/invoices", { params });
+
+export const getInvoice = (id: number) =>
+  client.get<APIResponse<Invoice>>(`/invoices/${id}`);
+
+export const createInvoice = (data: Record<string, unknown>) =>
+  client.post<APIResponse<Invoice>>("/invoices", data);
+
+export const updateInvoice = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Invoice>>(`/invoices/${id}`, data);
+
+export const deleteInvoice = (id: number) =>
+  client.delete<APIResponse>(`/invoices/${id}`);
+
+// ============================================================
+// Finance — Payments
+// ============================================================
+
+export const getPayments = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<PaymentRecord>>>("/payments", { params });
+
+export const getPaymentStats = () =>
+  client.get<APIResponse<{ total_received: number; total_pending: number; total_overdue: number; by_method: Record<string, number>; monthly: Record<string, unknown>[] }>>("/payments/stats");
+
+export const getPayment = (id: number) =>
+  client.get<APIResponse<PaymentRecord>>(`/payments/${id}`);
+
+export const createPayment = (data: Record<string, unknown>) =>
+  client.post<APIResponse<PaymentRecord>>("/payments", data);
+
+export const updatePayment = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<PaymentRecord>>(`/payments/${id}`, data);
+
+export const deletePayment = (id: number) =>
+  client.delete<APIResponse>(`/payments/${id}`);
+
+// ============================================================
+// Finance — Contracts
+// ============================================================
+
+export const getContracts = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Contract>>>("/contracts", { params });
+
+export const getContract = (id: number) =>
+  client.get<APIResponse<Contract>>(`/contracts/${id}`);
+
+export const createContract = (data: Record<string, unknown>) =>
+  client.post<APIResponse<Contract>>("/contracts", data);
+
+export const updateContract = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Contract>>(`/contracts/${id}`, data);
+
+export const deleteContract = (id: number) =>
+  client.delete<APIResponse>(`/contracts/${id}`);
+
+// ============================================================
+// Finance — Sales Targets
+// ============================================================
+
+export const getTargets = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<SalesTarget>>>("/targets", { params });
+
+export const getTargetStats = () =>
+  client.get<APIResponse<{ total_target: number; total_actual: number; achievement_pct: number; count: number; completed: number }>>("/targets/stats");
+
+export const getTarget = (id: number) =>
+  client.get<APIResponse<SalesTarget>>(`/targets/${id}`);
+
+export const createTarget = (data: Record<string, unknown>) =>
+  client.post<APIResponse<SalesTarget>>("/targets", data);
+
+export const updateTarget = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<SalesTarget>>(`/targets/${id}`, data);
+
+export const deleteTarget = (id: number) =>
+  client.delete<APIResponse>(`/targets/${id}`);
+
+// ============================================================
+// Sales Dashboard
+// ============================================================
+
+export const getSalesDashboardOverview = () =>
+  client.get<APIResponse<import("../types").SalesDashboardOverview>>("/sales/dashboard/overview");
+
+export const getSalesDashboardTrends = (months = 12) =>
+  client.get<APIResponse<import("../types").SalesDashboardTrends>>(`/sales/dashboard/trends?months=${months}`);
+
+export const getSalesDashboardAlerts = () =>
+  client.get<APIResponse<import("../types").SalesDashboardAlerts>>("/sales/dashboard/alerts");
+
+// Customer intelligence
+export const getCustomer360 = (customerId: number) =>
+  client.post<APIResponse<import("../types").Customer360>>(`/ai/orchestrate/customer/${customerId}`);
+
+export const getCustomerSegments = (nClusters = 5) =>
+  client.get<APIResponse<{ clusters: import("../types").SegmentCluster[]; total: number }>>(`/ai/customer/segments?n_clusters=${nClusters}`);
+
+export const getSimilarCustomers = (customerId: number, topK = 10) =>
+  client.get<APIResponse<import("../types").SimilarCustomer[]>>(`/ai/customer/${customerId}/similar?top_k=${topK}`);
+
+export const searchSimilarCustomers = (q: string, topK = 10) =>
+  client.get<APIResponse<import("../types").SimilarCustomer[]>>(`/ai/customer/similar/search?q=${encodeURIComponent(q)}&top_k=${topK}`);

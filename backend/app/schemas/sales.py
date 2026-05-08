@@ -1,250 +1,318 @@
 """Sales schemas — Pydantic v2 models for opportunities, quotations, orders, delivery notes."""
 
 from datetime import datetime
-
 from pydantic import BaseModel, Field
 
 
-# --- Opportunity ---
+# ============================================================
+# Opportunity
+# ============================================================
 
 class OpportunityCreate(BaseModel):
     customer_id: int
-    name: str = Field(min_length=1, max_length=255)
-    amount: float = 0
-    stage: str = "lead"
-    probability: int = 10
+    title: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    status: str = "active"
+    stage: str | None = None
+    amount: float | None = None
+    win_probability: int | None = None
     expected_close_date: str | None = None
-    actual_close_date: str | None = None
+    assigned_to: str | None = None
+    source: str | None = None
     notes: str | None = None
 
 
 class OpportunityUpdate(BaseModel):
     customer_id: int | None = None
-    name: str | None = Field(None, min_length=1, max_length=255)
-    amount: float | None = None
+    title: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    status: str | None = None
     stage: str | None = None
-    probability: int | None = None
+    amount: float | None = None
+    win_probability: int | None = None
     expected_close_date: str | None = None
-    actual_close_date: str | None = None
+    assigned_to: str | None = None
+    source: str | None = None
     notes: str | None = None
 
 
 class OpportunityResponse(BaseModel):
     id: int
     customer_id: int
-    name: str
-    amount: float
-    stage: str
-    probability: int
-    expected_close_date: str | None
-    actual_close_date: str | None
-    notes: str | None
+    title: str
+    description: str | None = None
+    status: str
+    stage: str | None = None
+    amount: float | None = None
+    win_probability: int | None = None
+    expected_close_date: str | None = None
+    assigned_to: str | None = None
+    source: str | None = None
+    notes: str | None = None
     created_at: datetime
-    updated_at: datetime | None
+    updated_at: datetime | None = None
+    ai: "OpportunityAI | None" = None
     model_config = {"from_attributes": True}
 
 
-# --- Quotation ---
+# ============================================================
+# Quotation
+# ============================================================
+
+class QuotationItemCreate(BaseModel):
+    product_id: int | None = None
+    product_name: str | None = None
+    quantity: int = 1
+    unit_price: float | None = None
+    total_price: float | None = None
+    notes: str | None = None
+
+
+class QuotationItemUpdate(BaseModel):
+    product_id: int | None = None
+    product_name: str | None = None
+    quantity: int | None = None
+    unit_price: float | None = None
+    total_price: float | None = None
+    notes: str | None = None
+
+
+class QuotationItemResponse(BaseModel):
+    id: int
+    quotation_id: int
+    product_id: int | None = None
+    product_name: str | None = None
+    quantity: int
+    unit_price: float | None = None
+    total_price: float | None = None
+    notes: str | None = None
+    model_config = {"from_attributes": True}
+
 
 class QuotationCreate(BaseModel):
     quotation_no: str | None = None
     customer_id: int
-    status: str = "draft"
+    opportunity_id: int | None = None
+    title: str | None = None
     total_amount: float = 0
+    status: str = "draft"
     valid_until: str | None = None
     notes: str | None = None
+    items: list[QuotationItemCreate] = []
 
 
 class QuotationUpdate(BaseModel):
     quotation_no: str | None = None
     customer_id: int | None = None
-    status: str | None = None
+    opportunity_id: int | None = None
+    title: str | None = None
     total_amount: float | None = None
+    status: str | None = None
     valid_until: str | None = None
     notes: str | None = None
 
 
 class QuotationResponse(BaseModel):
     id: int
-    quotation_no: str | None
+    quotation_no: str | None = None
     customer_id: int
-    status: str
+    opportunity_id: int | None = None
+    title: str | None = None
     total_amount: float
-    valid_until: str | None
-    notes: str | None
+    status: str
+    valid_until: str | None = None
+    notes: str | None = None
     created_at: datetime
-    updated_at: datetime | None
-    items: list["QuotationItemResponse"] = []
+    updated_at: datetime | None = None
+    items: list[QuotationItemResponse] = []
+    ai: "QuotationAI | None" = None
     model_config = {"from_attributes": True}
 
 
-class QuotationItemCreate(BaseModel):
-    product_id: int
-    quantity: int = 1
-    unit_price: float = 0
-    amount: float = 0
+# ============================================================
+# Sales Order
+# ============================================================
 
-
-class QuotationItemUpdate(BaseModel):
+class SalesOrderItemCreate(BaseModel):
     product_id: int | None = None
+    product_name: str | None = None
+    quantity: int = 1
+    unit_price: float | None = None
+    total_price: float | None = None
+    notes: str | None = None
+
+
+class SalesOrderItemUpdate(BaseModel):
+    product_id: int | None = None
+    product_name: str | None = None
     quantity: int | None = None
     unit_price: float | None = None
-    amount: float | None = None
+    total_price: float | None = None
+    notes: str | None = None
 
 
-class QuotationItemResponse(BaseModel):
+class SalesOrderItemResponse(BaseModel):
     id: int
-    quotation_id: int
-    product_id: int
+    order_id: int
+    product_id: int | None = None
+    product_name: str | None = None
     quantity: int
-    unit_price: float
-    amount: float
+    unit_price: float | None = None
+    total_price: float | None = None
+    notes: str | None = None
     model_config = {"from_attributes": True}
 
-
-# --- Sales Order ---
 
 class SalesOrderCreate(BaseModel):
     order_no: str | None = None
     customer_id: int
-    status: str = "pending"
+    quotation_id: int | None = None
     total_amount: float = 0
+    status: str = "pending"
+    order_date: str | None = None
     delivery_date: str | None = None
     notes: str | None = None
+    items: list[SalesOrderItemCreate] = []
 
 
 class SalesOrderUpdate(BaseModel):
     order_no: str | None = None
     customer_id: int | None = None
-    status: str | None = None
+    quotation_id: int | None = None
     total_amount: float | None = None
+    status: str | None = None
+    order_date: str | None = None
     delivery_date: str | None = None
     notes: str | None = None
 
 
 class SalesOrderResponse(BaseModel):
     id: int
-    order_no: str | None
+    order_no: str | None = None
     customer_id: int
-    status: str
+    quotation_id: int | None = None
     total_amount: float
-    delivery_date: str | None
-    notes: str | None
-    created_at: datetime
-    updated_at: datetime | None
-    items: list["SalesOrderItemResponse"] = []
-    model_config = {"from_attributes": True}
-
-
-class SalesOrderItemCreate(BaseModel):
-    product_id: int
-    quantity: int = 1
-    unit_price: float = 0
-    amount: float = 0
-
-
-class SalesOrderItemUpdate(BaseModel):
-    product_id: int | None = None
-    quantity: int | None = None
-    unit_price: float | None = None
-    amount: float | None = None
-
-
-class SalesOrderItemResponse(BaseModel):
-    id: int
-    order_id: int
-    product_id: int
-    quantity: int
-    unit_price: float
-    amount: float
-    model_config = {"from_attributes": True}
-
-
-# --- Delivery Note ---
-
-class DeliveryNoteCreate(BaseModel):
-    note_no: str | None = None
-    sales_order_id: int
-    customer_id: int
-    status: str = "pending"
-    delivery_date: str | None = None
-    signed_at: str | None = None
-    notes: str | None = None
-
-
-class DeliveryNoteUpdate(BaseModel):
-    note_no: str | None = None
-    sales_order_id: int | None = None
-    customer_id: int | None = None
-    status: str | None = None
-    delivery_date: str | None = None
-    signed_at: str | None = None
-    notes: str | None = None
-
-
-class DeliveryNoteResponse(BaseModel):
-    id: int
-    note_no: str | None
-    sales_order_id: int
-    customer_id: int
     status: str
-    delivery_date: str | None
-    signed_at: str | None
-    notes: str | None
+    order_date: str | None = None
+    delivery_date: str | None = None
+    notes: str | None = None
     created_at: datetime
-    updated_at: datetime | None
-    items: list["DeliveryNoteItemResponse"] = []
+    updated_at: datetime | None = None
+    items: list[SalesOrderItemResponse] = []
+    ai: "SalesOrderAI | None" = None
     model_config = {"from_attributes": True}
 
+
+# ============================================================
+# Delivery Note
+# ============================================================
 
 class DeliveryNoteItemCreate(BaseModel):
-    product_id: int
+    product_id: int | None = None
+    product_name: str | None = None
     quantity: int = 1
+    notes: str | None = None
 
 
 class DeliveryNoteItemUpdate(BaseModel):
     product_id: int | None = None
+    product_name: str | None = None
     quantity: int | None = None
+    notes: str | None = None
 
 
 class DeliveryNoteItemResponse(BaseModel):
     id: int
     delivery_note_id: int
-    product_id: int
+    product_id: int | None = None
+    product_name: str | None = None
     quantity: int
+    notes: str | None = None
     model_config = {"from_attributes": True}
 
 
-# --- Sales Funnel ---
-
-class FunnelStage(BaseModel):
-    stage: str
-    count: int
-    amount: float
-
-
-# --- Sales Stats ---
-
-class SalesSummary(BaseModel):
-    total_orders: int
-    total_amount: float
-    avg_amount: float
-    active_opportunities: int
+class DeliveryNoteCreate(BaseModel):
+    delivery_no: str | None = None
+    sales_order_id: int
+    customer_id: int
+    status: str = "pending"
+    delivery_date: str | None = None
+    received_date: str | None = None
+    notes: str | None = None
+    items: list[DeliveryNoteItemCreate] = []
 
 
-class TrendPoint(BaseModel):
-    period: str
-    order_count: int
-    total_amount: float
+class DeliveryNoteUpdate(BaseModel):
+    delivery_no: str | None = None
+    sales_order_id: int | None = None
+    customer_id: int | None = None
+    status: str | None = None
+    delivery_date: str | None = None
+    received_date: str | None = None
+    notes: str | None = None
 
 
-class StageDistribution(BaseModel):
-    stage: str
-    count: int
-    percentage: float
+class DeliveryNoteResponse(BaseModel):
+    id: int
+    delivery_no: str | None = None
+    sales_order_id: int
+    customer_id: int
+    status: str
+    delivery_date: str | None = None
+    received_date: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    items: list[DeliveryNoteItemResponse] = []
+    ai: "DeliveryNoteAI | None" = None
+    model_config = {"from_attributes": True}
 
 
-# --- Batch Operations ---
+# ============================================================
+# AI Insight Types (returned when include_ai=true)
+# ============================================================
+
+class OpportunityAI(BaseModel):
+    risk_level: str = "low"  # low / medium / high
+    win_probability: int = 50
+    next_best_action: str | None = None
+    key_concerns: list[str] = []
+
+
+class QuotationAI(BaseModel):
+    pricing_health: str = "fair"  # good / fair / poor
+    win_probability: int = 50
+    margin_assessment: str | None = None
+    improvement_suggestions: list[str] = []
+
+
+class SalesOrderAI(BaseModel):
+    delivery_risk: str = "low"  # low / medium / high
+    payment_risk: str = "low"
+    health_score: int = 80
+    flags: list[str] = []
+
+
+class DeliveryNoteAI(BaseModel):
+    completion_risk: str = "low"  # low / medium / high
+    signing_delay_probability: int = 10
+    issues: list[str] = []
+
+
+# ============================================================
+# List AI insight map {entity_id: insight}
+# ============================================================
+
+class ListAIInsights(BaseModel):
+    opportunities: dict[int, OpportunityAI] = {}
+    quotations: dict[int, QuotationAI] = {}
+    sales_orders: dict[int, SalesOrderAI] = {}
+    delivery_notes: dict[int, DeliveryNoteAI] = {}
+
+
+# ============================================================
+# Batch Operations
+# ============================================================
 
 class BatchDeleteRequest(BaseModel):
     ids: list[int]
@@ -253,18 +321,39 @@ class BatchDeleteRequest(BaseModel):
 class OpportunityBatchUpdate(BaseModel):
     ids: list[int]
     stage: str | None = None
-    probability: int | None = None
+    win_probability: int | None = None
 
 
-# --- Flow Conversion ---
+# ============================================================
+# Flow Conversion
+# ============================================================
+
+class ConversionValidation(BaseModel):
+    risk_level: str = "low"
+    warnings: list[str] = []
+    recommendations: list[str] = []
+
 
 class ConvertResponse(BaseModel):
     id: int
     document_no: str
     msg: str
+    ai_validation: ConversionValidation | None = None
 
 
-# --- Document Numbering ---
+# ============================================================
+# Sales Targets
+# ============================================================
 
-class DocumentNumberResponse(BaseModel):
-    document_no: str
+class TargetCreate(BaseModel):
+    user_id: int
+    period: str
+    target_amount: float | None = None
+    target_orders: int | None = None
+
+
+class TargetUpdate(BaseModel):
+    user_id: int | None = None
+    period: str | None = None
+    target_amount: float | None = None
+    target_orders: int | None = None

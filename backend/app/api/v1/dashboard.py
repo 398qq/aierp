@@ -1,121 +1,169 @@
-"""Enhanced dashboard API."""
+"""Sales Dashboard API — funnel, trends, AI alerts."""
 
-import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.customer import Customer
-from app.models.sales import Opportunity, SalesOrder, SalesOrderItem
-from app.models.product import Product
 from app.schemas.common import ok
-from app.utils.cache import _cache
 
-router = APIRouter(prefix="/sales/dashboard", tags=["dashboard"])
-DASHBOARD_TTL = 30  # seconds
+router = APIRouter(tags=["sales-dashboard"])
 
 
-def _cached(key: str, ttl: int = DASHBOARD_TTL):
-    """Check cache, return (is_hit, data)."""
-    now = time.time()
-    if key in _cache:
-        expiry, value = _cache[key]
-        if now < expiry:
-            return True, value
-        del _cache[key]
-    return False, None
+@router.get("/sales/dashboard/overview")
+async def dashboard_overview(
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from app.models.sales import Opportunity, Quotation, SalesOrder, DeliveryNote
 
-
-@router.get("/overview")
-async def get_dashboard_overview(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    cache_key = "dashboard:overview"
-    hit, cached = _cached(cache_key)
-    if hit:
-        return cached
-
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    tomorrow = today + timedelta(days=1)
-
-    today_orders = (await db.execute(
-        select(func.count(SalesOrder.id), func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
-            SalesOrder.deleted_at.is_(None), SalesOrder.created_at >= today, SalesOrder.created_at < tomorrow
-        )
-    )).first()
-
-    today_opps = (await db.execute(
+    # Funnel counts
+    opp_count = (await db.execute(
+        select(func.count(Opportunity.id)).where(Opportunity.deleted_at.is_(None))
+    )).scalar() or 0
+    opp_open = (await db.execute(
         select(func.count(Opportunity.id)).where(
-            Opportunity.deleted_at.is_(None), Opportunity.created_at >= today, Opportunity.created_at < tomorrow
+            Opportunity.deleted_at.is_(None), Opportunity.status == "active"
         )
     )).scalar() or 0
-
-    active_opps = (await db.execute(
+    opp_won = (await db.execute(
         select(func.count(Opportunity.id)).where(
-            Opportunity.deleted_at.is_(None), Opportunity.stage.notin_(["won", "lost"])
+            Opportunity.deleted_at.is_(None), Opportunity.status == "won"
         )
     )).scalar() or 0
-
-    won_opps = (await db.execute(
+    opp_amount = (await db.execute(
         select(func.coalesce(func.sum(Opportunity.amount), 0)).where(
-            Opportunity.deleted_at.is_(None), Opportunity.stage == "won"
+            Opportunity.deleted_at.is_(None)
         )
     )).scalar() or 0
 
-    total_customers = (await db.execute(
-        select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
+    quote_count = (await db.execute(
+        select(func.count(Quotation.id)).where(Quotation.deleted_at.is_(None))
+    )).scalar() or 0
+    quote_amount = (await db.execute(
+        select(func.coalesce(func.sum(Quotation.total_amount), 0)).where(
+            Quotation.deleted_at.is_(None)
+        )
     )).scalar() or 0
 
-    result = ok({
-        "today_orders": today_orders[0] or 0,
-        "today_order_amount": float(today_orders[1]),
-        "today_opportunities": today_opps,
-        "active_opportunities": active_opps,
-        "won_amount": float(won_opps),
-        "total_customers": total_customers,
-    })
-    _cache[cache_key] = (time.time() + DASHBOARD_TTL, result)
-    return result
-
-
-@router.get("/realtime")
-async def get_dashboard_realtime(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    cache_key = "dashboard:realtime"
-    hit, cached = _cached(cache_key)
-    if hit:
-        return cached
-
-    # Order status distribution
-    order_status = (await db.execute(
-        select(SalesOrder.status, func.count(SalesOrder.id), func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+    order_count = (await db.execute(
+        select(func.count(SalesOrder.id)).where(SalesOrder.deleted_at.is_(None))
+    )).scalar() or 0
+    order_amount = (await db.execute(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
             SalesOrder.deleted_at.is_(None)
-        ).group_by(SalesOrder.status)
-    )).all()
+        )
+    )).scalar() or 0
 
-    # Top customers by order amount
-    top_customers = (await db.execute(
-        select(Customer.name, func.coalesce(func.sum(SalesOrder.total_amount), 0)).select_from(SalesOrder).join(
-            Customer, SalesOrder.customer_id == Customer.id
-        ).where(
-            SalesOrder.deleted_at.is_(None), Customer.deleted_at.is_(None)
-        ).group_by(Customer.name).order_by(func.sum(SalesOrder.total_amount).desc()).limit(10)
-    )).all()
+    delivery_count = (await db.execute(
+        select(func.count(DeliveryNote.id)).where(DeliveryNote.deleted_at.is_(None))
+    )).scalar() or 0
 
-    # Top products by order count
-    top_products = (await db.execute(
-        select(Product.name, func.count(SalesOrderItem.id)).select_from(SalesOrder).join(
-            SalesOrderItem, SalesOrder.id == SalesOrderItem.order_id
-        ).join(
-            Product, SalesOrderItem.product_id == Product.id
-        ).where(SalesOrder.deleted_at.is_(None)).group_by(Product.name).order_by(func.count(SalesOrderItem.id).desc()).limit(10)
-    )).all()
+    # Conversion rates
+    quote_to_order = round(order_count / quote_count * 100, 1) if quote_count > 0 else 0
+    opp_to_quote = round(quote_count / opp_count * 100, 1) if opp_count > 0 else 0
 
-    result = ok({
-        "order_status": [{"status": r[0], "count": r[1], "amount": float(r[2])} for r in order_status],
-        "top_customers": [{"name": r[0], "amount": float(r[1])} for r in top_customers],
-        "top_products": [{"name": r[0], "count": r[1]} for r in top_products],
+    return ok({
+        "funnel": [
+            {"stage": "商机", "count": opp_count, "amount": float(opp_amount)},
+            {"stage": "报价", "count": quote_count, "amount": float(quote_amount)},
+            {"stage": "订单", "count": order_count, "amount": float(order_amount)},
+            {"stage": "发货", "count": delivery_count, "amount": float(order_amount)},
+        ],
+        "open_opportunities": opp_open,
+        "won_opportunities": opp_won,
+        "total_pipeline": float(opp_amount),
+        "quote_to_order_rate": quote_to_order,
+        "opp_to_quote_rate": opp_to_quote,
     })
-    _cache[cache_key] = (time.time() + DASHBOARD_TTL, result)
-    return result
+
+
+@router.get("/sales/dashboard/trends")
+async def dashboard_trends(
+    months: int = Query(12, ge=1, le=24),
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from app.models.sales import Opportunity, Quotation, SalesOrder
+
+    now = datetime.now(timezone.utc)
+    trend = []
+    for i in range(months - 1, -1, -1):
+        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc) - timedelta(days=30 * i)
+        if i == 0:
+            month_end = now
+        else:
+            if now.month - i <= 0:
+                y = now.year - 1
+                m = now.month - i + 12
+            else:
+                y = now.year
+                m = now.month - i
+            import calendar
+            last_day = calendar.monthrange(y, m)[1]
+            month_end = datetime(y, m, last_day, 23, 59, 59, tzinfo=timezone.utc)
+            month_start = datetime(y, m, 1, tzinfo=timezone.utc)
+
+        label = month_start.strftime("%Y-%m")
+
+        opp_created = (await db.execute(
+            select(func.count(Opportunity.id)).where(
+                Opportunity.deleted_at.is_(None),
+                Opportunity.created_at >= month_start,
+                Opportunity.created_at <= month_end,
+            )
+        )).scalar() or 0
+
+        orders_created = (await db.execute(
+            select(func.count(SalesOrder.id)).where(
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at >= month_start,
+                SalesOrder.created_at <= month_end,
+            )
+        )).scalar() or 0
+
+        order_amount = (await db.execute(
+            select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at >= month_start,
+                SalesOrder.created_at <= month_end,
+            )
+        )).scalar() or 0
+
+        trend.append({
+            "month": label,
+            "opportunities": opp_created,
+            "orders": orders_created,
+            "revenue": float(order_amount),
+        })
+    return ok({"trends": trend})
+
+
+@router.get("/sales/dashboard/alerts")
+async def dashboard_alerts(
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from app.models.finance import Notification
+
+    alerts = (await db.execute(
+        select(Notification).where(
+            Notification.deleted_at.is_(None),
+            Notification.is_read == False,
+            Notification.type.in_(["risk_alert", "overdue", "target_warning", "contract_expiry"]),
+        ).order_by(Notification.id.desc()).limit(limit)
+    )).scalars().all()
+
+    return ok({
+        "alerts": [
+            {
+                "id": a.id,
+                "type": a.type,
+                "title": a.title,
+                "content": a.content,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in alerts
+        ],
+    })

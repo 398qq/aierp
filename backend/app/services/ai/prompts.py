@@ -1779,55 +1779,130 @@ def nlp_query_prompt(query: str, context: dict) -> str:
 # ============================================================
 
 
-def opportunity_score_prompt(data: dict) -> str:
-    return f"""评估销售机会的赢单概率：
+def opportunity_enrich_prompt(ctx: dict) -> str:
+    return f"""评估以下B2B电子元器件商机的风险等级、赢单概率和下一步最佳行动。
 
-机会: {data.get('opportunity_name')}, 金额: {data.get('amount')}元
-阶段: {data.get('stage')}, 当前概率: {data.get('probability')}%
-预计关闭: {data.get('expected_close_date')}
-客户: {data.get('customer_name')}, 等级: {data.get('customer_level')}
-行业: {data.get('customer_industry')}
-历史订单: {data.get('order_count')}笔, 总营收: {data.get('total_revenue')}元
-报价单数: {data.get('quotation_count')}
-客户其他在途机会: {data.get('other_open_opportunities')}个
-当前阶段停留: {data.get('days_in_stage')}天
+商机信息：
+- 标题：{ctx['title']}
+- 阶段：{ctx['stage']}
+- 金额：{ctx['amount']}
+- 状态：{ctx['status']}
+- 备注：{ctx['notes']}
 
-返回: win_probability(0-100), score(0-100), risk_level(低/中/高), risk_factors(风险因素list), positive_signals(积极信号list), recommended_actions(建议行动list), next_best_action(下一步最佳行动)
-"""
+请基于电子元器件行业的销售周期特征进行评估。"""
 
 
-def pipeline_health_prompt(data: dict) -> str:
-    return f"""分析销售Pipeline健康:
+def quotation_enrich_prompt(ctx: dict) -> str:
+    items_text = "\n".join(
+        f"  - {it['product_name']}: {it['quantity']}pcs x ¥{it['unit_price']} = ¥{it['total_price']}"
+        for it in ctx.get('items', [])
+    )
+    return f"""评估以下报价单的定价健康度、赢单概率和利润空间。
 
-在途: {data.get('total_open')}个/{data.get('total_value')}元, 均额{data.get('avg_deal_size')}元
-30天赢单{data.get('won_30d')}个, 丢单{data.get('lost_30d')}个, 赢单率{data.get('win_rate_90d')}%
-滞留>60天: {data.get('stuck_opportunities')}个
+报价信息：
+- 总金额：¥{ctx['total_amount']}
+- 状态：{ctx['status']}
+- 品项数：{ctx['item_count']}
 
-返回: health_score(0-100), health_status(健康/一般/需要关注/严重), pipeline_assessment(评估), bottlenecks(瓶颈list), recommendations(建议list)
-"""
+报价明细：
+{items_text}
 
-
-def quotation_optimize_prompt(data: dict) -> str:
-    return f"""优化报价单定价策略：
-
-报价单号: {data.get('quotation_no')}
-客户: {data.get('customer_name')}, 等级: {data.get('customer_level')}
-当前总价: {data.get('total_amount')}元
-状态: {data.get('status')}
-明细: {data.get('items')}
-
-返回: optimal_total(建议总价number), discount_room(让利空间%number), win_probability_current(当前赢单概率integer), win_probability_optimal(优化后赢单概率integer), pricing_strategy(策略建议string), item_adjustments(逐项调整建议[{{product_name, current_price, suggested_price, reason}}]), negotiation_guardrails(谈判底线)
-"""
+请从电子元器件行业角度评估定价合理性。"""
 
 
-def cross_sell_prompt(data: dict) -> str:
-    return f"""发现交叉销售和追加销售机会：
+def sales_order_enrich_prompt(ctx: dict) -> str:
+    return f"""评估以下销售订单的交货风险和回款风险。
 
-客户: {data.get('customer_name')}
-行业: {data.get('customer_industry')}, 等级: {data.get('customer_level')}
-已购买产品: {data.get('purchased_products')}
-已购买品类: {data.get('purchased_categories')}
-在途报价产品: {data.get('open_quotation_products')}
+订单信息：
+- 总金额：¥{ctx['total_amount']}
+- 状态：{ctx['status']}
+- 下单日期：{ctx['order_date']}
+- 预计交货：{ctx['delivery_date']}
+- 品项数：{ctx['item_count']}
+- 备注：{ctx['notes']}
 
-返回: cross_sell_opportunities(交叉销售机会[{{category, suggestion, reasoning, estimated_value}}]), upsell_opportunities(追加销售机会[{{current_product, upgrade_suggestion, reason}}]), bundle_suggestions(捆绑建议list), total_estimated_value(预估总价值number), priority_recommendation(优先推荐)
-"""
+请基于电子元器件行业特征评估风险。"""
+
+
+def delivery_note_enrich_prompt(ctx: dict) -> str:
+    return f"""评估以下发货单的完成风险和签收延迟概率。
+
+发货信息：
+- 状态：{ctx['status']}
+- 发货日期：{ctx['delivery_date']}
+- 签收日期：{ctx['received_date']}
+- 品项数：{ctx['item_count']}
+- 备注：{ctx['notes']}
+
+请基于电子元器件行业物流特征评估风险。"""
+
+
+def list_risk_summary_prompt(opps: list[dict]) -> str:
+    items_text = "\n".join(
+        f"  [ID:{o['id']}] {o['title']} | 阶段:{o['stage']} | 金额:{o['amount']} | 状态:{o['status']} | 赢单率:{o['win_probability']}%"
+        for o in opps
+    )
+    return f"""批量评估以下商机列表的风险等级，为每个商机标注风险等级(low/medium/high)和需要关注的标记。
+
+商机列表：
+{items_text}
+
+请为每个商机返回风险等级，如有异常请标注flag说明。"""
+
+
+def quotation_list_enrich_prompt(quotes: list[dict]) -> str:
+    items_text = "\n".join(
+        f"  [ID:{q['id']}] 金额:{q['total_amount']} | 状态:{q['status']} | 品项数:{q['item_count']}"
+        for q in quotes
+    )
+    return f"""批量评估以下报价单列表，为每个报价单标注定价健康度(good/fair/poor)和需要关注的标记。
+
+报价单列表：
+{items_text}
+
+请为每个报价单返回健康度评估，如有异常请标注flag说明。"""
+
+
+def order_list_enrich_prompt(orders: list[dict]) -> str:
+    items_text = "\n".join(
+        f"  [ID:{o['id']}] 金额:{o['total_amount']} | 状态:{o['status']} | 品项数:{o['item_count']}"
+        for o in orders
+    )
+    return f"""批量评估以下销售订单列表，为每个订单标注交付风险(low/medium/high)和需要关注的标记。
+
+订单列表：
+{items_text}
+
+请为每个订单返回风险评估，如有异常请标注flag说明。"""
+
+
+def delivery_list_enrich_prompt(notes: list[dict]) -> str:
+    items_text = "\n".join(
+        f"  [ID:{n['id']}] 状态:{n['status']} | 品项数:{n['item_count']}"
+        for n in notes
+    )
+    return f"""批量评估以下发货单列表，为每个发货单标注完成风险(low/medium/high)和需要关注的标记。
+
+发货单列表：
+{items_text}
+
+请为每个发货单返回风险评估，如有异常请标注flag说明。"""
+
+
+def flow_validate_quote_to_order_prompt(ctx: dict) -> str:
+    return f"""验证报价单转销售订单的合理性。
+
+报价单：总金额 ¥{ctx['total_amount']}，品项数 {ctx['item_count']}，状态 {ctx['status']}
+品项：
+{ctx.get('items_summary', '')}
+
+请从价格合理性、库存可行性、客户信用等角度评估转化风险，给出建议（仅供参考，不阻断流程）。"""
+
+
+def flow_validate_order_to_delivery_prompt(ctx: dict) -> str:
+    return f"""验证销售订单转发货单的合理性。
+
+订单：总金额 ¥{ctx['total_amount']}，品项数 {ctx['item_count']}，状态 {ctx['status']}
+预计交货：{ctx.get('delivery_date', '')}
+
+请从库存、物流、客户接收意愿等角度评估发货风险，给出建议（仅供参考，不阻断流程）。"""

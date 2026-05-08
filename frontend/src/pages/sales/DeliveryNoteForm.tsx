@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Form, Input, Select, Button, message, Card, Space, InputNumber, Table } from "antd";
+import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message, Space } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getDeliveryNote, createDeliveryNote, updateDeliveryNote, getDeliveryNoteItems, createDeliveryNoteItem, deleteDeliveryNoteItem, getCustomers, getProducts } from "../../api";
-import type { Customer, Product, DeliveryNoteItem } from "../../types";
-
-const statusColors: Record<string, string> = {
-  pending: "orange", shipped: "cyan", delivered: "green", signed: "blue", cancelled: "red",
-};
+import { getDeliveryNote, createDeliveryNote, updateDeliveryNote, getCustomers, getSalesOrders } from "../../api";
+import dayjs from "dayjs";
+import type { Customer, SalesOrder } from "../../types";
 
 export default function DeliveryNoteForm() {
   const { id } = useParams<{ id: string }>();
@@ -15,104 +12,80 @@ export default function DeliveryNoteForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [items, setItems] = useState<Partial<DeliveryNoteItem>[]>([]);
-  const isEdit = Boolean(id);
-
-  const loadCustomers = async (q?: string) => {
-    try { const r = await getCustomers({ page: 1, page_size: 100, q }); setCustomers(r.data.data.list || []); } catch {}
-  };
-  const loadProducts = async (q?: string) => {
-    try { const r = await getProducts({ page: 1, page_size: 100, q }); setProducts(r.data.data.list || []); } catch {}
-  };
+  const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const isEdit = !!id;
 
   useEffect(() => {
-    loadCustomers();
-    loadProducts();
-    if (id) {
-      Promise.all([getDeliveryNote(Number(id)), getDeliveryNoteItems(Number(id))]).then(([noteR, itemsR]) => {
-        form.setFieldsValue(noteR.data.data);
-        setItems((itemsR.data.data as DeliveryNoteItem[]) || []);
-      }).catch(() => message.error("加载失败"));
+    getCustomers({ page: 1, page_size: 200 }).then((r) => setCustomers(r.data.data.list || []));
+    getSalesOrders({ page: 1, page_size: 200 }).then((r) => setOrders(r.data.data.list || []));
+    if (isEdit) {
+      getDeliveryNote(Number(id)).then((r) => {
+        const n = r.data.data;
+        form.setFieldsValue({ ...n, delivery_date: n.delivery_date ? dayjs(n.delivery_date) : null, received_date: n.received_date ? dayjs(n.received_date) : null });
+      });
     }
-  }, [id, form]);
+  }, [id]);
 
-  const addItem = () => setItems([...items, { product_id: 0, quantity: 1 }]);
-  const updateItemField = (idx: number, field: string, value: number) => {
-    const newItems = [...items];
-    newItems[idx] = { ...newItems[idx], [field]: value };
-    setItems(newItems);
-  };
-  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
-
-  const handleSubmit = async (values: Record<string, unknown>) => {
+  const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
-      const parentId = isEdit
-        ? (await updateDeliveryNote(Number(id), values), Number(id))
-        : ((await createDeliveryNote(values)).data.data as { id: number }).id;
-
+      const payload: Record<string, unknown> = {
+        ...values,
+        delivery_date: values.delivery_date ? (values.delivery_date as string) : null,
+        received_date: values.received_date ? (values.received_date as string) : null,
+        items: values.items || [],
+      };
       if (isEdit) {
-        const existing = (await getDeliveryNoteItems(Number(id))).data.data as DeliveryNoteItem[];
-        for (const ex of existing) await deleteDeliveryNoteItem(Number(id), ex.id);
+        await updateDeliveryNote(Number(id), payload);
+        message.success("发货单已更新");
+      } else {
+        await createDeliveryNote(payload);
+        message.success("发货单已创建");
       }
-      for (const item of items) {
-        if (item.product_id) {
-          await createDeliveryNoteItem(parentId, item as Record<string, unknown>);
-        }
-      }
-
-      message.success(isEdit ? "更新成功" : "创建成功");
       navigate("/sales/delivery-notes");
-    } catch { message.error("操作失败"); } finally { setLoading(false); }
+    } catch { message.error("保存失败"); }
+    finally { setLoading(false); }
   };
 
-  const itemColumns = [
-    { title: "产品", width: 250, render: (_: unknown, __: unknown, idx: number) => (
-      <Select showSearch value={items[idx].product_id || undefined} onChange={(v) => updateItemField(idx, "product_id", v)}
-        onSearch={loadProducts} filterOption={false} style={{ width: "100%" }} placeholder="选择产品">
-        {products.map((p) => <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>)}
-      </Select>
-    )},
-    { title: "数量", width: 120, render: (_: unknown, __: unknown, idx: number) => (
-      <InputNumber min={1} value={items[idx].quantity} onChange={(v) => updateItemField(idx, "quantity", v || 0)} />
-    )},
-    {
-      title: "", width: 60, render: (_: unknown, __: unknown, idx: number) => (
-        <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeItem(idx)} />
-      ),
-    },
-  ];
-
   return (
-    <div>
-      <h3>{isEdit ? "编辑送货单" : "新建送货单"}</h3>
-      <Card style={{ maxWidth: 800, marginBottom: 16 }}>
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="note_no" label="送货单号"><Input /></Form.Item>
-          <Form.Item name="sales_order_id" label="销售订单ID" rules={[{ required: true }]}><Input type="number" /></Form.Item>
-          <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-            <Select showSearch allowClear placeholder="选择客户" onSearch={loadCustomers} filterOption={false}>
-              {customers.map((c) => <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>)}
-            </Select>
-          </Form.Item>
-          <Space>
-            <Form.Item name="status" label="状态">
-              <Select style={{ width: 120 }}>{Object.keys(statusColors).map((k) => <Select.Option key={k} value={k}>{k}</Select.Option>)}</Select>
-            </Form.Item>
-            <Form.Item name="delivery_date" label="送货日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-            <Form.Item name="signed_at" label="签收日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-          </Space>
-          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-        </Form>
-      </Card>
+    <Card title={isEdit ? "编辑发货单" : "新增发货单"}>
+      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", items: [{}] }}>
+        <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
+          <Select showSearch placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+        </Form.Item>
+        <Form.Item name="sales_order_id" label="关联销售订单" rules={[{ required: true }]}>
+          <Select showSearch placeholder="选择销售订单" options={orders.map((o) => ({ value: o.id, label: o.order_no || `#${o.id}` }))} />
+        </Form.Item>
+        <Form.Item name="delivery_no" label="发货单号"><Input placeholder="留空自动生成" /></Form.Item>
+        <Form.Item name="status" label="状态">
+          <Select options={[
+            { value: "pending", label: "待发货" }, { value: "shipped", label: "已发货" }, { value: "delivered", label: "已签收" },
+          ]} />
+        </Form.Item>
+        <Form.Item name="delivery_date" label="发货日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="received_date" label="签收日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
 
-      <Card title="送货项" extra={<Button icon={<PlusOutlined />} onClick={addItem}>添加行</Button>} style={{ marginBottom: 16 }}>
-        <Table rowKey="idx" columns={itemColumns} dataSource={items.map((item, idx) => ({ ...item, idx }))} pagination={false} />
-      </Card>
+        <Form.List name="items">
+          {(fields, { add, remove }) => (
+            <>
+              {fields.map(({ key, name, ...rest }) => (
+                <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
+                  <Form.Item {...rest} name={[name, "product_name"]} label="产品"><Input placeholder="产品名称" /></Form.Item>
+                  <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
+                  <Button icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                </Space>
+              ))}
+              <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>添加品项</Button>
+            </>
+          )}
+        </Form.List>
 
-      <Button type="primary" loading={loading} onClick={() => form.submit()}>{isEdit ? "保存" : "创建"}</Button>
-      <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/delivery-notes")}>取消</Button>
-    </div>
+        <Form.Item style={{ marginTop: 16 }}>
+          <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
+          <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/delivery-notes")}>取消</Button>
+        </Form.Item>
+      </Form>
+    </Card>
   );
 }

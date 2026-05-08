@@ -82,6 +82,16 @@ async def async_client(db_session):
 
 
 @pytest_asyncio.fixture
+async def test_customer(db_session) -> dict:
+    from app.models.customer import Customer
+
+    customer = Customer(name="测试客户", industry="电子", level="A")
+    db_session.add(customer)
+    await db_session.flush()
+    return {"id": customer.id, "name": customer.name}
+
+
+@pytest_asyncio.fixture
 async def test_user(db_session) -> dict:
     from app.models.user import User
 

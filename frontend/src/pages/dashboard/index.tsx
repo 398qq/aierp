@@ -1,39 +1,39 @@
 import { useEffect, useState } from "react";
-import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Badge } from "antd";
+import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Badge, Empty } from "antd";
 import {
-  TeamOutlined, DollarOutlined, ShoppingCartOutlined, ThunderboltOutlined,
-  RiseOutlined, CalendarOutlined, AlertOutlined, ReloadOutlined, AimOutlined,
+  TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
-import { getDashboardOverview, getDashboardRealtime, getUpcomingVisits, getRecentActivity, scanWatchtower, orchestrateGlobal360 } from "../../api";
-import type { DashboardOverview, DashboardRealtime, Visit, CustomerLog, WatchtowerResult, Global360 } from "../../types";
+import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360 } from "../../api";
+import type { DashboardStats, Visit, CustomerLog, Global360, OverdueFollowUp } from "../../types";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const { Title } = Typography;
+const COLORS = ["#1890ff", "#52c41a", "#faad14", "#ff4d4f", "#722ed1", "#13c2c2"];
 
 export default function Dashboard() {
   const username = useAuthStore((s) => s.username);
-  const [overview, setOverview] = useState<DashboardOverview | null>(null);
-  const [realtime, setRealtime] = useState<DashboardRealtime | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [upcomingVisits, setUpcomingVisits] = useState<Visit[]>([]);
   const [recentActivity, setRecentActivity] = useState<CustomerLog[]>([]);
+  const [overdue, setOverdue] = useState<OverdueFollowUp[]>([]);
   const [loading, setLoading] = useState(true);
-  const [watchtower, setWatchtower] = useState<WatchtowerResult | null>(null);
-  const [wtLoading, setWtLoading] = useState(false);
   const [global360, setGlobal360] = useState<Global360 | null>(null);
   const [g360Loading, setG360Loading] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      getDashboardOverview(),
-      getDashboardRealtime(),
+      getDashboardStats(),
       getUpcomingVisits(14),
       getRecentActivity(10),
+      getOverdueFollowUps(),
     ])
-      .then(([ov, rt, uv, ra]) => {
-        setOverview(ov.data.data);
-        setRealtime(rt.data.data);
+      .then(([s, uv, ra, od]) => {
+        setStats(s.data.data);
         setUpcomingVisits((uv.data.data || []) as unknown as Visit[]);
         setRecentActivity((ra.data.data || []) as CustomerLog[]);
+        const odData = od.data.data as { total: number; items: OverdueFollowUp[] } | null;
+        setOverdue(odData?.items || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -45,92 +45,102 @@ export default function Dashboard() {
     <div>
       <Title level={4}>欢迎回来，{username}</Title>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="客户总数" value={overview?.total_customers || 0} prefix={<TeamOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="今日订单" value={overview?.today_orders || 0} prefix={<ShoppingCartOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="今日销售额" value={overview?.today_order_amount || 0} prefix={<DollarOutlined />} precision={2} suffix="CNY" />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="活跃商机" value={overview?.active_opportunities || 0} prefix={<ThunderboltOutlined />} />
-          </Card>
-        </Col>
-      </Row>
+      {/* Customer Stats */}
+      {stats && (
+        <>
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24} sm={12} lg={6}>
+              <Card>
+                <Statistic title="客户总数" value={stats.total} prefix={<TeamOutlined />} />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card>
+                <Statistic title="逾期跟进" value={overdue.length} prefix={<WarningOutlined />} valueStyle={{ color: overdue.length > 0 ? "#cf1322" : "#52c41a" }} />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card>
+                <Statistic title="即将拜访" value={upcomingVisits.length} prefix={<CalendarOutlined />} />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card>
+                <Statistic title="最近动态" value={recentActivity.length} prefix={<ThunderboltOutlined />} />
+              </Card>
+            </Col>
+          </Row>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="已赢单额" value={overview?.won_amount || 0} prefix={<RiseOutlined />} precision={2} suffix="CNY" />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="今日新商机" value={overview?.today_opportunities || 0} prefix={<ThunderboltOutlined />} />
-          </Card>
-        </Col>
-      </Row>
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24} lg={12}>
+              <Card title="客户行业分布" size="small">
+                {stats.by_industry.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={stats.by_industry} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
+                        {stats.by_industry.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : <Empty description="暂无数据" />}
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card title="客户等级分布" size="small">
+                {stats.by_level.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={stats.by_level}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="#1890ff" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <Empty description="暂无数据" />}
+              </Card>
+            </Col>
+          </Row>
 
-      {realtime && (
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} lg={12}>
-            <Card title="订单状态分布" size="small">
-              <Table
-                rowKey="status"
-                dataSource={realtime.order_status}
-                columns={[
-                  { title: "状态", dataIndex: "status", width: 100 },
-                  { title: "数量", dataIndex: "count", width: 80 },
-                  { title: "金额", dataIndex: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
-                ]}
-                pagination={false}
-                size="small"
-              />
+          {stats.monthly.length > 0 && (
+            <Card title="月度新增客户趋势" size="small" style={{ marginTop: 16 }}>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={stats.monthly}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#52c41a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </Card>
-          </Col>
-          <Col xs={24} lg={6}>
-            <Card title="Top 客户" size="small">
-              <Table
-                rowKey="name"
-                dataSource={realtime.top_customers}
-                columns={[
-                  { title: "客户", dataIndex: "name", ellipsis: true },
-                  { title: "金额", dataIndex: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
-                ]}
-                pagination={false}
-                size="small"
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={6}>
-            <Card title="Top 产品" size="small">
-              <Table
-                rowKey="name"
-                dataSource={realtime.top_products}
-                columns={[
-                  { title: "产品", dataIndex: "name", ellipsis: true },
-                  { title: "次数", dataIndex: "count", width: 60 },
-                ]}
-                pagination={false}
-                size="small"
-              />
-            </Card>
-          </Col>
-        </Row>
+          )}
+        </>
       )}
 
+      {/* Overdue FollowUps */}
+      {overdue.length > 0 && (
+        <Card title={<span><WarningOutlined style={{ marginRight: 8, color: "#cf1322" }} />逾期跟进</span>} size="small" style={{ marginTop: 16 }}>
+          <Table
+            rowKey="id"
+            dataSource={overdue}
+            columns={[
+              { title: "客户", dataIndex: "customer_name", ellipsis: true },
+              { title: "跟进方式", dataIndex: "method", width: 80 },
+              { title: "计划时间", dataIndex: "planned_at", width: 100, render: (v: string) => v?.slice(0, 10) },
+              { title: "逾期天数", dataIndex: "overdue_days", width: 80, render: (v: number) => <Tag color="red">{v}天</Tag> },
+              { title: "负责人", dataIndex: "owner", width: 80 },
+            ]}
+            pagination={false}
+            size="small"
+          />
+        </Card>
+      )}
+
+      {/* Upcoming Visits */}
       {upcomingVisits.length > 0 && (
-        <Card title={<span><CalendarOutlined /> 未来14天拜访计划</span>} size="small" style={{ marginTop: 16 }}>
+        <Card title={<span><CalendarOutlined style={{ marginRight: 8 }} />未来14天拜访计划</span>} size="small" style={{ marginTop: 16 }}>
           <Table
             rowKey="id"
             dataSource={upcomingVisits}
@@ -150,6 +160,7 @@ export default function Dashboard() {
         </Card>
       )}
 
+      {/* Recent Activity */}
       {recentActivity.length > 0 && (
         <Card title="最近动态" size="small" style={{ marginTop: 16 }}>
           <Timeline
@@ -170,75 +181,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <Card style={{ marginTop: 24 }}
-        title={<><AlertOutlined style={{ marginRight: 8 }} />AI 全局监控 (Watchtower)</>}
-        extra={<Button icon={<ReloadOutlined />} loading={wtLoading} onClick={async () => {
-          setWtLoading(true);
-          try { const r = await scanWatchtower(); setWatchtower(r.data.data as WatchtowerResult); } catch {}
-          finally { setWtLoading(false); }
-        }}>{watchtower ? "重新扫描" : "开始扫描"}</Button>}
-      >
-        {watchtower ? (
-          <div>
-            <Row gutter={[12, 12]}>
-              <Col span={6}>
-                <Statistic title="异常总数" value={watchtower.total_alerts} valueStyle={{ color: watchtower.severity === "紧急" ? "#cf1322" : watchtower.severity === "需关注" ? "#fa8c16" : "#52c41a" }} />
-              </Col>
-              <Col span={6}>
-                <Statistic title="严重程度" value={watchtower.severity} />
-              </Col>
-              <Col span={12}>
-                <Typography.Text>{watchtower.summary}</Typography.Text>
-              </Col>
-              {watchtower.top_actions.length > 0 && (
-                <Col span={12}>
-                  <Card size="small" type="inner" title="优先行动">
-                    <List size="small" dataSource={watchtower.top_actions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="red">{s}</Tag></List.Item>} />
-                  </Card>
-                </Col>
-              )}
-              {watchtower.risk_areas.length > 0 && (
-                <Col span={12}>
-                  <Card size="small" type="inner" title="风险领域">
-                    <List size="small" dataSource={watchtower.risk_areas} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="orange">{s}</Tag></List.Item>} />
-                  </Card>
-                </Col>
-              )}
-              {watchtower.anomalies.churn_risk.length > 0 && (
-                <Col span={12}>
-                  <Card size="small" type="inner" title={`流失风险 (${watchtower.anomalies.churn_risk.length})`} style={{ background: "#fff2e8" }}>
-                    {watchtower.anomalies.churn_risk.map(c => <Tag key={c.customer_id} color="red" style={{ marginBottom: 4 }}>{c.name} — {c.signal}</Tag>)}
-                  </Card>
-                </Col>
-              )}
-              {watchtower.anomalies.order_drop.length > 0 && (
-                <Col span={12}>
-                  <Card size="small" type="inner" title={`订单下降 (${watchtower.anomalies.order_drop.length})`} style={{ background: "#fffbe6" }}>
-                    {watchtower.anomalies.order_drop.map(o => <Tag key={o.customer_id} color="orange" style={{ marginBottom: 4 }}>{o.name} ↓{o.drop_pct}%</Tag>)}
-                  </Card>
-                </Col>
-              )}
-              {watchtower.anomalies.low_stock.length > 0 && (
-                <Col span={12}>
-                  <Card size="small" type="inner" title={`低库存 (${watchtower.anomalies.low_stock.length})`}>
-                    {watchtower.anomalies.low_stock.map(p => <Tag key={p.product_id} style={{ marginBottom: 4 }}>[{p.brand}] {p.product_name}: {p.qty}/{p.safety}</Tag>)}
-                  </Card>
-                </Col>
-              )}
-              {watchtower.anomalies.out_of_stock.length > 0 && (
-                <Col span={12}>
-                  <Card size="small" type="inner" title={`缺货 (${watchtower.anomalies.out_of_stock.length})`} style={{ background: "#fff1f0" }}>
-                    {watchtower.anomalies.out_of_stock.map(p => <Tag key={p.product_id} color="red" style={{ marginBottom: 4 }}>[{p.brand}] {p.product_name}</Tag>)}
-                  </Card>
-                </Col>
-              )}
-            </Row>
-          </div>
-        ) : (
-          <p>点击“开始扫描”让 AI 扫描系统异常（流失风险、订单下降、库存预警等），主动发现问题。</p>
-        )}
-      </Card>
-
+      {/* AI Global 360 */}
       <Card style={{ marginTop: 24 }}
         title={<><AimOutlined style={{ marginRight: 8 }} />AI 全局诊断 (Global 360)</>}
         extra={<Button icon={<ReloadOutlined />} loading={g360Loading} onClick={async () => {

@@ -1,182 +1,98 @@
-import { useEffect, useRef, useState } from "react";
-import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Result } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, ExportOutlined, ImportOutlined } from "@ant-design/icons";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getQuotations, createQuotation, updateQuotation, deleteQuotation, getCustomers, batchDeleteQuotations, exportQuotations, importQuotations } from "../../api";
-import type { Quotation, Customer } from "../../types";
+import { Table, Button, Space, Tag, Select, message, Popconfirm, Switch } from "antd";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { getQuotations, batchDeleteQuotations, deleteQuotation, convertQuotationToOrder } from "../../api";
+import AIInlineBadge from "../../components/sales/AIInlineBadge";
+import type { Quotation } from "../../types";
 
-const statusColors: Record<string, string> = {
-  draft: "default", sent: "blue", approved: "green", rejected: "red", expired: "orange",
+const STATUS: Record<string, { color: string; label: string }> = {
+  draft: { color: "default", label: "草稿" }, sent: { color: "blue", label: "已发送" },
+  won: { color: "green", label: "成交" }, lost: { color: "red", label: "丢失" },
 };
 
 export default function QuotationList() {
   const [data, setData] = useState<Quotation[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [form] = Form.useForm();
+  const [status, setStatus] = useState<string | undefined>();
+  const [includeAi, setIncludeAi] = useState(false);
+  const [aiMap, setAiMap] = useState<Record<number, { pricing_health?: string; flag?: string }>>({});
+  const [selected, setSelected] = useState<number[]>([]);
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [filters, setFilters] = useState({ customer_id: "", status: "" });
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [error, setError] = useState(false);
-
-  const fetch = async (p = page) => {
+  const load = async () => {
     setLoading(true);
-    setError(false);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: 20 };
-      if (filters.customer_id) params.customer_id = Number(filters.customer_id);
-      if (filters.status) params.status = filters.status;
+      const params: Record<string, unknown> = { page, page_size: 20 };
+      if (status) params.status = status;
+      if (includeAi) params.include_ai = true;
       const resp = await getQuotations(params);
-      setData(resp.data.data.list);
-      setTotal(resp.data.data.total);
-    } catch {
-      setError(true);
-      message.error("加载报价单失败");
-    } finally {
-      setLoading(false);
-    }
+      setData(resp.data.data.list || []);
+      setTotal(resp.data.data.total || 0);
+      if (includeAi) setAiMap((resp.data.data as unknown as Record<string, unknown>).ai as Record<string, { pricing_health?: string; flag?: string }> || {});
+      else setAiMap({});
+    } catch { message.error("加载失败"); }
+    finally { setLoading(false); }
   };
 
-  const loadCustomers = async (q?: string) => {
-    try {
-      const resp = await getCustomers({ page: 1, page_size: 100, q });
-      setCustomers(resp.data.data.list || []);
-    } catch { /* ignore */ }
-  };
-
-  useEffect(() => { fetch(); }, [page, filters]);
-
-  const openCreate = () => { setEditingId(null); form.resetFields(); loadCustomers(); setModalOpen(true); };
-
-  const openEdit = async (record: Quotation) => {
-    setEditingId(record.id); loadCustomers(); form.setFieldsValue(record); setModalOpen(true);
-  };
-
-  const handleSubmit = async (values: Record<string, unknown>) => {
-    try {
-      if (editingId) { await updateQuotation(editingId, values); message.success("更新成功"); }
-      else { await createQuotation(values); message.success("创建成功"); }
-      form.resetFields(); setModalOpen(false); fetch(1);
-    } catch { message.error("操作失败"); }
-  };
-
-  const handleDelete = async (id: number) => {
-    try { await deleteQuotation(id); message.success("已删除"); fetch(page); } catch { message.error("删除失败"); }
-  };
+  useEffect(() => { load(); }, [page, status, includeAi]);
 
   const handleBatchDelete = async () => {
-    try {
-      await batchDeleteQuotations(selectedRowKeys as number[]);
-      message.success(`已批量删除 ${selectedRowKeys.length} 条`);
-      setSelectedRowKeys([]);
-      fetch(1);
-    } catch { message.error("批量删除失败"); }
+    try { await batchDeleteQuotations(selected); message.success("已批量删除"); setSelected([]); load(); } catch { message.error("删除失败"); }
   };
-
-  const handleExport = async () => {
-    try {
-      const params: Record<string, unknown> = {};
-      if (filters.customer_id) params.customer_id = Number(filters.customer_id);
-      if (filters.status) params.status = filters.status;
-      const resp = await exportQuotations(params);
-      const url = window.URL.createObjectURL(new Blob([resp.data as BlobPart]));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "quotations.xlsx";
-      a.click();
-      window.URL.revokeObjectURL(url);
-      message.success("导出成功");
-    } catch { message.error("导出失败"); }
-  };
-
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const resp = await importQuotations(file);
-      message.success(`导入成功: ${resp.data.data.imported} 条`);
-      fetch(1);
-    } catch { message.error("导入失败"); }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
-  };
-
-  const columns = [
-    { title: "报价单号", dataIndex: "quotation_no", width: 150 },
-    { title: "客户ID", dataIndex: "customer_id", width: 80 },
-    { title: "状态", dataIndex: "status", width: 100, render: (v: string) => <Tag color={statusColors[v] || "default"}>{v}</Tag> },
-    { title: "金额", dataIndex: "total_amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
-    { title: "有效期至", dataIndex: "valid_until", width: 120 },
-    { title: "创建时间", dataIndex: "created_at", width: 180 },
-    {
-      title: "操作", width: 180, render: (_: unknown, record: Quotation) => (
-        <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/sales/quotations/${record.id}`)}>详情</Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <div>
-      <Space style={{ marginBottom: 16, justifyContent: "space-between", width: "100%" }}>
-        <h3>报价单</h3>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/quotations/new")}>新增报价</Button>
+        {selected.length > 0 && (
+          <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}><Button danger icon={<DeleteOutlined />}>删除({selected.length})</Button></Popconfirm>
+        )}
+        <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
+          { value: "draft", label: "草稿" }, { value: "sent", label: "已发送" }, { value: "won", label: "成交" },
+        ]} />
         <Space>
-          <Input placeholder="客户ID" value={filters.customer_id} onChange={(e) => setFilters({ ...filters, customer_id: e.target.value })} style={{ width: 120 }} />
-          <Select placeholder="状态" value={filters.status || undefined} onChange={(v) => setFilters({ ...filters, status: v || "" })} allowClear style={{ width: 120 }}
-            options={Object.keys(statusColors).map((k) => ({ value: k, label: k }))} />
-          <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
-          <Button icon={<ImportOutlined />} onClick={() => fileInputRef.current?.click()}>导入</Button>
-          <input ref={fileInputRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={handleImport} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建报价单</Button>
+          <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
+          <span style={{ fontSize: 13 }}>AI</span>
         </Space>
       </Space>
 
-      {selectedRowKeys.length > 0 && (
-        <Space style={{ marginBottom: 8 }}>
-          <span>已选 {selectedRowKeys.length} 项</span>
-          <Popconfirm title={`确定批量删除 ${selectedRowKeys.length} 条?`} onConfirm={handleBatchDelete}>
-            <Button danger size="small">批量删除</Button>
-          </Popconfirm>
-        </Space>
-      )}
-
-      {error ? (
-        <Result status="warning" title="加载失败" subTitle="无法加载报价单数据" extra={<Button onClick={() => fetch()}>重试</Button>} />
-      ) : (
-        <Table rowKey="id" rowSelection={rowSelection} columns={columns} dataSource={data} loading={loading}
-          locale={{ emptyText: "暂无报价单" }}
-          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t: number) => `共 ${t} 条` }} />
-      )}
-      <Modal title={editingId ? "编辑报价单" : "新建报价单"} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()}>
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="quotation_no" label="报价单号"><Input /></Form.Item>
-          <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-            <Select showSearch allowClear placeholder="选择客户" onSearch={loadCustomers} filterOption={false}>
-              {customers.map((c) => <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>)}
-            </Select>
-          </Form.Item>
-          <Form.Item name="status" label="状态">
-            <Select>{Object.keys(statusColors).map((k) => <Select.Option key={k} value={k}>{k}</Select.Option>)}</Select>
-          </Form.Item>
-          <Form.Item name="valid_until" label="有效期至"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-        </Form>
-      </Modal>
+      <Table
+        rowKey="id"
+        loading={loading}
+        dataSource={data}
+        rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+        columns={[
+          { title: "报价单号", dataIndex: "quotation_no", width: 140, render: (v: string, r: Quotation) => <a onClick={() => navigate(`/sales/quotations/${r.id}`)}>{v || `#${r.id}`}</a> },
+          { title: "标题", dataIndex: "title", ellipsis: true },
+          { title: "金额", dataIndex: "total_amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
+          { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
+          { title: "有效期", dataIndex: "valid_until", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
+          {
+            title: "AI", width: 90,
+            render: (_: unknown, r: Quotation) => <AIInlineBadge riskLevel={aiMap[r.id]?.pricing_health === "poor" ? "high" : aiMap[r.id]?.pricing_health === "fair" ? "medium" : "low"} flag={aiMap[r.id]?.flag} />,
+          },
+          {
+            title: "操作", width: 180,
+            render: (_: unknown, r: Quotation) => (
+              <Space size="small">
+                <Button size="small" onClick={() => navigate(`/sales/quotations/${r.id}`)}>详情</Button>
+                {r.status !== "won" && (
+                  <Popconfirm title="转为销售订单?" onConfirm={async () => {
+                    try { await convertQuotationToOrder(r.id); message.success("已转为订单"); load(); } catch { message.error("转换失败"); }
+                  }}><Button size="small" type="primary">转订单</Button></Popconfirm>
+                )}
+                <Popconfirm title="确定删除?" onConfirm={async () => {
+                  try { await deleteQuotation(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                }}><Button size="small" danger>删除</Button></Popconfirm>
+              </Space>
+            ),
+          },
+        ]}
+        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+      />
     </div>
   );
 }

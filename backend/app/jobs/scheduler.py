@@ -1,326 +1,284 @@
-"""Background AI jobs — scheduled RFM scoring, churn prediction, alerts."""
+"""Background job scheduler — periodic AI enrichment, health checks, cleanup."""
 
+import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import async_session
 
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
 
-async def run_rfm_batch():
-    """Run RFM analysis on all active customers nightly."""
-    from datetime import datetime, timezone
+# ============================================================
+# Job definitions
+# ============================================================
 
-    from sqlalchemy import func, select
-
-    from app.database import async_session
-    from app.models.customer import Customer, CustomerFollowUp
-    from app.models.sales import SalesOrder
-    from app.services.ai import CustomerAgent
-
-    logger.info("Starting nightly RFM batch analysis")
-    async with async_session() as db:
-        try:
-            result = await db.execute(
-                select(Customer).where(Customer.deleted_at.is_(None))
-            )
-            customers = result.scalars().all()
-            updated = 0
-
-            for customer in customers:
+async def _refresh_sales_insights():
+    """Re-enrich opportunities/quotations modified in the last 24h that may have stale insights."""
+    try:
+        from app.models.sales import Opportunity, Quotation
+        async with async_session() as db:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            opps = (await db.execute(
+                select(Opportunity).where(
+                    Opportunity.deleted_at.is_(None),
+                    Opportunity.updated_at >= cutoff,
+                )
+            )).scalars().all()
+            quotes = (await db.execute(
+                select(Quotation).where(
+                    Quotation.deleted_at.is_(None),
+                    Quotation.updated_at >= cutoff,
+                )
+            )).scalars().all()
+            if not opps and not quotes:
+                return
+            from app.services.sales_ai_service import enrich_opportunity, enrich_quotation
+            for opp in opps:
                 try:
-                    order_stats = (await db.execute(
-                        select(
-                            func.count(SalesOrder.id),
-                            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-                            func.max(SalesOrder.created_at),
-                        ).where(
-                            SalesOrder.customer_id == customer.id,
-                            SalesOrder.deleted_at.is_(None),
-                        )
-                    )).first()
-
-                    last_fu = (await db.execute(
-                        select(CustomerFollowUp).where(
-                            CustomerFollowUp.customer_id == customer.id,
-                            CustomerFollowUp.deleted_at.is_(None),
-                        ).order_by(CustomerFollowUp.created_at.desc()).limit(1)
-                    )).scalar_one_or_none()
-
-                    data = {
-                        "name": customer.name,
-                        "industry": customer.industry or "",
-                        "total_orders": order_stats[0] or 0,
-                        "total_revenue": float(order_stats[1]),
-                        "last_order_date": str(order_stats[2]) if order_stats[2] else None,
-                        "last_contacted_at": str(customer.last_contacted_at) if customer.last_contacted_at else None,
-                        "last_followup": str(last_fu.planned_at) if last_fu and last_fu.planned_at else None,
-                    }
-                    rfm_result = await CustomerAgent.rfm_analysis(data)
-
-                    insights = customer.ai_insights or {}
-                    insights["rfm"] = rfm_result
-                    insights["rfm_updated_at"] = datetime.now(timezone.utc).isoformat()
-                    customer.ai_insights = insights
-                    updated += 1
-                except Exception:
-                    logger.warning(f"RFM failed for customer {customer.id}")
-
-            await db.commit()
-            logger.info(f"RFM batch complete: {updated}/{len(customers)} customers analyzed")
-        except Exception:
-            await db.rollback()
-            logger.exception("RFM batch failed")
-
-
-async def run_churn_prediction():
-    """Run churn prediction with enriched multi-dimensional features."""
-    from datetime import datetime, timedelta, timezone
-
-    from sqlalchemy import func, select
-
-    from app.database import async_session
-    from app.models.customer import Customer, CustomerFollowUp
-    from app.models.finance import PaymentRecord
-    from app.models.sales import Opportunity, Quotation, SalesOrder
-    from app.services.ai import CustomerAgent
-    from app.services.customer_service import calc_health
-
-    logger.info("Starting churn risk prediction")
-    async with async_session() as db:
-        try:
-            result = await db.execute(
-                select(Customer).where(Customer.deleted_at.is_(None))
-            )
-            customers = result.scalars().all()
-            now = datetime.now(timezone.utc)
-            d90 = now - timedelta(days=90)
-            d180 = now - timedelta(days=180)
-            updated = 0
-
-            for customer in customers:
+                    await enrich_opportunity(db, opp)
+                except Exception as e:
+                    logger.warning(f"scheduler: enrich opp #{opp.id} failed: {e}")
+            for quote in quotes:
                 try:
-                    # Order stats with time windows
-                    order_stats = (await db.execute(
-                        select(
-                            func.count(SalesOrder.id),
-                            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-                            func.max(SalesOrder.created_at),
-                            func.count(SalesOrder.id).filter(SalesOrder.created_at >= d90),
-                            func.count(SalesOrder.id).filter(SalesOrder.created_at >= d180),
-                        ).where(
-                            SalesOrder.customer_id == customer.id,
-                            SalesOrder.deleted_at.is_(None),
-                        )
-                    )).first()
+                    await enrich_quotation(db, quote)
+                except Exception as e:
+                    logger.warning(f"scheduler: enrich quote #{quote.id} failed: {e}")
+            if opps or quotes:
+                logger.info(f"scheduler: refreshed {len(opps)} opportunities, {len(quotes)} quotations")
+    except Exception as e:
+        logger.error(f"scheduler: refresh_sales_insights failed: {e}")
 
-                    # Opportunity pipeline
-                    active_opps = (await db.execute(
-                        select(func.count(Opportunity.id)).where(
-                            Opportunity.customer_id == customer.id,
-                            Opportunity.deleted_at.is_(None),
-                            Opportunity.stage.in_(["lead", "qualification", "proposal", "negotiation"]),
-                        )
-                    )).scalar() or 0
 
-                    active_quot = (await db.execute(
-                        select(func.count(Quotation.id)).where(
-                            Quotation.customer_id == customer.id,
-                            Quotation.deleted_at.is_(None),
-                            Quotation.status.in_(["draft", "sent"]),
-                        )
-                    )).scalar() or 0
+async def _check_overdue_payments():
+    """Create notifications for overdue payments."""
+    try:
+        from app.models.finance import Invoice, Notification
+        from app.services.notification_service import create_notification
+        async with async_session() as db:
+            overdue = (await db.execute(
+                select(Invoice).where(
+                    Invoice.deleted_at.is_(None),
+                    Invoice.status == "overdue",
+                )
+            )).scalars().all()
+            for inv in overdue:
+                exists = (await db.execute(
+                    select(func.count(Notification.id)).where(
+                        Notification.type == "overdue",
+                        Notification.related_id == inv.id,
+                        Notification.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0),
+                    )
+                )).scalar() or 0
+                if exists == 0:
+                    await create_notification(
+                        db, user_id=1, type="overdue",
+                        title=f"发票 {inv.invoice_no or '#' + str(inv.id)} 已逾期",
+                        content=f"金额 ¥{inv.amount:,.2f}，请及时处理。",
+                        related_id=inv.id,
+                    )
+    except Exception as e:
+        logger.error(f"scheduler: check_overdue_payments failed: {e}")
 
-                    # Credit utilization
-                    credit_util = "无数据"
-                    if customer.credit_limit and customer.credit_limit > 0:
-                        outstanding = (await db.execute(
-                            select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-                                PaymentRecord.customer_id == customer.id,
-                                PaymentRecord.deleted_at.is_(None),
-                                PaymentRecord.status != "paid",
-                            )
-                        )).scalar() or 0
-                        credit_util = f"{min(100, round(float(outstanding) / float(customer.credit_limit) * 100))}%"
 
-                    # AR overdue: unpaid payments older than 30 days
-                    ar_days = 0
-                    thirty_days_ago = now - timedelta(days=30)
-                    oldest_unpaid = (await db.execute(
-                        select(PaymentRecord).where(
-                            PaymentRecord.customer_id == customer.id,
-                            PaymentRecord.deleted_at.is_(None),
-                            PaymentRecord.status != "paid",
-                            PaymentRecord.created_at < thirty_days_ago,
-                        ).order_by(PaymentRecord.created_at.asc()).limit(1)
-                    )).scalar_one_or_none()
-                    if oldest_unpaid and oldest_unpaid.created_at:
-                        ar_days = (now - oldest_unpaid.created_at.replace(tzinfo=timezone.utc)).days
+async def _check_target_progress():
+    """Warn on targets significantly behind schedule."""
+    try:
+        from datetime import timedelta
+        from app.models.finance import SalesTarget, Notification
+        from app.services.notification_service import create_notification
+        async with async_session() as db:
+            targets = (await db.execute(
+                select(SalesTarget).where(
+                    SalesTarget.deleted_at.is_(None),
+                    SalesTarget.status == "active",
+                    SalesTarget.period_end > datetime.now(timezone.utc),
+                )
+            )).scalars().all()
+            for t in targets:
+                if t.target_amount <= 0:
+                    continue
+                elapsed_pct = 0.5  # default: assume halfway
+                if t.period_start and t.period_end:
+                    total_duration = (t.period_end - t.period_start).total_seconds()
+                    if total_duration > 0:
+                        elapsed = (datetime.now(timezone.utc) - t.period_start).total_seconds()
+                        elapsed_pct = max(0, min(1, elapsed / total_duration))
+                expected = t.target_amount * elapsed_pct
+                if t.actual_amount < expected * 0.5:  # less than 50% of expected
+                    await create_notification(
+                        db, user_id=t.user_id, type="target_warning",
+                        title=f"销售目标进度落后",
+                        content=f"目标 ¥{t.target_amount:,.2f}，当前完成 ¥{t.actual_amount:,.2f}（{t.actual_amount/t.target_amount*100:.1f}%），预期进度 {elapsed_pct*100:.1f}%",
+                        related_id=t.id,
+                    )
+    except Exception as e:
+        logger.error(f"scheduler: check_target_progress failed: {e}")
 
-                    # Health score
-                    orders_for_h = (await db.execute(
-                        select(SalesOrder).where(
-                            SalesOrder.customer_id == customer.id, SalesOrder.deleted_at.is_(None)
-                        )
-                    )).scalars().all()
-                    payments_for_h = (await db.execute(
-                        select(PaymentRecord).where(
-                            PaymentRecord.customer_id == customer.id, PaymentRecord.deleted_at.is_(None)
-                        )
-                    )).scalars().all()
-                    h_score, h_label = calc_health(customer, list(orders_for_h), list(payments_for_h), now)
 
-                    # Order trend
-                    o90 = order_stats[3] or 0
-                    o180 = order_stats[4] or 0
-                    o_before = (o180 or 0) - (o90 or 0)
-                    trend = "稳定"
-                    if o90 > 0 and o_before > 0:
-                        if o90 > o_before * 1.3:
-                            trend = "增长"
-                        elif o90 < o_before * 0.7:
-                            trend = "下降"
+async def _check_contract_expiry():
+    """Alert on contracts expiring within 30 days."""
+    try:
+        from datetime import timedelta
+        from app.models.finance import Contract, Notification
+        from app.services.notification_service import create_notification
+        async with async_session() as db:
+            soon = datetime.now(timezone.utc) + timedelta(days=30)
+            contracts = (await db.execute(
+                select(Contract).where(
+                    Contract.deleted_at.is_(None),
+                    Contract.status.in_(["signed", "active"]),
+                    Contract.expire_date.isnot(None),
+                    Contract.expire_date <= soon,
+                    Contract.expire_date > datetime.now(timezone.utc),
+                )
+            )).scalars().all()
+            for ct in contracts:
+                await create_notification(
+                    db, user_id=1, type="contract_expiry",
+                    title=f"合同 {ct.contract_no or '#' + str(ct.id)} 即将到期",
+                    content=f"{ct.title}，到期日 {ct.expire_date.strftime('%Y-%m-%d') if ct.expire_date else '?'}",
+                    related_id=ct.id,
+                )
+    except Exception as e:
+        logger.error(f"scheduler: check_contract_expiry failed: {e}")
 
-                    last_fu = (await db.execute(
-                        select(CustomerFollowUp).where(
-                            CustomerFollowUp.customer_id == customer.id,
-                            CustomerFollowUp.deleted_at.is_(None),
-                        ).order_by(CustomerFollowUp.created_at.desc()).limit(1)
-                    )).scalar_one_or_none()
 
-                    data = {
-                        "name": customer.name,
-                        "industry": customer.industry or "",
-                        "level": customer.level or "",
-                        "lifecycle": customer.lifecycle or "未知",
-                        "total_orders": order_stats[0] or 0,
-                        "total_revenue": float(order_stats[1]) if order_stats[1] else 0,
-                        "last_order_date": str(order_stats[2]) if order_stats[2] else None,
-                        "orders_last_90d": o90,
-                        "orders_last_180d": o180,
-                        "order_trend": trend,
-                        "last_followup_date": str(last_fu.planned_at) if last_fu and last_fu.planned_at else None,
-                        "last_contacted_at": str(customer.last_contacted_at) if customer.last_contacted_at else None,
-                        "active_opportunities": active_opps,
-                        "active_quotations": active_quot,
-                        "credit_utilization": credit_util,
-                        "ar_overdue_days": ar_days,
-                        "health_score": h_score,
-                        "health_label": h_label,
-                    }
-                    churn_result = await CustomerAgent.churn_risk(data)
-
-                    insights = customer.ai_insights or {}
-                    insights["churn"] = churn_result
-                    insights["churn_updated_at"] = datetime.now(timezone.utc).isoformat()
-                    customer.ai_insights = insights
-                    updated += 1
-                except Exception:
-                    logger.warning(f"Churn prediction failed for customer {customer.id}")
-
+async def _refresh_embeddings():
+    """Re-embed all entities (customers, products, suppliers) missing embeddings."""
+    try:
+        from app.services.ai import EmbeddingService
+        async with async_session() as db:
+            c_stats = await EmbeddingService.index_all(db)
+            p_stats = await EmbeddingService.index_all_products(db)
+            s_stats = await EmbeddingService.index_all_suppliers(db)
             await db.commit()
-            logger.info(f"Churn prediction complete: {updated}/{len(customers)} customers analyzed")
-        except Exception:
-            await db.rollback()
-            logger.exception("Churn prediction batch failed")
+            total = c_stats.get("indexed", 0) + p_stats.get("indexed", 0) + s_stats.get("indexed", 0)
+            if total:
+                logger.info(f"scheduler: embedded {total} entities (c:{c_stats['indexed']} p:{p_stats['indexed']} s:{s_stats['indexed']})")
+    except Exception as e:
+        logger.error(f"scheduler: refresh_embeddings failed: {e}")
 
 
-async def run_notification_check():
-    """Check and create notifications for deliveries, payments, followups, contracts."""
-    from datetime import datetime, timezone, timedelta
+async def _run_watchtower_scan():
+    """Cross-domain anomaly scan — creates notifications for detected issues."""
+    try:
+        from app.services.ai.agents import WatchtowerService
+        async with async_session() as db:
+            result = await WatchtowerService.scan_and_notify(db)
+            await db.commit()
+            if result["findings"]:
+                logger.info(f"scheduler: watchtower found {result['findings']} anomalies, created {result['notifications_created']} notifications")
+    except Exception as e:
+        logger.error(f"scheduler: watchtower_scan failed: {e}")
 
-    from sqlalchemy import select
-    from app.database import async_session
-    from app.models.finance import Notification
-    from app.models.sales import SalesOrder
-    from app.models.customer import CustomerFollowUp, Customer
-    from app.models.user import User
 
-    logger.info("Starting notification check")
-    now = datetime.now(timezone.utc)
-    soon = now + timedelta(days=3)
+async def _populate_customer_insights():
+    """Daily batch job: run RFM analysis + churn risk for all customers with order history."""
+    try:
+        from app.services.ai import CustomerAgent
+        from app.models.customer import Customer
+        from app.models.sales import SalesOrder
+        from sqlalchemy import func
 
-    async with async_session() as db:
-        delivery_orders = []
-        overdue_followups = []
-        try:
-            # Get default user (first admin) as fallback
-            default_user = (await db.execute(
-                select(User).limit(1)
-            )).scalar_one_or_none()
-            default_user_id = default_user.id if default_user else 1
-
-            delivery_orders = (await db.execute(
-                select(SalesOrder).where(
+        async with async_session() as db:
+            # Get customers with orders in last 365 days
+            d365 = datetime.now(timezone.utc) - timedelta(days=365)
+            active_ids = (await db.execute(
+                select(SalesOrder.customer_id.distinct()).where(
                     SalesOrder.deleted_at.is_(None),
-                    SalesOrder.status == "pending",
-                    SalesOrder.delivery_date.isnot(None),
-                    SalesOrder.delivery_date <= soon,
-                    SalesOrder.delivery_date >= now,
+                    SalesOrder.created_at >= d365,
                 )
             )).scalars().all()
 
-            for order in delivery_orders:
-                target_user_id = default_user_id
-                if order.customer_id:
-                    cust = (await db.execute(
-                        select(Customer.owner).where(Customer.id == order.customer_id)
-                    )).scalar_one_or_none()
-                    if cust:
-                        u = (await db.execute(
-                            select(User.id).where(User.username == cust)
-                        )).scalar()
-                        if u:
-                            target_user_id = u
-
-                notif = Notification(
-                    user_id=target_user_id, type="delivery", title="交期临近提醒",
-                    content=f"订单 {order.order_no} 交货日期临近 ({order.delivery_date.strftime('%Y-%m-%d')})" if order.delivery_date else f"订单 {order.order_no} 交期临近",
-                    related_id=order.id,
-                )
-                db.add(notif)
-
-            overdue_followups = (await db.execute(
-                select(CustomerFollowUp).where(
-                    CustomerFollowUp.deleted_at.is_(None),
-                    CustomerFollowUp.status == "pending",
-                    CustomerFollowUp.planned_at.isnot(None),
-                    CustomerFollowUp.planned_at < now,
-                )
+            customers = (await db.execute(
+                select(Customer).where(
+                    Customer.id.in_(active_ids),
+                    Customer.deleted_at.is_(None),
+                ).limit(50)  # Batch limit to avoid overwhelming AI API
             )).scalars().all()
 
-            for fup in overdue_followups:
-                target_user_id = default_user_id
-                if fup.assigned_to:
-                    u = (await db.execute(
-                        select(User.id).where(User.username == fup.assigned_to)
-                    )).scalar()
-                    if u:
-                        target_user_id = u
+            updated = 0
+            for cust in customers:
+                try:
+                    order_total = (await db.execute(
+                        select(
+                            func.count(SalesOrder.id),
+                            func.coalesce(func.sum(SalesOrder.total_amount), 0),
+                            func.max(SalesOrder.created_at),
+                        ).where(
+                            SalesOrder.customer_id == cust.id,
+                            SalesOrder.deleted_at.is_(None),
+                        )
+                    )).first()
 
-                notif = Notification(
-                    user_id=target_user_id, type="followup", title="跟进待处理提醒",
-                    content=f"客户 ID {fup.customer_id} 的跟进任务已逾期",
-                    related_id=fup.id,
-                )
-                db.add(notif)
+                    customer_data = {
+                        "name": cust.name,
+                        "industry": cust.industry or "未知",
+                        "level": cust.level or "C",
+                        "region": cust.region or "未知",
+                        "order_count": int(order_total[0]) if order_total else 0,
+                        "total_revenue": float(order_total[1]) if order_total else 0,
+                        "last_order_date": str(order_total[2]) if order_total and order_total[2] else "无",
+                        "last_contact": str(cust.last_contacted_at) if cust.last_contacted_at else "无",
+                    }
+
+                    rfm = await CustomerAgent.rfm_analysis(customer_data)
+                    churn = await CustomerAgent.churn_risk(customer_data)
+
+                    import json
+                    cust.ai_insights = {
+                        "rfm": rfm,
+                        "churn_risk": churn,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await db.flush()
+                    updated += 1
+                except Exception as e:
+                    logger.warning(f"scheduler: insight population for customer #{cust.id} failed: {e}")
 
             await db.commit()
-        except Exception:
-            await db.rollback()
+            if updated:
+                logger.info(f"scheduler: populated insights for {updated} customers")
+    except Exception as e:
+        logger.error(f"scheduler: populate_customer_insights failed: {e}")
 
-    logger.info(f"Notification check complete: {len(delivery_orders)} delivery, {len(overdue_followups)} followup")
+
+async def _cleanup_old_notifications():
+    """Soft-delete notifications older than 90 days."""
+    try:
+        from app.services.notification_service import delete_old_notifications
+        async with async_session() as db:
+            deleted = await delete_old_notifications(db, days=90)
+            if deleted:
+                logger.info(f"scheduler: cleaned up {deleted} old notifications")
+    except Exception as e:
+        logger.error(f"scheduler: cleanup_old_notifications failed: {e}")
 
 
-def start_scheduler():
-    scheduler.add_job(run_rfm_batch, "cron", hour=2, minute=0, id="rfm_batch")
-    scheduler.add_job(run_churn_prediction, "cron", hour=3, minute=0, id="churn_prediction")
-    scheduler.add_job(run_notification_check, "cron", hour=8, minute=0, id="notification_check")
+# ============================================================
+# Startup / Shutdown
+# ============================================================
+
+def start():
+    scheduler.add_job(_refresh_sales_insights, "interval", hours=6, id="refresh_insights", misfire_grace_time=300)
+    scheduler.add_job(_check_overdue_payments, "interval", hours=12, id="check_overdue", misfire_grace_time=300)
+    scheduler.add_job(_check_target_progress, "interval", hours=24, id="check_targets", misfire_grace_time=600)
+    scheduler.add_job(_check_contract_expiry, "interval", hours=24, id="check_contracts", misfire_grace_time=600)
+    scheduler.add_job(_cleanup_old_notifications, "interval", hours=24, id="cleanup_notifications", misfire_grace_time=600)
+    scheduler.add_job(_refresh_embeddings, "interval", hours=24, id="refresh_embeddings", misfire_grace_time=600)
+    scheduler.add_job(_run_watchtower_scan, "interval", hours=4, id="watchtower_scan", misfire_grace_time=300)
+    scheduler.add_job(_populate_customer_insights, "interval", hours=24, id="populate_insights", misfire_grace_time=600)
     scheduler.start()
-    logger.info("AI job scheduler started")
+    logger.info("Scheduler started with 8 jobs")
 
 
-def stop_scheduler():
-    scheduler.shutdown()
+def shutdown():
+    scheduler.shutdown(wait=False)
+    logger.info("Scheduler shut down")

@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.config import settings
 from app.database import init_db
-from app.jobs.scheduler import start_scheduler, stop_scheduler
 
 # Import all models so Base.metadata knows about every table
 import app.models.customer  # noqa: F401
@@ -20,10 +19,12 @@ import app.models.user  # noqa: F401
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    if settings.AI_API_KEY:
-        start_scheduler()
-    yield
-    stop_scheduler()
+    from app.jobs.scheduler import start, shutdown
+    start()
+    try:
+        yield
+    finally:
+        shutdown()
 
 
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)

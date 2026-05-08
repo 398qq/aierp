@@ -155,8 +155,12 @@ class CustomerAgent:
             }
 
     @staticmethod
-    async def chat(query: str, context: str = "", model: str | None = None) -> AsyncGenerator[str, None]:
+    async def chat(query: str, context: str = "", history: list[dict] | None = None, model: str | None = None) -> AsyncGenerator[str, None]:
         messages = [{"role": "system", "content": f"{CUSTOMER_AGENT_SYSTEM}\n\n当前上下文：{context}"}]
+        if history:
+            for msg in history:
+                if msg.get("role") in ("user", "assistant") and msg.get("content"):
+                    messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": query})
         async for chunk in ai_client.chat_stream(messages, model=model):
             yield chunk
@@ -184,6 +188,21 @@ class EmbeddingService:
     async def embed_product(product_data: dict) -> list[float]:
         text = f"型号：{product_data.get('part_number')}，描述：{product_data.get('description', '')}，品牌：{product_data.get('brand_name', '')}"
         return await ai_client.embed_single(text)
+
+    @staticmethod
+    async def embed_supplier(supplier_data: dict) -> list[float]:
+        parts = [
+            f"供应商：{supplier_data.get('name')}",
+            f"产品线：{supplier_data.get('product_lines', '')}",
+            f"类型：{supplier_data.get('supplier_type', '')}",
+            f"区域：{supplier_data.get('region', '')}",
+            f"认证：{supplier_data.get('certifications', '')}",
+            f"付款条件：{supplier_data.get('payment_terms', '')}",
+            f"财务评级：{supplier_data.get('financial_rating', '')}",
+            f"网站：{supplier_data.get('website', '')}",
+            f"备注：{supplier_data.get('notes', '')}",
+        ]
+        return await ai_client.embed_single("，".join(parts))
 
     @staticmethod
     async def similar_customers(embedding: list[float], db_session, top_k: int = 10, exclude_id: int | None = None) -> list:
@@ -219,6 +238,83 @@ class EmbeddingService:
         """Search similar customers by natural-language query."""
         embedding = await ai_client.embed_single(query)
         return await EmbeddingService.similar_customers(embedding, db_session, top_k)
+
+    @staticmethod
+    async def similar_suppliers(embedding: list[float], db_session, top_k: int = 10, exclude_id: int | None = None) -> list:
+        """pgvector cosine-distance search for suppliers."""
+        from app.models.product import Supplier
+        cond = [Supplier.embedding.isnot(None), Supplier.deleted_at.is_(None)]
+        if exclude_id is not None:
+            cond.append(Supplier.id != exclude_id)
+        result = await db_session.execute(
+            select(Supplier.id, Supplier.name, Supplier.product_lines, Supplier.region,
+                   Supplier.embedding.cosine_distance(embedding).label("distance"))
+            .where(*cond)
+            .order_by(Supplier.embedding.cosine_distance(embedding))
+            .limit(top_k)
+        )
+        rows = result.all()
+        return [{"id": r[0], "name": r[1], "product_lines": r[2], "region": r[3],
+                 "similarity": round(1 - float(r[4]), 4)} for r in rows]
+
+    @staticmethod
+    async def similar_suppliers_by_text(query: str, db_session, top_k: int = 10) -> list:
+        """Search similar suppliers by natural-language query."""
+        embedding = await ai_client.embed_single(query)
+        return await EmbeddingService.similar_suppliers(embedding, db_session, top_k)
+
+    @staticmethod
+    async def index_all_suppliers(db_session, batch_size: int = 50) -> dict:
+        """Generate embeddings for all suppliers that lack them."""
+        from app.models.product import Supplier
+        result = await db_session.execute(
+            select(Supplier).where(Supplier.deleted_at.is_(None), Supplier.embedding.is_(None))
+        )
+        suppliers = result.scalars().all()
+
+        indexed, errors = 0, 0
+        for i in range(0, len(suppliers), batch_size):
+            batch = suppliers[i : i + batch_size]
+            texts = [f"供应商：{s.name}，产品线：{s.product_lines or ''}，类型：{s.supplier_type or ''}，"
+                     f"区域：{s.region or ''}，认证：{s.certifications or ''}，"
+                     f"付款条件：{s.payment_terms or ''}，备注：{s.notes or ''}"
+                     for s in batch]
+            try:
+                embeddings = await ai_client.embed(texts)
+                for s, emb in zip(batch, embeddings):
+                    s.embedding = emb
+                indexed += len(batch)
+                await db_session.flush()
+            except Exception:
+                logger.exception(f"Embed supplier batch {i // batch_size} failed")
+                errors += len(batch)
+        return {"indexed": indexed, "skipped": len(suppliers) - indexed - errors, "errors": errors}
+
+    @staticmethod
+    async def index_all_products(db_session, batch_size: int = 50) -> dict:
+        """Generate embeddings for all products that lack them."""
+        from app.models.product import Product
+        result = await db_session.execute(
+            select(Product).where(Product.deleted_at.is_(None), Product.embedding.is_(None))
+        )
+        products = result.scalars().all()
+
+        indexed, errors = 0, 0
+        for i in range(0, len(products), batch_size):
+            batch = products[i : i + batch_size]
+            texts = [f"型号：{p.sku or ''}，名称：{p.name}，品类：{p.category or ''}，"
+                     f"规格：{p.specs or ''}，封装：{p.package_type or ''}，备注：{p.notes or ''}"
+                     for p in batch]
+            try:
+                embeddings = await ai_client.embed(texts)
+                for p, emb in zip(batch, embeddings):
+                    p.embedding = emb
+                indexed += len(batch)
+                await db_session.flush()
+            except Exception:
+                logger.exception(f"Embed product batch {i // batch_size} failed")
+                errors += len(batch)
+        return {"indexed": indexed, "skipped": len(products) - indexed - errors, "errors": errors}
 
     @staticmethod
     async def index_all(db_session, batch_size: int = 50) -> dict:
@@ -447,3 +543,140 @@ class ProductAgent:
         except Exception as e:
             logger.error(f"Substitute suggestion failed: {e}")
             return {"direct_substitutes": [], "functional_substitutes": [], "verification_notes": [f"AI分析失败: {e}"]}
+
+
+WATCHTOWER_SYSTEM = """你是ERP系统的AI监控分析师。你需要扫描整个ERP系统的异常信号并生成预警报告。
+请检测以下领域：
+1. 库存风险：滞销库存、短缺风险、库存周转异常
+2. 财务风险：逾期应收账款、现金流紧张、利润异常
+3. 客户风险：客户流失信号、长期未联系客户、信用风险
+4. 销售风险：商机流失、报价转化率下降、管道停滞
+5. 供应链风险：供应商延迟、单一供应源、成本波动
+
+对每个异常，给出严重程度（critical/high/medium/low）、摘要和影响描述。"""
+
+
+class WatchtowerService:
+    """AI-powered cross-domain anomaly scanner."""
+
+    @staticmethod
+    async def scan_all(db) -> list[dict]:
+        """Scan all domains for anomalies and return findings."""
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import func, select
+        from app.models.customer import Customer
+        from app.models.product import Inventory
+        from app.models.sales import Opportunity, SalesOrder
+        from app.models.finance import Invoice
+
+        findings = []
+
+        # 1. Inventory: low stock items
+        low_stock = (await db.execute(
+            select(func.count(Inventory.id)).where(
+                Inventory.deleted_at.is_(None),
+                Inventory.quantity <= Inventory.safety_stock,
+                Inventory.quantity > 0,
+            )
+        )).scalar() or 0
+        if low_stock > 0:
+            findings.append({
+                "domain": "库存", "severity": "high" if low_stock > 10 else "medium",
+                "title": f"低库存预警：{low_stock} 个SKU", "detail": f"当前有 {low_stock} 个产品的库存低于安全库存线",
+            })
+
+        # 2. Inventory: dead stock (no movement in 180d)
+        d180 = datetime.now(timezone.utc) - timedelta(days=180)
+        dead = (await db.execute(
+            select(func.count(Inventory.id)).where(
+                Inventory.deleted_at.is_(None),
+                Inventory.quantity > 0,
+                Inventory.updated_at < d180,
+            )
+        )).scalar() or 0
+        if dead > 0:
+            findings.append({
+                "domain": "库存", "severity": "medium",
+                "title": f"滞销库存：{dead} 个SKU", "detail": f"{dead} 个产品超过180天无变动",
+            })
+
+        # 3. Finance: overdue invoices
+        overdue = (await db.execute(
+            select(func.count(Invoice.id), func.coalesce(func.sum(Invoice.amount), 0)).where(
+                Invoice.deleted_at.is_(None),
+                Invoice.status == "overdue",
+            )
+        )).first()
+        if overdue and overdue[0] > 0:
+            findings.append({
+                "domain": "财务", "severity": "critical" if float(overdue[1]) > 100000 else "high",
+                "title": f"逾期发票：{overdue[0]} 张", "detail": f"逾期金额 ¥{float(overdue[1]):,.0f}",
+            })
+
+        # 4. Sales: stale opportunities
+        d30 = datetime.now(timezone.utc) - timedelta(days=30)
+        stale_opps = (await db.execute(
+            select(func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0)).where(
+                Opportunity.deleted_at.is_(None),
+                Opportunity.status == "open",
+                Opportunity.updated_at < d30,
+            )
+        )).first()
+        if stale_opps and stale_opps[0] > 0:
+            findings.append({
+                "domain": "销售", "severity": "high" if stale_opps[0] > 5 else "medium",
+                "title": f"停滞商机：{stale_opps[0]} 个", "detail": f"{stale_opps[0]} 个开放商机超过30天未更新，合计 ¥{float(stale_opps[1]):,.0f}",
+            })
+
+        # 5. Customer: no contact in 90 days
+        d90 = datetime.now(timezone.utc) - timedelta(days=90)
+        silent = (await db.execute(
+            select(func.count(Customer.id)).where(
+                Customer.deleted_at.is_(None),
+                Customer.level.in_(["A", "B"]),
+                Customer.last_contacted_at.isnot(None),
+                Customer.last_contacted_at < d90,
+            )
+        )).scalar() or 0
+        if silent > 0:
+            findings.append({
+                "domain": "客户", "severity": "medium",
+                "title": f"长期未联系客户：{silent} 个", "detail": f"{silent} 个A/B级客户超过90天未联系",
+            })
+
+        return findings
+
+    @staticmethod
+    async def scan_and_notify(db) -> dict:
+        """Scan all domains and create notification entries for findings."""
+        from app.models.finance import Notification
+        from app.services.notification_service import create_notification
+
+        findings = await WatchtowerService.scan_all(db)
+        created = 0
+        for f in findings:
+            try:
+                await create_notification(
+                    db, user_id=1,
+                    type=f"watchtower_{f['domain']}",
+                    title=f"[{f['severity'].upper()}] {f['title']}",
+                    content=f["detail"],
+                )
+                created += 1
+            except Exception as e:
+                logger.warning(f"Watchtower notification creation failed: {e}")
+
+        # Also create a summary if findings exist
+        if findings:
+            summary_lines = [f"- [{f['severity']}] [{f['domain']}] {f['title']}" for f in findings]
+            try:
+                await create_notification(
+                    db, user_id=1,
+                    type="watchtower_summary",
+                    title=f"Watchtower 扫描报告 — {len(findings)} 个预警",
+                    content="\n".join(summary_lines),
+                )
+            except Exception as e:
+                logger.warning(f"Watchtower summary creation failed: {e}")
+
+        return {"findings": len(findings), "notifications_created": created}

@@ -1,159 +1,93 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Upload } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, UploadOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getDeliveryNotes, createDeliveryNote, updateDeliveryNote, deleteDeliveryNote, getCustomers, batchDeleteDeliveryNotes, exportDeliveryNotes, importDeliveryNotes } from "../../api";
-import type { DeliveryNote, Customer } from "../../types";
+import { Table, Button, Space, Tag, Select, message, Popconfirm, Switch } from "antd";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { getDeliveryNotes, batchDeleteDeliveryNotes, deleteDeliveryNote } from "../../api";
+import AIInlineBadge from "../../components/sales/AIInlineBadge";
+import type { DeliveryNote } from "../../types";
 
-const statusColors: Record<string, string> = {
-  pending: "orange", shipped: "cyan", delivered: "green", signed: "blue", cancelled: "red",
+const STATUS: Record<string, { color: string; label: string }> = {
+  pending: { color: "default", label: "待发货" }, shipped: { color: "blue", label: "已发货" },
+  delivered: { color: "green", label: "已签收" }, returned: { color: "red", label: "已退回" },
 };
 
 export default function DeliveryNoteList() {
   const [data, setData] = useState<DeliveryNote[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
-  const [form] = Form.useForm();
+  const [status, setStatus] = useState<string | undefined>();
+  const [includeAi, setIncludeAi] = useState(false);
+  const [aiMap, setAiMap] = useState<Record<number, { completion_risk?: string; flag?: string }>>({});
+  const [selected, setSelected] = useState<number[]>([]);
   const navigate = useNavigate();
 
-  const [filters, setFilters] = useState({ customer_id: "", status: "" });
-
-  const fetch = async (p = page) => {
+  const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: 20 };
-      if (filters.customer_id) params.customer_id = Number(filters.customer_id);
-      if (filters.status) params.status = filters.status;
+      const params: Record<string, unknown> = { page, page_size: 20 };
+      if (status) params.status = status;
+      if (includeAi) params.include_ai = true;
       const resp = await getDeliveryNotes(params);
-      setData(resp.data.data.list);
-      setTotal(resp.data.data.total);
-    } catch {
-      message.error("加载送货单失败");
-    } finally {
-      setLoading(false);
-    }
+      setData(resp.data.data.list || []);
+      setTotal(resp.data.data.total || 0);
+      if (includeAi) setAiMap((resp.data.data as unknown as Record<string, unknown>).ai as Record<string, { completion_risk?: string; flag?: string }> || {});
+      else setAiMap({});
+    } catch { message.error("加载失败"); }
+    finally { setLoading(false); }
   };
 
-  const loadCustomers = async (q?: string) => {
-    try {
-      const resp = await getCustomers({ page: 1, page_size: 100, q });
-      setCustomers(resp.data.data.list || []);
-    } catch { /* ignore */ }
-  };
-
-  useEffect(() => { fetch(); }, [page, filters]);
-
-  const openCreate = () => { setEditingId(null); form.resetFields(); loadCustomers(); setModalOpen(true); };
-
-  const openEdit = async (record: DeliveryNote) => {
-    setEditingId(record.id); loadCustomers(); form.setFieldsValue(record); setModalOpen(true);
-  };
-
-  const handleSubmit = async (values: Record<string, unknown>) => {
-    try {
-      if (editingId) { await updateDeliveryNote(editingId, values); message.success("更新成功"); }
-      else { await createDeliveryNote(values); message.success("创建成功"); }
-      form.resetFields(); setModalOpen(false); fetch(1);
-    } catch { message.error("操作失败"); }
-  };
-
-  const handleDelete = async (id: number) => {
-    try { await deleteDeliveryNote(id); message.success("已删除"); fetch(page); } catch { message.error("删除失败"); }
-  };
+  useEffect(() => { load(); }, [page, status, includeAi]);
 
   const handleBatchDelete = async () => {
-    try { await batchDeleteDeliveryNotes(selectedRowKeys); message.success(`已删除 ${selectedRowKeys.length} 条`); setSelectedRowKeys([]); fetch(1); } catch { message.error("批量删除失败"); }
+    try { await batchDeleteDeliveryNotes(selected); message.success("已批量删除"); setSelected([]); load(); } catch { message.error("删除失败"); }
   };
-
-  const handleExport = async () => {
-    try {
-      const params: Record<string, unknown> = {};
-      if (filters.customer_id) params.customer_id = Number(filters.customer_id);
-      if (filters.status) params.status = filters.status;
-      const resp = await exportDeliveryNotes(params);
-      const url = URL.createObjectURL(new Blob([resp.data]));
-      const a = document.createElement("a");
-      a.href = url; a.download = "delivery_notes.xlsx"; a.click();
-      URL.revokeObjectURL(url);
-      message.success("导出成功");
-    } catch { message.error("导出失败"); }
-  };
-
-  const handleImport = async (file: File) => {
-    try {
-      const resp = await importDeliveryNotes(file);
-      message.success(`导入成功: ${(resp.data.data as { imported: number }).imported} 条`);
-      fetch(1);
-    } catch { message.error("导入失败，请检查文件格式"); }
-    return false;
-  };
-
-  const columns = [
-    { title: "送货单号", dataIndex: "note_no", width: 150 },
-    { title: "销售订单ID", dataIndex: "sales_order_id", width: 100 },
-    { title: "客户ID", dataIndex: "customer_id", width: 80 },
-    { title: "状态", dataIndex: "status", width: 100, render: (v: string) => <Tag color={statusColors[v] || "default"}>{v}</Tag> },
-    { title: "送货日期", dataIndex: "delivery_date", width: 120 },
-    { title: "签收日期", dataIndex: "signed_at", width: 120 },
-    { title: "创建时间", dataIndex: "created_at", width: 180 },
-    {
-      title: "操作", width: 180, render: (_: unknown, record: DeliveryNote) => (
-        <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/sales/delivery-notes/${record.id}`)}>详情</Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <div>
-      <Space style={{ marginBottom: 16, justifyContent: "space-between", width: "100%" }}>
-        <h3>送货单</h3>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/delivery-notes/new")}>新增发货单</Button>
+        {selected.length > 0 && (
+          <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}><Button danger icon={<DeleteOutlined />}>删除({selected.length})</Button></Popconfirm>
+        )}
+        <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
+          { value: "pending", label: "待发货" }, { value: "shipped", label: "已发货" }, { value: "delivered", label: "已签收" },
+        ]} />
         <Space>
-          <Input placeholder="客户ID" value={filters.customer_id} onChange={(e) => setFilters({ ...filters, customer_id: e.target.value })} style={{ width: 120 }} />
-          <Select placeholder="状态" value={filters.status || undefined} onChange={(v) => setFilters({ ...filters, status: v || "" })} allowClear style={{ width: 120 }}
-            options={Object.keys(statusColors).map((k) => ({ value: k, label: k }))} />
-          {selectedRowKeys.length > 0 && (
-            <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个送货单?`} onConfirm={handleBatchDelete}>
-              <Button danger icon={<DeleteOutlined />}>批量删除</Button>
-            </Popconfirm>
-          )}
-          <Upload accept=".xlsx" showUploadList={false} beforeUpload={handleImport}>
-            <Button icon={<UploadOutlined />}>导入</Button>
-          </Upload>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建送货单</Button>
+          <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
+          <span style={{ fontSize: 13 }}>AI</span>
         </Space>
       </Space>
-      <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
-        rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as number[]) }}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
-      <Modal title={editingId ? "编辑送货单" : "新建送货单"} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()}>
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="note_no" label="送货单号"><Input /></Form.Item>
-          <Form.Item name="sales_order_id" label="销售订单ID" rules={[{ required: true }]}><Input type="number" /></Form.Item>
-          <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-            <Select showSearch allowClear placeholder="选择客户" onSearch={loadCustomers} filterOption={false}>
-              {customers.map((c) => <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>)}
-            </Select>
-          </Form.Item>
-          <Form.Item name="status" label="状态">
-            <Select>{Object.keys(statusColors).map((k) => <Select.Option key={k} value={k}>{k}</Select.Option>)}</Select>
-          </Form.Item>
-          <Form.Item name="delivery_date" label="送货日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-          <Form.Item name="signed_at" label="签收日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-        </Form>
-      </Modal>
+
+      <Table
+        rowKey="id"
+        loading={loading}
+        dataSource={data}
+        rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+        columns={[
+          { title: "发货单号", dataIndex: "delivery_no", width: 140, render: (v: string, r: DeliveryNote) => <a onClick={() => navigate(`/sales/delivery-notes/${r.id}`)}>{v || `#${r.id}`}</a> },
+          { title: "订单ID", dataIndex: "sales_order_id", width: 80 },
+          { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
+          { title: "发货日期", dataIndex: "delivery_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
+          { title: "签收日期", dataIndex: "received_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
+          {
+            title: "AI", width: 90,
+            render: (_: unknown, r: DeliveryNote) => <AIInlineBadge riskLevel={aiMap[r.id]?.completion_risk} flag={aiMap[r.id]?.flag} />,
+          },
+          {
+            title: "操作", width: 120,
+            render: (_: unknown, r: DeliveryNote) => (
+              <Space size="small">
+                <Button size="small" onClick={() => navigate(`/sales/delivery-notes/${r.id}`)}>详情</Button>
+                <Popconfirm title="确定删除?" onConfirm={async () => {
+                  try { await deleteDeliveryNote(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                }}><Button size="small" danger>删除</Button></Popconfirm>
+              </Space>
+            ),
+          },
+        ]}
+        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+      />
     </div>
   );
 }

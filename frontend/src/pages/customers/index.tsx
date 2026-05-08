@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, Tag, Select, Row, Col, message, Popconfirm, Card, Modal, Upload, Tooltip, List, Typography, Empty, Popover, Checkbox } from "antd";
-import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined, SettingOutlined } from "@ant-design/icons";
+import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined, SettingOutlined, SendOutlined } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { getCustomers, deleteCustomer, exportCustomers, batchDeleteCustomers, batchTagCustomers, getTags, downloadImportTemplate, importCustomers, getOverdueFollowUps, detectDuplicates, mergeCustomers, getAlertEvents, markAllAlertsRead, checkAlerts } from "../../api";
-import type { AlertEvent, Customer, DuplicatePair, OverdueFollowUp, Tag as TagType } from "../../types";
+import { getCustomers, deleteCustomer, exportCustomers, batchDeleteCustomers, batchTagCustomers, getTags, downloadImportTemplate, importCustomers, getOverdueFollowUps, detectDuplicates, mergeCustomers, getAlertEvents, markAllAlertsRead, checkAlerts, searchSimilarCustomers } from "../../api";
+import type { AlertEvent, Customer, DuplicatePair, OverdueFollowUp, SimilarCustomer, Tag as TagType } from "../../types";
 
 const INDUSTRIES = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗设备", "安防监控", "其他"];
 const LEVELS = ["A", "B", "C", "D"];
@@ -40,6 +40,10 @@ export default function CustomerList() {
   const [mergeSource, setMergeSource] = useState<DuplicatePair | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [alertChecking, setAlertChecking] = useState(false);
+  const [semanticOpen, setSemanticOpen] = useState(false);
+  const [semanticQ, setSemanticQ] = useState("");
+  const [semanticResults, setSemanticResults] = useState<SimilarCustomer[]>([]);
+  const [semanticLoading, setSemanticLoading] = useState(false);
   const allColKeys = ["code", "name", "industry", "level", "region", "tags", "owner", "contact_person", "source", "created_at", "actions"];
   const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
   const navigate = useNavigate();
@@ -173,6 +177,16 @@ export default function CustomerList() {
     finally { setAlertChecking(false); }
   };
 
+  const handleSemanticSearch = async () => {
+    if (!semanticQ.trim()) return;
+    setSemanticLoading(true);
+    try {
+      const resp = await searchSimilarCustomers(semanticQ);
+      setSemanticResults((resp.data.data as SimilarCustomer[]) || []);
+    } catch { message.error("语义搜索失败"); }
+    finally { setSemanticLoading(false); }
+  };
+
   const handleTableChange = (
     pag: TablePaginationConfig,
     _filters: unknown,
@@ -269,6 +283,7 @@ export default function CustomerList() {
                 <Button icon={<SettingOutlined />}>列</Button>
               </Popover>
               <Button icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>查重</Button>
+              <Button icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>语义搜索</Button>
               <Button danger={alertCount > 0} loading={alertChecking} onClick={handleCheckAlerts}>
                 {alertCount > 0 ? `预警(${alertCount})` : "预警"}
               </Button>
@@ -353,6 +368,37 @@ export default function CustomerList() {
             )}
           />
         )}
+      </Modal>
+
+      <Modal
+        title="语义搜索"
+        open={semanticOpen}
+        onCancel={() => setSemanticOpen(false)}
+        footer={null}
+        width={600}
+      >
+        <Space.Compact style={{ width: "100%", marginBottom: 16 }}>
+          <Input
+            placeholder="输入自然语言描述，例如：华东地区做汽车电子的A级客户"
+            value={semanticQ}
+            onChange={(e) => setSemanticQ(e.target.value)}
+            onPressEnter={handleSemanticSearch}
+          />
+          <Button type="primary" loading={semanticLoading} onClick={handleSemanticSearch}>搜索</Button>
+        </Space.Compact>
+        <Table
+          dataSource={semanticResults}
+          rowKey="id"
+          size="small"
+          pagination={false}
+          locale={{ emptyText: semanticQ && !semanticLoading ? "未找到匹配客户" : "输入关键词后搜索" }}
+          columns={[
+            { title: "客户名称", dataIndex: "name", key: "name", render: (name: string, r: SimilarCustomer) => <a onClick={() => { setSemanticOpen(false); navigate(`/customers/${r.id}`); }}>{name}</a> },
+            { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <Tag>{v || "-"}</Tag> },
+            { title: "区域", dataIndex: "region", key: "region" },
+            { title: "相似度", dataIndex: "similarity", key: "similarity", render: (v: number) => `${(v * 100).toFixed(1)}%` },
+          ]}
+        />
       </Modal>
 
       <Modal

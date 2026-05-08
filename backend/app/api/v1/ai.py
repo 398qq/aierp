@@ -2,7 +2,7 @@
 
 import json
 import logging
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -342,8 +342,61 @@ async def customer_segments(n_clusters: int = 5, db: AsyncSession = Depends(get_
     return ok(result)
 
 
-async def _chat_stream(query: str, context: str = ""):
-    async for chunk in CustomerAgent.chat(query, context=context, model=settings.AI_CHAT_MODEL):
+# ============================================================
+# Supplier Embedding Endpoints
+# ============================================================
+
+@router.post("/supplier/{supplier_id}/embed")
+async def embed_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Embed a single supplier."""
+    from app.models.product import Supplier
+    supplier = await db.get(Supplier, supplier_id)
+    if not supplier:
+        return fail("供应商不存在", 404)
+    data = {"name": supplier.name, "product_lines": supplier.product_lines,
+            "supplier_type": supplier.supplier_type, "region": supplier.region,
+            "certifications": supplier.certifications, "payment_terms": supplier.payment_terms,
+            "financial_rating": supplier.financial_rating, "website": supplier.website,
+            "notes": supplier.notes}
+    try:
+        emb = await EmbeddingService.embed_supplier(data)
+        supplier.embedding = emb
+        await db.commit()
+        return ok({"id": supplier_id, "dimensions": len(emb)})
+    except Exception as e:
+        return fail(f"Embedding failed: {str(e)}", 500)
+
+
+@router.post("/supplier/embed-all")
+async def embed_all_suppliers(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Batch generate embeddings for all suppliers that lack them."""
+    stats = await EmbeddingService.index_all_suppliers(db)
+    await db.commit()
+    return ok(stats)
+
+
+@router.get("/supplier/{supplier_id}/similar")
+async def similar_suppliers(supplier_id: int, top_k: int = 10, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Find similar suppliers via pgvector cosine distance."""
+    from app.models.product import Supplier
+    supplier = await db.get(Supplier, supplier_id)
+    if not supplier:
+        return fail("供应商不存在", 404)
+    if not supplier.embedding:
+        return fail("供应商尚未生成嵌入向量，请先调用 POST /ai/supplier/{id}/embed", 400)
+    similar = await EmbeddingService.similar_suppliers(supplier.embedding, db, top_k, exclude_id=supplier_id)
+    return ok(similar)
+
+
+@router.get("/supplier/search")
+async def search_suppliers(q: str = Query(...), top_k: int = 10, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Natural-language semantic search for suppliers."""
+    similar = await EmbeddingService.similar_suppliers_by_text(q, db, top_k)
+    return ok(similar)
+
+
+async def _chat_stream(query: str, context: str = "", history: list[dict] | None = None):
+    async for chunk in CustomerAgent.chat(query, context=context, history=history, model=settings.AI_CHAT_MODEL):
         yield f"data: {json.dumps({'content': chunk})}\n\n"
     yield "data: [DONE]\n\n"
 
@@ -355,6 +408,7 @@ async def ai_chat(
     context: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
+    body: dict | None = Body(None),
 ):
     # Build context from customer data if customer_id provided
     chat_ctx = context or ""
@@ -382,7 +436,12 @@ async def ai_chat(
                 f"最后联系时间：{cust.last_contacted_at or '无'}"
             )
 
-    return StreamingResponse(_chat_stream(query, chat_ctx), media_type="text/event-stream")
+    # Accept conversation history from request body
+    history_msgs = None
+    if body and isinstance(body.get("history"), list):
+        history_msgs = body["history"]
+
+    return StreamingResponse(_chat_stream(query, chat_ctx, history_msgs), media_type="text/event-stream")
 
 
 # --- Inventory AI ---
@@ -412,153 +471,20 @@ async def analyze_inventory(db: AsyncSession = Depends(get_db), _user: dict = De
     return ok(analysis)
 
 
-# --- Sales AI ---
-
-@router.post("/sales/recommend")
-async def ai_sales_recommend(
-    customer_id: int = Query(...),
-    top_k: int = Query(10, le=50),
-    use_llm: bool = Query(False),
+@router.get("/inventory/demand-forecast")
+async def demand_forecast(
+    category: str | None = Query(None),
+    top_k: int = Query(20, le=100),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    """Product recommendation: pgvector collaborative-filtering (default) or LLM fallback."""
+    """Enhanced demand forecasting with seasonality, trend, and lead-time detection."""
+    from app.services.inventory_service import forecast_demand
     try:
-        from app.services.ai.recommend import recommend_products
-        result = await recommend_products(customer_id, db, top_k=top_k)
+        result = await forecast_demand(db, category=category, top_k=top_k)
         return ok(result)
     except Exception as e:
-        logger.exception("Collaborative recommendation failed, falling back to LLM")
-        if not use_llm:
-            return fail(f"Recommendation not available: {str(e)}", 503)
-
-    # LLM fallback (original behavior)
-    from app.models.customer import Customer
-    from app.models.sales import Opportunity, SalesOrder
-
-    cust_result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
-    )
-    customer = cust_result.scalar_one_or_none()
-    if customer is None:
-        return fail("Customer not found", 404)
-
-    opp_count = (await db.execute(
-        select(func.count(Opportunity.id)).where(
-            Opportunity.customer_id == customer_id, Opportunity.deleted_at.is_(None)
-        )
-    )).scalar() or 0
-
-    order_count = (await db.execute(
-        select(func.count(SalesOrder.id)).where(
-            SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None)
-        )
-    )).scalar() or 0
-
-    total_revenue = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
-            SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None)
-        )
-    )).scalar() or 0
-
-    data = {
-        "name": customer.name,
-        "industry": customer.industry or "",
-        "level": customer.level or "",
-        "opportunities": opp_count,
-        "orders": order_count,
-        "total_revenue": float(total_revenue),
-    }
-
-    try:
-        from app.services.ai.client import ai_client
-        from app.services.ai.prompts import SALES_AGENT_SYSTEM
-
-        schema = {
-            "recommended_products": "list of strings, recommended product categories or types",
-            "opportunity_suggestion": "string, suggestion for next sales opportunity",
-            "cross_sell_opportunities": "string, cross-sell suggestions",
-            "priority_action": "string, the single most important action to take",
-        }
-        result = await ai_client.chat_structured(
-            [
-                {"role": "system", "content": SALES_AGENT_SYSTEM},
-                {"role": "user", "content": f"基于以下客户历史数据，推荐产品和商机：客户名称={data['name']}，行业={data['industry']}，级别={data['level']}，历史商机数={data['opportunities']}，历史订单数={data['orders']}，历史交易总额={data['total_revenue']}"},
-            ],
-            schema,
-        )
-        return ok(result)
-    except Exception as e:
-        return fail(f"AI 分析暂时不可用: {str(e)}", 503)
-
-
-@router.post("/sales/predict")
-async def ai_sales_predict(
-    opportunity_id: int = Query(...),
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    from app.models.customer import Customer
-    from app.models.sales import Opportunity, SalesOrder
-
-    opp_result = await db.execute(
-        select(Opportunity).where(Opportunity.id == opportunity_id, Opportunity.deleted_at.is_(None))
-    )
-    opp = opp_result.scalar_one_or_none()
-    if opp is None:
-        return fail("Opportunity not found", 404)
-
-    cust_result = await db.execute(
-        select(Customer).where(Customer.id == int(opp.customer_id), Customer.deleted_at.is_(None))
-    )
-    customer = cust_result.scalar_one_or_none()
-
-    order_count = (await db.execute(
-        select(func.count(SalesOrder.id)).where(
-            SalesOrder.customer_id == opp.customer_id, SalesOrder.deleted_at.is_(None)
-        )
-    )).scalar() or 0
-
-    total_revenue = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
-            SalesOrder.customer_id == opp.customer_id, SalesOrder.deleted_at.is_(None)
-        )
-    )).scalar() or 0
-
-    data = {
-        "name": opp.name,
-        "amount": float(opp.amount),
-        "stage": opp.stage,
-        "probability": opp.probability,
-        "customer_name": customer.name if customer else "未知",
-        "customer_industry": customer.industry if customer else "",
-        "customer_level": customer.level if customer else "",
-        "customer_orders": order_count,
-        "customer_revenue": float(total_revenue),
-    }
-
-    try:
-        from app.services.ai.client import ai_client
-        from app.services.ai.prompts import SALES_AGENT_SYSTEM
-
-        schema = {
-            "win_probability": "integer 0-100, predicted win probability",
-            "confidence": "string: high/medium/low",
-            "key_factors": "list of strings, key factors affecting the prediction",
-            "recommendation": "string, what to do to improve win rate",
-        }
-        result = await ai_client.chat_structured(
-            [
-                {"role": "system", "content": SALES_AGENT_SYSTEM},
-                {"role": "user", "content": f"预测商机成交概率：商机名称={data['name']}，金额={data['amount']}，当前阶段={data['stage']}，当前估算概率={data['probability']}%，客户名称={data['customer_name']}，客户行业={data['customer_industry']}，客户级别={data['customer_level']}，历史订单数={data['customer_orders']}，历史交易总额={data['customer_revenue']}"},
-            ],
-            schema,
-        )
-        return ok(result)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Win prediction failed: {e}")
-        return fail(f"AI 分析暂时不可用: {str(e)}", 503)
+        return fail(f"Demand forecast failed: {str(e)}", 500)
 
 
 # --- Product AI ---
@@ -949,77 +875,6 @@ async def brand_recommendations(brand_id: int, top_k: int = Query(5), db: AsyncS
         return fail(str(e), 404)
 
 
-# ============================================================
-#  Smart Quotation Assistant
-# ============================================================
-
-
-class QuoteAssistItem(BaseModel):
-    product_id: int
-    quantity: int = 1
-
-
-class QuoteAssistRequest(BaseModel):
-    customer_id: int
-    items: list[QuoteAssistItem]
-
-
-@router.post("/quotations/assist")
-async def quote_assist(req: QuoteAssistRequest, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.quote_assistant_service import quote_assist
-    try:
-        items = [{"product_id": it.product_id, "quantity": it.quantity} for it in req.items]
-        result = await quote_assist(db, req.customer_id, items)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
-# ============================================================
-#  Sales Intelligence Routes
-# ============================================================
-
-@router.post("/sales/opportunities/{opportunity_id}/score")
-async def opportunity_score(opportunity_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.sales_intel_service import score_opportunity
-    try:
-        result = await score_opportunity(db, opportunity_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
-@router.post("/sales/pipeline-health")
-async def pipeline_health(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.sales_intel_service import analyze_pipeline_health
-    try:
-        result = await analyze_pipeline_health(db)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 500)
-
-
-@router.post("/sales/quotations/{quotation_id}/optimize")
-async def quotation_optimize(quotation_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.sales_intel_service import optimize_quotation
-    try:
-        result = await optimize_quotation(db, quotation_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
-@router.post("/sales/customers/{customer_id}/cross-sell")
-async def customer_cross_sell(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.sales_intel_service import detect_cross_sell
-    try:
-        result = await detect_cross_sell(db, customer_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
-# ============================================================
 #  AI Watchtower — System-wide anomaly scan
 # ============================================================
 
@@ -1101,72 +956,10 @@ async def brand_price_trends(brand_id: int, db: AsyncSession = Depends(get_db), 
         return fail(str(e), 404)
 
 
-# ============================================================
-#  Supplier Intelligence Routes
-# ============================================================
-
-@router.post("/suppliers/{supplier_id}/scorecard")
-async def supplier_scorecard(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.supplier_intel_service import get_supplier_scorecard
-    try:
-        result = await get_supplier_scorecard(db, supplier_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-@router.post("/suppliers/{supplier_id}/delay-prediction")
-async def supplier_delay_prediction(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.supplier_intel_service import predict_supplier_delay
-    try:
-        result = await predict_supplier_delay(db, supplier_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-@router.post("/suppliers/{supplier_id}/alternatives")
-async def supplier_alternatives(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.supplier_intel_service import get_supplier_alternatives
-    try:
-        result = await get_supplier_alternatives(db, supplier_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-@router.post("/suppliers/{supplier_id}/price-variance")
-async def supplier_price_variance(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.supplier_intel_service import detect_supplier_price_variance
-    try:
-        result = await detect_supplier_price_variance(db, supplier_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
-@router.post("/suppliers/{supplier_id}/negotiation")
-async def supplier_negotiation(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.supplier_intel_service import get_supplier_negotiation
-    try:
-        result = await get_supplier_negotiation(db, supplier_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
-@router.post("/suppliers/{supplier_id}/360")
-async def supplier_360(supplier_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.supplier_intel_service import get_supplier_360
-    try:
-        result = await get_supplier_360(db, supplier_id)
-        return ok(result)
-    except ValueError as e:
-        return fail(str(e), 404)
-
-
 @router.post("/suppliers/compare")
-async def supplier_compare(body: dict, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def compare_suppliers_route(supplier_ids: list[int] = Body(...), db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.supplier_intel_service import compare_suppliers
-    supplier_ids = body.get("supplier_ids", [])
-    if not isinstance(supplier_ids, list) or len(supplier_ids) < 2:
+    if len(supplier_ids) < 2:
         return fail("supplier_ids 必须是至少包含2个ID的数组", 400)
     try:
         result = await compare_suppliers(db, supplier_ids)

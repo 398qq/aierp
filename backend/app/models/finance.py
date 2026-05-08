@@ -39,6 +39,8 @@ class SalesTarget(TimestampMixin, Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     target_amount: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
     target_type: Mapped[str] = mapped_column(String(20), default="monthly")
+    period: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    target_orders: Mapped[int | None] = mapped_column(nullable=True)
     period_start: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     period_end: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actual_amount: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)

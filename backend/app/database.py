@@ -59,4 +59,13 @@ async def _ensure_pgvector(eng):
                             await conn.exec_driver_sql(stmt + ";")
                         except Exception:
                             pass
+
+        # Ensure IVFFlat indexes exist for products and suppliers
+        for idx_file in ("003_product_embedding_index.sql", "004_supplier_embedding_index.sql"):
+            idx_path = pathlib.Path(__file__).resolve().parent / "migrations" / idx_file
+            if idx_path.exists():
+                try:
+                    await conn.exec_driver_sql(idx_path.read_text().split(";")[0].strip() + ";")
+                except Exception:
+                    pass
         await conn.commit()
