@@ -59,29 +59,33 @@ async def get_supplier_scorecard(db: AsyncSession, supplier_id: int) -> dict:
 
     on_time_count = 0
     total_completed = 0
-    lead_time_days_total = 0
+    # 注意：以下使用 expected_date 而非实际收货日期，on_time_rate 和 avg_lead_time 的计算依赖
+    # PO.expected_date 字段。当 PO 只有 created_at（无 expected_date）时，视为准时。
+    # 这是当前数据模型的局限，真实 on-time 评估需要实际收货日期字段。
+    promised_lead_time_days_total = 0
     quality_issues = 0
     for po in pos_12m:
         if po[1] in ("completed", "received", "delivered"):
             total_completed += 1
-            # Lead time = created_at → (expected or arrival)
+            # 计划交期（expected_date - created_at），仅在有 expected_date 时记录
             if po[2] and po[4]:
                 lt = (po[2] - po[4]).days
                 if lt >= 0:
-                    lead_time_days_total += lt
-            # On-time: positive or zero late days
+                    promised_lead_time_days_total += lt
+            # 准时判断：expected_date >= created_at（计划不晚于下单）
+            # 注意：此条件在 expected_date 有值时几乎总为真，不能真实反映交付是否延误
             if po[2] and po[4] and po[2] >= po[4]:
                 on_time_count += 1
             elif po[1] == "completed":
-                # If no expected_date, treat as on-time
+                # 无 expected_date 时保守视为准时
                 if po[2] is None:
                     on_time_count += 1
-            # Quality issues from notes
+            # 质量问题关键词检测
             if po[3] and any(kw in (po[3] or "").lower() for kw in ("quality", "defect", "damage", "退货", "质量问题", "次品", "不良")):
                 quality_issues += 1
 
     on_time_rate = round(on_time_count / total_completed * 100, 1) if total_completed > 0 else None
-    avg_lead_time = round(lead_time_days_total / total_completed, 1) if total_completed > 0 else None
+    avg_lead_time = round(promised_lead_time_days_total / total_completed, 1) if total_completed > 0 else None
 
     # Promised lead time from supplier_products
     avg_promised_lt = (await db.execute(
@@ -197,6 +201,9 @@ async def predict_supplier_delay(db: AsyncSession, supplier_id: int) -> dict:
     total_delay_days = 0
     last_delivery_date = None
 
+    # 注意：以下延迟计算基于 expected_date vs created_at，而非实际收货日期。
+    # PO.expected_date 是计划交期字段，无实际收货日期时无法判断真实交付延误。
+    # 该指标反映的是"计划交期是否合理"，而非"供应商是否准时"。
     for po in recent_pos:
         if po[1] in ("completed", "received", "delivered") and po[2] and po[3]:
             delay = (po[2] - po[3]).days
@@ -207,17 +214,22 @@ async def predict_supplier_delay(db: AsyncSession, supplier_id: int) -> dict:
 
     avg_delay_days = round(total_delay_days / recent_delays, 1) if recent_delays > 0 else 0
 
-    # Delay trend: compare first 3 months vs last 3 months
+    # 延迟趋势：按周期内 PO 数量归一化后比较延迟率，避免周期长度不同导致的误判
     three_months_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=90)
+    # 注意：这里的延迟仍是 expected_date vs created_at，与上面同款数据局限
+    early_total = sum(1 for po in recent_pos if po[1] in ("completed", "received", "delivered") and po[3] < three_months_ago)
+    late_total = sum(1 for po in recent_pos if po[1] in ("completed", "received", "delivered") and po[3] >= three_months_ago)
     early_delays = sum(1 for po in recent_pos if po[1] in ("completed", "received", "delivered")
                        and po[2] and po[3] and (po[2] - po[3]).days < 0 and po[3] < three_months_ago)
     late_delays = sum(1 for po in recent_pos if po[1] in ("completed", "received", "delivered")
                       and po[2] and po[3] and (po[2] - po[3]).days < 0 and po[3] >= three_months_ago)
+    early_rate = (early_delays / early_total * 100) if early_total > 0 else 0
+    late_rate = (late_delays / late_total * 100) if late_total > 0 else 0
 
     delay_trend = "稳定"
-    if late_delays > early_delays * 1.5:
+    if late_rate > early_rate * 1.5 and late_delays >= 2:
         delay_trend = "恶化中"
-    elif late_delays < early_delays * 0.5:
+    elif late_rate < early_rate * 0.5 and early_delays >= 2:
         delay_trend = "改善中"
     elif early_delays == 0 and late_delays == 0:
         delay_trend = "无延迟记录"
@@ -300,18 +312,19 @@ async def get_supplier_alternatives(db: AsyncSession, supplier_id: int) -> dict:
         )
     )).all()]
 
-    # Count products that are single-source (only this supplier)
+    # Count products that are single-source (only this supplier) — 单条 SQL 替代 N+1 循环
     single_source_count = 0
     if current_product_ids:
-        for pid in current_product_ids:
-            count = (await db.execute(
-                select(func.count(SupplierProduct.id)).where(
-                    SupplierProduct.product_id == pid,
-                    SupplierProduct.deleted_at.is_(None),
-                )
-            )).scalar() or 0
-            if count <= 1:
-                single_source_count += 1
+        counts = dict((await db.execute(
+            select(
+                SupplierProduct.product_id,
+                func.count(SupplierProduct.id),
+            ).where(
+                SupplierProduct.product_id.in_(current_product_ids),
+                SupplierProduct.deleted_at.is_(None),
+            ).group_by(SupplierProduct.product_id)
+        )).all())
+        single_source_count = sum(1 for c in counts.values() if c <= 1)
 
     # Find other suppliers with overlapping products
     candidates = []
@@ -344,13 +357,12 @@ async def get_supplier_alternatives(db: AsyncSession, supplier_id: int) -> dict:
                 "name": r[1],
                 "product_lines": r[2] or "无数据",
                 "overlap_products": r[3],
-                "avg_cost": f"¥{float(r[4]):.2f}" if r[4] else "无数据",
-                "avg_lead_time": f"{round(float(r[5]), 1)}天" if r[5] else "无数据",
+                "avg_cost": f"¥{float(r[4]):.2f}" if r[4] is not None else "无数据",
+                "avg_lead_time": f"{round(float(r[5]), 1)}天" if r[5] is not None else "无数据",
             })
 
     # Quick score assessment for current supplier (simplified for alternatives context)
     score_text = "未评估"
-    datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=365)
     total_completed = (await db.execute(
         select(func.count(PurchaseOrder.id)).where(
             PurchaseOrder.supplier_id == supplier_id,
@@ -460,11 +472,16 @@ async def detect_supplier_price_variance(db: AsyncSession, supplier_id: int) -> 
         )
     )).scalar()
 
-    # Price change rate
+    # Price change rate — 优先用 0-3m vs 3-6m（近期趋势），降级用 0-3m vs 6-12m
     price_change_pct = "无数据"
-    if current_price and price_6m_ago and float(price_6m_ago) > 0:
+    if current_price and price_3m_ago and float(price_3m_ago) > 0:
+        # 短期趋势：近3个月 vs 3-6个月前
+        change = (float(current_price) - float(price_3m_ago)) / float(price_3m_ago) * 100
+        price_change_pct = f"{change:.1f}（近3个月 vs 3-6个月前）"
+    elif current_price and price_6m_ago and float(price_6m_ago) > 0:
+        # 中期趋势：近3个月 vs 6-12个月前
         change = (float(current_price) - float(price_6m_ago)) / float(price_6m_ago) * 100
-        price_change_pct = f"{change:.1f}"
+        price_change_pct = f"{change:.1f}（近3个月 vs 6-12个月前）"
 
     # Market benchmark (peer avg price for same products from other suppliers)
     product_ids = [r[0] for r in (await db.execute(
@@ -474,9 +491,12 @@ async def detect_supplier_price_variance(db: AsyncSession, supplier_id: int) -> 
         )
     )).all()]
 
-    peer_avg_price = None
+    # 注意：此字段是其他供应商的 catalog 标价（SupplierProduct.cost_price），
+    # 而非其实际 PO 成交价。与 current_price（实际采购均价）性质不同，
+    # "溢价/折价" 标签仅作参考，不反映真实的同行价格竞争力。
+    peer_catalog_price = None
     if product_ids:
-        peer_avg_price = (await db.execute(
+        peer_catalog_price = (await db.execute(
             select(func.avg(SupplierProduct.cost_price)).where(
                 SupplierProduct.product_id.in_(product_ids),
                 SupplierProduct.supplier_id != supplier_id,
@@ -485,11 +505,11 @@ async def detect_supplier_price_variance(db: AsyncSession, supplier_id: int) -> 
             )
         )).scalar()
 
-    premium_discount = "无数据"
-    if current_price and peer_avg_price and float(peer_avg_price) > 0:
-        diff = (float(current_price) - float(peer_avg_price)) / float(peer_avg_price) * 100
+    premium_discount = "无数据（需同行 PO 成交价数据）"
+    if current_price and peer_catalog_price and float(peer_catalog_price) > 0:
+        diff = (float(current_price) - float(peer_catalog_price)) / float(peer_catalog_price) * 100
         sign = "溢价" if diff > 0 else "折价"
-        premium_discount = f"{sign}{abs(diff):.1f}%"
+        premium_discount = f"{sign}{abs(diff):.1f}%（参考同行目录价）"
 
     # Per-product price anomalies (products with significant price changes)
     anomaly_products_text = "无显著异常"
@@ -545,8 +565,8 @@ async def detect_supplier_price_variance(db: AsyncSession, supplier_id: int) -> 
         "price_3m_ago": f"¥{float(price_3m_ago):.4f}" if price_3m_ago else "无数据",
         "price_6m_ago": f"¥{float(price_6m_ago):.4f}" if price_6m_ago else "无数据",
         "price_change_pct": price_change_pct,
-        "market_benchmark": f"¥{float(peer_avg_price):.4f}" if peer_avg_price else "无市场基准数据",
-        "peer_avg_price": f"¥{float(peer_avg_price):.4f}" if peer_avg_price else "无数据",
+        "market_benchmark": f"¥{float(peer_catalog_price):.4f}" if peer_catalog_price else "无市场基准数据（需同行 PO 成交价）",
+        "peer_avg_price": f"¥{float(peer_catalog_price):.4f}" if peer_catalog_price else "无数据（需同行目录价）",
         "premium_discount": premium_discount,
         "anomaly_products": anomaly_products_text,
     }
@@ -599,7 +619,7 @@ async def get_supplier_360(db: AsyncSession, supplier_id: int) -> dict:
     )
     supplier = result.scalar_one_or_none()
     if not supplier:
-        return {"error": f"供应商 #{supplier_id} 不存在"}
+        raise ValueError(f"供应商 #{supplier_id} 不存在")
 
     now = datetime.now(timezone.utc)
     six_months_ago = now - timedelta(days=180)
@@ -609,6 +629,7 @@ async def get_supplier_360(db: AsyncSession, supplier_id: int) -> dict:
         select(PurchaseOrder).where(
             PurchaseOrder.supplier_id == supplier_id,
             PurchaseOrder.created_at >= six_months_ago,
+            PurchaseOrder.deleted_at.is_(None),
         )
     )
     pos = po_result.scalars().all()
@@ -693,7 +714,7 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
     """Compare multiple suppliers across dimensions using local scoring."""
 
     if len(supplier_ids) < 2:
-        return {"error": "至少需要2个供应商进行比较"}
+        raise ValueError("至少需要2个供应商进行比较")
 
     from collections import defaultdict
     from app.models.transaction import PurchaseOrder
@@ -705,7 +726,10 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
     supplier_map = {s.id: s for s in supplier_rows.scalars().all()}
 
     po_rows = await db.execute(
-        select(PurchaseOrder).where(PurchaseOrder.supplier_id.in_(supplier_ids))
+        select(PurchaseOrder).where(
+            PurchaseOrder.supplier_id.in_(supplier_ids),
+            PurchaseOrder.deleted_at.is_(None),
+        )
     )
     po_by_supplier: dict[int, list] = defaultdict(list)
     for po in po_rows.scalars().all():
@@ -734,7 +758,7 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
         # - 采购历史：每张PO 3分，上限20分（历史合作深度指标）
         # - 产品覆盖：每关联1个产品4分，上限20分（供应链广度指标）
         # - 供应商类型：原厂/授权分销商20分，其他12分（供货可靠性保障）
-        cert_score = 20 if supplier.certifications else 5
+        cert_score = 20 if (supplier.certifications and supplier.certifications not in ("无", "")) else 5
         fin_score = {"A": 20, "B": 15, "C": 10, "D": 5}.get(supplier.financial_rating or "C", 10)
         po_score = min(len(pos) * 3, 20)
         prod_score = min(len(sps) * 4, 20)
@@ -777,21 +801,15 @@ async def compare_suppliers(db: AsyncSession, supplier_ids: list[int]) -> dict:
         dimensions[3]["scores"][s["name"]] = min(s["linked_products"] * 4, 20)
         dimensions[4]["scores"][s["name"]] = 20 if s["type"] in ("授权分销商", "原厂") else 12
 
-    # 空结果保护
+    # 空结果保护 — 路由层 ValueError → 404
     if not suppliers_data:
-        return {
-            "error": "未找到有效的供应商数据",
-            "comparison_matrix": [],
-            "overall_ranking": [],
-            "best_in_category": [],
-            "recommendation": "",
-            "summary": "",
-            "context": {"compared_ids": supplier_ids},
-        }
+        raise ValueError("未找到有效的供应商数据（所有ID均不存在或已删除）")
 
     # 每个维度的 winner
     best_in_category = []
     for dim in dimensions:
+        if not dim["scores"]:
+            continue
         winner_name = max(dim["scores"], key=dim["scores"].get)
         winner_score = dim["scores"][winner_name]
         best_in_category.append({
@@ -830,7 +848,7 @@ async def get_supplier_negotiation(db: AsyncSession, supplier_id: int) -> dict:
     )
     supplier = result.scalar_one_or_none()
     if not supplier:
-        return {"error": f"供应商 #{supplier_id} 不存在"}
+        raise ValueError(f"供应商 #{supplier_id} 不存在")
 
     # PO history
     po_result = await db.execute(

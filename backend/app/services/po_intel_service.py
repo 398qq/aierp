@@ -92,9 +92,10 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
             .group_by(InventoryTransaction.product_id)
         )).all()
         if tx_rows:
+            inv_map = {p.id: p.name for _, p in inv_rows}
             parts = []
             for pid, total_qty in tx_rows:
-                product_name = next((p.name for _, p in inv_rows if p.id == pid), f"产品#{pid}")
+                product_name = inv_map.get(pid, f"产品#{pid}")
                 parts.append(f"{product_name}: 日均{round(float(total_qty) / 30, 1)}")
             daily_consumption = ", ".join(parts)
 

@@ -970,11 +970,18 @@ async def compare_suppliers_route(supplier_ids: list[int] = Body(...), db: Async
     from app.services.supplier_intel_service import compare_suppliers
     if len(supplier_ids) < 2:
         return fail("supplier_ids 必须是至少包含2个ID的数组", 400)
+    if len(supplier_ids) > 10:
+        return fail("supplier_ids 最多支持10个供应商对比", 400)
+    if len(set(supplier_ids)) != len(supplier_ids):
+        return fail("supplier_ids 不能包含重复ID", 400)
     try:
         result = await compare_suppliers(db, supplier_ids)
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"compare_suppliers error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 # ============================================================
@@ -989,6 +996,9 @@ async def supplier_scorecard(supplier_id: int, db: AsyncSession = Depends(get_db
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"get_supplier_scorecard error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 @router.post("/suppliers/{supplier_id}/delay-prediction")
@@ -999,6 +1009,9 @@ async def supplier_delay_prediction(supplier_id: int, db: AsyncSession = Depends
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"predict_supplier_delay error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 @router.post("/suppliers/{supplier_id}/alternatives")
@@ -1009,6 +1022,9 @@ async def supplier_alternatives(supplier_id: int, db: AsyncSession = Depends(get
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"get_supplier_alternatives error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 @router.post("/suppliers/{supplier_id}/price-variance")
@@ -1019,6 +1035,9 @@ async def supplier_price_variance(supplier_id: int, db: AsyncSession = Depends(g
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"detect_supplier_price_variance error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 @router.post("/suppliers/{supplier_id}/360")
@@ -1029,6 +1048,9 @@ async def supplier_360(supplier_id: int, db: AsyncSession = Depends(get_db), _us
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"get_supplier_360 error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 @router.post("/suppliers/{supplier_id}/negotiation")
@@ -1039,6 +1061,9 @@ async def supplier_negotiation(supplier_id: int, db: AsyncSession = Depends(get_
         return ok(result)
     except ValueError as e:
         return fail(str(e), 404)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"get_supplier_negotiation error: {e}")
+        return fail("服务内部错误，请稍后重试", 500)
 
 
 # ============================================================

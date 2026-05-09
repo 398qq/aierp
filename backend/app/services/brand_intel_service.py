@@ -33,8 +33,8 @@ async def _brand_context(db: AsyncSession, brand_id: int) -> dict:
     cat_counts: dict[str, int] = {}
     pkg_counts: dict[str, int] = {}
     for p in products:
-        cat = p[3] or "未分类"
-        pkg = p[4] or "未知"
+        cat = p[3] if p[3] is not None else "未分类"
+        pkg = p[4] if p[4] is not None else "未知"
         cat_counts[cat] = cat_counts.get(cat, 0) + 1
         pkg_counts[pkg] = pkg_counts.get(pkg, 0) + 1
 
@@ -43,7 +43,7 @@ async def _brand_context(db: AsyncSession, brand_id: int) -> dict:
 
     # Sample products
     sample = ", ".join(
-        f"{p[2] or p[1] or '#'+str(p[0])}" for p in products[:5]
+        f"{p[2] if p[2] is not None else p[1] if p[1] is not None else '#'+str(p[0])}" for p in products[:5]
     )
 
     # Supplier count
@@ -961,8 +961,8 @@ async def get_brand_customer_penetration(db: AsyncSession, brand_id: int) -> dic
             for r in cust_rows:
                 cid = r[0] or 0
                 ind, lvl = cust_details.get(cid, ("未知", "未知"))
-                ind = ind or "未知"
-                lvl = lvl or "未知"
+                ind = ind if ind is not None else "未知"
+                lvl = lvl if lvl is not None else "未知"
                 ind_counts[ind] = ind_counts.get(ind, 0) + 1
                 lvl_counts[lvl] = lvl_counts.get(lvl, 0) + 1
 

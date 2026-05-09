@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, Select, Table, Tag, Typography, Spin, Alert, Button, Space, Row, Col, Statistic, Divider } from "antd";
+import { Card, Select, Table, Tag, Typography, Spin, Alert, Button, Space, Row, Col } from "antd";
 import { TrophyOutlined, SwapOutlined, DashboardOutlined } from "@ant-design/icons";
 import { compareSuppliers, getSuppliers } from "../../api";
 import type { SupplierComparison } from "../../types";
@@ -14,12 +14,14 @@ export default function SupplierComparePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
     getSuppliers({ page: 1, page_size: 200 })
       .then((r) => {
         const list = r.data.data?.list || r.data.data || [];
         setSupplierOptions(list.map((s: { id: number; name: string }) => ({ value: s.id, label: s.name })));
       })
       .catch(() => setError("加载供应商列表失败"));
+    return () => controller.abort();
   }, []);
 
   const handleCompare = async () => {
@@ -28,19 +30,36 @@ export default function SupplierComparePage() {
     setError("");
     try {
       const r = await compareSuppliers(selectedIds);
-      setData(r.data.data);
-    } catch {
-      setError("对比分析失败，请稍后重试");
+      const raw = r.data.data as (Record<string, unknown> & SupplierComparison) | null;
+      if (raw?.error) {
+        setError(String(raw.error));
+        setData(null);
+        return;
+      }
+      setData(raw as SupplierComparison | null);
+    } catch (err: unknown) {
+      // 优先读取 axios 封装的后端错误体（err.response.data.msg），其次读取 HTTP 状态文本，最后用默认文案
+      const axiosErr = err as { response?: { data?: { msg?: string }; status?: number }; message?: string };
+      const backendMsg = axiosErr.response?.data?.msg;
+      const httpStatus = axiosErr.response?.status;
+      const msg = axiosErr.message || String(err);
+      if (backendMsg) {
+        setError(backendMsg);
+      } else if (httpStatus === 404 || msg.includes("404") || msg.includes("未找到") || msg.includes("不存在")) {
+        setError(msg.replace(/^\d+\s*/, "").trim() || "未找到有效的供应商数据");
+      } else {
+        setError("对比分析失败，请稍后重试");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const rankColumns = [
-    { title: "排名", dataIndex: "rank", width: 60, render: (r: number) => <Tag color={r === 1 ? "gold" : r === 2 ? "blue" : "default"}>{r}</Tag> },
+    { title: "排名", dataIndex: "rank", width: 60, render: (r: number | undefined) => r != null ? <Tag color={r === 1 ? "gold" : r === 2 ? "blue" : "default"}>{r}</Tag> : "-" },
     { title: "供应商", dataIndex: "supplier_name" },
-    { title: "总分", dataIndex: "total_score", render: (s: number) => s.toFixed(1) },
-    { title: "等级", dataIndex: "tier", render: (t: string) => <Tag color={t === "A" ? "green" : t === "B" ? "blue" : "orange"}>{t}</Tag> },
+    { title: "总分", dataIndex: "total_score", render: (s: number | undefined) => s != null ? s.toFixed(1) : "-" },
+    { title: "等级", dataIndex: "tier", render: (t: string) => <Tag color={t === "A" ? "green" : t === "B" ? "blue" : t === "C" ? "orange" : "red"}>{t}</Tag> },
   ];
 
   const matrixColumns = data?.comparison_matrix?.[0]?.scores
@@ -49,6 +68,8 @@ export default function SupplierComparePage() {
         { title: "权重", dataIndex: "weight", width: 60, render: (w: number) => `${(w * 100).toFixed(0)}%` },
         ...Object.keys(data.comparison_matrix[0].scores).map((name) => ({
           title: name,
+          // dataIndex 保留为 "dimension" 是为了 Ant Design Table 排序/过滤能力；
+          // 实际单元格值由 render 函数从 record.scores[name] 取值
           dataIndex: "dimension",
           render: (_: unknown, record: { scores: Record<string, number> }) => {
             const val = record.scores?.[name];
@@ -58,15 +79,20 @@ export default function SupplierComparePage() {
       ]
     : [];
 
-  // Derive per-dimension winners from comparison_matrix when best_in_category is insufficient
-  const displayBestInCategory = data?.best_in_category && data.best_in_category.length > 1
+  // Derive per-dimension winners from comparison_matrix when best_in_category is unavailable
+  const derivedBestInCategory = data?.comparison_matrix?.map((row): { category: string; winner: string; reason: string } | null => {
+    const scores = row.scores || {};
+    const entries = Object.entries(scores);
+    if (entries.length === 0) return null;
+    const winnerEntry = entries.reduce((best, [name, score]) =>
+      score > (scores[best[0]] ?? -Infinity) ? [name, score] : best,
+      entries[0] || ["", 0]);
+    return { category: row.dimension, winner: winnerEntry[0], reason: `得分${winnerEntry[1]}` };
+  }).filter((item): item is { category: string; winner: string; reason: string } => item !== null) || [];
+
+  const displayBestInCategory = (data?.best_in_category && data.best_in_category.length > 0)
     ? data.best_in_category
-    : (data?.comparison_matrix?.map((row) => {
-        const scores = row.scores || {};
-        const winnerName = Object.entries(scores).reduce((best, [name, score]) =>
-          score > (scores[best] ?? -Infinity) ? name : best, Object.keys(scores)[0] || "");
-        return { category: row.dimension, winner: winnerName, reason: "维度最高评分" };
-      }) || []);
+    : derivedBestInCategory;
 
   return (
     <div style={{ padding: 24 }}>
@@ -89,6 +115,9 @@ export default function SupplierComparePage() {
           <Button type="primary" onClick={handleCompare} loading={loading} disabled={selectedIds.length < 2}>
             开始对比
           </Button>
+          {selectedIds.length === 1 && !loading && (
+            <Text type="secondary" style={{ fontSize: 12 }}>⚠ 至少需要选择 2 个供应商才能开始对比</Text>
+          )}
         </Space>
       </Card>
 
