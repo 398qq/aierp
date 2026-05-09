@@ -47,6 +47,9 @@ const ContractDetail = lazy(() => import("./pages/sales/ContractDetail"));
 const ContractForm = lazy(() => import("./pages/sales/ContractForm"));
 const TargetList = lazy(() => import("./pages/sales/TargetList"));
 const TargetForm = lazy(() => import("./pages/sales/TargetForm"));
+const PurchaseOrderList = lazy(() => import("./pages/sales/PurchaseOrderList"));
+const PurchaseOrderForm = lazy(() => import("./pages/sales/PurchaseOrderForm"));
+const PurchaseOrderDetail = lazy(() => import("./pages/sales/PurchaseOrderDetail"));
 const SalesDashboard = lazy(() => import("./pages/sales/SalesDashboard"));
 const NotificationList = lazy(() => import("./pages/notifications/index"));
 const Product360 = lazy(() => import("./pages/products/Product360"));
@@ -133,6 +136,10 @@ export default function App() {
               <Route path="/sales/payments" element={<Suspense fallback={<PageLoader />}><PaymentList /></Suspense>} />
               <Route path="/sales/payments/new" element={<Suspense fallback={<PageLoader />}><PaymentForm /></Suspense>} />
               <Route path="/sales/payments/:id/edit" element={<Suspense fallback={<PageLoader />}><PaymentForm /></Suspense>} />
+              <Route path="/sales/purchase-orders" element={<Suspense fallback={<PageLoader />}><PurchaseOrderList /></Suspense>} />
+              <Route path="/sales/purchase-orders/new" element={<Suspense fallback={<PageLoader />}><PurchaseOrderForm /></Suspense>} />
+              <Route path="/sales/purchase-orders/:id/edit" element={<Suspense fallback={<PageLoader />}><PurchaseOrderForm /></Suspense>} />
+              <Route path="/sales/purchase-orders/:id" element={<Suspense fallback={<PageLoader />}><PurchaseOrderDetail /></Suspense>} />
               <Route path="/sales/contracts" element={<Suspense fallback={<PageLoader />}><ContractList /></Suspense>} />
               <Route path="/sales/contracts/new" element={<Suspense fallback={<PageLoader />}><ContractForm /></Suspense>} />
               <Route path="/sales/contracts/:id" element={<Suspense fallback={<PageLoader />}><ContractDetail /></Suspense>} />

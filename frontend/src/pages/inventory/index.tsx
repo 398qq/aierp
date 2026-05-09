@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button } from "antd";
-import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined } from "@ant-design/icons";
+import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button, Select } from "antd";
+import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined, ShoppingCartOutlined, DownloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast } from "../../api";
+import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast, createPOFromRestock, getSuppliers, batchAdjustInventory } from "../../api";
 import type { InventoryItem } from "../../types";
 
 const { Text } = Typography;
@@ -21,6 +21,11 @@ export default function InventoryList() {
   const [adjusting, setAdjusting] = useState(false);
   const [forecastData, setForecastData] = useState<Record<string, unknown>[]>([]);
   const [forecastLoading, setForecastLoading] = useState(false);
+  const [restockModalOpen, setRestockModalOpen] = useState(false);
+  const [restockSupplierId, setRestockSupplierId] = useState<number | null>(null);
+  const [restockItems, setRestockItems] = useState<{ product_id: number; quantity: number; sku?: string; name?: string }[]>([]);
+  const [restocking, setRestocking] = useState(false);
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
   const navigate = useNavigate();
 
   const fetch = async (p = page) => {
@@ -74,6 +79,91 @@ export default function InventoryList() {
     setAdjustModalOpen(true);
   };
 
+  const openRestockModal = async () => {
+    const list = restockList as Record<string, unknown>[] | undefined;
+    if (!list?.length) return;
+    // Pre-fill from restock suggestions
+    setRestockItems(list.map((s) => ({
+      product_id: s.product_id as number,
+      quantity: s.suggested_order as number,
+      sku: s.sku as string,
+      name: s.name as string,
+    })));
+    setRestockSupplierId(null);
+    setRestockModalOpen(true);
+    // Load suppliers if needed
+    if (suppliers.length === 0) {
+      try {
+        const r = await getSuppliers({ page: 1, page_size: 100 });
+        setSuppliers((r.data.data?.list || []) as { id: number; name: string }[]);
+      } catch { message.error("加载供应商列表失败"); }
+    }
+  };
+
+  const handleRestock = async () => {
+    if (!restockSupplierId || restockItems.length === 0) return;
+    setRestocking(true);
+    try {
+      const payload = {
+        supplier_id: restockSupplierId,
+        items: restockItems.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+        notes: "AI补货建议一键生成",
+      };
+      await createPOFromRestock(payload);
+      message.success("采购订单已生成，请前往采购模块查看");
+      setRestockModalOpen(false);
+    } catch { message.error("生成采购订单失败"); }
+    finally { setRestocking(false); }
+  };
+
+  // --- Batch operations ---
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchAdjustQty, setBatchAdjustQty] = useState(0);
+  const [batchReason, setBatchReason] = useState("batch");
+  const [batching, setBatching] = useState(false);
+
+  const handleBatchAdjust = async () => {
+    if (selectedRowKeys.length === 0 || batchAdjustQty === 0) return;
+    setBatching(true);
+    try {
+      const items = selectedRowKeys.map((key) => {
+        const row = data.find((r) => r.id === Number(key));
+        return {
+          product_id: row!.product_id,
+          warehouse_id: row!.warehouse_id,
+          adjustment: batchAdjustQty,
+          reason: batchReason,
+        };
+      });
+      await batchAdjustInventory(items);
+      message.success(`已批量调整 ${items.length} 项`);
+      setBatchModalOpen(false);
+      setSelectedRowKeys([]);
+      fetch();
+    } catch { message.error("批量调整失败"); }
+    finally { setBatching(false); }
+  };
+
+  const handleBatchExport = () => {
+    const rows = selectedRowKeys.length > 0
+      ? data.filter((r) => selectedRowKeys.includes(r.id))
+      : data;
+    const header = "仓库,产品,SKU,分类,品牌,在库,已锁,可用,安全库存\n";
+    const csv = header + rows.map((r) => {
+      const avail = (r.quantity || 0) - (r.locked_quantity || 0);
+      return `${r.warehouse_name || `#${r.warehouse_id}`},${r.product_name || ""},${r.sku || ""},${r.category || ""},${r.brand_name || ""},${r.quantity},${r.locked_quantity || 0},${avail},${r.safety_stock}`;
+    }).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `库存导出_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success(`已导出 ${rows.length} 条`);
+  };
+
   const columns: ColumnsType<InventoryItem> = [
     {
       title: "仓库", dataIndex: "warehouse_name", key: "wh", width: 100,
@@ -86,19 +176,30 @@ export default function InventoryList() {
     { title: "SKU", dataIndex: "sku", key: "sku", width: 100 },
     { title: "分类", dataIndex: "category", key: "cat", width: 60, render: (v) => v ? <Tag>{v}</Tag> : null },
     { title: "品牌", dataIndex: "brand_name", key: "brand", width: 80 },
-    { title: "数量", dataIndex: "quantity", key: "qty", width: 60 },
+    { title: "在库", dataIndex: "quantity", key: "qty", width: 60 },
+    {
+      title: "已锁", dataIndex: "locked_quantity", key: "locked", width: 50,
+      render: (v: number) => v > 0 ? <Tag color="orange">{v}</Tag> : <Text type="secondary">0</Text>,
+    },
+    {
+      title: "可用", key: "available", width: 60,
+      render: (_: unknown, r: InventoryItem) => {
+        const avail = (r.quantity || 0) - (r.locked_quantity || 0);
+        return <Text strong style={{ color: avail <= 0 ? "#ff4d4f" : "#52c41a" }}>{avail}</Text>;
+      },
+    },
     { title: "安全库存", dataIndex: "safety_stock", key: "safe", width: 70 },
     {
       title: "库存水位", key: "level", width: 120,
       render: (_: unknown, r) => {
-        const qty = r.quantity || 0;
+        const avail = (r.quantity || 0) - (r.locked_quantity || 0);
         const safe = r.safety_stock || 1;
-        const pct = Math.min(100, Math.round((qty / Math.max(safe, 1)) * 100));
+        const pct = Math.min(100, Math.round((avail / Math.max(safe, 1)) * 100));
         return (
           <Progress
             percent={pct} size="small"
-            status={qty <= safe ? "exception" : "success"}
-            format={() => `${qty}/${safe}`}
+            status={avail <= safe ? "exception" : "success"}
+            format={() => `${avail}/${safe}`}
           />
         );
       },
@@ -106,10 +207,11 @@ export default function InventoryList() {
     {
       title: "状态", key: "status", width: 60,
       render: (_: unknown, r) => {
-        const qty = r.quantity || 0;
+        const avail = (r.quantity || 0) - (r.locked_quantity || 0);
         const safe = r.safety_stock || 0;
-        if (qty === 0) return <Tag color="red">缺货</Tag>;
-        if (qty <= safe) return <Tag color="orange">低库存</Tag>;
+        if (r.quantity === 0) return <Tag color="red">缺货</Tag>;
+        if (avail <= 0) return <Tag color="orange">已锁</Tag>;
+        if (avail <= safe) return <Tag color="orange">低库存</Tag>;
         return <Tag color="green">正常</Tag>;
       },
     },
@@ -166,6 +268,7 @@ export default function InventoryList() {
       {restockList && restockList.length > 0 && (
         <Card
           title={<span><RiseOutlined /> 补货建议</span>}
+          extra={<Button type="primary" size="small" icon={<ShoppingCartOutlined />} onClick={openRestockModal}>一键补货</Button>}
           size="small"
           style={{ marginBottom: 16, borderColor: "#faad14" }}
         >
@@ -229,7 +332,22 @@ export default function InventoryList() {
       {/* Inventory Table */}
       <Card
         title="库存列表"
-        extra={<Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>}
+        extra={
+          <Space>
+            {selectedRowKeys.length > 0 && (
+              <>
+                <Button size="small" icon={<SwapOutlined />} onClick={() => setBatchModalOpen(true)}>
+                  批量调整 ({selectedRowKeys.length})
+                </Button>
+                <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>
+                  导出 ({selectedRowKeys.length})
+                </Button>
+              </>
+            )}
+            <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>全部导出</Button>
+            <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+          </Space>
+        }
       >
         <Table
           rowKey="id"
@@ -237,6 +355,10 @@ export default function InventoryList() {
           dataSource={data}
           loading={loading}
           size="small"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
           pagination={{
             current: page, total, pageSize: 20,
             showTotal: (t) => `共 ${t} 条`,
@@ -265,9 +387,11 @@ export default function InventoryList() {
               {adjustProduct.warehouse_name || `#${adjustProduct.warehouse_id}`}
             </p>
             <p>
-              <Text strong>当前库存: </Text>
+              <Text strong>在库: </Text>
               <Tag>{adjustProduct.quantity}</Tag>
-              <Text type="secondary">安全库存: {adjustProduct.safety_stock}</Text>
+              <Text type="secondary"> | 已锁: {adjustProduct.locked_quantity || 0}</Text>
+              <Text type="secondary"> | 可用: {(adjustProduct.quantity || 0) - (adjustProduct.locked_quantity || 0)}</Text>
+              <Text type="secondary"> | 安全库存: {adjustProduct.safety_stock}</Text>
             </p>
             <Space direction="vertical" style={{ width: "100%" }}>
               <div>
@@ -290,6 +414,88 @@ export default function InventoryList() {
             </Space>
           </>
         )}
+      </Modal>
+
+      {/* Restock Modal */}
+      <Modal
+        title="一键补货 — 生成采购订单"
+        open={restockModalOpen}
+        onCancel={() => setRestockModalOpen(false)}
+        onOk={handleRestock}
+        confirmLoading={restocking}
+        okText="生成采购订单"
+        width={640}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text strong>选择供应商: </Text>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="搜索并选择供应商"
+            value={restockSupplierId}
+            onChange={(v) => setRestockSupplierId(v)}
+            style={{ width: "100%", marginTop: 8 }}
+            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+          />
+        </div>
+        <div>
+          <Text strong>补货清单:</Text>
+          <Table
+            size="small"
+            style={{ marginTop: 8 }}
+            dataSource={restockItems.map((item, idx) => ({ ...item, key: idx }))}
+            rowKey="key"
+            pagination={false}
+            columns={[
+              { title: "SKU", dataIndex: "sku", width: 100 },
+              { title: "产品", dataIndex: "name", ellipsis: true },
+              {
+                title: "补货数量", dataIndex: "quantity", width: 100,
+                render: (_: unknown, r: Record<string, unknown>, idx: number) => (
+                  <InputNumber
+                    min={1}
+                    value={r.quantity as number}
+                    onChange={(v) => {
+                      const next = [...restockItems];
+                      next[idx] = { ...next[idx], quantity: v || 1 };
+                      setRestockItems(next);
+                    }}
+                  />
+                ),
+              },
+            ]}
+          />
+        </div>
+      </Modal>
+
+      {/* Batch Adjust Modal */}
+      <Modal
+        title={`批量调整库存 (${selectedRowKeys.length} 项)`}
+        open={batchModalOpen}
+        onCancel={() => setBatchModalOpen(false)}
+        onOk={handleBatchAdjust}
+        confirmLoading={batching}
+        okText="确认调整"
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div>
+            <Text>调整数量（正数入库，负数出库）:</Text>
+            <InputNumber
+              value={batchAdjustQty}
+              onChange={(v) => setBatchAdjustQty(v || 0)}
+              style={{ width: "100%", marginTop: 4 }}
+            />
+          </div>
+          <div>
+            <Text>原因:</Text>
+            <Input
+              value={batchReason}
+              onChange={(e) => setBatchReason(e.target.value)}
+              placeholder="批量调整/盘点差异等"
+              style={{ marginTop: 4 }}
+            />
+          </div>
+        </Space>
       </Modal>
 
       {/* Demand Forecast Section */}

@@ -15,7 +15,7 @@ export default function SupplierComparePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getSuppliers({ page: 1, page_size: 200 })
+    getSuppliers({ page: 1, page_size: 100 })
       .then((r) => {
         const list = r.data.data?.list || r.data.data || [];
         setSupplierOptions(list.map((s: { id: number; name: string }) => ({ value: s.id, label: s.name })));

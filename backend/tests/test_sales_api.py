@@ -1,5 +1,4 @@
 """Sales API tests — opportunities, quotations, sales orders, delivery notes."""
-import pytest
 from httpx import AsyncClient
 
 

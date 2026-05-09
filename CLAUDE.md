@@ -344,37 +344,33 @@ Supplier analysis is accessible from **SupplierDetail page**:
 ## Current Git Status
 
 ```
-Branch: master (up to date with origin/master)
-
-Staged (to be committed):
-  deleted: backend/test.db
-  deleted: backend/test_debug.db
-  deleted: backend/test_debug2.db
-  deleted: backend/test_f.db
-
-Modified (not staged):
-  modified: .gitignore
-  modified: frontend/src/pages/suppliers/SupplierCompare.tsx
-  modified: frontend/src/types/index.ts
-
-Untracked:
-  frontend/src/pages/auth/LoginA.html
-  frontend/src/pages/auth/LoginB.html
-  frontend/src/pages/auth/LoginDesign.html
-  venv312/
+Branch: master (1 commit ahead of origin/master)
+Working tree: clean
+Last commit: 8d23f6a — fix: supplier对比模块 + AI服务路由 深度修复（Claude Code 10轮审查）
 ```
 
 ### Recent Commits
 
 | Commit | Description |
 |--------|-------------|
+| `8d23f6a` | fix: supplier对比模块 + AI服务路由 深度修复（Claude Code 10轮审查） |
+| `8cfd095` | fix: SupplierCompare — 10 critical/medium bugs across frontend and backend |
+| `c172120` | feat: add supplier delete endpoint + enhance supplier list |
+| `b190769` | feat: pipeline kanban board + customer→supplier conversion |
+| `834d272` | fix: deep audit round 2 — 11 critical/high bugs across 4 dimensions |
+| `1af68c6` | fix: deep audit — 5 categories of bugs across backend and frontend |
+| `c7a55c4` | fix: sales module — ORM relationships, schema fields, notification filter |
+| `221eb96` | feat: add CLAUDE.md, brand-analysis-agent, brand-intel skill |
 | `837561a` | fix: backend lint — E701/E712/F841/E501 |
 | `b50b18e` | fix: Phase 4 SupplierCompare TypeError, rowKey collision, NaN guards |
-| `862a7f3` | fix: brand_intel_service N+1 query + column index bug |
-| `78a4495` | **feat: Phase 4** — Product360, Supplier360, SupplierCompare, Global360, WatchtowerDashboard |
-| `3473048` | **feat: Phase 3** — embeddings, customer intelligence, predictive analytics |
-| `fe4e952` | feat: AI-native sales intelligence + test framework |
-| `5312f7d` | feat: AI Sales Assistant chat page with SSE streaming |
-| `b5bf4e3` | feat: Sales Pipeline Kanban board with drag-and-drop |
-| `d7748bc` | feat: Sales funnel, stats, flow convert, batch ops, AI, auto-no, excel |
-| `1324741` | feat: full CRUD for opportunities, quotations, orders, delivery notes |
+
+---
+
+## Cross-Project Standards
+
+See `~/.claude/CLAUDE.md` for:
+- Commit message conventions
+- Document naming (3-digit prefix, 9-chapter PRD structure)
+- File naming standards
+- Docs directory structure rules
+- Universal coding standards

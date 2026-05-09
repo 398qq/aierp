@@ -185,7 +185,7 @@ export interface Warehouse {
 
 export interface InventoryItem {
   id: number; product_id: number; warehouse_id: number;
-  quantity: number; safety_stock: number; created_at: string;
+  quantity: number; safety_stock: number; locked_quantity: number; created_at: string;
   sku?: string; product_name?: string; category?: string;
   brand_name?: string; warehouse_name?: string;
 }
@@ -193,6 +193,7 @@ export interface InventoryItem {
 // Transactions
 export interface PurchaseOrder {
   id: number; order_no: string | null; supplier_id: number;
+  supplier_name?: string;
   status: string; total_amount: number; expected_date: string | null;
   notes: string | null; created_at: string;
 }
@@ -876,7 +877,18 @@ export interface Product360 {
   context?: Record<string, unknown>;
 }
 
+export interface DailyReport {
+  report_date: string; generated_at: string;
+  metrics: {
+    orders_today: number; revenue_today: number; new_customers: number;
+    payments_today: number; payments_amount_today: number;
+    low_stock_items: number; out_of_stock_items: number;
+  };
+  ai_summary: string; mood: string; top_action: string;
+}
+
 export interface Global360 {
+  scanned_at?: string;
   enterprise_health_score: number;
   executive_summary: string;
   top_opportunities: { area: string; description: string; potential_value: number; effort?: string; timeframe?: string }[];

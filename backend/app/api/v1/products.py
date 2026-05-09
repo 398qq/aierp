@@ -663,7 +663,7 @@ async def list_inventory(
         Inventory.quantity, Inventory.safety_stock, Inventory.created_at,
         Product.sku, Product.name, Product.category,
         Brand.name_cn, Brand.name,
-        Warehouse.name,
+        Warehouse.name, Inventory.locked_quantity,
     ).select_from(Inventory).join(
         Product, Inventory.product_id == Product.id
     ).outerjoin(
@@ -694,6 +694,7 @@ async def list_inventory(
             "quantity": r[3], "safety_stock": r[4], "created_at": str(r[5]) if r[5] else None,
             "sku": r[6], "product_name": r[7], "category": r[8],
             "brand_name": r[9] or r[10], "warehouse_name": r[11],
+            "locked_quantity": r[12] or 0,
         } for r in rows],
         "total": total, "page": page, "page_size": page_size,
     })
@@ -721,6 +722,34 @@ async def inventory_adjust(
     result = await adjust_inventory(db, product_id, warehouse_id, adjustment, reason)
     await db.commit()
     return ok(result)
+
+
+class BatchAdjustItem(BaseModel):
+    product_id: int
+    warehouse_id: int = 1
+    adjustment: int
+    reason: str = "batch"
+
+
+class BatchAdjustBody(BaseModel):
+    items: list[BatchAdjustItem] = Field(min_length=1, max_length=100)
+
+
+@inventory_router.post("/batch-adjust")
+async def inventory_batch_adjust(
+    body: BatchAdjustBody,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Batch adjust inventory for multiple items."""
+    from app.services.inventory_service import adjust_inventory
+
+    results = []
+    for item in body.items:
+        r = await adjust_inventory(db, item.product_id, item.warehouse_id, item.adjustment, item.reason)
+        results.append(r)
+    await db.commit()
+    return ok({"adjusted": len(results), "details": results})
 
 
 @inventory_router.get("/{product_id}/substitutes")

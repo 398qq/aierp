@@ -60,9 +60,9 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/dashboard", "/customers", "/products", "/brands", "/suppliers", "/inventory", "/ai/chat", "/settings", "/sales"];
+  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/ai/chat", "/settings", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets"];
   const selectedKey = menuKeys
-    .filter((k) => location.pathname === k || (k !== "/" && location.pathname.startsWith(k + "/")))
+    .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export default function MainLayout() {
 
   const menuItems = [
     {
-      key: "/", icon: <DashboardOutlined />, label: "仪表板",
+      key: "_grp_dashboard", icon: <DashboardOutlined />, label: "仪表板",
       children: [
         { key: "/", icon: <DashboardOutlined />, label: "经营总览" },
         { key: "/dashboard/global360", icon: <PieChartOutlined />, label: "全局360" },
@@ -87,18 +87,18 @@ export default function MainLayout() {
       ],
     },
     {
-      key: "/customers", icon: <TeamOutlined />, label: "客户管理",
+      key: "_grp_customers", icon: <TeamOutlined />, label: "客户管理",
       children: [
         { key: "/customers", icon: <TeamOutlined />, label: "客户列表" },
         { key: "/customers/segments", icon: <PieChartOutlined />, label: "客户分群" },
       ],
     },
     {
-      key: "/products", icon: <ShopOutlined />, label: "产品管理",
+      key: "_grp_products", icon: <ShopOutlined />, label: "产品管理",
       children: [
         { key: "/products", icon: <ShopOutlined />, label: "产品列表" },
         { key: "/brands", icon: <TagOutlined />, label: "品牌管理" },
-        { key: "/suppliers", icon: <TeamOutlined />, label: "供应商",
+        { key: "_grp_suppliers", icon: <TeamOutlined />, label: "供应商",
           children: [
             { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
             { key: "/suppliers", icon: <TeamOutlined />, label: "供应商列表" },
@@ -118,6 +118,7 @@ export default function MainLayout() {
         { key: "/sales/delivery-notes", icon: <CarOutlined />, label: "发货管理" },
         { key: "/sales/invoices", icon: <FileDoneOutlined />, label: "发票管理" },
         { key: "/sales/payments", icon: <DollarOutlined />, label: "回款管理" },
+        { key: "/sales/purchase-orders", icon: <ShoppingCartOutlined />, label: "采购订单" },
         { key: "/sales/contracts", icon: <ProfileOutlined />, label: "合同管理" },
         { key: "/sales/targets", icon: <AimOutlined />, label: "销售目标" },
       ],

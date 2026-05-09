@@ -247,6 +247,110 @@ async def _populate_customer_insights():
         logger.error(f"scheduler: populate_customer_insights failed: {e}")
 
 
+async def _generate_daily_report():
+    """Generate and store daily cross-domain report."""
+    try:
+        from datetime import datetime, timezone
+        from sqlalchemy import func, select
+        from app.models.sales import SalesOrder
+        from app.models.customer import Customer
+        from app.models.product import Inventory
+        from app.models.finance import Notification
+        from app.models.transaction import Payment
+        from app.services.notification_service import create_notification
+
+        async with async_session() as db:
+            now = datetime.now(timezone.utc)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today = now.strftime("%Y-%m-%d")
+
+            exists = (await db.execute(
+                select(func.count(Notification.id)).where(
+                    Notification.type == "daily_report",
+                    Notification.created_at >= today_start,
+                )
+            )).scalar() or 0
+            if exists > 0:
+                return
+
+            # Metrics
+            today_orders = (await db.execute(
+                select(func.count(SalesOrder.id), func.coalesce(func.sum(SalesOrder.total_amount), 0))
+                .where(SalesOrder.deleted_at.is_(None), SalesOrder.created_at >= today_start)
+            )).first()
+            orders_count = today_orders[0] if today_orders else 0
+            orders_amount = float(today_orders[1]) if today_orders else 0.0
+
+            new_cust = (await db.execute(
+                select(func.count(Customer.id)).where(
+                    Customer.deleted_at.is_(None), Customer.created_at >= today_start)
+            )).scalar() or 0
+
+            low_stock = (await db.execute(
+                select(func.count(Inventory.id)).where(
+                    Inventory.deleted_at.is_(None),
+                    Inventory.quantity <= Inventory.safety_stock, Inventory.quantity > 0)
+            )).scalar() or 0
+            out_of_stock = (await db.execute(
+                select(func.count(Inventory.id)).where(
+                    Inventory.deleted_at.is_(None), Inventory.quantity <= 0)
+            )).scalar() or 0
+
+            today_payments = (await db.execute(
+                select(func.count(Payment.id), func.coalesce(func.sum(Payment.amount), 0))
+                .where(Payment.deleted_at.is_(None), Payment.created_at >= today_start)
+            )).first()
+            payments_count = today_payments[0] if today_payments else 0
+            payments_amount = float(today_payments[1]) if today_payments else 0.0
+
+            # AI summary
+            try:
+                from app.services.ai.client import ai_client
+                prompt = (
+                    f"Today's ERP snapshot ({today}):\n"
+                    f"- New orders: {orders_count}, revenue: ¥{orders_amount:,.2f}\n"
+                    f"- New customers: {new_cust}\n"
+                    f"- Payments received: {payments_count}, amount: ¥{payments_amount:,.2f}\n"
+                    f"- Low stock products: {low_stock}\n"
+                    f"- Out of stock products: {out_of_stock}\n\n"
+                    f"Write a 2-3 sentence executive daily briefing in Chinese."
+                )
+                schema = {
+                    "summary": "string, 2-3 sentence executive briefing in Chinese",
+                    "mood": "string: 良好/一般/需关注",
+                    "top_action": "string, single most important action today",
+                }
+                ai = await ai_client.chat_structured(
+                    [{"role": "system", "content": "你是一个ERP日报助手，擅长用简洁的语言总结每日经营状况。"},
+                     {"role": "user", "content": prompt}],
+                    schema,
+                )
+                summary = ai.get("summary", "")
+                mood = ai.get("mood", "一般")
+                top_action = ai.get("top_action", "")
+            except Exception as e:
+                logger.warning(f"Daily report AI failed: {e}")
+                summary = "AI摘要暂不可用"
+                mood = "一般"
+                top_action = ""
+
+            await create_notification(
+                db, user_id=1, type="daily_report",
+                title=f"每日经营报告 — {today} ({mood})",
+                content=(
+                    f"{summary}\n\n"
+                    f"今日订单: {orders_count} 单 / ¥{orders_amount:,.2f}\n"
+                    f"新客户: {new_cust} | 收款: {payments_count} 笔 / ¥{payments_amount:,.2f}\n"
+                    f"低库存: {low_stock} | 缺货: {out_of_stock}\n\n"
+                    f"建议行动: {top_action}"
+                ),
+            )
+            await db.commit()
+            logger.info(f"scheduler: daily report generated for {today}")
+    except Exception as e:
+        logger.error(f"scheduler: daily_report failed: {e}")
+
+
 async def _cleanup_old_notifications():
     """Soft-delete notifications older than 90 days."""
     try:
@@ -272,8 +376,9 @@ def start():
     scheduler.add_job(_refresh_embeddings, "interval", hours=24, id="refresh_embeddings", misfire_grace_time=600)
     scheduler.add_job(_run_watchtower_scan, "interval", hours=4, id="watchtower_scan", misfire_grace_time=300)
     scheduler.add_job(_populate_customer_insights, "interval", hours=24, id="populate_insights", misfire_grace_time=600)
+    scheduler.add_job(_generate_daily_report, "cron", hour=18, minute=0, id="daily_report", misfire_grace_time=600)
     scheduler.start()
-    logger.info("Scheduler started with 8 jobs")
+    logger.info("Scheduler started with 9 jobs")
 
     # Trigger one-off initial runs for embedding + insight population
     async def _initial_bootstrap():

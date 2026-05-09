@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch } from "antd";
+import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
-import { getDeliveryNote } from "../../api";
+import { getDeliveryNote, updateDeliveryNote } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { DeliveryNote } from "../../types";
 
@@ -37,6 +37,11 @@ export default function DeliveryNoteDetail() {
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/delivery-notes")}>返回</Button>
         <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/delivery-notes/${note.id}/edit`)}>编辑</Button>
+        {note.status === "pending" && (
+          <Button type="primary" style={{ background: "#52c41a", borderColor: "#52c41a" }} onClick={async () => {
+            try { await updateDeliveryNote(note.id, { status: "shipped" }); message.success("已发货，库存已自动扣减"); setNote({ ...note, status: "shipped" }); } catch { message.error("操作失败"); }
+          }}>标记发货 (扣减库存)</Button>
+        )}
         <Space>
           <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
           <span style={{ fontSize: 13 }}>AI</span>

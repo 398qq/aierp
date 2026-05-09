@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-restore lint test help
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore lint test help
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -36,9 +36,14 @@ db-reset: ## Reset database
 	@PGPASSWORD=aierp psql -h localhost -U aierp -d postgres -c "CREATE DATABASE aierp OWNER aierp;"
 	@echo "Database reset. Restart backend to run migrations."
 
-db-restore: ## Restore from backup
-	@PGPASSWORD=aierp pg_restore -h localhost -U aierp -d aierp -c ~/date/aierp_20260506_112657.dump
-	@echo "Database restored from backup."
+db-backup: ## Backup database to ~/date/
+	@mkdir -p ~/date
+	@PGPASSWORD=aierp pg_dump -h localhost -U aierp -d aierp -F c -f ~/date/aierp_$$(date +%Y%m%d_%H%M%S).dump
+	@echo "Database backed up to ~/date/"
+
+db-restore: ## Restore from backup (BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump)
+	@PGPASSWORD=aierp pg_restore -h localhost -U aierp -d aierp -c $(BACKUP)
+	@echo "Database restored."
 
 lint: ## Run linters
 	cd $(BACKEND_DIR) && ruff check app/ && mypy app/ --ignore-missing-imports

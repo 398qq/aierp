@@ -941,12 +941,5 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
 
     return {
         "scanned_at": now.isoformat(),
-        "data": {
-            "sales_overview": json.loads(sales_overview),
-            "customer_overview": json.loads(customer_overview),
-            "supply_chain_overview": json.loads(supply_chain_overview),
-            "finance_overview": json.loads(finance_overview),
-            "ticket_overview": json.loads(ticket_overview),
-        },
-        "insights": ai_insights,
+        **ai_insights,
     }

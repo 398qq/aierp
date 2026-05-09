@@ -18,7 +18,7 @@ export default function DeliveryNoteForm() {
 
   useEffect(() => {
     getCustomers({ page: 1, page_size: 200 }).then((r) => setCustomers(r.data.data.list || []));
-    getSalesOrders({ page: 1, page_size: 200 }).then((r) => setOrders(r.data.data.list || []));
+    getSalesOrders({ page: 1, page_size: 100 }).then((r) => setOrders(r.data.data.list || []));
     if (isEdit) {
       getDeliveryNote(Number(id)).then((r) => {
         const n = r.data.data;

@@ -106,6 +106,7 @@ class Inventory(TimestampMixin, Base):
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
     quantity: Mapped[int] = mapped_column(default=0)
     safety_stock: Mapped[int] = mapped_column(default=0)
+    locked_quantity: Mapped[int] = mapped_column(default=0)
 
 
 class InventoryTransaction(TimestampMixin, Base):

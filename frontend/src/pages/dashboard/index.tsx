@@ -4,11 +4,11 @@ import {
   TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
-import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360 } from "../../api";
-import type { DashboardStats, Visit, CustomerLog, Global360, OverdueFollowUp } from "../../types";
+import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360, getDailyReport } from "../../api";
+import type { DashboardStats, Visit, CustomerLog, Global360, OverdueFollowUp, DailyReport } from "../../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const COLORS = ["#1890ff", "#52c41a", "#faad14", "#ff4d4f", "#722ed1", "#13c2c2"];
 
 export default function Dashboard() {
@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [global360, setGlobal360] = useState<Global360 | null>(null);
   const [g360Loading, setG360Loading] = useState(false);
+  const [dailyReport, setDailyReport] = useState<DailyReport | null>(null);
+  const [drLoading, setDrLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -28,6 +30,7 @@ export default function Dashboard() {
       getRecentActivity(10),
       getOverdueFollowUps(),
       orchestrateGlobal360().then((r) => setGlobal360(r.data.data)).catch(() => {}),
+      getDailyReport().then((r) => setDailyReport(r.data.data as DailyReport)).catch(() => {}),
     ])
       .then(([s, uv, ra, od]) => {
         setStats(s.data.data);
@@ -227,7 +230,7 @@ export default function Dashboard() {
                 <Typography.Paragraph style={{ fontSize: 15, marginBottom: 8, whiteSpace: "pre-wrap" }}>
                   {global360.executive_summary}
                 </Typography.Paragraph>
-                {global360.focus_areas.length > 0 && (
+                {global360.focus_areas?.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <Typography.Text strong style={{ marginRight: 8 }}>重点关注：</Typography.Text>
                     {global360.focus_areas.map((area, i) => (
@@ -368,6 +371,52 @@ export default function Dashboard() {
           </div>
         ) : (
           <div style={{ textAlign: "center", padding: 24 }}><Spin tip="AI 正在分析企业全局数据..." /></div>
+        )}
+      </Card>
+
+      {/* Daily Report */}
+      <Card
+        title={<><CalendarOutlined style={{ marginRight: 8 }} />每日经营报告</>}
+        size="small"
+        style={{ marginTop: 16 }}
+        extra={
+          <Button icon={<ReloadOutlined />} loading={drLoading} onClick={async () => {
+            setDrLoading(true);
+            try { const r = await getDailyReport(); setDailyReport(r.data.data as DailyReport); } catch {}
+            finally { setDrLoading(false); }
+          }}>刷新</Button>
+        }
+      >
+        {dailyReport ? (
+          <div>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={18}>
+                <Paragraph style={{ fontSize: 14, margin: 0 }}>
+                  <Tag color={dailyReport.mood === "良好" ? "green" : dailyReport.mood === "需关注" ? "red" : "orange"}>
+                    {dailyReport.mood}
+                  </Tag>
+                  {dailyReport.ai_summary}
+                </Paragraph>
+                {dailyReport.top_action && (
+                  <Paragraph style={{ marginTop: 8 }}>
+                    <Text strong>建议: </Text><Text>{dailyReport.top_action}</Text>
+                  </Paragraph>
+                )}
+              </Col>
+              <Col xs={24} sm={6}>
+                <Row gutter={[8, 8]}>
+                  <Col span={12}><Statistic title="今日订单" value={dailyReport.metrics.orders_today} suffix="单" /></Col>
+                  <Col span={12}><Statistic title="今日营收" value={dailyReport.metrics.revenue_today} prefix="¥" precision={0} /></Col>
+                  <Col span={12}><Statistic title="新客户" value={dailyReport.metrics.new_customers} /></Col>
+                  <Col span={12}><Statistic title="低库存" value={dailyReport.metrics.low_stock_items} valueStyle={{ color: dailyReport.metrics.low_stock_items > 0 ? "#ff4d4f" : undefined }} /></Col>
+                </Row>
+              </Col>
+            </Row>
+          </div>
+        ) : (
+          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 16 }}>
+            点击刷新生成今日经营报告
+          </Text>
         )}
       </Card>
     </div>

@@ -294,6 +294,9 @@ export const getInventoryOverview = () =>
 export const adjustInventory = (product_id: number, warehouse_id: number, adjustment: number, reason: string) =>
   client.post<APIResponse>(`/inventory/adjust?product_id=${product_id}&warehouse_id=${warehouse_id}&adjustment=${adjustment}&reason=${encodeURIComponent(reason)}`);
 
+export const batchAdjustInventory = (items: { product_id: number; warehouse_id: number; adjustment: number; reason: string }[]) =>
+  client.post<APIResponse>("/inventory/batch-adjust", { items });
+
 // Product AI
 export const aiParseProduct = (text: string) =>
   client.post<APIResponse>(`/ai/products/parse?text=${encodeURIComponent(text)}`);
@@ -322,6 +325,21 @@ export const getPurchaseOrders = (params: Record<string, unknown>) =>
 
 export const createPurchaseOrder = (data: Record<string, unknown>) =>
   client.post<APIResponse>("/purchase-orders", data);
+
+export const createPOFromRestock = (data: { supplier_id: number; items: { product_id: number; quantity: number }[]; notes?: string }) =>
+  client.post<APIResponse>("/purchase-orders/from-restock", data);
+
+export const receivePurchaseOrder = (poId: number, warehouseId: number = 1) =>
+  client.post<APIResponse>(`/purchase-orders/${poId}/receive`, { warehouse_id: warehouseId });
+
+export const getPurchaseOrder = (id: number) =>
+  client.get<APIResponse<PurchaseOrder & { items: { id: number; product_id: number; product_name?: string; product_sku?: string; quantity: number; unit_price: number; amount: number }[] }>>(`/purchase-orders/${id}`);
+
+export const updatePurchaseOrder = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse>(`/purchase-orders/${id}`, data);
+
+export const deletePurchaseOrder = (id: number) =>
+  client.delete<APIResponse>(`/purchase-orders/${id}`);
 
 // Tickets
 export const getTickets = (params: Record<string, unknown>) =>
@@ -514,6 +532,18 @@ export const getWatchtowerScan = (daysBack = 90) =>
     risk_areas: string[];
     anomalies: Record<string, Record<string, unknown>[]>;
   }>>(`/ai/watchtower/scan?days_back=${daysBack}`);
+
+export const getDailyReport = () =>
+  client.get<APIResponse<{
+    report_date: string;
+    generated_at: string;
+    metrics: {
+      orders_today: number; revenue_today: number; new_customers: number;
+      payments_today: number; payments_amount_today: number;
+      low_stock_items: number; out_of_stock_items: number;
+    };
+    ai_summary: string; mood: string; top_action: string;
+  }>>("/ai/daily-report");
 
 export const getDemandForecast = (category?: string, topK = 20) => {
   const params = new URLSearchParams();

@@ -179,6 +179,116 @@ async def adjust_inventory(
     }
 
 
+async def _ensure_inventory(db: AsyncSession, product_id: int, warehouse_id: int) -> Inventory:
+    """Get or create an inventory record."""
+    result = await db.execute(
+        select(Inventory).where(
+            Inventory.product_id == product_id,
+            Inventory.warehouse_id == warehouse_id,
+            Inventory.deleted_at.is_(None),
+        )
+    )
+    inv = result.scalar_one_or_none()
+    if inv is None:
+        inv = Inventory(product_id=product_id, warehouse_id=warehouse_id, quantity=0, safety_stock=0, locked_quantity=0)
+        db.add(inv)
+        await db.flush()
+    return inv
+
+
+async def receive_po_item(
+    db: AsyncSession,
+    product_id: int,
+    warehouse_id: int,
+    quantity: int,
+    po_id: int,
+) -> dict:
+    """Auto-receive stock when a purchase order item is received."""
+    inv = await _ensure_inventory(db, product_id, warehouse_id)
+    before = inv.quantity
+    inv.quantity += quantity
+    after = inv.quantity
+
+    txn = InventoryTransaction(
+        product_id=product_id,
+        warehouse_id=warehouse_id,
+        type="stock_in",
+        quantity=quantity,
+        before_qty=before,
+        after_qty=after,
+        reference_type="purchase",
+        reference_id=po_id,
+        notes=f"采购入库: PO#{po_id} +{quantity}",
+    )
+    db.add(txn)
+    await db.flush()
+    return {"product_id": product_id, "before": before, "after": after, "transaction_id": txn.id}
+
+
+async def deduct_for_delivery(
+    db: AsyncSession,
+    product_id: int,
+    warehouse_id: int,
+    quantity: int,
+    delivery_id: int,
+) -> dict:
+    """Deduct stock (and release lock) when a delivery note item is shipped."""
+    inv = await _ensure_inventory(db, product_id, warehouse_id)
+
+    release_qty = min(quantity, inv.locked_quantity)
+    if release_qty > 0:
+        inv.locked_quantity -= release_qty
+
+    before = inv.quantity
+    inv.quantity = max(0, inv.quantity - quantity)
+    after = inv.quantity
+
+    txn = InventoryTransaction(
+        product_id=product_id,
+        warehouse_id=warehouse_id,
+        type="stock_out",
+        quantity=-quantity,
+        before_qty=before,
+        after_qty=after,
+        reference_type="sales_delivery",
+        reference_id=delivery_id,
+        notes=f"销售出库: DN#{delivery_id} -{quantity}" + (f" (释放锁定{release_qty})" if release_qty > 0 else ""),
+    )
+    db.add(txn)
+    await db.flush()
+    return {"product_id": product_id, "before": before, "after": after, "transaction_id": txn.id}
+
+
+async def lock_for_sales_order(
+    db: AsyncSession,
+    product_id: int,
+    warehouse_id: int,
+    quantity: int,
+    order_id: int,
+) -> dict:
+    """Lock stock when a sales order is confirmed."""
+    inv = await _ensure_inventory(db, product_id, warehouse_id)
+
+    lockable = min(quantity, max(0, inv.quantity - inv.locked_quantity))
+    if lockable > 0:
+        inv.locked_quantity += lockable
+
+    txn = InventoryTransaction(
+        product_id=product_id,
+        warehouse_id=warehouse_id,
+        type="adjust",
+        quantity=0,
+        before_qty=inv.quantity,
+        after_qty=inv.quantity,
+        reference_type="sales_order_lock",
+        reference_id=order_id,
+        notes=f"订单锁定: SO#{order_id} 锁定{lockable}/{quantity}" + (" (部分锁定)" if lockable < quantity else ""),
+    )
+    db.add(txn)
+    await db.flush()
+    return {"product_id": product_id, "locked": lockable, "requested": quantity, "transaction_id": txn.id}
+
+
 async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: int = 20) -> list[dict]:
     """Enhanced demand forecasting with seasonality, trend, and lead-time detection.
 

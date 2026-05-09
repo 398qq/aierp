@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
-import { getSalesOrder, convertSalesOrderToDelivery } from "../../api";
+import { getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { SalesOrder } from "../../types";
 
@@ -40,6 +40,11 @@ export default function SalesOrderDetail() {
         <Button type="primary" onClick={async () => {
           try { await convertSalesOrderToDelivery(order.id); message.success("已转为发货单"); navigate("/sales/delivery-notes"); } catch { message.error("转换失败"); }
         }}>转为发货单</Button>
+        {order.status === "pending" && (
+          <Button type="primary" style={{ background: "#52c41a", borderColor: "#52c41a" }} onClick={async () => {
+            try { await updateSalesOrder(order.id, { status: "confirmed" }); message.success("订单已确认，库存已锁定"); setOrder({ ...order, status: "confirmed" }); } catch { message.error("确认失败"); }
+          }}>确认订单 (锁定库存)</Button>
+        )}
         <Space>
           <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
           <span style={{ fontSize: 13 }}>AI</span>

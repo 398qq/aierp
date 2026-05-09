@@ -1,10 +1,12 @@
 """Sales CRUD service — opportunities, quotations, orders, delivery notes."""
 
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.product import Warehouse
 from app.models.sales import (
     DeliveryNote,
     DeliveryNoteItem,
@@ -16,6 +18,8 @@ from app.models.sales import (
 )
 from app.models.finance import SalesTarget
 
+logger = logging.getLogger(__name__)
+
 
 # ============================================================
 # Document Number Generation
@@ -25,6 +29,7 @@ _NO_COLUMN_MAP = {
     "QT": "quotation_no",
     "SO": "order_no",
     "DN": "delivery_no",
+    "PO": "order_no",
 }
 
 
@@ -231,11 +236,17 @@ async def create_sales_order(db: AsyncSession, data: dict, items_data: list[dict
 
 
 async def update_sales_order(db: AsyncSession, order: SalesOrder, data: dict) -> SalesOrder:
+    old_status = order.status
     for k, v in data.items():
         if v is not None and k != "items":
             setattr(order, k, v)
     await db.commit()
     await db.refresh(order)
+
+    new_status = data.get("status")
+    if new_status and new_status == "confirmed" and old_status != new_status:
+        await _auto_lock_sales_order(db, order)
+
     return order
 
 
@@ -303,12 +314,49 @@ async def create_delivery_note(db: AsyncSession, data: dict, items_data: list[di
 
 
 async def update_delivery_note(db: AsyncSession, note: DeliveryNote, data: dict) -> DeliveryNote:
+    old_status = note.status
     for k, v in data.items():
         if v is not None and k != "items":
             setattr(note, k, v)
     await db.commit()
     await db.refresh(note)
+
+    # Auto-deduct inventory when status changes to shipped/completed
+    new_status = data.get("status")
+    if new_status and new_status in ("shipped", "completed") and old_status != new_status:
+        await _auto_deduct_delivery(db, note)
+
     return note
+
+
+async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:
+    """Auto-deduct inventory for each item when a delivery note is shipped/completed."""
+    from app.services.inventory_service import deduct_for_delivery
+
+    result = await db.execute(select(Warehouse.id).limit(1))
+    warehouse_id = result.scalar() or 1
+
+    for item in note.items:
+        if item.product_id and item.quantity > 0:
+            try:
+                await deduct_for_delivery(db, item.product_id, warehouse_id, item.quantity, note.id)
+            except Exception as e:
+                logger.error("Auto-deduct failed DN#%s product#%s: %s", note.id, item.product_id, e)
+
+
+async def _auto_lock_sales_order(db: AsyncSession, order: SalesOrder) -> None:
+    """Auto-lock inventory for each item when a sales order is confirmed."""
+    from app.services.inventory_service import lock_for_sales_order
+
+    result = await db.execute(select(Warehouse.id).limit(1))
+    warehouse_id = result.scalar() or 1
+
+    for item in order.items:
+        if item.product_id and item.quantity > 0:
+            try:
+                await lock_for_sales_order(db, item.product_id, warehouse_id, item.quantity, order.id)
+            except Exception as e:
+                logger.error("Auto-lock failed SO#%s product#%s: %s", order.id, item.product_id, e)
 
 
 async def delete_delivery_note(db: AsyncSession, note: DeliveryNote) -> None:

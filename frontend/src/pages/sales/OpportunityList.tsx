@@ -18,7 +18,7 @@ export default function OpportunityList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page_size: 500 };
+      const params: Record<string, unknown> = { page_size: 100 };
       if (status) params.status = status;
       if (stage) params.stage = stage;
       if (includeAi) params.include_ai = true;
