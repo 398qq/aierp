@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse } from "antd";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
 import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct } from "../../api";
+import AttachmentPanel from "../../components/AttachmentPanel";
 import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch } from "../../types";
 
 const { Text, Title } = Typography;
@@ -650,6 +651,10 @@ export default function ProductDetail() {
             </Col>
           </Row>
         ) : <Text type="secondary">点击"加载"查看此产品关联的报价单、销售订单和发货单</Text>}
+      </Card>
+
+      <Card title="附件" style={{ marginTop: 16 }}>
+        <AttachmentPanel entityType="product" entityId={product.id} />
       </Card>
     </div>
   );

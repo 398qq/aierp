@@ -1,8 +1,8 @@
 # Project Progress — AIERP
 
 **Last Updated**: 2026-05-11
-**Current Phase**: Phase 6 Complete (Finance + Notifications + Mobile + Integration)
-**Latest Commit**: `39a78bb` — feat: Phase 6 mobile adaptation (H) — PWA + responsive layout
+**Current Phase**: Phase 7 Complete (Documents + Dashboards + Import/Export)
+**Total Tests**: 153 passing
 
 ---
 
@@ -127,6 +127,51 @@
 | `notification_preferences` | Per-user channel preferences |
 | `integration_configs` | External API configurations |
 
+## Phase 7 — J(文档管理) + K(仪表板增强) + L(批量导入导出) (COMPLETE)
+
+### Backend
+- [x] Document Management — upload/list/download/delete attachments for any entity (`documents.py`, `document.py`)
+- [x] Dashboard Widgets — user-customizable widget layout CRUD (`dashboard.py`, `document.py`)
+- [x] Dashboard KPI — real-time KPIs (revenue, customers, AR, stock, etc.) (`dashboard.py`)
+- [x] Generic Export — 7 entities (customers/products/suppliers/brands/POs/SO/quotations), CSV + Excel (`export_import.py`)
+- [x] Generic Import — 3 entities (customers/products/suppliers) via CSV/Excel (`export_import.py`)
+- [x] DB-agnostic `date_format()` helper for SQLite↔PostgreSQL compatibility (`database.py`)
+
+### Frontend (backend only this iteration)
+- [x] All Phase 7 APIs are REST endpoints, consumable by frontend
+
+### Tables Added
+| Table | Purpose |
+|-------|---------|
+| `documents` | File attachments linked to any entity |
+| `dashboard_widgets` | Per-user dashboard widget layout |
+
+### New API Endpoints
+| Method | Path | Module |
+|--------|------|--------|
+| POST | `/documents/upload` | Documents |
+| GET | `/documents?entity_type=X&entity_id=Y` | Documents |
+| GET | `/documents/{id}/download` | Documents |
+| DELETE | `/documents/{id}` | Documents |
+| GET/PUT | `/dashboard/widgets` | Dashboard |
+| GET | `/dashboard/kpi` | Dashboard |
+| GET | `/export/{entity}?format=csv\|xlsx` | Import/Export |
+| POST | `/import/{entity}` | Import/Export |
+
+### Docker
+- [x] `docker-compose.yml` — added `backend` (Python 3.12 + Uvicorn) and `frontend` (Nginx + React) services
+- [x] `backend/Dockerfile` — production build with system deps
+- [x] `frontend/Dockerfile` — multi-stage Node builder → Nginx
+- [x] `frontend/nginx.conf` — API proxy, SPA fallback, static caching
+
+### Code Quality
+- [x] 31 ruff lint errors fixed (E702, E741, F841, E712)
+- [x] All unused imports cleaned
+- [x] 42 new API tests for Phase 5/6 (153 total)
+- [x] 19 new API tests for Phase 7
+
+---
+
 ## Phase 1 — Foundation (COMPLETE)
 
 | Feature | Commit |
@@ -174,6 +219,12 @@
 | Approval | `api/v1/approvals.py`, `models/approval.py` | `pages/system/ApprovalList.tsx`, `pages/system/ApprovalRules.tsx` |
 | Procurement AI | `api/v1/procurement.py` | `pages/procurement/ProcurementDashboard.tsx` |
 | Reports | `api/v1/reports.py`, `models/report.py` | `pages/reports/Report{Sales,AR,Inventory,Procurement}.tsx` |
+| Finance | `api/v1/finance_accounts.py`, `models/account.py` | `pages/finance/` |
+| Integration | `api/v1/integrations.py` | N/A (backend-only) |
+| Notifications | `api/v1/notifications.py`, `services/notification_service.py` | N/A |
+| Documents | `api/v1/documents.py`, `models/document.py` | `components/AttachmentPanel.tsx` |
+| Import/Export | `api/v1/export_import.py` | N/A (backend-only) |
+| Dashboard Widgets | `api/v1/dashboard.py`, `models/document.py` | `pages/dashboard/` |
 | Brand360 | `services/brand_intel_service.py` | `pages/brands/BrandDetail.tsx` |
 | Supplier360 | `services/supplier_intel_service.py` | `pages/suppliers/SupplierDetail.tsx` |
 | SupplierCompare | API in `api/v1/ai.py` | `pages/suppliers/SupplierCompare.tsx` |

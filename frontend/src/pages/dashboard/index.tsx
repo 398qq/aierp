@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Empty, Space, Badge } from "antd";
+import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Empty, Space, Badge, Drawer, Switch } from "antd";
 import {
-  TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined,
+  TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined, SettingOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
-import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360, getDailyReport } from "../../api";
-import type { DashboardStats, Visit, CustomerLog, Global360, OverdueFollowUp, DailyReport } from "../../types";
+import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360, getDailyReport, getKpi, getWidgets, saveWidgets } from "../../api";
+import type { DashboardStats, DashboardWidget, Visit, CustomerLog, Global360, OverdueFollowUp, DailyReport, KpiData } from "../../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const { Title, Text, Paragraph } = Typography;
@@ -22,6 +22,63 @@ export default function Dashboard() {
   const [g360Loading, setG360Loading] = useState(false);
   const [dailyReport, setDailyReport] = useState<DailyReport | null>(null);
   const [drLoading, setDrLoading] = useState(false);
+  const [kpi, setKpi] = useState<KpiData | null>(null);
+
+  // Widget visibility customization
+  const DEFAULT_WIDGETS: Record<string, { title: string; enabled: boolean }> = {
+    kpi_overview: { title: "KPI 概览", enabled: true },
+    customer_stats: { title: "客户统计", enabled: true },
+    industry_chart: { title: "行业与等级分布", enabled: true },
+    monthly_trend: { title: "月度新增趋势", enabled: true },
+    overdue_followups: { title: "逾期跟进", enabled: true },
+    upcoming_visits: { title: "拜访计划", enabled: true },
+    recent_activity: { title: "最近动态", enabled: true },
+    global_360: { title: "AI 全局诊断", enabled: true },
+    daily_report: { title: "每日经营报告", enabled: true },
+  };
+
+  const [widgetPrefs, setWidgetPrefs] = useState<Record<string, { title: string; enabled: boolean }>>(() => {
+    try {
+      const saved = localStorage.getItem("dashboard_widgets");
+      if (saved) return { ...DEFAULT_WIDGETS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_WIDGETS;
+  });
+  const [widgetDrawerOpen, setWidgetDrawerOpen] = useState(false);
+  const [widgetSaving, setWidgetSaving] = useState(false);
+
+  // Load widget prefs from backend on mount
+  useEffect(() => {
+    getWidgets().then((r) => {
+      const widgets = (r.data.data || []) as DashboardWidget[];
+      if (widgets.length > 0) {
+        const prefs: Record<string, { title: string; enabled: boolean }> = { ...DEFAULT_WIDGETS };
+        for (const w of widgets) {
+          if (w.widget_type && prefs[w.widget_type]) {
+            prefs[w.widget_type].enabled = w.enabled;
+          }
+        }
+        setWidgetPrefs(prefs);
+        localStorage.setItem("dashboard_widgets", JSON.stringify(prefs));
+      }
+    }).catch(() => {});
+  }, []);
+
+  const saveWidgetPrefs = async () => {
+    setWidgetSaving(true);
+    try {
+      localStorage.setItem("dashboard_widgets", JSON.stringify(widgetPrefs));
+      const payload = Object.entries(widgetPrefs).map(([type, pref]) => ({
+        widget_type: type,
+        title: pref.title,
+        enabled: pref.enabled,
+      }));
+      await saveWidgets(payload);
+      setWidgetDrawerOpen(false);
+    } catch {} finally {
+      setWidgetSaving(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -29,6 +86,7 @@ export default function Dashboard() {
       getUpcomingVisits(14),
       getRecentActivity(10),
       getOverdueFollowUps(),
+      getKpi().then((r) => setKpi(r.data.data as KpiData)).catch(() => {}),
       orchestrateGlobal360().then((r) => setGlobal360(r.data.data)).catch(() => {}),
       getDailyReport().then((r) => setDailyReport(r.data.data as DailyReport)).catch(() => {}),
     ])
@@ -47,7 +105,10 @@ export default function Dashboard() {
 
   return (
     <div>
-      <Title level={4}>欢迎回来，{username}</Title>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <Title level={4} style={{ margin: 0 }}>欢迎回来，{username}</Title>
+        <Button icon={<SettingOutlined />} onClick={() => setWidgetDrawerOpen(true)}>自定义仪表板</Button>
+      </div>
 
       <Space wrap style={{ marginBottom: 16 }}>
         <Text type="secondary">AI 问答建议：</Text>
@@ -62,82 +123,129 @@ export default function Dashboard() {
         ))}
       </Space>
 
-      {/* Customer Stats */}
-      {stats && (
-        <>
-          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-            <Col xs={24} sm={12} lg={6}>
-              <Card>
-                <Statistic title="客户总数" value={stats.total} prefix={<TeamOutlined />} />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Card>
-                <Statistic title="逾期跟进" value={overdue.length} prefix={<WarningOutlined />} valueStyle={{ color: overdue.length > 0 ? "#cf1322" : "#52c41a" }} />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Card>
-                <Statistic title="即将拜访" value={upcomingVisits.length} prefix={<CalendarOutlined />} />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Card>
-                <Statistic title="最近动态" value={recentActivity.length} prefix={<ThunderboltOutlined />} />
-              </Card>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-            <Col xs={24} lg={12}>
-              <Card title="客户行业分布" size="small">
-                {stats.by_industry.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={stats.by_industry} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
-                        {stats.by_industry.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : <Empty description="暂无数据" />}
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card title="客户等级分布" size="small">
-                {stats.by_level.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={stats.by_level}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#1890ff" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : <Empty description="暂无数据" />}
-              </Card>
-            </Col>
-          </Row>
-
-          {stats.monthly.length > 0 && (
-            <Card title="月度新增客户趋势" size="small" style={{ marginTop: 16 }}>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={stats.monthly}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#52c41a" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+      {/* Phase 7 KPI Overview */}
+      {kpi && widgetPrefs.kpi_overview?.enabled !== false && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="本月营收" value={kpi.month_revenue} prefix="¥" precision={0} />
             </Card>
-          )}
-        </>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="本月新客户" value={kpi.new_customers} prefix={<TeamOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="活跃商机" value={kpi.open_opportunities} prefix={<ThunderboltOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="待采购订单" value={kpi.pending_purchase_orders} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="应收未收" value={kpi.outstanding_ar} prefix="¥" precision={0} valueStyle={{ color: kpi.outstanding_ar > 0 ? "#cf1322" : "#52c41a" }} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="低库存预警" value={kpi.low_stock_items} valueStyle={{ color: kpi.low_stock_items > 0 ? "#ff4d4f" : "#52c41a" }} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="产品总数" value={kpi.total_products} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} lg={6}>
+            <Card>
+              <Statistic title="客户总数" value={kpi.total_customers} prefix={<TeamOutlined />} />
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Customer Stats */}
+      {stats && widgetPrefs.customer_stats?.enabled !== false && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic title="客户总数" value={stats.total} prefix={<TeamOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic title="逾期跟进" value={overdue.length} prefix={<WarningOutlined />} valueStyle={{ color: overdue.length > 0 ? "#cf1322" : "#52c41a" }} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic title="即将拜访" value={upcomingVisits.length} prefix={<CalendarOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic title="最近动态" value={recentActivity.length} prefix={<ThunderboltOutlined />} />
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Charts */}
+      {stats && widgetPrefs.industry_chart?.enabled !== false && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} lg={12}>
+            <Card title="客户行业分布" size="small">
+              {stats.by_industry.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie data={stats.by_industry} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
+                      {stats.by_industry.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : <Empty description="暂无数据" />}
+            </Card>
+          </Col>
+          <Col xs={24} lg={12}>
+            <Card title="客户等级分布" size="small">
+              {stats.by_level.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={stats.by_level}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#1890ff" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <Empty description="暂无数据" />}
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {stats && stats.monthly.length > 0 && widgetPrefs.monthly_trend?.enabled !== false && (
+        <Card title="月度新增客户趋势" size="small" style={{ marginTop: 16 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={stats.monthly}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#52c41a" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
       )}
 
       {/* Overdue FollowUps */}
-      {overdue.length > 0 && (
+      {overdue.length > 0 && widgetPrefs.overdue_followups?.enabled !== false && (
         <Card title={<span><WarningOutlined style={{ marginRight: 8, color: "#cf1322" }} />逾期跟进</span>} size="small" style={{ marginTop: 16 }}>
           <Table
             rowKey="id"
@@ -156,7 +264,7 @@ export default function Dashboard() {
       )}
 
       {/* Upcoming Visits */}
-      {upcomingVisits.length > 0 && (
+      {upcomingVisits.length > 0 && widgetPrefs.upcoming_visits?.enabled !== false && (
         <Card title={<span><CalendarOutlined style={{ marginRight: 8 }} />未来14天拜访计划</span>} size="small" style={{ marginTop: 16 }}>
           <Table
             rowKey="id"
@@ -178,7 +286,7 @@ export default function Dashboard() {
       )}
 
       {/* Recent Activity */}
-      {recentActivity.length > 0 && (
+      {recentActivity.length > 0 && widgetPrefs.recent_activity?.enabled !== false && (
         <Card title="最近动态" size="small" style={{ marginTop: 16 }}>
           <Timeline
             items={recentActivity.map((log) => ({
@@ -199,6 +307,7 @@ export default function Dashboard() {
       )}
 
       {/* AI Global 360 */}
+      {widgetPrefs.global_360?.enabled !== false && (
       <Card style={{ marginTop: 24 }}
         title={<><AimOutlined style={{ marginRight: 8 }} />AI 全局诊断 (Global 360)</>}
         extra={<Button icon={<ReloadOutlined />} loading={g360Loading} onClick={async () => {
@@ -373,8 +482,10 @@ export default function Dashboard() {
           <div style={{ textAlign: "center", padding: 24 }}><Spin tip="AI 正在分析企业全局数据..." /></div>
         )}
       </Card>
+      )}
 
       {/* Daily Report */}
+      {widgetPrefs.daily_report?.enabled !== false && (
       <Card
         title={<><CalendarOutlined style={{ marginRight: 8 }} />每日经营报告</>}
         size="small"
@@ -419,6 +530,51 @@ export default function Dashboard() {
           </Text>
         )}
       </Card>
+      )}
+
+      {/* Widget Customization Drawer */}
+      <Drawer
+        title="自定义仪表板"
+        open={widgetDrawerOpen}
+        onClose={() => {
+          // Reset to saved state when closing without saving
+          try {
+            const saved = localStorage.getItem("dashboard_widgets");
+            if (saved) setWidgetPrefs({ ...DEFAULT_WIDGETS, ...JSON.parse(saved) });
+          } catch {}
+          setWidgetDrawerOpen(false);
+        }}
+        width={360}
+        extra={
+          <Button type="primary" loading={widgetSaving} onClick={saveWidgetPrefs}>
+            保存
+          </Button>
+        }
+      >
+        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          {Object.entries(widgetPrefs).map(([key, pref]) => (
+            <Row key={key} justify="space-between" align="middle">
+              <Col>
+                <Text>{pref.title}</Text>
+              </Col>
+              <Col>
+                <Switch
+                  checked={pref.enabled}
+                  onChange={(checked) =>
+                    setWidgetPrefs((prev) => ({
+                      ...prev,
+                      [key]: { ...prev[key], enabled: checked },
+                    }))
+                  }
+                />
+              </Col>
+            </Row>
+          ))}
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            开启或关闭仪表板上的各个模块，点击保存生效。偏好会同步到您的账号。
+          </Text>
+        </Space>
+      </Drawer>
     </div>
   );
 }

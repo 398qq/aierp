@@ -52,6 +52,41 @@ export interface Attachment {
   created_at: string;
 }
 
+export interface Document {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  filename: string;
+  file_size: number;
+  mime_type: string | null;
+  uploaded_by: number | null;
+  uploader_name: string;
+  created_at: string;
+}
+
+export interface DashboardWidget {
+  id: number;
+  widget_type: string;
+  title: string | null;
+  config: Record<string, unknown>;
+  position_x: number;
+  position_y: number;
+  width: number;
+  height: number;
+  enabled: boolean;
+}
+
+export interface KpiData {
+  month_revenue: number;
+  new_customers: number;
+  open_opportunities: number;
+  pending_purchase_orders: number;
+  outstanding_ar: number;
+  low_stock_items: number;
+  total_products: number;
+  total_customers: number;
+}
+
 export interface OverdueFollowUp {
   id: number;
   customer_id: number;

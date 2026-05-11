@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getAttachments, uploadAttachment, deleteAttachment, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
+import AttachmentPanel from "../../components/AttachmentPanel";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
 import CustomerFormFields from "./CustomerForm";
@@ -222,7 +223,7 @@ export default function CustomerDetail() {
                 {
                   key: "attachments",
                   label: "附件",
-                  children: <AttachmentPanel customerId={customerId} />,
+                  children: <AttachmentPanel entityType="customer" entityId={customerId} />,
                 },
                 {
                   key: "logs",
@@ -534,80 +535,6 @@ function CustomerProfile({ customerId }: { customerId: number }) {
           最近订单: {stats.last_order_date?.slice(0, 10)} | 已付金额: ¥{stats.paid_total.toLocaleString()}
         </div>
       )}
-    </div>
-  );
-}
-
-// --- Attachment Panel ---
-
-function AttachmentPanel({ customerId }: { customerId: number }) {
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const resp = await getAttachments(customerId);
-      setAttachments((resp.data.data as Attachment[]) || []);
-    } catch {} finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [customerId]);
-
-  const handleUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      await uploadAttachment(customerId, file);
-      message.success("上传成功");
-      load();
-    } catch { message.error("上传失败"); }
-    finally { setUploading(false); }
-    return false;
-  };
-
-  const handleDelete = async (id: number) => {
-    try { await deleteAttachment(customerId, id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Upload accept="*" showUploadList={false} beforeUpload={handleUpload} disabled={uploading}>
-          <Button icon={<UploadOutlined />} loading={uploading}>上传文件</Button>
-        </Upload>
-      </Space>
-
-      {loading ? <Spin /> :
-        attachments.length === 0 ? <Empty description="暂无附件" /> :
-        <List
-          dataSource={attachments}
-          renderItem={(item) => (
-            <List.Item
-              actions={[
-                <Button key="dl" size="small" icon={<DownloadOutlined />}
-                  onClick={() => window.open(`/api/v1/customers/${customerId}/attachments/${item.id}/download`, "_blank")}
-                />,
-                <Popconfirm key="del" title="确定删除?" onConfirm={() => handleDelete(item.id)}>
-                  <Button size="small" danger icon={<DeleteOutlined />} />
-                </Popconfirm>,
-              ]}
-            >
-              <List.Item.Meta
-                avatar={<PaperClipOutlined style={{ fontSize: 20 }} />}
-                title={item.original_name}
-                description={`${formatSize(item.file_size)} · ${item.category || "其他"} · ${item.created_at?.slice(0, 10)}`}
-              />
-            </List.Item>
-          )}
-        />
-      }
     </div>
   );
 }

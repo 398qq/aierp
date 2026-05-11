@@ -84,6 +84,7 @@ const JournalEntryList = lazy(() => import("./pages/finance/JournalEntryList"));
 const JournalEntryForm = lazy(() => import("./pages/finance/JournalEntryForm"));
 const ProfitLoss = lazy(() => import("./pages/finance/ProfitLoss"));
 const ReportAP = lazy(() => import("./pages/reports/ReportAP"));
+const ImportExport = lazy(() => import("./pages/import-export/index"));
 
 function PageLoader() {
   return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
@@ -158,6 +159,7 @@ export default function App() {
               <Route path="/reports/inventory" element={<Suspense fallback={<PageLoader />}><ReportInventory /></Suspense>} />
               <Route path="/reports/procurement" element={<Suspense fallback={<PageLoader />}><ReportProcurement /></Suspense>} />
               <Route path="/reports/ap" element={<Suspense fallback={<PageLoader />}><ReportAP /></Suspense>} />
+              <Route path="/data/import-export" element={<Suspense fallback={<PageLoader />}><ImportExport /></Suspense>} />
               <Route path="/finance/accounts" element={<Suspense fallback={<PageLoader />}><AccountList /></Suspense>} />
               <Route path="/finance/journal-entries" element={<Suspense fallback={<PageLoader />}><JournalEntryList /></Suspense>} />
               <Route path="/finance/journal-entries/new" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />

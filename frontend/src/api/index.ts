@@ -2,10 +2,10 @@ import client from "./client";
 import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
   ChurnRisk, Contract, Customer, Customer360, CustomerLog, CustomerProductMatch, CustomerStats,
-  DashboardStats, DeliveryNote, DeliveryNoteAI, DuplicatePair,
+  DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
   FollowUp,
   Global360, GroupStats,
-  Invoice, LevelRule, LifecycleAnalysis, LoginData,
+  Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
   MergeResult,
   NLPQueryResult, NormalizedSpec,
   InventoryItem,
@@ -133,7 +133,7 @@ export const linkTag = (customerId: number, tagId: number) =>
 export const unlinkTag = (customerId: number, tagId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/tags/${tagId}`);
 
-// Attachments
+// Attachments (legacy customer-specific)
 export const getAttachments = (customerId: number) =>
   client.get<APIResponse<Attachment[]>>(`/customers/${customerId}/attachments`);
 
@@ -147,6 +147,48 @@ export const uploadAttachment = (customerId: number, file: File, category = "con
 
 export const deleteAttachment = (customerId: number, attachmentId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/attachments/${attachmentId}`);
+
+// Documents (Phase 7 — generic entity attachments)
+export const getDocuments = (entityType: string, entityId: number) =>
+  client.get<APIResponse<Document[]>>(`/documents?entity_type=${entityType}&entity_id=${entityId}`);
+
+export const uploadDocument = (entityType: string, entityId: number, file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("entity_type", entityType);
+  form.append("entity_id", String(entityId));
+  return client.post<APIResponse>("/documents/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const downloadDocument = (docId: number) =>
+  client.get(`/documents/${docId}/download`, { responseType: "blob" });
+
+export const deleteDocument = (docId: number) =>
+  client.delete<APIResponse>(`/documents/${docId}`);
+
+// Dashboard widgets (Phase 7)
+export const getWidgets = () =>
+  client.get<APIResponse<DashboardWidget[]>>("/dashboard/widgets");
+
+export const saveWidgets = (widgets: Partial<DashboardWidget>[]) =>
+  client.put<APIResponse>("/dashboard/widgets", { widgets });
+
+export const getKpi = () =>
+  client.get<APIResponse<KpiData>>("/dashboard/kpi");
+
+// Import/Export (Phase 7)
+export const exportEntity = (entity: string, format: string = "csv") =>
+  client.get(`/export/${entity}?format=${format}`, { responseType: "blob" });
+
+export const importEntity = (entity: string, file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post<APIResponse>(`/import/${entity}`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
 
 // Products
 export const getProducts = (params: Record<string, unknown>) =>
