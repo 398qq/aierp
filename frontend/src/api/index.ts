@@ -812,6 +812,16 @@ export const updateContract = (id: number, data: Record<string, unknown>) =>
 export const deleteContract = (id: number) =>
   client.delete<APIResponse>(`/contracts/${id}`);
 
+export const importContractPDF = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post<APIResponse<{
+    id: number;
+    parsed: { title?: string; amount?: number; signed_date?: string; buyer_name?: string };
+    raw_text_preview: string;
+  }>>("/contracts/import-pdf", form, { headers: { "Content-Type": "multipart/form-data" } });
+};
+
 // ============================================================
 // Finance — Sales Targets
 // ============================================================
