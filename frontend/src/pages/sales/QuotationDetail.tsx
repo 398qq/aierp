@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getQuotation, convertQuotationToOrder, downloadQuotationPDF } from "../../api";
+import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation } from "../../types";
 
@@ -43,6 +44,9 @@ export default function QuotationDetail() {
             try { await convertQuotationToOrder(quote.id); message.success("已转为订单"); navigate("/sales/orders"); } catch { message.error("转换失败"); }
           }}>转为订单</Button>
         )}
+        <Button onClick={async () => {
+          try { await client.post("/approvals/submit", { doc_type: "quotation", doc_id: quote.id }); message.success("已提交审批"); } catch { message.error("提交审批失败"); }
+        }}>提交审批</Button>
         <Space>
           <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
           <span style={{ fontSize: 13 }}>AI</span>

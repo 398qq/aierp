@@ -9,7 +9,7 @@
 ## Working State
 
 - **Branch**: master
-- **Status**: Phase 5 complete — backend (committed) + frontend (pending commit)
+- **Status**: Phase 5 complete — backend + frontend committed, polish in progress
 
 ---
 

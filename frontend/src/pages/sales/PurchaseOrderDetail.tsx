@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, Descriptions, Table, Tag, Button, Space, message, Spin, InputNumber, Modal } from "antd";
 import { ArrowLeftOutlined, EditOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { getPurchaseOrder, receivePurchaseOrder } from "../../api";
+import client from "../../api/client";
 import type { PurchaseOrder } from "../../types";
 
 const STATUS: Record<string, { color: string; label: string }> = {
@@ -53,9 +54,7 @@ export default function PurchaseOrderDetail() {
         <Space>
           {po.status === "draft" && (
             <>
-              <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/purchase-orders/${po.id}/edit`)}>
-                编辑
-              </Button>
+              <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/purchase-orders/${po.id}/edit`)}>编辑</Button>
               <Button type="primary" icon={<CheckCircleOutlined />}
                 onClick={() => Modal.confirm({
                   title: "采购收货",
@@ -65,14 +64,13 @@ export default function PurchaseOrderDetail() {
                       <p>入库仓库: <InputNumber min={1} value={receiveWarehouseId} onChange={(v) => setReceiveWarehouseId(v || 1)} style={{ width: 80 }} /></p>
                     </div>
                   ),
-                  onOk: handleReceive,
-                  okButtonProps: { loading: receiving },
-                  okText: "确认收货",
-                })}>
-                收货
-              </Button>
+                  onOk: handleReceive, okButtonProps: { loading: receiving }, okText: "确认收货",
+                })}>收货</Button>
             </>
           )}
+          <Button onClick={async () => {
+            try { await client.post("/approvals/submit", { doc_type: "purchase_order", doc_id: po.id }); message.success("已提交审批"); } catch { message.error("提交审批失败"); }
+          }}>提交审批</Button>
         </Space>
       </Space>
 
