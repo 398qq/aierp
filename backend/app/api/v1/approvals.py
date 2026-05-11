@@ -281,8 +281,12 @@ async def approve_request(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    # SELECT FOR UPDATE prevents concurrent approval race conditions
     approval_req = (await db.execute(
-        select(ApprovalRequest).where(ApprovalRequest.id == request_id, ApprovalRequest.deleted_at.is_(None))
+        select(ApprovalRequest).where(
+            ApprovalRequest.id == request_id,
+            ApprovalRequest.deleted_at.is_(None),
+        ).with_for_update()
     )).scalar_one_or_none()
     if not approval_req:
         return fail("审批请求不存在")
@@ -303,11 +307,15 @@ async def approve_request(
             if designated_role not in user_roles:
                 return fail(f"您没有 {designated_role} 角色，无权执行此审批")
 
+
     action = ApprovalAction(
         request_id=request_id, approver_id=current_user["user_id"],
         action="approve", comment=body.comment, level=approval_req.current_level,
     )
     db.add(action)
+
+    # Optimistic lock: increment version on every state change
+    approval_req.version += 1
 
     # Check if more levels remain
     if approval_req.current_level >= len(flow):
@@ -333,8 +341,12 @@ async def reject_request(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    # SELECT FOR UPDATE prevents concurrent approval race conditions
     approval_req = (await db.execute(
-        select(ApprovalRequest).where(ApprovalRequest.id == request_id, ApprovalRequest.deleted_at.is_(None))
+        select(ApprovalRequest).where(
+            ApprovalRequest.id == request_id,
+            ApprovalRequest.deleted_at.is_(None),
+        ).with_for_update()
     )).scalar_one_or_none()
     if not approval_req:
         return fail("审批请求不存在")
@@ -360,6 +372,7 @@ async def reject_request(
         action="reject", comment=body.comment, level=approval_req.current_level,
     )
     db.add(action)
+    approval_req.version += 1
     approval_req.status = "rejected"
     await db.commit()
 

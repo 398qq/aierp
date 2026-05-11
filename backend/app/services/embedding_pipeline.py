@@ -51,7 +51,12 @@ async def _bg_embed_customer(customer_id: int):
                 c.embedding = emb
                 await db.commit()
     except Exception:
-        logger.exception("bg_embed_customer failed for id=%s", customer_id)
+        # Always log at ERROR level so log-based alerting can catch it.
+        # Failures are non-blocking by design (fire-and-forget pipeline).
+        logger.error(
+            "bg_embed_customer failed for id=%s — embedding skipped",
+            customer_id, exc_info=True,
+        )
 
 
 async def _bg_embed_product(product_id: int):
@@ -68,7 +73,10 @@ async def _bg_embed_product(product_id: int):
                 p.embedding = emb
                 await db.commit()
     except Exception:
-        logger.exception("bg_embed_product failed for id=%s", product_id)
+        logger.error(
+            "bg_embed_product failed for id=%s — embedding skipped",
+            product_id, exc_info=True,
+        )
 
 
 async def _bg_embed_supplier(supplier_id: int):
@@ -90,4 +98,7 @@ async def _bg_embed_supplier(supplier_id: int):
                 s.embedding = emb
                 await db.commit()
     except Exception:
-        logger.exception("bg_embed_supplier failed for id=%s", supplier_id)
+        logger.error(
+            "bg_embed_supplier failed for id=%s — embedding skipped",
+            supplier_id, exc_info=True,
+        )

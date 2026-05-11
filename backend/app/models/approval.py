@@ -24,6 +24,7 @@ class ApprovalRequest(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="pending")  # pending, approved, rejected
     current_level: Mapped[int] = mapped_column(Integer, default=1)
     flow_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=0)  # optimistic lock
 
     submitter = relationship("User", foreign_keys=[submitter_id])
     actions = relationship("ApprovalAction", back_populates="request", lazy="selectin", order_by="ApprovalAction.level")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 LOGIN_FAILED_PREFIX = "aierp:login_failed:"
 MAX_FAILED_ATTEMPTS = 5          # lock after 5 failures
 BLOCK_DURATION_MINUTES = 15      # block for 15 minutes
+
+# --- httpOnly cookie config ---
+TOKEN_COOKIE_NAME = "aierp_token"
+TOKEN_COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days in seconds
 
 
 class LoginRequest(BaseModel):
@@ -92,7 +96,17 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             pass
 
     token = create_access_token(user.id, user.username)
-    return ok({"token": token, "username": user.username, "role": user.role})
+    # Set httpOnly cookie — XSS cannot read the token
+    response = ok({"token": token, "username": user.username, "role": user.role})
+    response.set_cookie(
+        key=TOKEN_COOKIE_NAME,
+        value=token,
+        max_age=TOKEN_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=False,  # set True in production behind HTTPS
+    )
+    return response
 
 
 @router.get("/me")

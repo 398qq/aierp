@@ -228,7 +228,7 @@ class EmbeddingService:
         return [
             {
                 "id": r[0], "name": r[1], "industry": r[2], "region": r[3],
-                "similarity": round(1 - float(r[4]), 4),  # distance → similarity
+                "similarity": round(1 - float(r[4]) / 2, 4),  # cosine distance [0,2] → similarity [0,1]
             }
             for r in rows
         ]
@@ -255,7 +255,7 @@ class EmbeddingService:
         )
         rows = result.all()
         return [{"id": r[0], "name": r[1], "product_lines": r[2], "region": r[3],
-                 "similarity": round(1 - float(r[4]), 4)} for r in rows]
+                 "similarity": round(1 - float(r[4]) / 2, 4)} for r in rows]
 
     @staticmethod
     async def similar_suppliers_by_text(query: str, db_session, top_k: int = 10) -> list:

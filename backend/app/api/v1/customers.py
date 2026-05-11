@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -18,6 +19,18 @@ from app.services.customer_service import calc_health, calc_lifecycle, detect_du
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Characters banned from filenames to prevent path traversal and header injection
+_FORBIDDEN_FILENAME_CHARS = re.compile(r"[/\\\x00\r\n]")
+
+
+def _safe_filename(name: str) -> str:
+    """Strip path separators and null bytes from user-supplied filename."""
+    if not name:
+        return "unnamed"
+    name = _FORBIDDEN_FILENAME_CHARS.sub("", name)
+    return name or "unnamed"
+
 
 
 async def _log(db: AsyncSession, customer_id: int, action: str, field_name: str | None = None,
@@ -258,6 +271,8 @@ async def import_customers(
         return fail("请上传 CSV 文件", 400)
 
     content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        return fail("CSV 文件大小不能超过 5MB", 400)
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -681,24 +696,53 @@ async def mark_all_alerts_read(db: AsyncSession = Depends(get_db), _user: dict =
 
 @router.post("/alerts/check")
 async def check_alerts(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Batch alert checker — loads all data in bulk and evaluates rules in-memory."""
     from app.models.sales import SalesOrder
     from app.models.transaction import Payment
 
     rules = (await db.execute(
         select(AlertRule).where(AlertRule.enabled, AlertRule.deleted_at.is_(None))
     )).scalars().all()
+    if not rules:
+        return ok({"generated": 0, "rules_checked": 0, "customers_checked": 0})
 
-    customers = (await db.execute(
+    # Bulk-load all customers, orders, and unpaid payments
+    customers = {c.id: c for c in (await db.execute(
         select(Customer).where(Customer.deleted_at.is_(None))
-    )).scalars().all()
+    )).scalars().all()}
+
+    orders = {}
+    for o in (await db.execute(
+        select(SalesOrder).where(SalesOrder.deleted_at.is_(None))
+    )).scalars().all():
+        orders.setdefault(o.customer_id, []).append(o)
+
+
+    payments = {}
+    for p in (await db.execute(
+        select(Payment).where(Payment.deleted_at.is_(None), Payment.paid_at.is_(None))
+    )).scalars().all():
+        payments.setdefault(p.customer_id, []).append(p)
 
     now = datetime.now(timezone.utc)
     generated = 0
 
-    for c in customers:
-        c_orders = (await db.execute(
-            select(SalesOrder).where(SalesOrder.customer_id == c.id, SalesOrder.deleted_at.is_(None))
-        )).scalars().all()
+    # Batch-prevent duplicate alerts: fetch all recent events in one query
+    recent_cutoff = now - timedelta(days=1)
+    existing_events = (await db.execute(
+        select(AlertEvent).where(
+            AlertEvent.deleted_at.is_(None),
+            AlertEvent.created_at >= recent_cutoff,
+        )
+    )).scalars().all()
+    # dedup key: (customer_id, rule_type)
+    recent_alerts = {(e.customer_id, e.rule_type) for e in existing_events}
+
+
+    for c in customers.values():
+        c_orders = orders.get(c.id, [])
+        c_payments = payments.get(c.id, [])
+        c_unpaid = sum(float(p.amount or 0) for p in c_payments)
 
         for rule in rules:
             message = None
@@ -706,56 +750,41 @@ async def check_alerts(db: AsyncSession = Depends(get_db), _user: dict = Depends
                 latest_order = max((o.created_at for o in c_orders), default=None)
                 if latest_order:
                     days_since = (now - latest_order.replace(tzinfo=timezone.utc)).days
-                    if days_since < rule.threshold_days:
-                        continue
-                    message = f"{c.name} 已 {days_since} 天未下单，触发规则「{rule.name}」"
-                elif c.created_at and (now - (c.created_at or now).replace(tzinfo=timezone.utc)).days > rule.threshold_days:
+                    if days_since >= rule.threshold_days:
+                        message = f"{c.name} 已 {days_since} 天未下单，触发规则「{rule.name}」"
+                elif c.created_at and (now - (c.created_at or now).replace(tzinfo=timezone.utc)).days >= rule.threshold_days:
                     message = f"{c.name} 创建 {(now - (c.created_at or now).replace(tzinfo=timezone.utc)).days} 天尚无订单，触发规则「{rule.name}」"
 
             elif rule.rule_type == "credit_over":
                 cl = float(c.credit_limit or 0)
                 if cl > 0:
-                    pay_rows = (await db.execute(
-                        select(Payment).where(Payment.customer_id == c.id, Payment.deleted_at.is_(None), Payment.paid_at.is_(None))
-                    )).scalars().all()
-                    outstanding = sum(float(p.amount or 0) for p in pay_rows)
-                    usage = outstanding / cl * 100
+                    usage = c_unpaid / cl * 100
                     if usage >= 80:
-                        message = f"{c.name} 信用额度使用率达 {usage:.0f}%（¥{outstanding:.0f}/¥{cl:.0f}），触发规则「{rule.name}」"
+                        message = f"{c.name} 信用额度使用率达 {usage:.0f}%（¥{c_unpaid:.0f}/¥{cl:.0f}），触发规则「{rule.name}」"
 
             elif rule.rule_type == "ar_overdue":
-                pay_rows = (await db.execute(
-                    select(Payment).where(Payment.customer_id == c.id, Payment.deleted_at.is_(None), Payment.paid_at.is_(None))
-                )).scalars().all()
-                for p in pay_rows:
+                for p in c_payments:
                     overdue_days = (now - p.created_at.replace(tzinfo=timezone.utc)).days
                     if rule.threshold_days and overdue_days > rule.threshold_days:
                         message = f"{c.name} 存在逾期 {overdue_days} 天应收款 ¥{float(p.amount or 0):.0f}，触发规则「{rule.name}」"
                         break
 
-            elif rule.rule_type == "order_drop":
-                if len(c_orders) >= 2:
-                    recent = sum(float(o.total_amount or 0) for o in c_orders if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= 90)
-                    prior = sum(float(o.total_amount or 0) for o in c_orders if 90 < (now - o.created_at.replace(tzinfo=timezone.utc)).days <= 180)
-                    if prior > 0 and recent < prior * 0.5:
-                        message = f"{c.name} 近90天订单金额 ¥{recent:.0f} 较前值 ¥{prior:.0f} 骤降超50%，触发规则「{rule.name}」"
+            elif rule.rule_type == "order_drop" and len(c_orders) >= 2:
+                recent = sum(float(o.total_amount or 0) for o in c_orders
+                            if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= 90)
+                prior = sum(float(o.total_amount or 0) for o in c_orders
+                            if 90 < (now - o.created_at.replace(tzinfo=timezone.utc)).days <= 180)
+                if prior > 0 and recent < prior * 0.5:
+                    message = f"{c.name} 近90天订单金额 ¥{recent:.0f} 较前值 ¥{prior:.0f} 骤降超50%，触发规则「{rule.name}」"
 
-            if message:
-                existing = (await db.execute(
-                    select(AlertEvent).where(
-                        AlertEvent.customer_id == c.id,
-                        AlertEvent.rule_type == rule.rule_type,
-                        AlertEvent.deleted_at.is_(None),
-                        AlertEvent.created_at > func.now() - func.make_interval(days=1),
-                    )
-                )).scalar_one_or_none()
-                if not existing:
-                    event = AlertEvent(
-                        customer_id=c.id, rule_type=rule.rule_type, rule_name=rule.name,
-                        severity=rule.severity, message=message,
-                    )
-                    db.add(event)
-                    generated += 1
+            if message and (c.id, rule.rule_type) not in recent_alerts:
+                event = AlertEvent(
+                    customer_id=c.id, rule_type=rule.rule_type, rule_name=rule.name,
+                    severity=rule.severity, message=message,
+                )
+                db.add(event)
+                recent_alerts.add((c.id, rule.rule_type))
+                generated += 1
 
     await db.flush()
     return ok({"generated": generated, "rules_checked": len(rules), "customers_checked": len(customers)})
@@ -1103,45 +1132,49 @@ async def get_children(customer_id: int, db: AsyncSession = Depends(get_db), _us
 @router.get("/{customer_id}/group-stats")
 async def get_group_stats(customer_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.models.sales import SalesOrder
-    result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
-    )
-    customer = result.scalar_one_or_none()
-    if not customer:
-        return fail("Customer not found", 404)
-    # Collect all group members (this customer + all descendants)
-    all_ids = {customer.id}
-    queue = [customer.id]
-    while queue:
-        pid = queue.pop()
-        children = (await db.execute(
-            select(Customer.id).where(Customer.parent_id == pid, Customer.deleted_at.is_(None))
-        )).scalars().all()
-        for cid in children:
-            if cid not in all_ids:
-                all_ids.add(cid)
-                queue.append(cid)
+    from sqlalchemy import text
+
+    # Recursive CTE: fetch all descendants in a single query
+    cte = text("""
+        WITH RECURSIVE descendants AS (
+            SELECT id FROM customers WHERE id = :root_id AND deleted_at IS NULL
+            UNION ALL
+            SELECT c.id FROM customers c
+            JOIN descendants d ON c.parent_id = d.id
+            WHERE c.deleted_at IS NULL
+        )
+        SELECT id FROM descendants
+    """)
+    ids_result = await db.execute(cte, {"root_id": customer_id})
+    all_ids = [row[0] for row in ids_result.fetchall()]
     members = len(all_ids)
+
+    if members == 0:
+        return fail("Customer not found", 404)
+
     # Aggregate orders
-    order_rows = (await db.execute(
+    orders_result = await db.execute(
         select(SalesOrder).where(
-            SalesOrder.customer_id.in_(list(all_ids)),
+            SalesOrder.customer_id.in_(all_ids),
             SalesOrder.deleted_at.is_(None),
         )
-    )).scalars().all()
+    )
+    order_rows = orders_result.scalars().all()
     agg_revenue = sum(float(o.total_amount or 0) for o in order_rows)
     agg_orders = len(order_rows)
+
     # Aggregate credit
     credit_rows = (await db.execute(
         select(Customer.credit_limit).where(
-            Customer.id.in_(list(all_ids)),
+            Customer.id.in_(all_ids),
             Customer.deleted_at.is_(None),
         )
     )).all()
     agg_credit = sum(float(r[0] or 0) for r in credit_rows)
+
     return ok({
         "members": members,
-        "all_ids": list(all_ids),
+        "all_ids": all_ids,
         "agg_revenue": round(agg_revenue, 2),
         "agg_orders": agg_orders,
         "agg_credit": round(agg_credit, 2),
@@ -1610,18 +1643,21 @@ async def upload_attachment(
     if not file.filename:
         return fail("No file selected", 400)
 
-    ext = os.path.splitext(file.filename)[1]
+    ext = os.path.splitext(_safe_filename(file.filename))[1]
+    # UUID storage name — OS-level path traversal is impossible by design
     stored_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(UPLOAD_DIR, stored_name)
 
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        return fail("File size cannot exceed 10MB", 400)
     with open(file_path, "wb") as f:
         f.write(content)
 
     attachment = CustomerAttachment(
         customer_id=customer_id,
         filename=stored_name,
-        original_name=file.filename,
+        original_name=_safe_filename(file.filename),
         file_size=len(content),
         content_type=file.content_type,
         category=category,
