@@ -1,15 +1,15 @@
 # Project Progress — AIERP
 
 **Last Updated**: 2026-05-11
-**Current Phase**: Phase 5 Complete (Approval + Procurement + Reports + RBAC)
-**Latest Commit**: `6ad0b67` — feat: Phase 5 backend — RBAC, approval workflow, procurement AI, reports
+**Current Phase**: Phase 6 Complete (Finance + Notifications + Mobile + Integration)
+**Latest Commit**: `39a78bb` — feat: Phase 6 mobile adaptation (H) — PWA + responsive layout
 
 ---
 
 ## Working State
 
 - **Branch**: master
-- **Status**: Phase 5 complete — backend + frontend committed, polish in progress
+- **Status**: Phase 6 complete — all 4 modules (FGHI) implemented and committed
 
 ---
 
@@ -95,6 +95,38 @@
 
 ---
 
+## Phase 6 — F(财务) + G(通知) + H(移动) + I(集成) (COMPLETE)
+
+### Backend (`8642c62`)
+- [x] Chart of Accounts — 15 default accounts, CRUD
+- [x] Journal Entries — create with debit/credit balance check, posting, detail view
+- [x] Bank Reconciliation — CSV upload + auto-match by amount
+- [x] P&L Report — monthly profit & loss by account type
+- [x] AP Report — accounts payable aging
+- [x] Notification Templates — 4 default templates, CRUD
+- [x] Notification Preferences — per-user channel/event settings
+- [x] Integration Configs — CRUD for ecommerce/logistics/webhook/email
+- [x] E-commerce Order Import — CSV→customer+order creation
+- [x] Logistics Tracking — tracking_no lookup stub
+- [x] Webhook Receiver — external payload logging
+
+### Frontend (`8642c62` + `39a78bb`)
+- [x] AccountList, JournalEntryList, JournalEntryForm, ProfitLoss, ReportAP
+- [x] PWA: manifest.json, service worker (cache-first), Apple meta tags
+- [x] Responsive sidebar: auto-collapse + fixed overlay on mobile
+- [x] Responsive approval table: hide columns on small breakpoints
+
+### Tables Added
+| Table | Purpose |
+|-------|---------|
+| `accounts` | Chart of accounts (15 seeded) |
+| `journal_entries` | Journal entry headers |
+| `journal_entry_lines` | Journal entry line items |
+| `bank_reconciliations` | Bank transaction matching |
+| `notification_templates` | Reusable notification templates (4 seeded) |
+| `notification_preferences` | Per-user channel preferences |
+| `integration_configs` | External API configurations |
+
 ## Phase 1 — Foundation (COMPLETE)
 
 | Feature | Commit |
@@ -107,6 +139,11 @@
 
 | Commit | Description |
 |--------|-------------|
+| `39a78bb` | feat: Phase 6 mobile adaptation (H) — PWA + responsive layout |
+| `8642c62` | feat: Phase 6 backend + frontend — finance (F) + notifications (G) + integrations (I) |
+| `9aa2be0` | feat: Phase 5 polish — user role assignment, approval buttons, Phase 6 PRD |
+| `ecc15b1` | feat: Phase 5 frontend — RBAC, approval workflow, procurement AI, reports |
+| `6ad0b67` | feat: Phase 5 backend — RBAC, approval workflow, procurement AI, reports |
 | `8d23f6a` | fix: supplier对比模块 + AI服务路由 深度修复（Claude Code 10轮审查） |
 | `8cfd095` | fix: SupplierCompare — 10 critical/medium bugs across frontend and backend |
 | `c172120` | feat: add supplier delete endpoint + enhance supplier list |
