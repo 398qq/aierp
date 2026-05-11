@@ -618,7 +618,11 @@ async def list_alert_events(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    base = select(AlertEvent).where(AlertEvent.deleted_at.is_(None))
+    base = (
+        select(AlertEvent, Customer.name.label("customer_name"))
+        .join(Customer, AlertEvent.customer_id == Customer.id)
+        .where(AlertEvent.deleted_at.is_(None))
+    )
     count_base = select(func.count(AlertEvent.id)).where(AlertEvent.deleted_at.is_(None))
     if severity:
         base = base.where(AlertEvent.severity == severity)
@@ -632,13 +636,17 @@ async def list_alert_events(
     total = (await db.execute(count_base)).scalar() or 0
     rows = (await db.execute(
         base.order_by(AlertEvent.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    )).all()
     return ok({
         "list": [{
-            "id": e.id, "customer_id": e.customer_id, "rule_type": e.rule_type,
-            "rule_name": e.rule_name, "severity": e.severity, "message": e.message,
-            "is_read": e.is_read, "read_at": str(e.read_at) if e.read_at else None,
-            "created_at": str(e.created_at) if e.created_at else None,
+            "id": e.AlertEvent.id, "customer_id": e.AlertEvent.customer_id,
+            "customer_name": e.customer_name,
+            "rule_type": e.AlertEvent.rule_type,
+            "rule_name": e.AlertEvent.rule_name, "severity": e.AlertEvent.severity,
+            "message": e.AlertEvent.message,
+            "is_read": e.AlertEvent.is_read,
+            "read_at": str(e.AlertEvent.read_at) if e.AlertEvent.read_at else None,
+            "created_at": str(e.AlertEvent.created_at) if e.AlertEvent.created_at else None,
         } for e in rows],
         "total": total, "page": page, "page_size": page_size,
     })
@@ -1253,18 +1261,27 @@ async def list_followups(customer_id: int, db: AsyncSession = Depends(get_db), _
 
 @router.post("/{customer_id}/follow-ups", status_code=201)
 async def create_followup(customer_id: int, body: FollowUpCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    data = body.model_dump()
-    for date_field in ("planned_at", "completed_at"):
-        if data.get(date_field):
-            data[date_field] = datetime.fromisoformat(data[date_field])
-    followup = CustomerFollowUp(customer_id=customer_id, **data)
-    db.add(followup)
-    result = await db.execute(select(Customer).where(Customer.id == customer_id))
-    cust = result.scalar_one_or_none()
-    if cust:
-        cust.last_contacted_at = datetime.now(timezone.utc)
-    await db.flush()
-    return ok({"id": followup.id})
+    try:
+        data = body.model_dump()
+        for date_field in ("planned_at", "completed_at"):
+            if data.get(date_field):
+                data[date_field] = datetime.fromisoformat(data[date_field])
+        if not data.get("planned_at"):
+            data["planned_at"] = datetime.now(timezone.utc)
+        followup = CustomerFollowUp(customer_id=customer_id, **data)
+        db.add(followup)
+        with db.no_autoflush:
+            result = await db.execute(select(Customer).where(Customer.id == customer_id))
+            cust = result.scalar_one_or_none()
+            if cust:
+                cust.last_contacted_at = datetime.now(timezone.utc)
+            await db.flush()
+            followup_id = followup.id
+        return ok({"id": followup_id})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return fail(str(e), 500)
 
 
 @router.put("/{customer_id}/follow-ups/{followup_id}")
@@ -1281,7 +1298,9 @@ async def update_followup(customer_id: int, followup_id: int, body: FollowUpUpda
         return fail("Follow-up not found", 404)
     data = body.model_dump(exclude_unset=True)
     for date_field in ("planned_at", "completed_at"):
-        if data.get(date_field):
+        if date_field in data and data.get(date_field) is None:
+            del data[date_field]  # don't overwrite with None if NOT NULL
+        elif data.get(date_field):
             data[date_field] = datetime.fromisoformat(data[date_field])
     for key, val in data.items():
         setattr(followup, key, val)

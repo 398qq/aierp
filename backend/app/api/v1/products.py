@@ -15,6 +15,217 @@ from app.schemas.common import fail, ok
 router = APIRouter(prefix="/products", tags=["products"])
 
 
+# --- Price Import ---
+
+class PriceImportItem(BaseModel):
+    sku: str
+    warehouse_id: int
+    unit_price: float | None = None
+    quantity: int | None = None
+
+
+class PriceImportBody(BaseModel):
+    items: list[PriceImportItem] = Field(min_length=1, max_length=5000)
+
+
+@router.post("/price-import")
+async def price_import(
+    body: PriceImportBody,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """
+    Bulk import/update inventory price and quantity data.
+    Matches by SKU + warehouse_id, updates unit_price and quantity.
+    Returns success count, failed count, and error list.
+    """
+    errors: list[str] = []
+    success_count = 0
+
+    for item in body.items:
+        # Look up product by SKU
+        result = await db.execute(
+            select(Product).where(Product.sku == item.sku, Product.deleted_at.is_(None))
+        )
+        product = result.scalar_one_or_none()
+        if product is None:
+            errors.append(f"SKU不存在: {item.sku}")
+            continue
+
+        # Look up inventory by product_id + warehouse_id
+        inv_result = await db.execute(
+            select(Inventory).where(
+                Inventory.product_id == product.id,
+                Inventory.warehouse_id == item.warehouse_id,
+                Inventory.deleted_at.is_(None),
+            )
+        )
+        inv = inv_result.scalar_one_or_none()
+        if inv is None:
+            errors.append(f"库存记录不存在: SKU={item.sku} 仓库ID={item.warehouse_id}")
+            continue
+
+        if item.unit_price is not None:
+            inv.unit_price = item.unit_price
+        if item.quantity is not None:
+            inv.quantity = item.quantity
+
+        success_count += 1
+
+    await db.commit()
+    return ok({
+        "success": success_count,
+        "failed": len(errors),
+        "errors": errors,
+    })
+
+
+# --- Inventory CRUD under /products/inventories ---
+
+inventories_router = APIRouter(prefix="/inventories", tags=["inventories"])
+
+
+class InventoryCreate(BaseModel):
+    product_id: int
+    warehouse_id: int
+    quantity: int = 0
+    safety_stock: int = 0
+    unit_price: float | None = None
+
+
+class InventoryUpdate(BaseModel):
+    quantity: int | None = None
+    safety_stock: int | None = None
+    unit_price: float | None = None
+
+
+def _inventory_row(r) -> dict:
+    return {
+        "id": r[0],
+        "product_id": r[1],
+        "warehouse_id": r[2],
+        "quantity": r[3],
+        "safety_stock": r[4],
+        "unit_price": float(r[5]) if r[5] is not None else None,
+        "created_at": str(r[6]) if r[6] else None,
+        "sku": r[7],
+        "product_name": r[8],
+        "category": r[9],
+        "brand_name": r[10] or r[11],
+        "warehouse_name": r[12],
+    }
+
+
+@inventories_router.get("")
+async def list_inventories(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    q: str | None = None,
+    warehouse_id: int | None = None,
+    brand_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """List inventory records with pagination and search."""
+    base = select(
+        Inventory.id, Inventory.product_id, Inventory.warehouse_id,
+        Inventory.quantity, Inventory.safety_stock, Inventory.unit_price,
+        Inventory.created_at,
+        Product.sku, Product.name, Product.category,
+        Brand.name_cn, Brand.name,
+        Warehouse.name,
+    ).select_from(Inventory).join(
+        Product, Inventory.product_id == Product.id
+    ).outerjoin(
+        Brand, Product.brand_id == Brand.id
+    ).join(
+        Warehouse, Inventory.warehouse_id == Warehouse.id
+    ).where(
+        Inventory.deleted_at.is_(None), Product.deleted_at.is_(None)
+    )
+
+    count_base = select(func.count(Inventory.id)).where(
+        Inventory.deleted_at.is_(None), Product.deleted_at.is_(None)
+    )
+
+    if q:
+        like = f"%{q}%"
+        base = base.where(or_(Product.sku.ilike(like), Product.name.ilike(like)))
+        count_base = count_base.join(Product, Inventory.product_id == Product.id).where(
+            or_(Product.sku.ilike(like), Product.name.ilike(like))
+        )
+    if warehouse_id:
+        base = base.where(Inventory.warehouse_id == warehouse_id)
+        count_base = count_base.where(Inventory.warehouse_id == warehouse_id)
+    if brand_id:
+        base = base.where(Product.brand_id == brand_id)
+        count_base = count_base.join(Product, Inventory.product_id == Product.id).where(Product.brand_id == brand_id)
+
+    total = (await db.execute(count_base)).scalar() or 0
+    rows = (await db.execute(
+        base.order_by(Inventory.id.desc()).offset((page - 1) * page_size).limit(page_size)
+    )).all()
+
+    return ok({
+        "list": [_inventory_row(r) for r in rows],
+        "total": total, "page": page, "page_size": page_size,
+    })
+
+
+@inventories_router.post("", status_code=201)
+async def create_inventory(body: InventoryCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Create a new inventory record."""
+    # Check for duplicate
+    existing = await db.execute(
+        select(Inventory).where(
+            Inventory.product_id == body.product_id,
+            Inventory.warehouse_id == body.warehouse_id,
+            Inventory.deleted_at.is_(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        return fail("Inventory record already exists for this product and warehouse", 409)
+
+    inv = Inventory(**body.model_dump())
+    db.add(inv)
+    await db.flush()
+    return ok({"id": inv.id})
+
+
+@inventories_router.put("/{inventory_id}")
+async def update_inventory(
+    inventory_id: int,
+    body: InventoryUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Update an inventory record."""
+    result = await db.execute(
+        select(Inventory).where(Inventory.id == inventory_id, Inventory.deleted_at.is_(None))
+    )
+    inv = result.scalar_one_or_none()
+    if inv is None:
+        return fail("Inventory record not found", 404)
+    for key, val in body.model_dump(exclude_unset=True).items():
+        setattr(inv, key, val)
+    await db.flush()
+    return ok({"id": inv.id})
+
+
+@inventories_router.delete("/{inventory_id}")
+async def delete_inventory(inventory_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Soft-delete an inventory record."""
+    result = await db.execute(
+        select(Inventory).where(Inventory.id == inventory_id, Inventory.deleted_at.is_(None))
+    )
+    inv = result.scalar_one_or_none()
+    if inv is None:
+        return fail("Inventory record not found", 404)
+    inv.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+    return ok(msg="deleted")
+
+
 # --- Schemas ---
 
 class ProductCreate(BaseModel):
@@ -640,6 +851,79 @@ async def list_warehouses(db: AsyncSession = Depends(get_db), _user: dict = Depe
         select(Warehouse).where(Warehouse.deleted_at.is_(None)).order_by(Warehouse.name)
     )).scalars().all()
     return ok([{"id": w.id, "name": w.name, "location": w.location, "description": w.description} for w in rows])
+
+
+@warehouses_router.post("")
+async def create_warehouse(
+    name: str = Query(..., max_length=100),
+    location: str | None = Query(None),
+    description: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Create a new warehouse."""
+    warehouse = Warehouse(name=name, location=location, description=description)
+    db.add(warehouse)
+    await db.commit()
+    await db.refresh(warehouse)
+    return ok({"id": warehouse.id, "name": warehouse.name, "location": warehouse.location, "description": warehouse.description})
+
+
+@warehouses_router.get("/{warehouse_id}")
+async def get_warehouse(
+    warehouse_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Get a single warehouse by ID."""
+    result = await db.execute(
+        select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.deleted_at.is_(None))
+    )
+    warehouse = result.scalar_one_or_none()
+    if not warehouse:
+        return fail("Warehouse not found")
+    return ok({"id": warehouse.id, "name": warehouse.name, "location": warehouse.location, "description": warehouse.description})
+
+
+@warehouses_router.put("/{warehouse_id}")
+async def update_warehouse(
+    warehouse_id: int,
+    name: str = Query(..., max_length=100),
+    location: str | None = Query(None),
+    description: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Update an existing warehouse."""
+    result = await db.execute(
+        select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.deleted_at.is_(None))
+    )
+    warehouse = result.scalar_one_or_none()
+    if not warehouse:
+        return fail("Warehouse not found")
+    warehouse.name = name
+    warehouse.location = location
+    warehouse.description = description
+    await db.commit()
+    return ok({"id": warehouse.id, "name": warehouse.name, "location": warehouse.location, "description": warehouse.description})
+
+
+@warehouses_router.delete("/{warehouse_id}")
+async def delete_warehouse(
+    warehouse_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Soft delete a warehouse by setting deleted_at."""
+    result = await db.execute(
+        select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.deleted_at.is_(None))
+    )
+    warehouse = result.scalar_one_or_none()
+    if not warehouse:
+        return fail("Warehouse not found")
+    warehouse.deleted_at = datetime.now(timezone.utc)
+    await db.commit()
+    return ok({"id": warehouse.id})
 
 
 # --- Inventory ---

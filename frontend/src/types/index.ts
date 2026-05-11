@@ -188,6 +188,7 @@ export interface InventoryItem {
   quantity: number; safety_stock: number; locked_quantity: number; created_at: string;
   sku?: string; product_name?: string; category?: string;
   brand_name?: string; warehouse_name?: string;
+  unit_price?: number | null;
 }
 
 // Transactions
@@ -223,7 +224,7 @@ export interface Ticket {
   id: number; ticket_no: string | null; customer_id: number | null;
   title: string; description: string | null; status: string; priority: string;
   category: string | null; assigned_to: string | null;
-  resolved_at: string | null; notes: string | null; created_at: string;
+  resolved_at: string | null; notes: string | null; created_at: string | null;
 }
 
 export interface Visit {

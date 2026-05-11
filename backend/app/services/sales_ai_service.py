@@ -1,7 +1,9 @@
 """Sales AI enrichment — embeds AI insights into every sales entity."""
 
 import logging
+from collections import Counter
 
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sales import DeliveryNote, Opportunity, Quotation, SalesOrder
@@ -235,3 +237,254 @@ async def enrich_delivery_list(db: AsyncSession, notes: list[DeliveryNote]) -> d
         return {n.id: {"completion_risk": "low", "flag": None} for n in notes}
     return {item["id"]: {"completion_risk": item.get("completion_risk", "low"), "flag": item.get("flag")}
             for item in result.get("items", []) if "id" in item}
+
+
+# ============================================================
+# Inquiry Auto-Reply
+# ============================================================
+
+async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
+    """
+    Core auto-reply engine for incoming inquiries.
+
+    1. Parse product mentions from inquiry text
+    2. Search product catalog (MPN + brand keyword match)
+    3. Fetch inventory + unit_price for matched products
+    4. Generate AI reply with product availability and pricing
+    5. Persist Inquiry record and return structured response
+    """
+    import json
+    import re
+
+    from app.models.product import Product, Brand, Inventory
+    from app.models.customer import Customer
+    from app.models.sales import Inquiry
+    from app.services.ai.client import ai_client
+    from app.services.brand_intel_service import suggest_eol_alternatives
+
+    inquiry_text = req["inquiry_text"]
+    customer_id = req.get("customer_id")
+    contact_name = req.get("contact_name")
+    contact_info = req.get("contact_info")
+    channel = req.get("channel", "web")
+
+    # --- Step 1: Parse potential MPNs from inquiry text ---
+    tokens = re.findall(r"[A-Za-z0-9\-]{4,30}", inquiry_text)
+    mpn_candidates = [t.upper() for t in tokens if len(t) >= 4]
+
+    # --- Step 2: Search product catalog ---
+    matched_products = []
+    if mpn_candidates:
+        sku_clauses = [Product.sku.ilike(f"%{m}%") for m in mpn_candidates[:5]]
+        name_clauses = [Product.name.ilike(f"%{m}%") for m in mpn_candidates[:5]]
+        cond = [
+            Product.deleted_at.is_(None),
+            or_(*(sku_clauses + name_clauses)),
+        ]
+        result = await db.execute(
+            select(
+                Product.id,
+                Product.sku,
+                Product.name,
+                Product.brand_id,
+                func.coalesce(func.sum(Inventory.quantity), 0).label("qty"),
+                func.coalesce(func.sum(Inventory.safety_stock), 0).label("safety"),
+                func.min(Inventory.unit_price).label("unit_price"),
+            )
+            .outerjoin(Inventory, Product.id == Inventory.product_id)
+            .where(*cond)
+            .group_by(Product.id, Product.sku, Product.name, Product.brand_id)
+            .limit(10)
+        )
+        rows = result.all()
+
+        # Fetch brand names
+        brand_ids = {r[3] for r in rows if r[3]}
+        brand_map = {}
+        if brand_ids:
+            brand_rows = (await db.execute(
+                select(Brand.id, Brand.name).where(Brand.id.in_(brand_ids))
+            )).all()
+            brand_map = {r[0]: r[1] for r in brand_rows}
+
+        for r in rows:
+            qty = r[4] or 0
+            safety = r[5] or 0
+            if qty <= 0:
+                stock_status = "out_of_stock"
+            elif qty <= safety:
+                stock_status = "low_stock"
+            else:
+                stock_status = "in_stock"
+            matched_products.append({
+                "id": r[0],
+                "sku": r[1],
+                "name": r[2],
+                "brand_name": brand_map.get(r[3]),
+                "stock_qty": qty,
+                "stock_status": stock_status,
+                "unit_price": float(r[6]) if r[6] is not None else None,
+            })
+    else:
+        # No MPN — brand keyword search
+        brand_result = await db.execute(
+            select(Brand.id, Brand.name).where(Brand.deleted_at.is_(None)).limit(5)
+        )
+        brand_rows = brand_result.all()
+        for br in brand_rows:
+            if br[1] and br[1].lower() in inquiry_text.lower():
+                prod_result = await db.execute(
+                    select(
+                        Product.id, Product.sku, Product.name, Product.brand_id,
+                        func.coalesce(func.sum(Inventory.quantity), 0).label("qty"),
+                        func.coalesce(func.sum(Inventory.safety_stock), 0).label("safety"),
+                        func.min(Inventory.unit_price).label("unit_price"),
+                    )
+                    .outerjoin(Inventory, Product.id == Inventory.product_id)
+                    .where(Product.brand_id == br[0], Product.deleted_at.is_(None))
+                    .group_by(Product.id, Product.sku, Product.name, Product.brand_id)
+                    .limit(5)
+                )
+                for r in prod_result.all():
+                    qty = r[4] or 0
+                    safety = r[5] or 0
+                    stock_status = "out_of_stock" if qty <= 0 else ("low_stock" if qty <= safety else "in_stock")
+                    matched_products.append({
+                        "id": r[0], "sku": r[1], "name": r[2],
+                        "brand_name": br[1], "stock_qty": qty,
+                        "stock_status": stock_status,
+                        "unit_price": float(r[6]) if r[6] is not None else None,
+                    })
+
+    # --- C4: Find alternatives for out-of-stock matched products ---
+    all_alternatives = []
+    seen_alt_ids = set()
+    out_of_stock_ids = [p["id"] for p in matched_products if p["stock_status"] == "out_of_stock"]
+    for pid in out_of_stock_ids:
+        try:
+            alt_result = await suggest_eol_alternatives(db, pid)
+            logger.info(f"[C4] suggest_eol_alternatives({pid}): {len(alt_result.get('alternatives', []))} alts")
+            for alt in alt_result.get("alternatives", []):
+                if alt["product_id"] not in seen_alt_ids:
+                    seen_alt_ids.add(alt["product_id"])
+                    all_alternatives.append(alt)
+        except Exception as e:
+            logger.warning(f"[C4] suggest_eol_alternatives({pid}) failed: {e}")
+    all_alternatives = all_alternatives[:5]
+
+    # --- Step 3: Build product context for AI (include price if available) ---
+    if matched_products:
+        lines = []
+        for p in matched_products:
+            price_str = f"，含税参考价 ¥{p['unit_price']:.2f}/件" if p.get("unit_price") else ""
+            stock_label = "有货" if p["stock_status"] == "in_stock" else ("库存紧张" if p["stock_status"] == "low_stock" else "缺货")
+            lines.append(
+                f"- [{p['brand_name'] or '未知品牌'}] {p['name']} "
+                f"(型号: {p['sku'] or 'N/A'}, 库存: {p['stock_qty']}件, 状态: {stock_label}{price_str})"
+            )
+        product_context = "\n".join(lines)
+        product_summary = f"找到 {len(matched_products)} 个匹配产品"
+    else:
+        product_context = "未能在产品目录中找到匹配型号，请人工跟进。"
+        product_summary = "未匹配到产品目录"
+
+    # --- Step 4: Customer context ---
+    customer_context = ""
+    if customer_id:
+        cust = (await db.execute(
+            select(Customer).where(Customer.id == customer_id)
+        )).scalars().first()
+        if cust:
+            customer_context = (
+                f"客户：{cust.name}，行业：{cust.industry or '未知'}，"
+                f"等级：{cust.level or '未知'}，最近跟进：{cust.updated_at or '无'}"
+            )
+
+    # --- Step 5: Generate AI reply ---
+    system_prompt = (
+        "你是一个专业的电子元器件分销商客服代表。你的职责是快速、准确地回复客户询价，"
+        "并引导客户进入下一步采购流程。\n\n"
+        "回复要求：\n"
+        "- 专业、友好、有耐心\n"
+        "- 如产品有含税参考价，可直接告知客户（单位：元/件），无需估算\n"
+        "- 库存状态：明确说明有货/缺货/库存紧张\n"
+        "- 缺货时说明预计到货时间或建议替代\n"
+        "- 缺少信息时，主动询问：交期要求\n"
+        "- 引导客户留下联系方式以便销售跟进\n"
+        "- 回复控制在150字以内\n"
+        "- 以【AI辅助回复】开头，末尾注明\"以上仅供参考，价格以我司正式报价单为准\""
+    )
+
+    user_prompt = (
+        f"客户询价内容：\n{inquiry_text}\n\n"
+        f"{customer_context}\n\n"
+        f"匹配产品信息：\n{product_context}"
+    )
+
+    try:
+        reply_text = await ai_client.chat(
+            [{"role": "system", "content": system_prompt},
+             {"role": "user", "content": user_prompt}],
+            temperature=0.4,
+            max_tokens=500,
+        )
+    except Exception:
+        logger.exception("inquiry_auto_reply AI failed")
+        reply_text = None
+
+    if not reply_text:
+        reply_text = (
+            f"感谢您的询价！您的需求已收到，{product_summary}。"
+            f"我们的销售团队将在1个工作日内与您联系，请留下您的联系方式以便更快跟进。"
+        )
+    else:
+        # Hallucination guard: fix common small-model artefacts
+        reply_text = re.sub(r'\d{9,}', 'X', reply_text)
+        reply_text = re.sub(r'\$[\d\-NGn]+-\d+', '含税价请询价', reply_text)
+        reply_text = re.sub(r'(\d)\1{5,}', 'X', reply_text)
+
+        if reply_text:
+            char_counts = Counter(reply_text.replace(' ', '').replace('\n', ''))
+            if char_counts:
+                top_char, top_count = char_counts.most_common(1)[0]
+                total_chars = sum(char_counts.values())
+                if top_count / max(total_chars, 1) > 0.30:
+                    product_names = ', '.join(p['sku'] for p in matched_products) if matched_products else inquiry_text[:20]
+                    reply_text = (
+                        f"【AI辅助回复】感谢您的询价！您的需求（{product_names}）已收到，"
+                        f"我们的销售团队将在1个工作日内与您联系确认库存和报价，请保持联系方式畅通。以上仅供参考，价格以我司正式报价单为准。"
+                    )
+
+    # Confidence
+    if matched_products:
+        in_stock = any(p["stock_status"] == "in_stock" for p in matched_products)
+        confidence = 0.85 if in_stock else 0.60
+    else:
+        confidence = 0.30
+
+    # --- Step 6: Persist Inquiry record ---
+    inquiry = Inquiry(
+        customer_id=customer_id,
+        channel=channel,
+        contact_name=contact_name,
+        contact_info=contact_info,
+        inquiry_text=inquiry_text,
+        reply_text=reply_text,
+        status="replied",
+        matched_products=json.dumps(matched_products, ensure_ascii=False),
+        ai_confidence=confidence,
+    )
+    db.add(inquiry)
+    await db.flush()
+
+    summary = f"新询价：{inquiry_text[:30]}{'...' if len(inquiry_text) > 30 else ''}"
+
+    return {
+        "inquiry_id": inquiry.id,
+        "reply_text": reply_text,
+        "confidence": confidence,
+        "matched_products": matched_products,
+        "alternatives": all_alternatives,
+        "created_opportunity_id": None,
+        "summary": summary,
+    }

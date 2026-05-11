@@ -26,6 +26,7 @@
 - [x] Inventory Forecasting — demand forecast table on inventory page (commit `78a4495`)
 - [x] Supplier delete endpoint + enhanced list (commit `c172120`)
 - [x] Pipeline kanban + customer/supplier conversion (commit `b190769`)
+- [x] .gitignore cleanup — added venv312/, extracted packages; removed Login HTML variants
 
 ### Post-Phase-4 Bug Fixes
 - [x] Brand intel service N+1 query (commit `862a7f3`)
@@ -40,8 +41,6 @@
 
 ### Pending / Planned
 - [ ] Phase 5 scoping and requirements
-- [ ] .gitignore cleanup
-- [ ] Login page variants decision (LoginA/B/Design.html)
 
 ---
 
@@ -96,9 +95,8 @@
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| `.gitignore` excludes all `*.db` files but test databases already deleted | Low | Pending cleanup |
-| `venv312/` directory not in `.gitignore` | Low | Not yet tracked |
-| Login page variants (LoginA/B/Design.html) untracked — need decision | Low | Under review |
+| `venv312/` directory not in `.gitignore` | Low | Fixed |
+| `.gitignore` excludes all `*.db` files — could miss legitimate DB files | Low | Monitor |
 
 ---
 

@@ -466,16 +466,22 @@ async def list_tickets(
                   "title": t.title, "description": t.description, "status": t.status,
                   "priority": t.priority, "category": t.category, "assigned_to": t.assigned_to,
                   "resolved_at": str(t.resolved_at) if t.resolved_at else None,
-                  "notes": t.notes, "created_at": str(t.created_at)} for t in rows],
+                  "notes": t.notes, "created_at": str(t.created_at) if t.created_at else None} for t in rows],
         "total": total, "page": page, "page_size": page_size,
     })
 
 
 @ticket_router.post("", status_code=201)
 async def create_ticket(body: TicketCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    ticket = Ticket(**body.model_dump())
+    data = body.model_dump()
+    # Default to public customer (ID=214) if not specified
+    if data.get("customer_id") is None:
+        data["customer_id"] = 214
+    ticket = Ticket(**data)
     db.add(ticket)
     await db.flush()
+    await db.commit()
+    await db.refresh(ticket)
     return ok({"id": ticket.id, "title": ticket.title})
 
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, Tag, Select, message, Popconfirm, Switch } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getQuotations, batchDeleteQuotations, deleteQuotation, convertQuotationToOrder } from "../../api";
+import { getQuotations, batchDeleteQuotations, deleteQuotation, convertQuotationToOrder, downloadQuotationPDF } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { Quotation } from "../../types";
 
@@ -75,10 +75,11 @@ export default function QuotationList() {
             render: (_: unknown, r: Quotation) => <AIInlineBadge riskLevel={aiMap[r.id]?.pricing_health === "poor" ? "high" : aiMap[r.id]?.pricing_health === "fair" ? "medium" : "low"} flag={aiMap[r.id]?.flag} />,
           },
           {
-            title: "操作", width: 180,
+            title: "操作", width: 220,
             render: (_: unknown, r: Quotation) => (
               <Space size="small">
                 <Button size="small" onClick={() => navigate(`/sales/quotations/${r.id}`)}>详情</Button>
+                <Button size="small" onClick={() => { downloadQuotationPDF(r.id, `quotation_${r.quotation_no || r.id}.pdf`).catch(() => message.error("下载失败")); }}>PDF</Button>
                 {r.status !== "won" && (
                   <Popconfirm title="转为销售订单?" onConfirm={async () => {
                     try { await convertQuotationToOrder(r.id); message.success("已转为订单"); load(); } catch { message.error("转换失败"); }

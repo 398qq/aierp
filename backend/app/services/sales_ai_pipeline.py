@@ -37,6 +37,9 @@ def after_quotation_save(quote_id: int):
 
 
 async def _bg_enrich_opportunity(opp_id: int):
+    import datetime
+    import json
+
     try:
         from app.models.sales import Opportunity
         from app.services.sales_ai_service import enrich_opportunity
@@ -49,12 +52,27 @@ async def _bg_enrich_opportunity(opp_id: int):
             result = await enrich_opportunity(db, opp)
             if not result:
                 return
+
+            # Write AI scores back to the opportunity record
             risk = result.get("risk_level", "low")
+            win_prob = result.get("win_probability")
+            concerns = result.get("key_concerns", [])
+            next_action = result.get("next_best_action")
+
+            opp.ai_risk_level = risk
+            opp.ai_next_action = next_action
+            opp.ai_key_concerns = json.dumps(concerns, ensure_ascii=False) if concerns else None
+            opp.ai_scored_at = datetime.datetime.now(datetime.timezone.utc)
+            if win_prob is not None:
+                opp.win_probability = win_prob
+
+            await db.commit()
+
             if risk == "high":
                 await create_notification(
                     db, user_id=1, type="risk_alert",
                     title=f"高风险商机: {opp.title}",
-                    content=f"赢单概率 {result.get('win_probability', '?')}%，建议: {result.get('next_best_action', '无')}",
+                    content=f"赢单概率 {win_prob or '?'}%，建议: {next_action or '无'}",
                     related_id=opp_id,
                 )
     except Exception:

@@ -265,16 +265,25 @@ class EmbeddingService:
 
     @staticmethod
     async def index_all_suppliers(db_session, batch_size: int = 50) -> dict:
-        """Generate embeddings for all suppliers that lack them."""
+        """Generate embeddings for all suppliers that lack them — cursor-paginated to avoid OOM."""
         from app.models.product import Supplier
-        result = await db_session.execute(
-            select(Supplier).where(Supplier.deleted_at.is_(None), Supplier.embedding.is_(None))
-        )
-        suppliers = result.scalars().all()
+
+        # 1. Fetch only IDs to avoid loading full objects into memory at once
+        id_rows = (await db_session.execute(
+            select(Supplier.id).where(Supplier.deleted_at.is_(None), Supplier.embedding.is_(None))
+        )).scalars().all()
 
         indexed, errors = 0, 0
-        for i in range(0, len(suppliers), batch_size):
-            batch = suppliers[i : i + batch_size]
+        total = len(id_rows)
+        processed = 0
+
+        while processed < total:
+            batch_ids = id_rows[processed: processed + batch_size]
+            batch = (await db_session.execute(
+                select(Supplier).where(Supplier.id.in_(batch_ids))
+            )).scalars().all()
+            processed += len(batch_ids)
+
             texts = [f"供应商：{s.name}，产品线：{s.product_lines or ''}，类型：{s.supplier_type or ''}，"
                      f"区域：{s.region or ''}，认证：{s.certifications or ''}，"
                      f"付款条件：{s.payment_terms or ''}，备注：{s.notes or ''}"
@@ -286,22 +295,31 @@ class EmbeddingService:
                 indexed += len(batch)
                 await db_session.flush()
             except Exception:
-                logger.exception(f"Embed supplier batch {i // batch_size} failed")
+                logger.exception(f"Embed supplier batch offset {processed - batch_size} failed")
                 errors += len(batch)
-        return {"indexed": indexed, "skipped": len(suppliers) - indexed - errors, "errors": errors}
+
+        return {"indexed": indexed, "skipped": 0, "errors": errors}
 
     @staticmethod
     async def index_all_products(db_session, batch_size: int = 50) -> dict:
-        """Generate embeddings for all products that lack them."""
+        """Generate embeddings for all products that lack them — cursor-paginated to avoid OOM."""
         from app.models.product import Product
-        result = await db_session.execute(
-            select(Product).where(Product.deleted_at.is_(None), Product.embedding.is_(None))
-        )
-        products = result.scalars().all()
+
+        id_rows = (await db_session.execute(
+            select(Product.id).where(Product.deleted_at.is_(None), Product.embedding.is_(None))
+        )).scalars().all()
 
         indexed, errors = 0, 0
-        for i in range(0, len(products), batch_size):
-            batch = products[i : i + batch_size]
+        total = len(id_rows)
+        processed = 0
+
+        while processed < total:
+            batch_ids = id_rows[processed: processed + batch_size]
+            batch = (await db_session.execute(
+                select(Product).where(Product.id.in_(batch_ids))
+            )).scalars().all()
+            processed += len(batch_ids)
+
             texts = [f"型号：{p.sku or ''}，名称：{p.name}，品类：{p.category or ''}，"
                      f"规格：{p.specs or ''}，封装：{p.package_type or ''}，备注：{p.notes or ''}"
                      for p in batch]
@@ -312,9 +330,10 @@ class EmbeddingService:
                 indexed += len(batch)
                 await db_session.flush()
             except Exception:
-                logger.exception(f"Embed product batch {i // batch_size} failed")
+                logger.exception(f"Embed product batch offset {processed - batch_size} failed")
                 errors += len(batch)
-        return {"indexed": indexed, "skipped": len(products) - indexed - errors, "errors": errors}
+
+        return {"indexed": indexed, "skipped": 0, "errors": errors}
 
     @staticmethod
     async def index_all(db_session, batch_size: int = 50) -> dict:
@@ -323,14 +342,21 @@ class EmbeddingService:
 
         from app.models.customer import Customer
 
-        result = await db_session.execute(
-            select(Customer).where(Customer.deleted_at.is_(None), Customer.embedding.is_(None))
-        )
-        customers = result.scalars().all()
+        id_rows = (await db_session.execute(
+            select(Customer.id).where(Customer.deleted_at.is_(None), Customer.embedding.is_(None))
+        )).scalars().all()
 
         indexed, errors = 0, 0
-        for i in range(0, len(customers), batch_size):
-            batch = customers[i : i + batch_size]
+        total = len(id_rows)
+        processed = 0
+
+        while processed < total:
+            batch_ids = id_rows[processed: processed + batch_size]
+            batch = (await db_session.execute(
+                select(Customer).where(Customer.id.in_(batch_ids))
+            )).scalars().all()
+            processed += len(batch_ids)
+
             texts = [
                 f"客户：{c.name}，行业：{c.industry or ''}，区域：{c.region or ''}，"
                 f"类型：{c.customer_type or ''}，等级：{c.level or ''}，"
@@ -344,10 +370,10 @@ class EmbeddingService:
                 indexed += len(batch)
                 await db_session.flush()
             except Exception:
-                logger.exception(f"Embed batch {i // batch_size} failed")
+                logger.exception(f"Embed batch offset {processed - batch_size} failed")
                 errors += len(batch)
 
-        return {"indexed": indexed, "skipped": len(customers) - indexed - errors, "errors": errors}
+        return {"indexed": indexed, "skipped": total - indexed - errors, "errors": errors}
 
     @staticmethod
     async def segment_customers(db_session, n_clusters: int = 5) -> dict:
@@ -355,8 +381,8 @@ class EmbeddingService:
 
         Returns {clusters: [{id, label, size, avg_similarity, sample_names}]}
         """
-        import random
         from collections import defaultdict
+        import asyncio
 
         from app.models.customer import Customer
 
@@ -369,37 +395,9 @@ class EmbeddingService:
             return {"clusters": [], "error": f"Need at least {n_clusters} customers with embeddings"}
 
         embeddings = [list(r[2]) for r in rows]  # Convert pgvector/numpy to Python list
-        dim = len(embeddings[0])
 
-        # K-means++ initialization
-        centroids = [random.choice(embeddings)[:]]
-        for _ in range(1, n_clusters):
-            dists = [min(_euclidean_sq(e, c) for c in centroids) for e in embeddings]
-            total = sum(dists)
-            pick = random.random() * total
-            acc = 0
-            for i, d in enumerate(dists):
-                acc += d
-                if acc >= pick:
-                    centroids.append(embeddings[i][:])
-                    break
-
-        # Run K-means
-        labels = [0] * len(rows)
-        for _ in range(30):
-            changed = False
-            for i, e in enumerate(embeddings):
-                best = min(range(n_clusters), key=lambda j: _euclidean_sq(e, centroids[j]))
-                if best != labels[i]:
-                    labels[i] = best
-                    changed = True
-            if not changed:
-                break
-            # Update centroids
-            for j in range(n_clusters):
-                members = [embeddings[i] for i, lbl in enumerate(labels) if lbl == j]
-                if members:
-                    centroids[j] = [sum(x[d] for x in members) / len(members) for d in range(dim)]
+        # Run K-means in thread pool to avoid blocking the event loop
+        labels, centroids = await asyncio.to_thread(_run_kmeans, embeddings, n_clusters)
 
         # Build clusters
         clusters = defaultdict(list)
@@ -410,6 +408,7 @@ class EmbeddingService:
 
         # Compute avg intra-cluster similarity and pick top samples
         result_clusters = []
+        dim = len(embeddings[0])
         for j, members in clusters.items():
             centroid = centroids[j]
             avg_sim = 0.0
@@ -442,6 +441,48 @@ class EmbeddingService:
 
 def _euclidean_sq(a: list[float], b: list[float]) -> float:
     return float(sum((x - y) ** 2 for x, y in zip(a, b)))
+
+
+def _run_kmeans(embeddings: list[list[float]], n_clusters: int, n_iter: int = 30) -> tuple[list[int], list[list[float]]]:
+    """Pure synchronous K-means++ on a list of embedding vectors.
+    Returns (labels, centroids).
+    """
+    import random
+    from collections import defaultdict
+
+    dim = len(embeddings[0])
+
+    # K-means++ initialization
+    centroids = [random.choice(embeddings)[:]]
+    for _ in range(1, n_clusters):
+        dists = [min(_euclidean_sq(e, c) for c in centroids) for e in embeddings]
+        total = sum(dists)
+        pick = random.random() * total
+        acc = 0
+        for i, d in enumerate(dists):
+            acc += d
+            if acc >= pick:
+                centroids.append(embeddings[i][:])
+                break
+
+    # Run K-means iterations
+    labels = [0] * len(embeddings)
+    for _ in range(n_iter):
+        changed = False
+        for i, e in enumerate(embeddings):
+            best = min(range(n_clusters), key=lambda j: _euclidean_sq(e, centroids[j]))
+            if best != labels[i]:
+                labels[i] = best
+                changed = True
+        if not changed:
+            break
+        # Update centroids
+        for j in range(n_clusters):
+            members = [embeddings[i] for i, lbl in enumerate(labels) if lbl == j]
+            if members:
+                centroids[j] = [sum(x[d] for x in members) / len(members) for d in range(dim)]
+
+    return labels, centroids
 
 
 class InventoryAgent:

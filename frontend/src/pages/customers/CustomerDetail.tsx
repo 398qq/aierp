@@ -187,9 +187,14 @@ export default function CustomerDetail() {
                   label: `跟进记录 (${followUps.length})`,
                   children: (
                     <div>
-                      <Button type="primary" onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }} style={{ marginBottom: 16 }}>
-                        新增跟进
-                      </Button>
+                      <Space style={{ marginBottom: 16 }}>
+                        <Button type="primary" onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}>
+                          新增跟进
+                        </Button>
+                        <Button onClick={() => navigate(`/customers/${customerId}/follow-ups`)}>
+                          查看全部
+                        </Button>
+                      </Space>
                       {followUps.length === 0 && <Empty description="暂无跟进记录" />}
                       {followUps.map((f) => (
                         <Card key={f.id} size="small" style={{ marginBottom: 8 }}

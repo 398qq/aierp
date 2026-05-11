@@ -25,6 +25,22 @@ export const login = (username: string, password: string) =>
 
 export const getMe = () => client.get<APIResponse>("/auth/me");
 
+// Users
+export const getUsers = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Record<string, unknown>>>>("/users", { params });
+
+export const getUser = (id: number) =>
+  client.get<APIResponse<Record<string, unknown>>>(`/users/${id}`);
+
+export const createUser = (data: Record<string, unknown>) =>
+  client.post<APIResponse>("/users", data);
+
+export const updateUser = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse>(`/users/${id}`, data);
+
+export const deleteUser = (id: number) =>
+  client.delete<APIResponse>(`/users/${id}`);
+
 // Customers
 export const getCustomers = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<Customer>>>("/customers", { params });
@@ -150,6 +166,10 @@ export const deleteProduct = (id: number) =>
 
 export const getProductSales = (productId: number) =>
   client.get<APIResponse<{ quotations: Record<string, unknown>[]; orders: Record<string, unknown>[]; deliveries: Record<string, unknown>[] }>>(`/products/${productId}/sales`);
+
+// Price Import
+export const priceImport = (items: { sku: string; warehouse_id: number; unit_price?: number; quantity?: number }[]) =>
+  client.post<APIResponse<{ success: number; failed: number; errors: string[] }>>("/products/price-import", { items });
 
 // Brands
 export const getBrands = (params?: Record<string, unknown>) =>
@@ -284,6 +304,23 @@ export const autoCompleteBrand = (brandId: number) =>
 export const getWarehouses = () =>
   client.get<APIResponse<Warehouse[]>>("/warehouses");
 
+export const createWarehouse = (data: { name: string; location?: string; description?: string }) =>
+  client.post<APIResponse<{ id: number; name: string; location: string | null; description: string | null }>>("/warehouses", undefined, { params: data });
+
+export const updateWarehouse = (id: number, data: { name: string; location?: string; description?: string }) =>
+  client.put<APIResponse<{ id: number; name: string; location: string | null; description: string | null }>>(`/warehouses/${id}`, undefined, { params: data });
+
+export const deleteWarehouse = (id: number) =>
+  client.delete<APIResponse<{ id: number }>>(`/warehouses/${id}`);
+
+export const getInventoryTransactions = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<{
+    id: number; product_id: number; warehouse_id: number; type: string;
+    quantity: number; before_qty: number | null; after_qty: number | null;
+    reference_type: string | null; reference_id: number | null; notes: string | null;
+    created_at: string; product_name: string; warehouse_name: string;
+  }>>>(`/inventory-transactions`, { params });
+
 export const getInventory = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<InventoryItem>>>("/inventory", { params });
 
@@ -296,6 +333,19 @@ export const adjustInventory = (product_id: number, warehouse_id: number, adjust
 
 export const batchAdjustInventory = (items: { product_id: number; warehouse_id: number; adjustment: number; reason: string }[]) =>
   client.post<APIResponse>("/inventory/batch-adjust", { items });
+
+// Products Inventory CRUD (under /products/inventories)
+export const getProductInventories = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<InventoryItem>>>("/products/inventories", { params });
+
+export const createProductInventory = (data: { product_id: number; warehouse_id: number; quantity: number; safety_stock?: number; unit_price?: number }) =>
+  client.post<APIResponse>("/products/inventories", data);
+
+export const updateProductInventory = (id: number, data: { quantity?: number; safety_stock?: number; unit_price?: number }) =>
+  client.put<APIResponse>(`/products/inventories/${id}`, data);
+
+export const deleteProductInventory = (id: number) =>
+  client.delete<APIResponse>(`/products/inventories/${id}`);
 
 // Product AI
 export const aiParseProduct = (text: string) =>
@@ -345,8 +395,17 @@ export const deletePurchaseOrder = (id: number) =>
 export const getTickets = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<Ticket>>>("/tickets", { params });
 
+export const getTicket = (id: number) =>
+  client.get<APIResponse<Ticket>>(`/tickets/${id}`);
+
 export const createTicket = (data: Record<string, unknown>) =>
-  client.post<APIResponse>("/tickets", data);
+  client.post<APIResponse<Ticket>>("/tickets", data);
+
+export const updateTicket = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Ticket>>(`/tickets/${id}`, data);
+
+export const deleteTicket = (id: number) =>
+  client.delete<APIResponse>(`/tickets/${id}`);
 
 // Visits
 export const getVisits = (params: Record<string, unknown>) =>
@@ -625,8 +684,26 @@ export const deleteQuotation = (id: number) =>
 export const batchDeleteQuotations = (ids: number[]) =>
   client.post<APIResponse>("/quotations/batch-delete", { ids });
 
+export const createQuotationFromInquiry = (inquiryId: number, items?: Record<string, unknown>[]) =>
+  client.post<APIResponse<{ id: number; quotation_no: string }>>("/quotations/from-inquiry", {
+    inquiry_id: inquiryId,
+    items: items || [],
+  });
+
 export const convertQuotationToOrder = (id: number) =>
   client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/quotations/${id}/convert-to-order`);
+
+export const downloadQuotationPDF = async (id: number, filename?: string) => {
+  const resp = await client.get(`/quotations/${id}/pdf`, { responseType: "blob" });
+  const url = window.URL.createObjectURL(new Blob([resp.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename || `quotation_${id}.pdf`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
 
 // ============================================================
 // Sales — Sales Orders
@@ -782,3 +859,57 @@ export const getSimilarCustomers = (customerId: number, topK = 10) =>
 
 export const searchSimilarCustomers = (q: string, topK = 10) =>
   client.get<APIResponse<import("../types").SimilarCustomer[]>>(`/ai/customer/similar/search?q=${encodeURIComponent(q)}&top_k=${topK}`);
+
+// ============================================================
+// Inquiry Auto-Reply
+// ============================================================
+export interface InquiryMatchedProduct {
+  product_id: number;
+  sku: string;
+  name: string;
+  brand: string;
+  stock_status: string;
+  stock_quantity?: number;
+  unit_price?: number;
+}
+
+export interface InquiryAlternative {
+  original_sku: string;
+  alternative_sku: string;
+  alternative_name: string;
+  brand: string;
+  reason: string;
+}
+
+export interface InquiryAutoReplyResponse {
+  reply_text: string;
+  confidence: number;
+  matched_products: InquiryMatchedProduct[];
+  alternatives: InquiryAlternative[];
+}
+
+export interface InquiryRecord {
+  id: number;
+  inquiry_text: string;
+  reply_text: string | null;
+  confidence: number | null;
+  customer_id: number | null;
+  customer_name: string | null;
+  contact_name: string | null;
+  contact_info: string | null;
+  channel: string;
+  status: string;
+  created_at: string;
+}
+
+export const inquiryAutoReply = (data: {
+  inquiry_text: string;
+  customer_id?: number;
+  contact_name?: string;
+  contact_info?: string;
+  channel?: string;
+}) =>
+  client.post<APIResponse<InquiryAutoReplyResponse>>("/inquiry/auto-reply", data);
+
+export const getInquiries = (params: { limit?: number; sort_by?: string; order?: string }) =>
+  client.get<APIResponse<{ list: InquiryRecord[]; total: number }>>("/inquiries", { params });

@@ -1,7 +1,7 @@
 """Sales CRUD service — opportunities, quotations, orders, delivery notes."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -166,9 +166,24 @@ async def create_quotation(db: AsyncSession, data: dict, items_data: list[dict] 
 
 
 async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Quotation:
+    items_data = data.pop("items", None)
     for k, v in data.items():
         if v is not None and k != "items":
             setattr(quote, k, v)
+    if items_data is not None:
+        # Delete existing items and replace with new ones
+        for item in quote.items:
+            await db.delete(item)
+        await db.flush()
+        total = 0.0
+        for item_data in items_data:
+            qty = item_data.get("quantity", 1)
+            up = item_data.get("unit_price") or 0
+            tp = qty * up
+            total += tp
+            qi = QuotationItem(quotation_id=quote.id, **item_data, total_price=tp)
+            db.add(qi)
+        quote.total_amount = total
     await db.commit()
     await db.refresh(quote)
     return quote
@@ -177,6 +192,131 @@ async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Qu
 async def delete_quotation(db: AsyncSession, quote: Quotation) -> None:
     quote.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+async def send_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
+    """Mark quotation as sent and trigger WeCom notification."""
+    quote.status = "sent"
+    await db.commit()
+    await db.refresh(quote)
+    # Send WeCom notification in background
+    try:
+        await _notify_quotation_sent(quote)
+    except Exception as e:
+        logger.warning(f"[Quotation] Failed to send WeCom notification: {e}")
+    return quote
+
+
+async def _notify_quotation_sent(quote: Quotation) -> None:
+    """Send WeCom webhook notification for a sent quotation."""
+    from app.config import settings
+
+    webhook_url = getattr(settings, "WECOM_WEBHOOK_URL", None)
+    if not webhook_url:
+        logger.warning("[Quotation] WECOM_WEBHOOK_URL not configured, skipping notification")
+        return
+
+    content_lines = [
+        "📋 **报价单已发送**",
+        "",
+        f"**报价单号**：{quote.quotation_no or f'#{quote.id}'}",
+        f"**客户ID**：{quote.customer_id}",
+        f"**总金额**：¥{float(quote.total_amount or 0):,.2f}",
+        f"**状态**：已发送",
+        f"**有效期**：{quote.valid_until.strftime('%Y-%m-%d') if quote.valid_until else '未设置'}",
+        "",
+        f"🔗 查看详情：/sales/quotations/{quote.id}",
+        f"⏰ 时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
+    ]
+
+    payload = {
+        "msgtype": "markdown",
+        "markdown": {
+            "content": "\n".join(content_lines),
+        },
+    }
+
+    import httpx
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(webhook_url, json=payload)
+        if resp.status_code == 200:
+            logger.info(f"[Quotation] WeCom notification sent for quote {quote.id}")
+        else:
+            logger.warning(f"[Quotation] WeCom notification failed: {resp.status_code} {resp.text}")
+
+
+async def create_quotation_from_inquiry(
+    db: AsyncSession, *, inquiry_id: int,
+    items: list[dict],
+    customer_id: int | None = None,
+    title: str | None = None,
+    valid_until: datetime | None = None,
+    notes: str | None = None,
+) -> Quotation:
+    """Create a new quotation from an inquiry record, pre-filled with matched products."""
+    # Get inquiry to retrieve customer info if not provided
+    from app.models.sales import Inquiry
+    result = await db.execute(select(Inquiry).where(Inquiry.id == inquiry_id))
+    inquiry = result.scalar_one_or_none()
+    if not inquiry:
+        raise ValueError(f"Inquiry {inquiry_id} not found")
+
+    cid = customer_id or inquiry.customer_id
+    if not cid:
+        cid = 244  # 公众客户 fallback
+    quotation_no = await _gen_no(db, "QT", Quotation)
+
+    quote = Quotation(
+        quotation_no=quotation_no,
+        customer_id=cid,
+        title=title or f"询价单 #{inquiry_id} 报价",
+        total_amount=0,
+        status="draft",
+        valid_until=valid_until or (datetime.now(timezone.utc) + timedelta(days=30)),
+        notes=notes,
+    )
+    db.add(quote)
+    await db.flush()
+
+    total = 0.0
+    # Auto-populate items from inquiry.matched_products if not provided
+    if not items:
+        import json
+        from app.models.product import Product
+        try:
+            matched = json.loads(inquiry.matched_products) if inquiry.matched_products else []
+        except Exception:
+            matched = []
+        for mp in matched:
+            pid = mp.get("id") or mp.get("product_id")
+            if not pid:
+                # Resolve by SKU
+                sku = mp.get("sku")
+                if sku:
+                    pr = (await db.execute(
+                        select(Product.id).where(Product.sku == sku).limit(1)
+                    )).scalar_one_or_none()
+                    pid = pr
+            if not pid:
+                continue
+            qty = mp.get("quantity") or mp.get("stock_qty") or 1
+            up = mp.get("unit_price") or 0
+            tp = qty * up
+            total += tp
+            qi = QuotationItem(
+                quotation_id=quote.id,
+                product_id=pid,
+                product_name=mp.get("name") or mp.get("product_name") or "",
+                quantity=qty,
+                unit_price=up,
+                total_price=tp,
+            )
+            db.add(qi)
+
+    quote.total_amount = total
+    await db.commit()
+    await db.refresh(quote)
+    return quote
 
 
 # ============================================================

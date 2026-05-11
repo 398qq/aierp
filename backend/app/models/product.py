@@ -107,6 +107,7 @@ class Inventory(TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(default=0)
     safety_stock: Mapped[int] = mapped_column(default=0)
     locked_quantity: Mapped[int] = mapped_column(default=0)
+    unit_price: Mapped[float | None] = mapped_column(default=None)
 
 
 class InventoryTransaction(TimestampMixin, Base):

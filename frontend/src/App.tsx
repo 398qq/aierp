@@ -51,12 +51,25 @@ const PurchaseOrderList = lazy(() => import("./pages/sales/PurchaseOrderList"));
 const PurchaseOrderForm = lazy(() => import("./pages/sales/PurchaseOrderForm"));
 const PurchaseOrderDetail = lazy(() => import("./pages/sales/PurchaseOrderDetail"));
 const SalesDashboard = lazy(() => import("./pages/sales/SalesDashboard"));
+const InquiryAutoReply = lazy(() => import("./pages/sales/InquiryAutoReply"));
 const NotificationList = lazy(() => import("./pages/notifications/index"));
 const Product360 = lazy(() => import("./pages/products/Product360"));
+const PriceImport = lazy(() => import("./pages/products/PriceImport"));
+const InventoryManage = lazy(() => import("./pages/products/InventoryManage"));
 const Supplier360 = lazy(() => import("./pages/suppliers/Supplier360"));
 const SupplierCompare = lazy(() => import("./pages/suppliers/SupplierCompare"));
 const WatchtowerDashboard = lazy(() => import("./pages/dashboard/WatchtowerDashboard"));
 const Global360 = lazy(() => import("./pages/dashboard/Global360"));
+const InquiryPortal = lazy(() => import("./pages/public/InquiryPortal"));
+const UserList = lazy(() => import("./pages/system/users/UserList"));
+const WarehouseList = lazy(() => import("./pages/warehouse/WarehouseList"));
+const InventoryLedger = lazy(() => import("./pages/warehouse/InventoryLedger"));
+const WarehouseIndex = lazy(() => import("./pages/warehouse/index"));
+const TicketList = lazy(() => import("./pages/tickets/TicketList"));
+const TicketForm = lazy(() => import("./pages/tickets/TicketForm"));
+const TicketDetail = lazy(() => import("./pages/tickets/TicketDetail"));
+const FollowUpList = lazy(() => import("./pages/customers/FollowUpList"));
+const FollowUpForm = lazy(() => import("./pages/customers/FollowUpForm"));
 
 function PageLoader() {
   return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
@@ -82,6 +95,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/inquiry" element={<Suspense fallback={<PageLoader />}><InquiryPortal /></Suspense>} />
             <Route
               element={
                 <ProtectedRoute>
@@ -98,10 +112,15 @@ export default function App() {
               <Route path="/customers/:id" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
               <Route path="/customers/:id/insight" element={<Suspense fallback={<PageLoader />}><CustomerInsight /></Suspense>} />
               <Route path="/customers/:id/360" element={<Suspense fallback={<PageLoader />}><Customer360 /></Suspense>} />
+              <Route path="/customers/:customerId/follow-ups" element={<Suspense fallback={<PageLoader />}><FollowUpList /></Suspense>} />
+              <Route path="/customers/:customerId/follow-ups/new" element={<Suspense fallback={<PageLoader />}><FollowUpForm /></Suspense>} />
+              <Route path="/customers/:customerId/follow-ups/:followupId/edit" element={<Suspense fallback={<PageLoader />}><FollowUpForm /></Suspense>} />
               <Route path="/customers/segments" element={<Suspense fallback={<PageLoader />}><CustomerSegments /></Suspense>} />
               <Route path="/products" element={<Suspense fallback={<PageLoader />}><ProductList /></Suspense>} />
               <Route path="/products/:id" element={<Suspense fallback={<PageLoader />}><ProductDetail /></Suspense>} />
               <Route path="/products/:id/360" element={<Suspense fallback={<PageLoader />}><Product360 /></Suspense>} />
+              <Route path="/products/price-import" element={<Suspense fallback={<PageLoader />}><PriceImport /></Suspense>} />
+              <Route path="/products/inventory" element={<Suspense fallback={<PageLoader />}><InventoryManage /></Suspense>} />
               <Route path="/suppliers" element={<Suspense fallback={<PageLoader />}><SupplierList /></Suspense>} />
               <Route path="/suppliers/stats" element={<Suspense fallback={<PageLoader />}><SupplierDashboard /></Suspense>} />
               <Route path="/suppliers/:id" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
@@ -110,7 +129,11 @@ export default function App() {
               <Route path="/brands" element={<Suspense fallback={<PageLoader />}><BrandList /></Suspense>} />
               <Route path="/brands/:id" element={<Suspense fallback={<PageLoader />}><BrandDetail /></Suspense>} />
               <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryList /></Suspense>} />
+              <Route path="/warehouse" element={<Suspense fallback={<PageLoader />}><WarehouseIndex /></Suspense>} />
+              <Route path="/warehouse/warehouses" element={<Suspense fallback={<PageLoader />}><WarehouseList /></Suspense>} />
+              <Route path="/warehouse/inventory-ledger" element={<Suspense fallback={<PageLoader />}><InventoryLedger /></Suspense>} />
               <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
+              <Route path="/system/users" element={<Suspense fallback={<PageLoader />}><UserList /></Suspense>} />
               <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
               <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
               <Route path="/sales/opportunities" element={<Suspense fallback={<PageLoader />}><OpportunityList /></Suspense>} />
@@ -147,7 +170,12 @@ export default function App() {
               <Route path="/sales/targets" element={<Suspense fallback={<PageLoader />}><TargetList /></Suspense>} />
               <Route path="/sales/targets/new" element={<Suspense fallback={<PageLoader />}><TargetForm /></Suspense>} />
               <Route path="/sales/targets/:id/edit" element={<Suspense fallback={<PageLoader />}><TargetForm /></Suspense>} />
+              <Route path="/sales/inquiry" element={<Suspense fallback={<PageLoader />}><InquiryAutoReply /></Suspense>} />
               <Route path="/sales/dashboard" element={<Suspense fallback={<PageLoader />}><SalesDashboard /></Suspense>} />
+              <Route path="/tickets" element={<Suspense fallback={<PageLoader />}><TicketList /></Suspense>} />
+              <Route path="/tickets/new" element={<Suspense fallback={<PageLoader />}><TicketForm /></Suspense>} />
+              <Route path="/tickets/:id" element={<Suspense fallback={<PageLoader />}><TicketDetail /></Suspense>} />
+              <Route path="/tickets/:id/edit" element={<Suspense fallback={<PageLoader />}><TicketForm /></Suspense>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

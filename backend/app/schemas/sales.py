@@ -113,6 +113,16 @@ class QuotationUpdate(BaseModel):
     status: str | None = None
     valid_until: datetime | None = None
     notes: str | None = None
+    items: list[QuotationItemCreate] | None = None
+
+
+class QuotationFromInquiryRequest(BaseModel):
+    inquiry_id: int
+    customer_id: int | None = None
+    title: str | None = None
+    valid_until: datetime | None = None
+    notes: str | None = None
+    items: list[dict] = []  # [{product_id, product_name, quantity, unit_price}]
 
 
 class QuotationResponse(BaseModel):
@@ -360,3 +370,37 @@ class TargetUpdate(BaseModel):
     period: str | None = None
     target_amount: float | None = None
     target_orders: int | None = None
+
+
+# ============================================================
+# Inquiry / Auto-Reply
+# ============================================================
+
+class InquiryAutoReplyRequest(BaseModel):
+    """Request body for AI-powered inquiry auto-reply."""
+    inquiry_text: str = Field(min_length=1, max_length=5000,
+                               description="客户询价原文，支持型号/品牌/数量描述")
+    customer_id: int | None = Field(None, description="客户ID（已知客户）")
+    contact_name: str | None = Field(None, max_length=100)
+    contact_info: str | None = Field(None, max_length=255, description="邮箱或电话")
+    channel: str = Field(default="web", description="来源渠道: web/wechat/email/api")
+
+
+class MatchedProductItem(BaseModel):
+    id: int
+    sku: str | None
+    name: str
+    brand_name: str | None
+    stock_qty: int | None = 0
+    stock_status: str  # in_stock / low_stock / out_of_stock
+    suggested_price: float | None = None
+
+
+class InquiryAutoReplyResponse(BaseModel):
+    """Response from AI-powered inquiry auto-reply."""
+    inquiry_id: int
+    reply_text: str
+    confidence: float | None
+    matched_products: list[MatchedProductItem]
+    created_opportunity_id: int | None = None  # auto-created if high confidence
+    summary: str  # 1-line summary for CRM

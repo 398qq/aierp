@@ -27,6 +27,7 @@ wheels/
 
 # Virtual environments
 venv/
+venv312/
 ENV/
 env/
 .venv/
@@ -71,4 +72,12 @@ backend/test_f.db
 
 # Build artifacts
 frontend/tsconfig.tsbuildinfo
+
+# Extracted packages (accidentally unzipped in backend/)
+backend/charset_normalizer/
+backend/charset_normalizer-*.dist-info/
+backend/pillow-*.dist-info/
+backend/pillow.libs/
+backend/reportlab-*.dist-info/
+backend/PIL/
 

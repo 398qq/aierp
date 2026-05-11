@@ -51,7 +51,21 @@ class AIClient:
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"]
+            text = data["choices"][0]["message"]["content"]
+
+            # Strip markdown code block wrappers: ```json ... ```
+            text = text.strip()
+            if text.startswith("```"):
+                # Find the end of the opening line (```json or ```)
+                end_marker = text.find("\n")
+                if end_marker >= 0:
+                    text = text[end_marker+1:]
+                # Remove closing ```
+                if text.rstrip().endswith("```"):
+                    text = text[:text.rfind("```")]
+            text = text.strip()
+
+            return text
 
     async def chat_stream(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> AsyncGenerator[str, None]:
         async with httpx.AsyncClient(timeout=120) as client:
@@ -162,12 +176,84 @@ class AIClient:
         text = re.sub(r'(":\s*"[^\n"]+?)(\n\s*"[a-z_]+"\s*:)', r'\1"\2', text)
         # Fix number wrapped in extra quotes: "780," → 780,
         text = re.sub(r'"(-?\d+\.?\d*)"(\s*[,}\]])', r'\1\2', text)
+        # Pre-extract first complete JSON object (handles truncated multi-object output)
+        import re
+        # Find first complete JSON object or array
+        first_open = text.find("{")
+        first_close = text.rfind("}")
+        if first_open >= 0 and first_close > first_open:
+            extracted = text[first_open:first_close+1]
+            # Verify it has balanced braces
+            if extracted.count("{") == extracted.count("}"):
+                text = extracted
         # Fix number with double-quote prefix: " "85 → 85
         text = re.sub(r'"\s*"(\d+)', r'\1', text)
+        # === Fix Type B: stray commas inside string values ===
+        # "VALUE,\n" (comma inside string before closing quote) -> "VALUE"\n
+        text = re.sub(r'"([A-Za-z0-9/_\-+.]+),(\s*\n\s*")', r'"\1"\2', text)
+        # === Fix Type A: missing commas between fields ===
+        # Add comma after "value" lines followed by "key": lines
+        if text.strip().startswith("{"):
+            _lines = text.split("\n")
+            _fixed = []
+            for _i, _line in enumerate(_lines):
+                _fixed.append(_line)
+                if _i < len(_lines) - 1:
+                    _s = _lines[_i].rstrip()
+                    _next = _lines[_i+1].strip()
+                    if _s.endswith('"') or _s[-1].isdigit():
+                        if _next.startswith('"') and ':' in _next:
+                            if not _s.endswith(","):
+                                _fixed[-1] = _s + ","
+            text = "\n".join(_fixed)
+
+        # Fix trailing comma inside string values: "value"," -> "value",
+        text = re.sub(r'"([^"]+),"(\s*[,}"a-z_])', r'"\1"\2', text)
+
+        # Line-by-line fix: insert comma after value lines followed by key lines
+        if text.strip().startswith("{"):
+            import re as _re
+            # Split by lines, detect value lines followed by key lines
+            _lines = text.split("\n")
+            _fixed = []
+            for _i, _line in enumerate(_lines):
+                _fixed.append(_line)
+                if _i < len(_lines) - 1:
+                    _s = _lines[_i].rstrip()
+                    _next = _lines[_i+1].strip()
+                    if (_s.endswith('"') or _s[-1].isdigit()) and _next.startswith('"') and _next.endswith(':'):
+                        if not _s.endswith(","):
+                            _fixed[-1] = _s + ","
+            text = "\n".join(_fixed)
+        # Handle AI returning a JSON array directly (comma-separated objects missing commas)
+        # Pattern: starts with "{" and ends with "}" but is actually [{...},{...}] not {key:[{...}]}
+        text_stripped = text.strip()
+        if text_stripped.startswith("{") and text_stripped.endswith("}"):
+            # Check if this is actually a JSON array wrapper (no schema key found)
+            # Look for the schema key pattern "products": [
+            schema_key_match = re.search(r'"(\w+)":\s*\[', text_stripped)
+            
+            if schema_key_match:
+                # Extract the array content between [ and last ]
+                key_name = schema_key_match.group(1)
+                arr_start = text_stripped.find('[')
+                arr_end = text_stripped.rfind(']')
+                if arr_start >= 0 and arr_end > arr_start:
+                    arr_content = text_stripped[arr_start+1:arr_end]
+                    # Fix missing commas: } { -> }, {
+                    arr_content = re.sub(r'}\s*{', '}, {', arr_content)
+                    # Also handle }\n{ -> }, {
+                    arr_content = re.sub(r'}\s*\n\s*{', '}, {', arr_content)
+                    try:
+                        objs = json.loads('[' + arr_content + ']')
+                        result = {key_name: objs}
+                        result = _coerce_numbers(result)
+                        return result
+                    except json.JSONDecodeError:
+                        pass
+
         try:
             result = json.loads(text)
-            result = _coerce_numbers(result)
-            return result
         except (json.JSONDecodeError, ValueError):
             pass
         # Third attempt: salvage truncated JSON by closing brackets and strings

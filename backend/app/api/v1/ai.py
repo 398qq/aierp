@@ -1072,6 +1072,30 @@ async def brand_auto_complete(brand_id: int, db: AsyncSession = Depends(get_db),
         return fail(str(e), 404)
 
 
+@router.get("/brands/eol-alerts")
+async def brand_eol_alerts(
+    urgency: str = Query("warning", description="最低紧急度: info / warning / critical"),
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    """全品牌 EOL/NRND 扫描 — 返回停产和不推荐新设计风险品牌及替代建议。"""
+    from app.services.brand_intel_service import scan_eol_alerts
+    result = await scan_eol_alerts(db, urgency_threshold=urgency)
+    return ok(result)
+
+
+@router.get("/products/{product_id}/eol-alternatives")
+async def product_eol_alternatives(
+    product_id: int,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    """查询某产品的 EOL 替代方案 — 推荐同品类活跃品牌。"""
+    from app.services.brand_intel_service import suggest_eol_alternatives
+    result = await suggest_eol_alternatives(db, product_id)
+    if "error" in result:
+        return fail(result["error"], 404)
+    return ok(result)
+
+
 @router.post("/suppliers/compare")
 async def compare_suppliers_route(supplier_ids: list[int] = Body(...), db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     from app.services.supplier_intel_service import compare_suppliers

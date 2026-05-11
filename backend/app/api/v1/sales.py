@@ -1,6 +1,10 @@
 """Sales API — opportunities, quotations, orders, delivery notes with AI enrichment."""
 
+import io
+import sqlalchemy.orm
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -8,8 +12,9 @@ from app.database import get_db
 from app.schemas.common import fail, ok
 from app.schemas.sales import (
     DeliveryNoteCreate, DeliveryNoteUpdate,
+    InquiryAutoReplyRequest,
     OpportunityCreate, OpportunityUpdate,
-    QuotationCreate, QuotationUpdate,
+    QuotationCreate, QuotationUpdate, QuotationFromInquiryRequest,
     SalesOrderCreate, SalesOrderUpdate,
     BatchDeleteRequest, OpportunityBatchUpdate, ConversionValidation, ConvertResponse,
 )
@@ -174,6 +179,51 @@ async def get_quotation(
     return ok(quote)
 
 
+@router.get("/quotations/{quote_id}/pdf")
+async def get_quotation_pdf(
+    quote_id: int,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    quote = await svc.get_quotation(db, quote_id)
+    if not quote:
+        return fail("报价单不存在", 404)
+
+    # Reload with relationships needed for PDF (use selectinload for async safety)
+    from sqlalchemy import select
+    from app.models.sales import Quotation
+    from app.models.customer import Customer
+    result = await db.execute(
+        select(Quotation)
+        .where(Quotation.id == quote_id)
+        .options(
+            sqlalchemy.orm.selectinload(Quotation.items),
+        )
+    )
+    quote = result.scalar_one_or_none()
+    if not quote:
+        return fail("报价单不存在", 404)
+
+    # Fetch customer separately (selectinload causes issues with backrefs in async)
+    if quote.customer_id:
+        customer_result = await db.execute(
+            select(Customer).where(Customer.id == quote.customer_id)
+        )
+        quote.customer = customer_result.scalar_one_or_none()
+    else:
+        quote.customer = None
+
+    from app.services.pdf_service import generate_quotation_pdf
+    pdf_bytes = generate_quotation_pdf(quote)
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="quotation_{quote.quotation_no or quote_id}.pdf"'
+        }
+    )
+
+
 @router.post("/quotations", status_code=201)
 async def create_quotation(
     body: QuotationCreate,
@@ -195,7 +245,11 @@ async def update_quotation(
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
         return fail("报价单不存在", 404)
-    quote = await svc.update_quotation(db, quote, body.model_dump(exclude_none=True))
+    data = body.model_dump(exclude_none=True)
+    # Always pass items list if present (even if empty list for clearing)
+    if body.items is not None:
+        data["items"] = body.items
+    quote = await svc.update_quotation(db, quote, data)
     from app.services.sales_ai_pipeline import after_quotation_save
     after_quotation_save(quote.id)
     return ok(quote)
@@ -223,6 +277,40 @@ async def batch_delete_quotations(
         if quote:
             await svc.delete_quotation(db, quote)
     return ok({"deleted": len(body.ids)})
+
+
+@router.put("/quotations/{quote_id}/send")
+async def send_quotation(
+    quote_id: int,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    quote = await svc.get_quotation(db, quote_id)
+    if not quote:
+        return fail("报价单不存在", 404)
+    quote = await svc.send_quotation(db, quote)
+    return ok(quote)
+
+
+@router.post("/quotations/from-inquiry", status_code=201)
+async def create_quotation_from_inquiry(
+    body: QuotationFromInquiryRequest,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    try:
+        quote = await svc.create_quotation_from_inquiry(
+            db,
+            inquiry_id=body.inquiry_id,
+            customer_id=body.customer_id,
+            title=body.title,
+            valid_until=body.valid_until,
+            notes=body.notes,
+            items=body.items,
+        )
+        return ok({"id": quote.id, "quotation_no": quote.quotation_no})
+    except ValueError as e:
+        return fail(str(e), 400)
+    except Exception as e:
+        return fail(f"创建失败: {e}", 500)
 
 
 # ============================================================
@@ -463,3 +551,26 @@ async def convert_order_to_delivery(
         msg="销售订单已转换为发货单",
         ai_validation=validation,
     ))
+
+
+# ============================================================
+# Inquiry Auto-Reply
+# ============================================================
+
+@router.post("/inquiry/auto-reply", response_model=dict)
+async def inquiry_auto_reply(
+    body: InquiryAutoReplyRequest,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    """
+    AI-powered auto-reply to incoming customer inquiries.
+
+    - Parses MPN/brand mentions from inquiry text
+    - Matches against product catalog
+    - Generates a professional reply (saved to DB)
+    - Returns reply + matched products + CRM summary
+    """
+    from app.services.sales_ai_service import inquiry_auto_reply as svc_auto_reply
+
+    result = await svc_auto_reply(db, body.model_dump())
+    return ok(result)

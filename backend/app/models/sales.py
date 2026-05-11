@@ -23,6 +23,12 @@ class Opportunity(TimestampMixin, Base):
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # --- AI 分析结果（由背景 AI 自动填充） ---
+    ai_risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # low/medium/high
+    ai_next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_key_concerns: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list
+    ai_scored_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     customer = relationship("Customer", back_populates="opportunities")
     product = relationship("Product", foreign_keys=[product_id])
     quotations = relationship("Quotation", back_populates="opportunity", lazy="selectin")
@@ -119,5 +125,22 @@ class DeliveryNoteItem(TimestampMixin, Base):
 
     delivery_note = relationship("DeliveryNote", back_populates="items")
     product = relationship("Product", back_populates="delivery_note_items")
+
+
+class Inquiry(TimestampMixin, Base):
+    """Incoming customer inquiry — underived leads that may convert to opportunities."""
+    __tablename__ = "inquiries"
+
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    channel: Mapped[str] = mapped_column(String(20), default="web")  # web, wechat, email, api
+    contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contact_info: Mapped[str | None] = mapped_column(String(255), nullable=True)  # email/phone
+    inquiry_text: Mapped[str] = mapped_column(Text)
+    reply_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, replied, converted
+    matched_products: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list of {id, name, brand}
+    ai_confidence: Mapped[float | None] = mapped_column(nullable=True)  # 0.0-1.0
+
+    customer = relationship("Customer", backref="inquiries")
 
 

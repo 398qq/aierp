@@ -22,6 +22,8 @@ import {
   AimOutlined,
   WarningOutlined,
   SwapOutlined,
+  UploadOutlined,
+  IssuesCloseOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 import { getUnreadCount, naturalLanguageQuery } from "../api";
@@ -60,7 +62,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/ai/chat", "/settings", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets"];
+  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -97,12 +99,19 @@ export default function MainLayout() {
       key: "_grp_products", icon: <ShopOutlined />, label: "产品管理",
       children: [
         { key: "/products", icon: <ShopOutlined />, label: "产品列表" },
+        { key: "/products/price-import", icon: <UploadOutlined />, label: "价格数据导入" },
         { key: "/brands", icon: <TagOutlined />, label: "品牌管理" },
         { key: "_grp_suppliers", icon: <TeamOutlined />, label: "供应商",
           children: [
             { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
             { key: "/suppliers", icon: <TeamOutlined />, label: "供应商列表" },
             { key: "/suppliers/compare", icon: <SwapOutlined />, label: "供应商对比" },
+          ],
+        },
+        { key: "_grp_warehouse", icon: <StockOutlined />, label: "仓库管理",
+          children: [
+            { key: "/warehouse/warehouses", icon: <ShopOutlined />, label: "仓库列表" },
+            { key: "/warehouse/inventory-ledger", icon: <FileTextOutlined />, label: "库存台账" },
           ],
         },
         { key: "/inventory", icon: <StockOutlined />, label: "库存管理" },
@@ -121,9 +130,17 @@ export default function MainLayout() {
         { key: "/sales/purchase-orders", icon: <ShoppingCartOutlined />, label: "采购订单" },
         { key: "/sales/contracts", icon: <ProfileOutlined />, label: "合同管理" },
         { key: "/sales/targets", icon: <AimOutlined />, label: "销售目标" },
+        { key: "/sales/inquiry", icon: <RobotOutlined />, label: "询价自动回复" },
       ],
     },
     { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
+    { key: "/tickets", icon: <IssuesCloseOutlined />, label: "工单管理" },
+    {
+      key: "_grp_system", icon: <SettingOutlined />, label: "系统管理",
+      children: [
+        { key: "/system/users", icon: <TeamOutlined />, label: "用户管理" },
+      ],
+    },
     { key: "/settings", icon: <SettingOutlined />, label: "设置" },
   ];
 
