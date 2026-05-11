@@ -64,16 +64,16 @@ export default function ApprovalList() {
   };
 
   const columns: ColumnsType<ApprovalReq> = [
-    { title: "ID", dataIndex: "id", width: 60 },
+    { title: "ID", dataIndex: "id", width: 60, responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
     { title: "单据类型", dataIndex: "doc_type", width: 100, render: (v: string) => docTypeLabels[v] || v },
-    { title: "单据ID", dataIndex: "doc_id", width: 80 },
+    { title: "单据ID", dataIndex: "doc_id", width: 80, responsive: ["md"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
     { title: "提交人", dataIndex: "submitter_name", width: 100 },
     {
       title: "状态", dataIndex: "status", width: 80,
       render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
     },
-    { title: "当前级别", dataIndex: "current_level", width: 80 },
-    { title: "提交时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " ") },
+    { title: "当前级别", dataIndex: "current_level", width: 80, responsive: ["md"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
+    { title: "提交时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " "), responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
     {
       title: "操作", key: "op", width: 80,
       render: (_, r) => <Button size="small" icon={<EyeOutlined />} onClick={() => viewDetail(r.id)}>详情</Button>,

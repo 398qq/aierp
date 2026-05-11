@@ -32,8 +32,19 @@ import type { NLPQueryResult } from "../types";
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
+function useIsMobile() {
+  const [m, setM] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return m;
+}
+
 export default function MainLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useIsMobile();
+  const [collapsed, setCollapsed] = useState(isMobile);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
@@ -179,7 +190,9 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} theme="dark">
+      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} theme="dark"
+        breakpoint="lg" collapsedWidth={isMobile ? 0 : 80}
+        style={isMobile ? { position: "fixed", zIndex: 100, height: "100vh" } : undefined}>
         <div style={{ padding: 16, textAlign: "center" }}>
           <Text strong style={{ color: token.colorWhite, fontSize: collapsed ? 14 : 18 }}>
             {collapsed ? "AI" : "AIERP"}
@@ -202,7 +215,7 @@ export default function MainLayout() {
             退出
           </Button>
         </Header>
-        <Content style={{ margin: 24, padding: 24, background: token.colorBgContainer, borderRadius: 8, minHeight: 280 }}>
+        <Content style={{ margin: isMobile ? 8 : 24, padding: isMobile ? 12 : 24, background: token.colorBgContainer, borderRadius: 8, minHeight: 280 }}>
           <Outlet />
         </Content>
       </Layout>
