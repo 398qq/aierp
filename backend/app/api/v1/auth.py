@@ -10,20 +10,87 @@ from app.schemas.common import ok
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Login brute-force protection: track failed attempts per username in Redis
+LOGIN_FAILED_PREFIX = "aierp:login_failed:"
+MAX_FAILED_ATTEMPTS = 5          # lock after 5 failures
+BLOCK_DURATION_MINUTES = 15      # block for 15 minutes
+
 
 class LoginRequest(BaseModel):
     username: str
     password: str
 
 
+def _blocked_key(username: str) -> str:
+    return f"{LOGIN_FAILED_PREFIX}{username}"
+
+
+async def _get_r():
+    try:
+        from app.services.cache_service import get_redis
+        return await get_redis()
+    except Exception:
+        return None
+
+
+def _client_host(request) -> str:
+    """Extract client IP, accounting for X-Forwarded-For when behind a proxy."""
+    if request is None:
+        return ""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
 @router.post("/login")
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     from app.models.user import User
 
-    result = await db.execute(select(User).where(User.username == req.username, User.deleted_at.is_(None)))
+    username = req.username.strip().lower()
+    r = await _get_r()
+
+    # Check if this username is currently blocked
+    if r is not None:
+        block_key = _blocked_key(username)
+        blocked_count = await r.get(block_key)
+        if blocked_count is not None and int(blocked_count) >= MAX_FAILED_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"登录失败次数过多，请在{BLOCK_DURATION_MINUTES}分钟后重试",
+            )
+
+    # Authenticate
+    result = await db.execute(
+        select(User).where(User.username == username, User.deleted_at.is_(None))
+    )
     user = result.scalar_one_or_none()
-    if user is None or not verify_password(req.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    auth_ok = user is not None and verify_password(req.password, user.password)
+
+    if not auth_ok:
+        # Record failed attempt
+        if r is not None:
+            block_key = _blocked_key(username)
+            try:
+                pipe = r.pipeline()
+                pipe.incr(block_key)
+                pipe.expire(block_key, BLOCK_DURATION_MINUTES * 60)
+                await pipe.execute()
+            except Exception:
+                pass  # Redis write failure should not block login
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户名或密码错误",
+        )
+
+    # Success — clear failure counter
+    if r is not None:
+        try:
+            await r.delete(_blocked_key(username))
+        except Exception:
+            pass
+
     token = create_access_token(user.id, user.username)
     return ok({"token": token, "username": user.username, "role": user.role})
 
