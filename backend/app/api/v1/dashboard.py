@@ -1,13 +1,20 @@
-"""Sales Dashboard API — funnel, trends, AI alerts."""
+"""Sales Dashboard API — funnel, trends, AI alerts, widgets, KPI."""
 
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.models.customer import Customer
+from app.models.document import DashboardWidget
+from app.models.finance import Invoice
+from app.models.product import Inventory, Product
+from app.models.sales import Opportunity, SalesOrder
+from app.models.transaction import PurchaseOrder
 from app.schemas.common import ok
 
 router = APIRouter(tags=["sales-dashboard"])
@@ -166,4 +173,143 @@ async def dashboard_alerts(
             }
             for a in alerts
         ],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Dashboard Widgets
+# ---------------------------------------------------------------------------
+@router.get("/dashboard/widgets")
+async def list_widgets(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(DashboardWidget).where(
+            DashboardWidget.user_id == current_user["user_id"],
+            DashboardWidget.deleted_at.is_(None),
+        ).order_by(DashboardWidget.position_y, DashboardWidget.position_x)
+    )
+    widgets = result.scalars().all()
+    return ok([{
+        "id": w.id, "widget_type": w.widget_type, "title": w.title,
+        "config": w.config, "position_x": w.position_x, "position_y": w.position_y,
+        "width": w.width, "height": w.height, "enabled": w.enabled,
+    } for w in widgets])
+
+
+class WidgetSave(BaseModel):
+    widgets: list[dict]
+
+
+@router.put("/dashboard/widgets")
+async def save_widgets(
+    body: WidgetSave,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    # Delete existing
+    existing = (await db.execute(
+        select(DashboardWidget).where(
+            DashboardWidget.user_id == current_user["user_id"],
+            DashboardWidget.deleted_at.is_(None),
+        )
+    )).scalars().all()
+    for w in existing:
+        w.deleted_at = datetime.now(timezone.utc)
+
+    # Insert new
+    for wi in body.widgets:
+        db.add(DashboardWidget(
+            user_id=current_user["user_id"],
+            widget_type=wi.get("widget_type", "kpi_card"),
+            title=wi.get("title", ""),
+            config=wi.get("config", {}),
+            position_x=wi.get("position_x", 0),
+            position_y=wi.get("position_y", 0),
+            width=wi.get("width", 3),
+            height=wi.get("height", 2),
+            enabled=wi.get("enabled", True),
+        ))
+
+    await db.commit()
+    return ok(msg="仪表板已保存")
+
+
+@router.get("/dashboard/kpi")
+async def dashboard_kpi(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+
+    # Revenue this month
+    month_revenue = (await db.execute(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+            SalesOrder.deleted_at.is_(None),
+            SalesOrder.created_at >= month_start,
+        )
+    )).scalar() or 0
+
+    # New customers this month
+    new_customers = (await db.execute(
+        select(func.count(Customer.id)).where(
+            Customer.deleted_at.is_(None),
+            Customer.created_at >= month_start,
+        )
+    )).scalar() or 0
+
+    # Open opportunities
+    open_opps = (await db.execute(
+        select(func.count(Opportunity.id)).where(
+            Opportunity.deleted_at.is_(None),
+            Opportunity.status == "active",
+        )
+    )).scalar() or 0
+
+    # Pending purchase orders
+    pending_pos = (await db.execute(
+        select(func.count(PurchaseOrder.id)).where(
+            PurchaseOrder.deleted_at.is_(None),
+            PurchaseOrder.status.in_(["draft", "submitted", "approved"]),
+        )
+    )).scalar() or 0
+
+    # Outstanding AR
+    outstanding_ar = (await db.execute(
+        select(func.coalesce(func.sum(Invoice.amount), 0)).where(
+            Invoice.deleted_at.is_(None),
+            Invoice.status.in_(["sent", "overdue", "partial"]),
+        )
+    )).scalar() or 0
+
+    # Low stock products
+    low_stock = (await db.execute(
+        select(func.count(Inventory.id)).where(
+            Inventory.deleted_at.is_(None),
+            Inventory.quantity <= Inventory.safety_stock,
+            Inventory.safety_stock > 0,
+        )
+    )).scalar() or 0
+
+    # Total products
+    total_products = (await db.execute(
+        select(func.count(Product.id)).where(Product.deleted_at.is_(None))
+    )).scalar() or 0
+
+    # Total customers
+    total_customers = (await db.execute(
+        select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
+    )).scalar() or 0
+
+    return ok({
+        "month_revenue": float(month_revenue),
+        "new_customers": new_customers,
+        "open_opportunities": open_opps,
+        "pending_purchase_orders": pending_pos,
+        "outstanding_ar": float(outstanding_ar),
+        "low_stock_items": low_stock,
+        "total_products": total_products,
+        "total_customers": total_customers,
     })

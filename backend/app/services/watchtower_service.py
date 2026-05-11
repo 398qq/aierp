@@ -22,7 +22,7 @@ async def _persist_customer_alerts(db: AsyncSession, anomalies: dict, scan_time:
     rule_types = ["churn_risk", "order_drop"]
     await db.execute(
         update(AlertEvent)
-        .where(AlertEvent.rule_type.in_(rule_types), AlertEvent.is_read == False)
+        .where(AlertEvent.rule_type.in_(rule_types), AlertEvent.is_read.is_(False))
         .values(is_read=True)
     )
 

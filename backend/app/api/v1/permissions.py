@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -91,7 +91,6 @@ async def create_role(
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "create", "role", role.id, f"创建角色: {role.name}",
                           request.client.host if request.client else "")
-    await db.commit()
     return ok({"id": role.id}, msg="角色创建成功")
 
 
@@ -121,7 +120,6 @@ async def update_role(
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "update", "role", role.id, f"更新角色: {role.name}",
                           request.client.host if request.client else "")
-    await db.commit()
     return ok(msg="角色更新成功")
 
 
@@ -146,7 +144,6 @@ async def delete_role(
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "delete", "role", role.id, f"删除角色: {role.name}",
                           request.client.host if request.client else "")
-    await db.commit()
     return ok(msg="角色已删除")
 
 
@@ -198,7 +195,6 @@ async def set_user_roles(
                           "update", "user_roles", user_id,
                           f"设置用户 {user.username} 角色: {[r.name for r in roles]}",
                           request.client.host if request.client else "")
-    await db.commit()
     return ok(msg="角色设置成功")
 
 
@@ -214,26 +210,23 @@ async def list_audit_logs(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("system", "read")),
 ):
-    q = select(AuditLog)
+    conditions = []
     if resource_type:
-        q = q.where(AuditLog.resource_type == resource_type)
+        conditions.append(AuditLog.resource_type == resource_type)
     if user_id:
-        q = q.where(AuditLog.user_id == user_id)
+        conditions.append(AuditLog.user_id == user_id)
 
-    count_q = select(AuditLog.id)
-    if resource_type:
-        count_q = count_q.where(AuditLog.resource_type == resource_type)
-    if user_id:
-        count_q = count_q.where(AuditLog.user_id == user_id)
-
-    total = len((await db.execute(count_q)).scalars().all())
+    total = (await db.scalar(
+        select(func.count(AuditLog.id)).where(*conditions)
+    )) or 0
     result = await db.execute(
-        q.order_by(AuditLog.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        select(AuditLog).where(*conditions)
+        .order_by(AuditLog.id.desc()).offset((page - 1) * page_size).limit(page_size)
     )
     logs = result.scalars().all()
     return paginated_ok([{
-        "id": l.id, "user_id": l.user_id, "username": l.username,
-        "action": l.action, "resource_type": l.resource_type,
-        "resource_id": l.resource_id, "summary": l.summary,
-        "ip_address": l.ip_address, "created_at": str(l.created_at),
-    } for l in logs], total, page, page_size)
+        "id": log.id, "user_id": log.user_id, "username": log.username,
+        "action": log.action, "resource_type": log.resource_type,
+        "resource_id": log.resource_id, "summary": log.summary,
+        "ip_address": log.ip_address, "created_at": str(log.created_at),
+    } for log in logs], total, page, page_size)

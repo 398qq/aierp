@@ -1,5 +1,7 @@
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.config import settings
 
@@ -19,6 +21,27 @@ async def get_db():
         except Exception:
             await session.rollback()
             raise
+
+
+def date_format(column, pg_fmt: str) -> ColumnElement:
+    """Return a DB-agnostic date formatting expression.
+
+    pg_fmt uses PostgreSQL to_char style (e.g. 'YYYY-MM', 'YYYYMM').
+    Uses ORM-level adaptation so it works the same on SQLite and PostgreSQL.
+
+    Strategy: cast date to text then extract the substring we need.
+    'YYYY-MM' → chars 1-7, 'YYYYMM' → chars 1-4 + 6-7, 'YYYY' → chars 1-4.
+    """
+    from sqlalchemy import String, type_coerce
+
+    date_str = type_coerce(column, String)
+    if pg_fmt == "YYYY-MM":
+        return func.substr(date_str, 1, 7)
+    if pg_fmt == "YYYYMM":
+        return func.substr(date_str, 1, 4) + func.substr(date_str, 6, 2)
+    if pg_fmt == "YYYY":
+        return func.substr(date_str, 1, 4)
+    return date_str
 
 
 async def init_db():

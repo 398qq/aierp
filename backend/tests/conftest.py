@@ -10,6 +10,7 @@ import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 import sqlalchemy as sa  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 from app.core.security import create_access_token, hash_password  # noqa: E402
@@ -106,3 +107,32 @@ async def test_user(db_session) -> dict:
 @pytest_asyncio.fixture
 async def auth_headers(test_user):
     return {"Authorization": f"Bearer {test_user['token']}"}
+
+
+@pytest_asyncio.fixture
+async def test_admin(db_session) -> dict:
+    from app.models.user import User
+    from app.models.rbac import Role
+
+    password = "admin123"
+    admin = User(username="adminuser", password=hash_password(password), role="admin")
+    db_session.add(admin)
+    await db_session.flush()
+
+    # Ensure admin RBAC role exists and is assigned for permission checks
+    result = await db_session.execute(select(Role).where(Role.name == "admin"))
+    admin_role = result.scalar_one_or_none()
+    if admin_role is None:
+        admin_role = Role(name="admin", description="系统管理员")
+        db_session.add(admin_role)
+        await db_session.flush()
+    admin.roles = [admin_role]
+    await db_session.flush()
+
+    token = create_access_token(admin.id, admin.username)
+    return {"id": admin.id, "username": admin.username, "password": password, "token": token}
+
+
+@pytest_asyncio.fixture
+async def admin_headers(test_admin):
+    return {"Authorization": f"Bearer {test_admin['token']}"}
