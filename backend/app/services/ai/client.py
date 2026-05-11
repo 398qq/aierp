@@ -167,8 +167,8 @@ class AIClient:
         text = re.sub(r'":\s+:', '": ', text)
         # Fix bare comma between fields: ],\n,\n  "next" -> ],\n  "next"
         text = re.sub(r',\s*\n\s*,', ',', text)
-        # Fix extra quote after number: 23" -> 23
-        text = re.sub(r'(\d+)"(\s*[,}\]\n])', r'\1\2', text)
+        # Fix extra quote after number: 23" -> 23 (but not "42" string terminator)
+        text = re.sub(r'(?<!")(?<!\d)(\d+)"(\s*[,}\]\n])', r'\1\2', text)
         # Remove trailing commas before ] or }
         text = re.sub(r',\s*}', '}', text)
         text = re.sub(r',\s*]', ']', text)
@@ -212,7 +212,6 @@ class AIClient:
 
         # Line-by-line fix: insert comma after value lines followed by key lines
         if text.strip().startswith("{"):
-            import re as _re
             # Split by lines, detect value lines followed by key lines
             _lines = text.split("\n")
             _fixed = []
@@ -254,6 +253,7 @@ class AIClient:
 
         try:
             result = json.loads(text)
+            return _coerce_numbers(result)
         except (json.JSONDecodeError, ValueError):
             pass
         # Third attempt: salvage truncated JSON by closing brackets and strings
