@@ -126,7 +126,12 @@ async def test_admin(db_session) -> dict:
         admin_role = Role(name="admin", description="系统管理员")
         db_session.add(admin_role)
         await db_session.flush()
-    admin.roles = [admin_role]
+    # Insert association directly to avoid lazy="selectin" triggering async IO
+    # under aiosqlite, which would fail with MissingGreenlet
+    from app.models.rbac import user_roles_table
+    await db_session.execute(
+        user_roles_table.insert().values(user_id=admin.id, role_id=admin_role.id)
+    )
     await db_session.flush()
 
     token = create_access_token(admin.id, admin.username)
