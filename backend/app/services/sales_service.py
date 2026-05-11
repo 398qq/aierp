@@ -1,15 +1,19 @@
 """Sales CRUD service — opportunities, quotations, orders, delivery notes."""
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.product import Warehouse
+from app.config import settings
+from app.models.product import Product, Warehouse
 from app.models.sales import (
     DeliveryNote,
     DeliveryNoteItem,
+    Inquiry,
     Opportunity,
     Quotation,
     QuotationItem,
@@ -17,32 +21,10 @@ from app.models.sales import (
     SalesOrderItem,
 )
 from app.models.finance import SalesTarget
+from app.services.docno import generate_doc_no
+from app.services.inventory_service import deduct_for_delivery, lock_for_sales_order
 
 logger = logging.getLogger(__name__)
-
-
-# ============================================================
-# Document Number Generation
-# ============================================================
-
-_NO_COLUMN_MAP = {
-    "QT": "quotation_no",
-    "SO": "order_no",
-    "DN": "delivery_no",
-    "PO": "order_no",
-}
-
-
-async def _gen_no(db: AsyncSession, prefix: str, model) -> str:
-    now = datetime.now(timezone.utc)
-    date_part = now.strftime("%Y%m%d")
-    col_name = _NO_COLUMN_MAP.get(prefix, list(model.__table__.columns.keys())[1])
-    col = getattr(model, col_name)
-    result = await db.execute(
-        select(func.count()).where(col.like(f"{prefix}{date_part}%"))
-    )
-    seq = (result.scalar() or 0) + 1
-    return f"{prefix}{date_part}{seq:04d}"
 
 
 # ============================================================
@@ -150,7 +132,7 @@ async def get_quotation(db: AsyncSession, quote_id: int) -> Quotation | None:
 
 async def create_quotation(db: AsyncSession, data: dict, items_data: list[dict] | None = None) -> Quotation:
     if not data.get("quotation_no"):
-        data["quotation_no"] = await _gen_no(db, "QT", Quotation)
+        data["quotation_no"] = await generate_doc_no(db, "QT", Quotation, "quotation_no")
     quote = Quotation(**{k: v for k, v in data.items() if k != "items"})
     db.add(quote)
     await db.flush()
@@ -171,9 +153,9 @@ async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Qu
         if v is not None and k != "items":
             setattr(quote, k, v)
     if items_data is not None:
-        # Delete existing items and replace with new ones
+        # Soft-delete existing items, then insert replacements (one transaction)
         for item in quote.items:
-            await db.delete(item)
+            item.deleted_at = datetime.now(timezone.utc)
         await db.flush()
         total = 0.0
         for item_data in items_data:
@@ -209,8 +191,6 @@ async def send_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
 
 async def _notify_quotation_sent(quote: Quotation) -> None:
     """Send WeCom webhook notification for a sent quotation."""
-    from app.config import settings
-
     webhook_url = getattr(settings, "WECOM_WEBHOOK_URL", None)
     if not webhook_url:
         logger.warning("[Quotation] WECOM_WEBHOOK_URL not configured, skipping notification")
@@ -222,7 +202,7 @@ async def _notify_quotation_sent(quote: Quotation) -> None:
         f"**报价单号**：{quote.quotation_no or f'#{quote.id}'}",
         f"**客户ID**：{quote.customer_id}",
         f"**总金额**：¥{float(quote.total_amount or 0):,.2f}",
-        f"**状态**：已发送",
+        "**状态**：已发送",
         f"**有效期**：{quote.valid_until.strftime('%Y-%m-%d') if quote.valid_until else '未设置'}",
         "",
         f"🔗 查看详情：/sales/quotations/{quote.id}",
@@ -236,7 +216,6 @@ async def _notify_quotation_sent(quote: Quotation) -> None:
         },
     }
 
-    import httpx
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(webhook_url, json=payload)
         if resp.status_code == 200:
@@ -254,8 +233,6 @@ async def create_quotation_from_inquiry(
     notes: str | None = None,
 ) -> Quotation:
     """Create a new quotation from an inquiry record, pre-filled with matched products."""
-    # Get inquiry to retrieve customer info if not provided
-    from app.models.sales import Inquiry
     result = await db.execute(select(Inquiry).where(Inquiry.id == inquiry_id))
     inquiry = result.scalar_one_or_none()
     if not inquiry:
@@ -264,7 +241,7 @@ async def create_quotation_from_inquiry(
     cid = customer_id or inquiry.customer_id
     if not cid:
         cid = 244  # 公众客户 fallback
-    quotation_no = await _gen_no(db, "QT", Quotation)
+    quotation_no = await generate_doc_no(db, "QT", Quotation, "quotation_no")
 
     quote = Quotation(
         quotation_no=quotation_no,
@@ -281,8 +258,6 @@ async def create_quotation_from_inquiry(
     total = 0.0
     # Auto-populate items from inquiry.matched_products if not provided
     if not items:
-        import json
-        from app.models.product import Product
         try:
             matched = json.loads(inquiry.matched_products) if inquiry.matched_products else []
         except Exception:
@@ -358,7 +333,7 @@ async def get_sales_order(db: AsyncSession, order_id: int) -> SalesOrder | None:
 
 async def create_sales_order(db: AsyncSession, data: dict, items_data: list[dict] | None = None) -> SalesOrder:
     if not data.get("order_no"):
-        data["order_no"] = await _gen_no(db, "SO", SalesOrder)
+        data["order_no"] = await generate_doc_no(db, "SO", SalesOrder, "order_no")
     if not data.get("order_date"):
         data["order_date"] = datetime.now(timezone.utc)
     order = SalesOrder(**{k: v for k, v in data.items() if k != "items"})
@@ -438,7 +413,7 @@ async def get_delivery_note(db: AsyncSession, note_id: int) -> DeliveryNote | No
 
 async def create_delivery_note(db: AsyncSession, data: dict, items_data: list[dict] | None = None) -> DeliveryNote:
     if not data.get("delivery_no"):
-        data["delivery_no"] = await _gen_no(db, "DN", DeliveryNote)
+        data["delivery_no"] = await generate_doc_no(db, "DN", DeliveryNote, "delivery_no")
     note = DeliveryNote(**{k: v for k, v in data.items() if k != "items"})
     db.add(note)
     await db.flush()
@@ -471,8 +446,6 @@ async def update_delivery_note(db: AsyncSession, note: DeliveryNote, data: dict)
 
 async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:
     """Auto-deduct inventory for each item when a delivery note is shipped/completed."""
-    from app.services.inventory_service import deduct_for_delivery
-
     result = await db.execute(select(Warehouse.id).limit(1))
     warehouse_id = result.scalar() or 1
 
@@ -486,8 +459,6 @@ async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:
 
 async def _auto_lock_sales_order(db: AsyncSession, order: SalesOrder) -> None:
     """Auto-lock inventory for each item when a sales order is confirmed."""
-    from app.services.inventory_service import lock_for_sales_order
-
     result = await db.execute(select(Warehouse.id).limit(1))
     warehouse_id = result.scalar() or 1
 
@@ -509,7 +480,9 @@ async def delete_delivery_note(db: AsyncSession, note: DeliveryNote) -> None:
 # ============================================================
 
 async def convert_quotation_to_order(db: AsyncSession, quote: Quotation) -> SalesOrder:
-    order_no = await _gen_no(db, "SO", SalesOrder)
+    if quote.status == "won":
+        raise ValueError(f"Quotation {quote.id} already converted to an order")
+    order_no = await generate_doc_no(db, "SO", SalesOrder, "order_no")
     order = SalesOrder(
         order_no=order_no,
         customer_id=quote.customer_id,
@@ -539,13 +512,15 @@ async def convert_quotation_to_order(db: AsyncSession, quote: Quotation) -> Sale
 
 
 async def convert_order_to_delivery(db: AsyncSession, order: SalesOrder) -> DeliveryNote | None:
+    if order.status in ("completed", "cancelled"):
+        return None
     existing = await db.execute(
         select(func.count()).where(DeliveryNote.sales_order_id == order.id, DeliveryNote.deleted_at.is_(None))
     )
     existing_count = existing.scalar() or 0
     if existing_count > 0:
         return None
-    delivery_no = await _gen_no(db, "DN", DeliveryNote)
+    delivery_no = await generate_doc_no(db, "DN", DeliveryNote, "delivery_no")
     note = DeliveryNote(
         delivery_no=delivery_no,
         sales_order_id=order.id,
@@ -606,7 +581,6 @@ async def update_target(db: AsyncSession, target: SalesTarget, data: dict) -> Sa
 
 
 async def delete_target(db: AsyncSession, target: SalesTarget):
-    from datetime import datetime, timezone
     target.deleted_at = datetime.now(timezone.utc)
     await db.commit()
 

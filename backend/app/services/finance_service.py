@@ -6,21 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.finance import Contract, Invoice, PaymentRecord, SalesTarget
-
-
-# ============================================================
-# Document Number Generation
-# ============================================================
-
-async def _gen_no(db: AsyncSession, prefix: str, model) -> str:
-    now = datetime.now(timezone.utc)
-    date_part = now.strftime("%Y%m%d")
-    col = getattr(model, list(model.__table__.columns.keys())[1])
-    result = await db.execute(
-        select(func.count()).where(col.like(f"{prefix}{date_part}%"))
-    )
-    seq = (result.scalar() or 0) + 1
-    return f"{prefix}{date_part}{seq:04d}"
+from app.services.docno import generate_doc_no
 
 
 # ============================================================
@@ -56,7 +42,7 @@ async def get_invoice(db: AsyncSession, inv_id: int) -> Invoice | None:
 
 async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
     if not data.get("invoice_no"):
-        data["invoice_no"] = await _gen_no(db, "INV", Invoice)
+        data["invoice_no"] = await generate_doc_no(db, "INV", Invoice, "invoice_no")
     inv = Invoice(**data)
     db.add(inv)
     await db.commit()
@@ -183,7 +169,7 @@ async def get_contract(db: AsyncSession, contract_id: int) -> Contract | None:
 
 async def create_contract(db: AsyncSession, data: dict) -> Contract:
     if not data.get("contract_no"):
-        data["contract_no"] = await _gen_no(db, "CTR", Contract)
+        data["contract_no"] = await generate_doc_no(db, "CTR", Contract, "contract_no")
     contract = Contract(**data)
     db.add(contract)
     await db.commit()
