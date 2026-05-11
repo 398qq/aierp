@@ -6,7 +6,7 @@ PRD documents following the 9-chapter standard structure defined in `~/.claude/C
 
 | File | Status | Description |
 |------|--------|-------------|
-| *(no files yet)* | — | Requirements will be added as features are planned |
+| `003-phase5-intelligence-procurement.md` | Current | Phase 5 PRD: 审批工作流 + 采购智能化 + 报表分析 + 权限安全 |
 
 ## Convention
 
