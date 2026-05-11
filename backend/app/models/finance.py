@@ -82,5 +82,8 @@ class Notification(TimestampMixin, Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     related_id: Mapped[int | None] = mapped_column(nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    channel: Mapped[str] = mapped_column(String(30), default="in_app")
+    template_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     user = relationship("User", foreign_keys=[user_id])

@@ -24,23 +24,21 @@ async def get_db():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    # Run pgvector migration if needed
     await _ensure_pgvector(engine)
-    # Seed RBAC data if empty
     await _seed_rbac(engine)
+    await _seed_phase6(engine)
 
 
 async def _ensure_pgvector(eng):
-    """Ensure pgvector extension and column type are set up. Skips gracefully if no permission."""
+    """Ensure pgvector extension and column type are set up."""
     import pathlib
 
     async with eng.connect() as conn:
         try:
             await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
         except Exception:
-            pass  # Extension may already exist or user lacks privilege
+            pass
 
-        # Check if embedding column needs migration from JSON to VECTOR
         try:
             result = await conn.exec_driver_sql(
                 "SELECT data_type FROM information_schema.columns "
@@ -62,7 +60,6 @@ async def _ensure_pgvector(eng):
                         except Exception:
                             pass
 
-        # Ensure IVFFlat indexes exist for products and suppliers
         for idx_file in ("003_product_embedding_index.sql", "004_supplier_embedding_index.sql"):
             idx_path = pathlib.Path(__file__).resolve().parent / "migrations" / idx_file
             if idx_path.exists():
@@ -74,21 +71,17 @@ async def _ensure_pgvector(eng):
 
 
 async def _seed_rbac(eng):
-    """Seed default RBAC data (permissions, roles, assignments) if tables are empty."""
+    """Seed default RBAC data if tables are empty."""
     async with eng.connect() as conn:
-        from sqlalchemy import text
-
-        # Check if permissions already exist
         result = await conn.exec_driver_sql("SELECT count(*) FROM permissions WHERE deleted_at IS NULL")
         row = result.fetchone()
         if row and row[0] > 0:
-            return  # Already seeded
+            return
 
         import pathlib
         seed_path = pathlib.Path(__file__).resolve().parent / "migrations" / "005-phase5-rbac.sql"
         if seed_path.exists():
             sql = seed_path.read_text()
-            # Skip CREATE TABLE / ALTER TABLE — already done by create_all
             for stmt in sql.split(";"):
                 stmt = stmt.strip()
                 if not stmt or stmt.startswith("--"):
@@ -101,3 +94,71 @@ async def _seed_rbac(eng):
                 except Exception:
                     pass
         await conn.commit()
+
+
+async def _seed_phase6(eng):
+    """Seed Phase 6 data (accounts, notification templates) using ORM."""
+    from sqlalchemy import select
+
+    async with eng.connect() as conn:
+        from sqlalchemy import text
+        result = await conn.execute(text("SELECT count(*) FROM accounts WHERE deleted_at IS NULL"))
+        row = result.fetchone()
+        if row and row[0] > 0:
+            return
+
+    # Use ORM session for seeding
+    from app.models.account import Account, NotificationTemplate
+
+    async with async_session() as session:
+        # Seed accounts
+        acct_data = [
+            ("1001", "库存现金", "asset", "现金"),
+            ("1002", "银行存款", "asset", "银行存款"),
+            ("1122", "应收账款", "asset", "应收客户货款"),
+            ("1403", "库存商品", "asset", "库存商品"),
+            ("2001", "短期借款", "liability", "短期借款"),
+            ("2202", "应付账款", "liability", "应付供应商货款"),
+            ("2221", "应交税费", "liability", "应交税费"),
+            ("3001", "实收资本", "equity", "实收资本"),
+            ("3101", "未分配利润", "equity", "未分配利润"),
+            ("4001", "主营业务收入", "income", "销售收入"),
+            ("4002", "其他业务收入", "income", "其他收入"),
+            ("5001", "主营业务成本", "expense", "销售成本"),
+            ("5002", "管理费用", "expense", "管理费用"),
+            ("5003", "销售费用", "expense", "销售费用"),
+            ("5004", "财务费用", "expense", "财务费用"),
+        ]
+        for code, name, atype, desc in acct_data:
+            existing = (await session.execute(
+                select(Account).where(Account.code == code, Account.deleted_at.is_(None))
+            )).scalars().first()
+            if not existing:
+                session.add(Account(code=code, name=name, type=atype, description=desc))
+
+        # Seed notification templates
+        tmpl_data = [
+            ("approval_request", "审批请求", "in_app", "approval_requested",
+             "新的审批请求: {{doc_type}} #{{doc_id}}",
+             "{{submitter}} 提交了 {{doc_type}} #{{doc_id}} 的审批请求，金额 ¥{{amount}}，请审批。"),
+            ("approval_result", "审批结果", "in_app", "approval_completed",
+             "审批结果: {{doc_type}} #{{doc_id}}",
+             "您的 {{doc_type}} #{{doc_id}} 审批{{result}}。{{comment}}"),
+            ("daily_report", "日报摘要", "in_app", "daily_report",
+             "AIERP 经营日报 — {{report_date}}",
+             "今日销售: ¥{{revenue}} | 新客户: {{new_customers}} | 回款: ¥{{payments}} | 库存预警: {{stock_alerts}}"),
+            ("stock_alert", "库存预警", "in_app", "stock_low",
+             "库存预警: {{product_name}}",
+             "产品 {{product_name}} ({{sku}}) 库存 {{current_qty}} 低于安全库存 {{safety_stock}}"),
+        ]
+        for code, name, channel, event, subject, body in tmpl_data:
+            existing = (await session.execute(
+                select(NotificationTemplate).where(NotificationTemplate.code == code, NotificationTemplate.deleted_at.is_(None))
+            )).scalars().first()
+            if not existing:
+                session.add(NotificationTemplate(
+                    code=code, name=name, channel=channel, event_type=event,
+                    subject_template=subject, body_template=body,
+                ))
+
+        await session.commit()

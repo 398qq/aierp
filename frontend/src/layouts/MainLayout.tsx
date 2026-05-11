@@ -62,7 +62,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/system/roles", "/system/approvals", "/system/approval-rules", "/system/audit-logs", "/procurement/dashboard", "/reports/sales", "/reports/ar", "/reports/inventory", "/reports/procurement", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets"];
+  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/system/roles", "/system/approvals", "/system/approval-rules", "/system/audit-logs", "/procurement/dashboard", "/reports/sales", "/reports/ar", "/reports/inventory", "/reports/procurement", "/reports/ap", "/finance/accounts", "/finance/journal-entries", "/finance/pnl", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -148,6 +148,15 @@ export default function MainLayout() {
         { key: "/reports/ar", icon: <DollarOutlined />, label: "应收账款" },
         { key: "/reports/inventory", icon: <StockOutlined />, label: "库存报表" },
         { key: "/reports/procurement", icon: <ShoppingCartOutlined />, label: "采购报表" },
+      ],
+    },
+    {
+      key: "_grp_finance", icon: <DollarOutlined />, label: "财务管理",
+      children: [
+        { key: "/finance/accounts", icon: <FileTextOutlined />, label: "会计科目" },
+        { key: "/finance/journal-entries", icon: <ProfileOutlined />, label: "记账凭证" },
+        { key: "/finance/pnl", icon: <PieChartOutlined />, label: "损益表" },
+        { key: "/reports/ap", icon: <DollarOutlined />, label: "应付账款" },
       ],
     },
     {

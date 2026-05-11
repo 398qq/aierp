@@ -8,6 +8,7 @@ from app.config import settings
 from app.database import init_db
 
 # Import all models so Base.metadata knows about every table
+import app.models.account  # noqa: F401
 import app.models.approval  # noqa: F401
 import app.models.customer  # noqa: F401
 import app.models.finance  # noqa: F401

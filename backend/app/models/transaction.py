@@ -16,6 +16,8 @@ class PurchaseOrder(TimestampMixin, Base):
     total_amount: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
     expected_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    logistics_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    logistics_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
     items = relationship("PurchaseOrderItem", back_populates="order", lazy="selectin")
