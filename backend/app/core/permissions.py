@@ -26,7 +26,13 @@ RESOURCES: dict[str, str] = {
     "system": "系统管理",
 }
 
-PERM_CACHE_TTL = 60  # seconds — short enough for security, long enough to reduce DB load
+PERM_CACHE_TTL = 10  # seconds — brief window limits stale-cache attack surface
+
+
+async def _invalidate_perm_cache():
+    """Drop all permission cache entries after any RBAC change."""
+    from app.services.cache_service import cache_delete
+    await cache_delete("perm:*")
 
 
 async def _check_perm_db(db: AsyncSession, user_id: int, resource: str, action: str) -> bool:

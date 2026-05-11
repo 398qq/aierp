@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.permissions import require_perm, write_audit_log
+from app.core.permissions import require_perm, write_audit_log, _invalidate_perm_cache
 from app.database import get_db
 from app.models.rbac import AuditLog, Permission, Role
 from app.models.user import User
@@ -88,6 +88,7 @@ async def create_role(
         await db.flush()
 
     await db.commit()
+    await _invalidate_perm_cache()
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "create", "role", role.id, f"创建角色: {role.name}",
                           request.client.host if request.client else "")
@@ -117,6 +118,7 @@ async def update_role(
         role.permissions = perms
 
     await db.commit()
+    await _invalidate_perm_cache()
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "update", "role", role.id, f"更新角色: {role.name}",
                           request.client.host if request.client else "")
@@ -141,6 +143,7 @@ async def delete_role(
     from datetime import datetime, timezone
     role.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+    await _invalidate_perm_cache()
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "delete", "role", role.id, f"删除角色: {role.name}",
                           request.client.host if request.client else "")
@@ -191,6 +194,7 @@ async def set_user_roles(
     )).scalars().all()
     user.roles = roles
     await db.commit()
+    await _invalidate_perm_cache()
     await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
                           "update", "user_roles", user_id,
                           f"设置用户 {user.username} 角色: {[r.name for r in roles]}",
