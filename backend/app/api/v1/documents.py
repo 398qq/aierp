@@ -2,6 +2,7 @@
 
 import datetime
 import os
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
@@ -24,7 +25,18 @@ ALLOWED_MIME = {
 }
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
+# Characters banned from user-provided filenames to prevent path traversal
+_FORBIDDEN_PATH_CHARS = re.compile(r'[/\\x00]')
+
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+def _sanitize_filename(name: str) -> str:
+    """Strip path separators and null bytes from uploaded filename."""
+    if not name:
+        return "unnamed"
+    name = _FORBIDDEN_PATH_CHARS.sub("", name)
+    return name or "unnamed"
 
 
 def _ensure_upload_dir():
@@ -48,7 +60,8 @@ async def upload_document(
     if len(content) > MAX_FILE_SIZE:
         return fail("文件大小不能超过 10MB")
 
-    ext = os.path.splitext(file.filename or "file")[1]
+    # UUID-based storage name — OS-level path traversal is impossible by design
+    ext = os.path.splitext(_sanitize_filename(file.filename or "file"))[1]
     stored_name = f"{uuid.uuid4().hex}{ext}"
     stored_path = os.path.join(UPLOAD_DIR, stored_name)
 
@@ -58,7 +71,7 @@ async def upload_document(
     doc = Document(
         entity_type=entity_type,
         entity_id=entity_id,
-        filename=file.filename or "unknown",
+        filename=_sanitize_filename(file.filename or "unknown"),
         file_path=stored_name,
         file_size=len(content),
         mime_type=file.content_type,

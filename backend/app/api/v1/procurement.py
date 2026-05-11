@@ -102,7 +102,9 @@ async def supplier_recommend(
                 score += 25
             if sp.moq and sp.moq <= quantity:
                 score += 15
-            if sup.financial_rating and sup.financial_rating >= "B":
+            RATING_ORDER = ["D", "C", "B", "A", "AAA"]
+            sup_rating = sup.financial_rating.upper() if sup.financial_rating else None
+            if sup_rating and sup_rating in RATING_ORDER and RATING_ORDER.index(sup_rating) >= RATING_ORDER.index("B"):
                 score += 10
             options.append({
                 "supplier_id": sup.id, "supplier_name": sup.name,

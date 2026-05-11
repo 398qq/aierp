@@ -289,6 +289,20 @@ async def approve_request(
     if approval_req.status != "pending":
         return fail(f"审批请求状态为 {approval_req.status}，无法操作")
 
+    # Authorization: verify current user is the designated approver for this level
+    flow = approval_req.flow_snapshot if isinstance(approval_req.flow_snapshot, list) else []
+    level_idx = approval_req.current_level - 1
+    if level_idx < len(flow):
+        level_config = flow[level_idx]
+        designated_id = level_config.get("approver_id")
+        designated_role = level_config.get("approver_role")
+        if designated_id is not None and designated_id != current_user["user_id"]:
+            return fail("您不是此审批级别的指定审批人，无权审批")
+        if designated_role:
+            user_roles = current_user.get("roles", [])
+            if designated_role not in user_roles:
+                return fail(f"您没有 {designated_role} 角色，无权执行此审批")
+
     action = ApprovalAction(
         request_id=request_id, approver_id=current_user["user_id"],
         action="approve", comment=body.comment, level=approval_req.current_level,
@@ -296,7 +310,6 @@ async def approve_request(
     db.add(action)
 
     # Check if more levels remain
-    flow = approval_req.flow_snapshot if isinstance(approval_req.flow_snapshot, list) else []
     if approval_req.current_level >= len(flow):
         approval_req.status = "approved"
     else:
@@ -327,6 +340,20 @@ async def reject_request(
         return fail("审批请求不存在")
     if approval_req.status != "pending":
         return fail(f"审批请求状态为 {approval_req.status}，无法操作")
+
+    # Authorization: verify current user is the designated approver for this level
+    flow = approval_req.flow_snapshot if isinstance(approval_req.flow_snapshot, list) else []
+    level_idx = approval_req.current_level - 1
+    if level_idx < len(flow):
+        level_config = flow[level_idx]
+        designated_id = level_config.get("approver_id")
+        designated_role = level_config.get("approver_role")
+        if designated_id is not None and designated_id != current_user["user_id"]:
+            return fail("您不是此审批级别的指定审批人，无权审批")
+        if designated_role:
+            user_roles = current_user.get("roles", [])
+            if designated_role not in user_roles:
+                return fail(f"您没有 {designated_role} 角色，无权执行此审批")
 
     action = ApprovalAction(
         request_id=request_id, approver_id=current_user["user_id"],
