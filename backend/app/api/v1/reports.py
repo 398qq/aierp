@@ -9,16 +9,15 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
-from app.core.permissions import require_perm, write_audit_log
-from app.database import get_db
+from app.core.permissions import require_perm
+from app.database import date_format, get_db
 from app.models.customer import Customer
-from app.models.finance import Invoice, PaymentRecord
+from app.models.finance import Invoice
 from app.models.product import Inventory, Product
 from app.models.report import ReportTemplate
 from app.models.sales import Quotation, SalesOrder, SalesOrderItem
 from app.models.transaction import PurchaseOrder
-from app.schemas.common import fail, ok, paginated_ok
+from app.schemas.common import fail, ok
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -111,7 +110,7 @@ async def sales_report(
     from datetime import datetime, timedelta, timezone
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
-    so_month = func.to_char(SalesOrder.created_at, "YYYY-MM")
+    so_month = date_format(SalesOrder.created_at, "YYYY-MM")
     orders = (await db.execute(
         select(
             so_month.label("month"),
@@ -123,7 +122,7 @@ async def sales_report(
         ).group_by(so_month).order_by(so_month)
     )).all()
 
-    q_month = func.to_char(Quotation.created_at, "YYYY-MM")
+    q_month = date_format(Quotation.created_at, "YYYY-MM")
     quotes = (await db.execute(
         select(
             q_month.label("month"),
@@ -229,7 +228,6 @@ async def inventory_report(
     total_products = len(stock_levels)
     low_stock = sum(1 for _, _, qty, safety in stock_levels if qty <= safety and safety > 0)
     out_of_stock = sum(1 for _, _, qty, _ in stock_levels if qty <= 0)
-    total_inventory_value = 0.0
 
     items = []
     for name, sku, qty, safety in stock_levels:
@@ -261,7 +259,7 @@ async def procurement_report(
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
     # Monthly procurement
-    po_month = func.to_char(PurchaseOrder.created_at, "YYYY-MM")
+    po_month = date_format(PurchaseOrder.created_at, "YYYY-MM")
     monthly = (await db.execute(
         select(
             po_month.label("month"),
@@ -298,7 +296,7 @@ async def export_sales_excel(
     from datetime import datetime, timedelta, timezone
     cutoff = datetime.now(timezone.utc) - timedelta(days=365)
 
-    exp_month = func.to_char(SalesOrder.created_at, "YYYY-MM")
+    exp_month = date_format(SalesOrder.created_at, "YYYY-MM")
     orders = (await db.execute(
         select(
             exp_month.label("month"),

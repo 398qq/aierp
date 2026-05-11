@@ -23,7 +23,6 @@ async def _send_wecom_notification(inquiry_id: int, contact_name: str,
     Send WeCom/WeChat webhook notification to sales team.
     Falls back to logging if webhook URL is not configured.
     """
-    import json
     try:
         from app.config import settings
         webhook_url = getattr(settings, "WECOM_WEBHOOK_URL", None)
@@ -36,10 +35,10 @@ async def _send_wecom_notification(inquiry_id: int, contact_name: str,
         info_line = f"联系方式：{contact_info}" if contact_info else ""
 
         content_lines = [
-            f"📩 **新客户询价** (Portal)",
-            f"",
+            "📩 **新客户询价** (Portal)",
+            "",
             f"询价内容：{inquiry_text[:200]}",
-            f"",
+            "",
         ]
         if contact_line:
             content_lines.append(contact_line)
@@ -47,9 +46,9 @@ async def _send_wecom_notification(inquiry_id: int, contact_name: str,
             content_lines.append(info_line)
 
         content_lines.extend([
-            f"",
+            "",
             f"**AI 回复摘要**：{summary}",
-            f"",
+            "",
             f"⏰ 时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
             f"🔗 InquiryID：{inquiry_id}",
         ])
@@ -101,7 +100,7 @@ async def public_inquiry(
     summary = result.get("summary", "")
 
     # Truncate reply for notification
-    notify_summary = reply_text[:100] + "..." if len(reply_text) > 100 else reply_text
+    _ = reply_text[:100] + "..." if len(reply_text) > 100 else reply_text
 
     await _send_wecom_notification(
         inquiry_id=inquiry_id,

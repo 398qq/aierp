@@ -448,7 +448,6 @@ def _run_kmeans(embeddings: list[list[float]], n_clusters: int, n_iter: int = 30
     Returns (labels, centroids).
     """
     import random
-    from collections import defaultdict
 
     dim = len(embeddings[0])
 

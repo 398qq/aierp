@@ -15,7 +15,7 @@ from app.models.account import IntegrationConfig
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.sales import SalesOrder, SalesOrderItem
-from app.schemas.common import fail, ok, paginated_ok
+from app.schemas.common import fail, ok
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -42,8 +42,13 @@ async def list_configs(
 
 
 class ConfigCreate(BaseModel):
-    type: str; name: str; api_key: str = ""; api_secret: str = ""
-    endpoint: str = ""; settings: dict = {}; enabled: bool = False
+    type: str
+    name: str
+    api_key: str = ""
+    api_secret: str = ""
+    endpoint: str = ""
+    settings: dict = {}
+    enabled: bool = False
 
 
 @router.post("/configs", status_code=201)
@@ -70,11 +75,13 @@ async def update_config(config_id: int, body: ConfigCreate,
     )).scalar_one_or_none()
     if not c:
         return fail("配置不存在")
-    c.type = body.type; c.name = body.name
+    c.type = body.type
+    c.name = body.name
     c.api_key_encrypted = body.api_key or None
     c.api_secret_encrypted = body.api_secret or None
     c.endpoint = body.endpoint or None
-    c.settings = body.settings; c.enabled = body.enabled
+    c.settings = body.settings
+    c.enabled = body.enabled
     await db.commit()
     return ok(msg="配置更新成功")
 

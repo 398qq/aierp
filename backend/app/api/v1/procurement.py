@@ -4,11 +4,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
 from app.core.permissions import require_perm
-from app.database import get_db
+from app.database import date_format, get_db
 from app.models.product import Inventory, Product, Supplier, SupplierProduct
-from app.models.sales import DeliveryNote
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import ok
 
@@ -139,7 +137,7 @@ async def procurement_dashboard(
     # Monthly purchase amount (last 12 months)
     from datetime import datetime, timedelta, timezone
     year_ago = datetime.now(timezone.utc) - timedelta(days=365)
-    to_char_expr = func.to_char(PurchaseOrder.created_at, "YYYY-MM")
+    to_char_expr = date_format(PurchaseOrder.created_at, "YYYY-MM")
     monthly = (await db.execute(
         select(
             to_char_expr.label("month"),

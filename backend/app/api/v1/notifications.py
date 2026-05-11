@@ -73,8 +73,13 @@ async def list_templates(
 
 
 class TemplateSave(BaseModel):
-    code: str; name: str; channel: str = "in_app"; event_type: str = ""
-    subject_template: str = ""; body_template: str; enabled: bool = True
+    code: str
+    name: str
+    channel: str = "in_app"
+    event_type: str = ""
+    subject_template: str = ""
+    body_template: str = ""
+    enabled: bool = True
 
 
 @router.put("/notifications/templates/{template_id}")
@@ -86,8 +91,11 @@ async def update_template(template_id: int, body: TemplateSave,
     )).scalar_one_or_none()
     if not t:
         return fail("模板不存在")
-    t.name = body.name; t.channel = body.channel; t.event_type = body.event_type
-    t.subject_template = body.subject_template; t.body_template = body.body_template
+    t.name = body.name
+    t.channel = body.channel
+    t.event_type = body.event_type
+    t.subject_template = body.subject_template
+    t.body_template = body.body_template
     t.enabled = body.enabled
     await db.commit()
     return ok(msg="模板更新成功")

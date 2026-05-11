@@ -10,7 +10,7 @@ from app.core.security import hash_password
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import ok, fail
-from app.schemas.user import UserResponse, UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 

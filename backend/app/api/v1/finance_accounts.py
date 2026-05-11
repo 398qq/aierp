@@ -5,14 +5,12 @@ import io
 import csv
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
 from app.core.permissions import require_perm, write_audit_log
-from app.database import get_db
+from app.database import date_format, get_db
 from app.models.account import Account, BankReconciliation, JournalEntry, JournalEntryLine
 from app.models.finance import PaymentRecord
 from app.schemas.common import fail, ok, paginated_ok
@@ -41,7 +39,11 @@ async def list_accounts(
 
 
 class AccountCreate(BaseModel):
-    code: str; name: str; type: str; parent_id: int | None = None; description: str = ""
+    code: str
+    name: str
+    type: str
+    parent_id: int | None = None
+    description: str = ""
 
 
 @router.post("/accounts", status_code=201)
@@ -98,13 +100,13 @@ async def list_entries(
     if status:
         q = q.where(JournalEntry.status == status)
     if month:
-        q = q.where(func.to_char(JournalEntry.entry_date, "YYYY-MM") == month)
+        q = q.where(date_format(JournalEntry.entry_date, "YYYY-MM") == month)
 
     count_q = select(JournalEntry.id).where(JournalEntry.deleted_at.is_(None))
     if status:
         count_q = count_q.where(JournalEntry.status == status)
     if month:
-        count_q = count_q.where(func.to_char(JournalEntry.entry_date, "YYYY-MM") == month)
+        count_q = count_q.where(date_format(JournalEntry.entry_date, "YYYY-MM") == month)
 
     total = len((await db.execute(count_q)).scalars().all())
     result = await db.execute(q.order_by(JournalEntry.id.desc()).offset((page - 1) * page_size).limit(page_size))
@@ -117,7 +119,10 @@ async def list_entries(
 
 
 class LineItem(BaseModel):
-    account_id: int; description: str = ""; debit: float = 0; credit: float = 0
+    account_id: int
+    description: str = ""
+    debit: float = 0
+    credit: float = 0
 
 
 class EntryCreate(BaseModel):
@@ -130,15 +135,15 @@ class EntryCreate(BaseModel):
 async def create_entry(body: EntryCreate, request: Request,
                        db: AsyncSession = Depends(get_db),
                        current_user: dict = Depends(require_perm("finance", "write"))):
-    total_debit = sum(l.debit for l in body.lines)
-    total_credit = sum(l.credit for l in body.lines)
+    total_debit = sum(li.debit for li in body.lines)
+    total_credit = sum(li.credit for li in body.lines)
     if abs(total_debit - total_credit) > 0.01:
         return fail(f"借贷不平衡: 借方 {total_debit:,.2f} vs 贷方 {total_credit:,.2f}")
 
     # Generate entry_no
     month_str = body.entry_date[:7].replace("-", "")
     count = len((await db.execute(
-        select(JournalEntry.id).where(func.to_char(JournalEntry.entry_date, "YYYYMM") == month_str)
+        select(JournalEntry.id).where(date_format(JournalEntry.entry_date, "YYYYMM") == month_str)
     )).scalars().all()) + 1
     entry_no = f"JV-{month_str}-{count:04d}"
 
@@ -176,9 +181,9 @@ async def get_entry(entry_id: int, db: AsyncSession = Depends(get_db),
         "id": entry.id, "entry_no": entry.entry_no, "entry_date": str(entry.entry_date),
         "description": entry.description, "status": entry.status,
         "lines": [{
-            "id": l.id, "account_id": l.account_id, "account_name": l.account.name if l.account else "",
-            "description": l.description, "debit": float(l.debit), "credit": float(l.credit),
-        } for l in (entry.lines or [])],
+            "id": li.id, "account_id": li.account_id, "account_name": li.account.name if li.account else "",
+            "description": li.description, "debit": float(li.debit), "credit": float(li.credit),
+        } for li in (entry.lines or [])],
         "created_at": str(entry.created_at),
     })
 
@@ -237,7 +242,6 @@ async def reconcile_bank(
         for p in payments:
             if p.reconciliation_id:
                 continue  # Already reconciled
-            p_date = p.payment_date.strftime("%Y-%m-%d") if p.payment_date else ""
             if abs(float(p.amount) - amount) < 0.01:
                 match = p
                 break
@@ -311,7 +315,7 @@ async def profit_and_loss(
 ):
     """Monthly Profit & Loss statement."""
     # Sum debits/credits by account type for posted entries in the given month
-    month_expr = func.to_char(JournalEntry.entry_date, "YYYY-MM")
+    month_expr = date_format(JournalEntry.entry_date, "YYYY-MM")
 
     lines = (await db.execute(
         select(Account.type, func.sum(JournalEntryLine.debit).label("debit"),
