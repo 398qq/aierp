@@ -62,7 +62,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets"];
+  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/system/roles", "/system/approvals", "/system/approval-rules", "/system/audit-logs", "/procurement/dashboard", "/reports/sales", "/reports/ar", "/reports/inventory", "/reports/procurement", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -136,9 +136,28 @@ export default function MainLayout() {
     { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
     { key: "/tickets", icon: <IssuesCloseOutlined />, label: "工单管理" },
     {
+      key: "_grp_procurement", icon: <ShoppingCartOutlined />, label: "采购智能",
+      children: [
+        { key: "/procurement/dashboard", icon: <DashboardOutlined />, label: "采购仪表板" },
+      ],
+    },
+    {
+      key: "_grp_reports", icon: <PieChartOutlined />, label: "报表分析",
+      children: [
+        { key: "/reports/sales", icon: <PieChartOutlined />, label: "销售报表" },
+        { key: "/reports/ar", icon: <DollarOutlined />, label: "应收账款" },
+        { key: "/reports/inventory", icon: <StockOutlined />, label: "库存报表" },
+        { key: "/reports/procurement", icon: <ShoppingCartOutlined />, label: "采购报表" },
+      ],
+    },
+    {
       key: "_grp_system", icon: <SettingOutlined />, label: "系统管理",
       children: [
         { key: "/system/users", icon: <TeamOutlined />, label: "用户管理" },
+        { key: "/system/roles", icon: <TeamOutlined />, label: "角色权限" },
+        { key: "/system/approvals", icon: <FileDoneOutlined />, label: "审批管理" },
+        { key: "/system/approval-rules", icon: <ProfileOutlined />, label: "审批规则" },
+        { key: "/system/audit-logs", icon: <FileTextOutlined />, label: "审计日志" },
       ],
     },
     { key: "/settings", icon: <SettingOutlined />, label: "设置" },

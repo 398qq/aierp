@@ -1,0 +1,128 @@
+import { useEffect, useState } from "react";
+import { Table, Tag, Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
+import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
+import type { ColumnsType } from "antd/es/table";
+import client from "../../api/client";
+
+interface ApprovalReq {
+  id: number; doc_type: string; doc_id: number;
+  submitter_id: number; submitter_name: string;
+  status: string; current_level: number;
+  created_at: string;
+}
+
+interface ApprovalDetail extends ApprovalReq {
+  flow_snapshot: { level: number; approver_role?: string; approver_id?: number }[];
+  doc_summary: Record<string, unknown>;
+  actions: { id: number; approver_name: string; action: string; comment: string; level: number; created_at: string }[];
+}
+
+const docTypeLabels: Record<string, string> = { quotation: "报价单", purchase_order: "采购订单" };
+const statusColors: Record<string, string> = { pending: "processing", approved: "success", rejected: "error" };
+const statusLabels: Record<string, string> = { pending: "待审批", approved: "已通过", rejected: "已驳回" };
+
+export default function ApprovalList() {
+  const [data, setData] = useState<ApprovalReq[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("all");
+  const [detail, setDetail] = useState<ApprovalDetail | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [comment, setComment] = useState("");
+  const [acting, setActing] = useState(false);
+
+  const fetch = async (status?: string) => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (status && status !== "all") params.status = status;
+      const resp = await client.get("/approvals/requests", { params });
+      setData(resp.data.data?.list || []);
+    } catch { message.error("加载审批列表失败"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetch(tab); }, [tab]);
+
+  const viewDetail = async (id: number) => {
+    try {
+      const resp = await client.get(`/approvals/requests/${id}`);
+      setDetail(resp.data.data);
+      setDetailOpen(true);
+    } catch { message.error("加载详情失败"); }
+  };
+
+  const handleAction = async (id: number, action: string) => {
+    setActing(true);
+    try {
+      await client.post(`/approvals/requests/${id}/${action}`, { comment });
+      message.success(action === "approve" ? "已通过" : "已驳回");
+      setDetailOpen(false);
+      setComment("");
+      fetch(tab);
+    } catch { message.error("操作失败"); }
+    finally { setActing(false); }
+  };
+
+  const columns: ColumnsType<ApprovalReq> = [
+    { title: "ID", dataIndex: "id", width: 60 },
+    { title: "单据类型", dataIndex: "doc_type", width: 100, render: (v: string) => docTypeLabels[v] || v },
+    { title: "单据ID", dataIndex: "doc_id", width: 80 },
+    { title: "提交人", dataIndex: "submitter_name", width: 100 },
+    {
+      title: "状态", dataIndex: "status", width: 80,
+      render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
+    },
+    { title: "当前级别", dataIndex: "current_level", width: 80 },
+    { title: "提交时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " ") },
+    {
+      title: "操作", key: "op", width: 80,
+      render: (_, r) => <Button size="small" icon={<EyeOutlined />} onClick={() => viewDetail(r.id)}>详情</Button>,
+    },
+  ];
+
+  return (
+    <Card title="审批管理">
+      <Tabs activeKey={tab} onChange={setTab} items={[
+        { key: "all", label: "全部" },
+        { key: "pending", label: "待审批" },
+        { key: "approved", label: "已通过" },
+        { key: "rejected", label: "已驳回" },
+      ]} />
+      <Table rowKey="id" columns={columns} dataSource={data} loading={loading} pagination={{ pageSize: 20 }} />
+
+      <Modal title="审批详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null} width={600}>
+        {detail && (
+          <Space direction="vertical" style={{ width: "100%" }} size="middle">
+            <Descriptions column={2} size="small" bordered>
+              <Descriptions.Item label="单据类型">{docTypeLabels[detail.doc_type]}</Descriptions.Item>
+              <Descriptions.Item label="单据ID">{detail.doc_id}</Descriptions.Item>
+              <Descriptions.Item label="提交人">{detail.submitter_name}</Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={statusColors[detail.status]}>{statusLabels[detail.status]}</Tag></Descriptions.Item>
+            </Descriptions>
+            {detail.doc_summary && (
+              <Descriptions column={1} size="small" bordered>
+                {Object.entries(detail.doc_summary).map(([k, v]) => (
+                  <Descriptions.Item key={k} label={k}>{String(v)}</Descriptions.Item>
+                ))}
+              </Descriptions>
+            )}
+            <Typography.Title level={5}>审批历史</Typography.Title>
+            <Timeline items={(detail.actions || []).map((a) => ({
+              color: a.action === "approve" ? "green" : "red",
+              children: `${a.approver_name} — ${a.action === "approve" ? "通过" : "驳回"}${a.comment ? ` (${a.comment})` : ""} — ${a.created_at?.slice(0, 19)}`,
+            }))} />
+            {detail.status === "pending" && (
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Input.TextArea rows={2} placeholder="审批意见（可选）" value={comment} onChange={(e) => setComment(e.target.value)} />
+                <Space>
+                  <Button type="primary" icon={<CheckOutlined />} loading={acting} onClick={() => handleAction(detail.id, "approve")}>通过</Button>
+                  <Button danger icon={<CloseOutlined />} loading={acting} onClick={() => handleAction(detail.id, "reject")}>驳回</Button>
+                </Space>
+              </Space>
+            )}
+          </Space>
+        )}
+      </Modal>
+    </Card>
+  );
+}

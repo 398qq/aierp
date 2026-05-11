@@ -1,46 +1,75 @@
 # Project Progress — AIERP
 
-**Last Updated**: 2026-05-09
-**Current Phase**: Phase 4 Complete (Intelligence Platforms)
-**Latest Commit**: `8d23f6a` — fix: supplier对比模块 + AI服务路由 深度修复（Claude Code 10轮审查）
+**Last Updated**: 2026-05-11
+**Current Phase**: Phase 5 Complete (Approval + Procurement + Reports + RBAC)
+**Latest Commit**: `6ad0b67` — feat: Phase 5 backend — RBAC, approval workflow, procurement AI, reports
 
 ---
 
 ## Working State
 
-- **Branch**: master (1 commit ahead of origin/master)
-- **Dirty files**: None (working tree clean)
-- **Status**: Phase 4 core features complete; bug fixes and polish in progress
+- **Branch**: master
+- **Status**: Phase 5 complete — backend (committed) + frontend (pending commit)
 
 ---
 
-## Phase 4 — Intelligence Platforms (COMPLETE)
+## Phase 5 — B(审批工作流) + C(采购智能化) + D(报表与分析) + E(权限与安全) (COMPLETE)
 
-### Completed
-- [x] Brand360 — brand profile, portfolio, health, risk, supplier matrix (commit `78a4495`)
-- [x] Supplier360 — supplier scorecard, delay prediction, alternatives, price variance (commit `78a4495`)
-- [x] SupplierCompare — side-by-side supplier comparison (commit `78a4495`, fixes in `b50b18e`, `8cfd095`, `8d23f6a`)
-- [x] Product360 — product intelligence with cross-sell recommendations (commit `78a4495`)
-- [x] Global360 — cross-domain aggregated view on main dashboard (commit `78a4495`)
-- [x] WatchtowerDashboard — operational monitoring dashboard (commit `78a4495`)
-- [x] Inventory Forecasting — demand forecast table on inventory page (commit `78a4495`)
-- [x] Supplier delete endpoint + enhanced list (commit `c172120`)
-- [x] Pipeline kanban + customer/supplier conversion (commit `b190769`)
-- [x] .gitignore cleanup — added venv312/, extracted packages; removed Login HTML variants
+### Backend (`6ad0b67`)
+- [x] RBAC — 22 permissions, 4 roles, role-permission assignment, user-role binding (`permissions.py`, `rbac.py`)
+- [x] Multi-level approval workflow — rules CRUD, submit/approve/reject, amount thresholds, audit trail (`approvals.py`, `approval.py`)
+- [x] Procurement AI — restock suggestions, supplier recommendations, dashboard, PO calendar (`procurement.py`)
+- [x] Reports — sales/AR/inventory/procurement predefined reports, CSV export, template CRUD (`reports.py`, `report.py`)
+- [x] Audit logging — write_audit_log for all mutation endpoints (`permissions.py`)
+- [x] Auto-seed RBAC data on startup (`database.py::_seed_rbac`)
 
-### Post-Phase-4 Bug Fixes
-- [x] Brand intel service N+1 query (commit `862a7f3`)
-- [x] SupplierCompare TypeError, rowKey collision, NaN guards (commit `b50b18e`)
-- [x] Deep audit round 2 — 11 critical/high bugs across 4 dimensions (commit `834d272`)
-- [x] SupplierCompare 10 critical/medium bugs (commit `8cfd095`)
-- [x] Supplier对比 + AI服务路由 深度修复 (commit `8d23f6a`)
-- [x] Backend lint fixes (commit `837561a`)
+### Frontend (this commit)
+- [x] Roles & permissions management page (`system/Roles.tsx`)
+- [x] Approval list with tabs + detail modal + approve/reject actions (`system/ApprovalList.tsx`)
+- [x] Approval rules CRUD (`system/ApprovalRules.tsx`)
+- [x] Audit log viewer with filters (`system/AuditLogList.tsx`)
+- [x] Procurement dashboard — KPIs, restock suggestions, PO calendar (`procurement/ProcurementDashboard.tsx`)
+- [x] Sales report with monthly orders/quotations + top products + CSV export (`reports/ReportSales.tsx`)
+- [x] AR aging report with buckets + detail tables (`reports/ReportAR.tsx`)
+- [x] Inventory report with stock levels + low stock/out of stock summary (`reports/ReportInventory.tsx`)
+- [x] Procurement report with monthly trend + status summary (`reports/ReportProcurement.tsx`)
+- [x] App.tsx — 10 new lazy-loaded routes
+- [x] MainLayout.tsx — sidebar menu: 系统管理 (审批管理/审批规则/角色权限/审计日志), 采购智能, 报表分析 (4 reports)
 
-### In Progress
-- *(clean working tree — no active changes)*
+### Tables Added
+| Table | Purpose |
+|-------|---------|
+| `permissions` | 22 RBAC permissions (resource + action) |
+| `roles` | 4 roles: admin, sales, warehouse, finance |
+| `role_permissions` | Many-to-many role↔permission |
+| `user_roles` | Many-to-many user↔role |
+| `approval_rules` | Configurable approval rules by doc type |
+| `approval_requests` | Submitted approval requests with multi-level flow |
+| `approval_actions` | Individual approve/reject actions |
+| `report_templates` | Saved report configurations |
+| `audit_logs` | All mutation audit trail |
 
-### Pending / Planned
-- [ ] Phase 5 scoping and requirements
+### New API Endpoints (12)
+| Method | Path | Module |
+|--------|------|--------|
+| GET/POST/PUT/DELETE | `/permissions/roles` | RBAC |
+| GET/PUT | `/permissions/users/{id}/roles` | RBAC |
+| GET | `/permissions/audit-logs` | RBAC |
+| GET/POST/PUT/DELETE | `/approvals/rules` | Approval |
+| GET | `/approvals/requests` | Approval |
+| POST | `/approvals/submit` | Approval |
+| POST | `/approvals/requests/{id}/approve` | Approval |
+| POST | `/approvals/requests/{id}/reject` | Approval |
+| GET | `/ai/procurement/restock-suggest` | Procurement |
+| GET | `/ai/procurement/supplier-recommend` | Procurement |
+| GET | `/ai/procurement/dashboard` | Procurement |
+| GET | `/ai/procurement/po-calendar` | Procurement |
+| GET/POST/PUT/DELETE | `/reports/templates` | Reports |
+| GET | `/reports/predefined/sales` | Reports |
+| GET | `/reports/predefined/ar` | Reports |
+| GET | `/reports/predefined/inventory` | Reports |
+| GET | `/reports/predefined/procurement` | Reports |
+| POST | `/reports/export/sales` | Reports |
 
 ---
 
@@ -95,18 +124,7 @@
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| `venv312/` directory not in `.gitignore` | Low | Fixed |
 | `.gitignore` excludes all `*.db` files — could miss legitimate DB files | Low | Monitor |
-
----
-
-## Key Decisions
-
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| 2026-04 | Adopt Claude Code as primary development environment | AI-native workflow with custom commands, agents, skills |
-| 2026-04 | Switch to claude-mem for persistent cross-session memory | Replaces ephemeral context |
-| 2026-05 | Brand analysis agent in `.claude/agents/` for specialized tasks | Dedicated agent with brand-intel skill |
 
 ---
 
@@ -114,6 +132,11 @@
 
 | Concern | Backend | Frontend |
 |---------|---------|----------|
+| RBAC | `core/permissions.py`, `api/v1/permissions.py`, `models/rbac.py` | `pages/system/Roles.tsx` |
+| Audit Log | `core/permissions.py::write_audit_log`, `api/v1/permissions.py` | `pages/system/AuditLogList.tsx` |
+| Approval | `api/v1/approvals.py`, `models/approval.py` | `pages/system/ApprovalList.tsx`, `pages/system/ApprovalRules.tsx` |
+| Procurement AI | `api/v1/procurement.py` | `pages/procurement/ProcurementDashboard.tsx` |
+| Reports | `api/v1/reports.py`, `models/report.py` | `pages/reports/Report{Sales,AR,Inventory,Procurement}.tsx` |
 | Brand360 | `services/brand_intel_service.py` | `pages/brands/BrandDetail.tsx` |
 | Supplier360 | `services/supplier_intel_service.py` | `pages/suppliers/SupplierDetail.tsx` |
 | SupplierCompare | API in `api/v1/ai.py` | `pages/suppliers/SupplierCompare.tsx` |

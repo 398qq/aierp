@@ -70,6 +70,15 @@ const TicketForm = lazy(() => import("./pages/tickets/TicketForm"));
 const TicketDetail = lazy(() => import("./pages/tickets/TicketDetail"));
 const FollowUpList = lazy(() => import("./pages/customers/FollowUpList"));
 const FollowUpForm = lazy(() => import("./pages/customers/FollowUpForm"));
+const ApprovalList = lazy(() => import("./pages/system/ApprovalList"));
+const ApprovalRules = lazy(() => import("./pages/system/ApprovalRules"));
+const RolesPage = lazy(() => import("./pages/system/Roles"));
+const AuditLogList = lazy(() => import("./pages/system/AuditLogList"));
+const ProcurementDashboard = lazy(() => import("./pages/procurement/ProcurementDashboard"));
+const ReportSales = lazy(() => import("./pages/reports/ReportSales"));
+const ReportAR = lazy(() => import("./pages/reports/ReportAR"));
+const ReportInventory = lazy(() => import("./pages/reports/ReportInventory"));
+const ReportProcurement = lazy(() => import("./pages/reports/ReportProcurement"));
 
 function PageLoader() {
   return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
@@ -134,6 +143,15 @@ export default function App() {
               <Route path="/warehouse/inventory-ledger" element={<Suspense fallback={<PageLoader />}><InventoryLedger /></Suspense>} />
               <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
               <Route path="/system/users" element={<Suspense fallback={<PageLoader />}><UserList /></Suspense>} />
+              <Route path="/system/roles" element={<Suspense fallback={<PageLoader />}><RolesPage /></Suspense>} />
+              <Route path="/system/approvals" element={<Suspense fallback={<PageLoader />}><ApprovalList /></Suspense>} />
+              <Route path="/system/approval-rules" element={<Suspense fallback={<PageLoader />}><ApprovalRules /></Suspense>} />
+              <Route path="/system/audit-logs" element={<Suspense fallback={<PageLoader />}><AuditLogList /></Suspense>} />
+              <Route path="/procurement/dashboard" element={<Suspense fallback={<PageLoader />}><ProcurementDashboard /></Suspense>} />
+              <Route path="/reports/sales" element={<Suspense fallback={<PageLoader />}><ReportSales /></Suspense>} />
+              <Route path="/reports/ar" element={<Suspense fallback={<PageLoader />}><ReportAR /></Suspense>} />
+              <Route path="/reports/inventory" element={<Suspense fallback={<PageLoader />}><ReportInventory /></Suspense>} />
+              <Route path="/reports/procurement" element={<Suspense fallback={<PageLoader />}><ReportProcurement /></Suspense>} />
               <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
               <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
               <Route path="/sales/opportunities" element={<Suspense fallback={<PageLoader />}><OpportunityList /></Suspense>} />
