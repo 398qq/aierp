@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Card, Row, Col } from "antd";
 import { PlusOutlined, SearchOutlined, ThunderboltOutlined, FileTextOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getProducts, createProduct, updateProduct, deleteProduct, getBrands, aiParseProduct, aiParseBom } from "../../api";
 import type { Product, Brand } from "../../types";
+
+interface ColumnWidth {
+  key: string;
+  width: number;
+}
 
 export default function ProductList() {
   const [data, setData] = useState<Product[]>([]);
@@ -24,6 +29,20 @@ export default function ProductList() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const navigate = useNavigate();
 
+  // Column resize state
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    sku: 120,
+    name: 220,
+    category: 80,
+    package_type: 90,
+    specs: 180,
+    unit: 60,
+    brand_name: 100,
+  });
+  const resizingRef = useRef<{ colKey: string; startX: number; startWidth: number } | null>(null);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+
+  // Fetch products
   const fetch = async (p = page, search = q) => {
     setLoading(true);
     try {
@@ -58,6 +77,32 @@ export default function ProductList() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
 
+  // Column resize mouse handlers
+  const onHeaderMouseDown = useCallback((e: React.MouseEvent, colKey: string) => {
+    e.preventDefault();
+    const startWidth = columnWidths[colKey] || 100;
+    resizingRef.current = { colKey, startX: e.clientX, startWidth };
+  }, [columnWidths]);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const { colKey, startX, startWidth } = resizingRef.current;
+      const delta = e.clientX - startX;
+      const newWidth = Math.max(40, startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [colKey]: newWidth }));
+    };
+    const onMouseUp = () => {
+      resizingRef.current = null;
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
   const openCreate = () => { setEditing(null); form.resetFields(); loadBrands(); setModalOpen(true); };
   const openEdit = (p: Product) => { setEditing(p); form.setFieldsValue(p); loadBrands(); setModalOpen(true); };
 
@@ -89,7 +134,6 @@ export default function ProductList() {
         ? JSON.stringify(parsed.specs)
         : String(parsed.specs || "");
 
-      // Try to match brand name
       let brandId: number | undefined;
       const brandName = String(parsed.brand_name || "").toLowerCase();
       if (brandName) {
@@ -146,24 +190,86 @@ export default function ProductList() {
     finally { setBomParsing(false); }
   };
 
-  const [columns, setColumns] = useState<any[]>([
-    { title: "SKU", dataIndex: "sku", key: "sku", width: 120, resizable: true },
+  // Build columns with dynamic widths and resize handles
+  const columns = [
     {
-      title: "产品名称", dataIndex: "name", key: "name", width: 220, resizable: true,
+      title: (
+        <div className="resize-handle" data-col="sku" onMouseDown={(e) => onHeaderMouseDown(e, "sku")}>
+          SKU
+        </div>
+      ),
+      dataIndex: "sku",
+      key: "sku",
+      width: columnWidths.sku,
+    },
+    {
+      title: (
+        <div className="resize-handle" data-col="name" onMouseDown={(e) => onHeaderMouseDown(e, "name")}>
+          产品名称
+        </div>
+      ),
+      dataIndex: "name",
+      key: "name",
+      width: columnWidths.name,
       render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a>,
     },
-    { title: "分类", dataIndex: "category", key: "category", width: 80, resizable: true, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
-    { title: "封装", dataIndex: "package_type", key: "package_type", width: 90, resizable: true },
     {
-      title: "规格", dataIndex: "specs", key: "specs", width: 180, resizable: true, ellipsis: true,
+      title: (
+        <div className="resize-handle" data-col="category" onMouseDown={(e) => onHeaderMouseDown(e, "category")}>
+          分类
+        </div>
+      ),
+      dataIndex: "category",
+      key: "category",
+      width: columnWidths.category,
+      render: (v: string) => v ? <Tag>{v}</Tag> : "-",
     },
-    { title: "单位", dataIndex: "unit", key: "unit", width: 60, resizable: true },
     {
-      title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 100, resizable: true,
+      title: (
+        <div className="resize-handle" data-col="package_type" onMouseDown={(e) => onHeaderMouseDown(e, "package_type")}>
+          封装
+        </div>
+      ),
+      dataIndex: "package_type",
+      key: "package_type",
+      width: columnWidths.package_type,
+    },
+    {
+      title: (
+        <div className="resize-handle" data-col="specs" onMouseDown={(e) => onHeaderMouseDown(e, "specs")}>
+          规格
+        </div>
+      ),
+      dataIndex: "specs",
+      key: "specs",
+      width: columnWidths.specs,
+      ellipsis: true,
+    },
+    {
+      title: (
+        <div className="resize-handle" data-col="unit" onMouseDown={(e) => onHeaderMouseDown(e, "unit")}>
+          单位
+        </div>
+      ),
+      dataIndex: "unit",
+      key: "unit",
+      width: columnWidths.unit,
+    },
+    {
+      title: (
+        <div className="resize-handle" data-col="brand_name" onMouseDown={(e) => onHeaderMouseDown(e, "brand_name")}>
+          品牌
+        </div>
+      ),
+      dataIndex: "brand_name",
+      key: "brand_name",
+      width: columnWidths.brand_name,
       render: (v: string | null) => v || "-",
     },
     {
-      title: "操作", key: "actions", width: 160,
+      title: "操作",
+      key: "actions",
+      width: 160,
       render: (_: unknown, r: Product) => (
         <Space size="small">
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
@@ -173,10 +279,31 @@ export default function ProductList() {
         </Space>
       ),
     },
-  ]);
+  ];
 
   return (
     <div>
+      <style>{`
+        .resize-handle {
+          cursor: col-resize;
+          user-select: none;
+          position: relative;
+          padding-right: 12px;
+        }
+        .resize-handle::after {
+          content: '';
+          position: absolute;
+          right: 4px;
+          top: 25%;
+          height: 50%;
+          width: 3px;
+          background: #e8e8e8;
+          border-radius: 2px;
+        }
+        .resize-handle:hover::after {
+          background: #1677ff;
+        }
+      `}</style>
       <Card size="small" style={{ marginBottom: 16 }}>
         <Row gutter={[12, 12]} align="middle">
           <Col>
@@ -201,20 +328,13 @@ export default function ProductList() {
       </Card>
 
       <Table
+        ref={tableWrapRef as any}
         rowKey="id"
-        columns={columns as any}
+        columns={columns}
         dataSource={data}
         loading={loading}
         tableLayout="fixed"
-        onChange={(pagination, _filters, _sorter, extra: any) => {
-          if (extra?.action === "columnResize" && extra?.columnResize?.widths) {
-            const widths = extra.columnResize.widths as number[];
-            setColumns((prev) =>
-              prev.map((col, i) => ({ ...col, width: widths[i] ?? col.width }))
-            );
-          }
-          if (pagination.current) setPage(pagination.current);
-        }}
+        onChange={(pagination) => { if (pagination.current) setPage(pagination.current); }}
         pagination={{
           current: page, total, pageSize: 20,
           showTotal: (t) => `共 ${t} 条`,
