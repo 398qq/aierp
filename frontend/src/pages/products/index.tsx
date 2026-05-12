@@ -25,7 +25,7 @@ export default function ProductList() {
   const navigate = useNavigate();
 
   // Column widths state
-  const [widths, setWidths] = useState<Record<string, number>>({
+  const [colWidths, setColWidths] = useState<Record<string, number>>({
     sku: 120,
     name: 220,
     category: 80,
@@ -35,32 +35,58 @@ export default function ProductList() {
     brand_name: 100,
   });
 
-  // Resize state
-  const resizing = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  // Resize drag state (ref to avoid re-render during drag)
+  const drag = useRef<{ key: string; startX: number; startW: number } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  // Directly resize the <col> DOM element during drag — no React re-render
+  const applyColWidth = (key: string, w: number) => {
+    const tbl = tableRef.current?.querySelector(".ant-table") as HTMLElement | null;
+    if (!tbl) return;
+    const colgroup = tbl.querySelector("colgroup");
+    if (!colgroup) return;
+    // data-key is stored on each <col> element
+    const col = colgroup.querySelector(`[data-key="${key}"]`) as HTMLElement | null;
+    if (col) col.style.width = `${w}px`;
+    // Also update the corresponding header cell width
+    const headerCells = tbl.querySelectorAll(".ant-table-cell");
+    const colIndex = Object.keys(colWidths).indexOf(key);
+    if (colIndex >= 0 && headerCells[colIndex]) {
+      (headerCells[colIndex] as HTMLElement).style.width = `${w}px`;
+      (headerCells[colIndex] as HTMLElement).style.minWidth = `${w}px`;
+    }
+  };
 
   const onHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, key: string, currentWidth: number) => {
     e.preventDefault();
     e.stopPropagation();
-    resizing.current = { key, startX: e.clientX, startW: currentWidth };
+    drag.current = { key, startX: e.clientX, startW: currentWidth };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-    document.body.classList.add("col-resizing");
   }, []);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (!resizing.current) return;
-      const delta = e.clientX - resizing.current.startX;
-      const next = Math.max(40, resizing.current.startW + delta);
-      setWidths(prev => ({ ...prev, [resizing.current!.key]: next }));
+      if (!drag.current) return;
+      const next = Math.max(40, drag.current.startW + e.clientX - drag.current.startX);
+      applyColWidth(drag.current.key, next);
     };
     const onMouseUp = () => {
-      if (!resizing.current) return;
-      resizing.current = null;
+      if (!drag.current) return;
+      const key = drag.current.key;
+      // Read final width from DOM
+      const tbl = tableRef.current?.querySelector(".ant-table") as HTMLElement | null;
+      if (tbl) {
+        const colgroup = tbl.querySelector("colgroup");
+        const col = colgroup?.querySelector(`[data-key="${key}"]`) as HTMLElement | null;
+        if (col) {
+          const finalW = parseInt(col.style.width, 10) || colWidths[key];
+          setColWidths(prev => ({ ...prev, [key]: finalW }));
+        }
+      }
+      drag.current = null;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      document.body.classList.remove("col-resizing");
     };
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
@@ -68,7 +94,7 @@ export default function ProductList() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
-  }, []);
+  }, [colWidths]);
 
   const fetch = async (p = page, search = q) => {
     setLoading(true);
@@ -96,6 +122,25 @@ export default function ProductList() {
 
   useEffect(() => { loadBrands(); }, []);
   useEffect(() => { fetch(); }, [page]);
+
+  // Inject data-key onto <col> elements so JS resize can find them
+  useEffect(() => {
+    const inject = () => {
+      const tbl = tableRef.current?.querySelector(".ant-table") as HTMLElement | null;
+      if (!tbl) return;
+      const colgroup = tbl.querySelector("colgroup");
+      if (!colgroup) return;
+      const keys = Object.keys(colWidths);
+      const cols = colgroup.querySelectorAll("col") as NodeListOf<HTMLElement>;
+      keys.forEach((key, i) => { if (cols[i]) cols[i].setAttribute("data-key", key); });
+    };
+    inject();
+    const tbl = tableRef.current?.querySelector(".ant-table") as HTMLElement | null;
+    if (!tbl) return;
+    const obs = new MutationObserver(inject);
+    obs.observe(tbl, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [colWidths]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -177,45 +222,23 @@ export default function ProductList() {
 
   const makeHeader = (title: string, key: string, w: number) => (
     <div
-      style={{
-        width: w,
-        position: "relative",
-        display: "flex",
-        alignItems: "center",
-        cursor: "col-resize",
-        userSelect: "none",
-        height: "100%",
-      }}
+      className="col-resize-header"
+      data-key={key}
+      style={{ width: w, cursor: "col-resize", userSelect: "none", position: "relative", display: "flex", alignItems: "center" }}
+      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onHeaderMouseDown(e, key, w); }}
     >
-      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {title}
-      </span>
-      <div
-        style={{
-          position: "absolute",
-          right: 0,
-          top: 0,
-          width: 4,
-          height: "100%",
-          cursor: "col-resize",
-          zIndex: 10,
-          background: "transparent",
-        }}
-        className="col-resize-handle"
-        data-key={key}
-        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onHeaderMouseDown(e, key, w); }}
-      />
+      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
     </div>
   );
 
   const columns = useMemo(() => [
-    { title: makeHeader("SKU", "sku", widths.sku), dataIndex: "sku", key: "sku", width: widths.sku },
-    { title: makeHeader("产品名称", "name", widths.name), dataIndex: "name", key: "name", width: widths.name, render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
-    { title: makeHeader("分类", "category", widths.category), dataIndex: "category", key: "category", width: widths.category, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
-    { title: makeHeader("封装", "package_type", widths.package_type), dataIndex: "package_type", key: "package_type", width: widths.package_type },
-    { title: makeHeader("规格", "specs", widths.specs), dataIndex: "specs", key: "specs", width: widths.specs, ellipsis: true },
-    { title: makeHeader("单位", "unit", widths.unit), dataIndex: "unit", key: "unit", width: widths.unit },
-    { title: makeHeader("品牌", "brand_name", widths.brand_name), dataIndex: "brand_name", key: "brand_name", width: widths.brand_name, render: (v: string | null) => v || "-" },
+    { title: makeHeader("SKU", "sku", colWidths.sku), dataIndex: "sku", key: "sku", width: colWidths.sku },
+    { title: makeHeader("产品名称", "name", colWidths.name), dataIndex: "name", key: "name", width: colWidths.name, render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
+    { title: makeHeader("分类", "category", colWidths.category), dataIndex: "category", key: "category", width: colWidths.category, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
+    { title: makeHeader("封装", "package_type", colWidths.package_type), dataIndex: "package_type", key: "package_type", width: colWidths.package_type },
+    { title: makeHeader("规格", "specs", colWidths.specs), dataIndex: "specs", key: "specs", width: colWidths.specs, ellipsis: true },
+    { title: makeHeader("单位", "unit", colWidths.unit), dataIndex: "unit", key: "unit", width: colWidths.unit },
+    { title: makeHeader("品牌", "brand_name", colWidths.brand_name), dataIndex: "brand_name", key: "brand_name", width: colWidths.brand_name, render: (v: string | null) => v || "-" },
     {
       title: "操作", key: "actions", width: 160,
       render: (_: unknown, r: Product) => (
@@ -227,17 +250,32 @@ export default function ProductList() {
         </Space>
       ),
     },
-  ], [widths, navigate]);
+  ], [colWidths, navigate]);
 
   return (
     <div>
       <style>{`
-        .col-resize-handle:hover,
-        .col-resize-handle:active {
-          background: #1677ff !important;
+        /* CSS-only drag handle: blue vertical bar on right edge of header */
+        .col-resize-header::after {
+          content: '';
+          position: absolute;
+          right: 3px;
+          top: 15%;
+          height: 70%;
+          width: 2px;
+          background: #d9d9d9;
+          border-radius: 1px;
+          pointer-events: none;
         }
-        body.col-resizing .col-resize-handle {
-          background: #1677ff !important;
+        .col-resize-header:hover::after {
+          background: #1677ff;
+        }
+        body.col-resizing .col-resize-header::after {
+          background: #1677ff;
+        }
+        /* Ensure <col> elements respect data-key */
+        .ant-table colgroup col[data-key] {
+          /* width set inline by JS */
         }
       `}</style>
 
