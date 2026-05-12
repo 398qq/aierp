@@ -791,25 +791,36 @@ async def check_alerts(db: AsyncSession = Depends(get_db), _user: dict = Depends
 
 @router.post("/auto-level")
 async def auto_level_customers(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    """Run auto-leveling rules on all customers."""
+    """Run auto-leveling rules on all customers.
+
+    Bulk-loads all orders upfront to avoid N per-customer queries.
+    """
     from app.models.sales import SalesOrder
 
     rules = (await db.execute(
         select(LevelRule).where(LevelRule.enabled, LevelRule.deleted_at.is_(None)).order_by(LevelRule.priority)
     )).scalars().all()
+    if not rules:
+        return ok({"updated": 0, "lifecycle_updated": 0, "rules_checked": 0, "customers_checked": 0})
 
-    customers = (await db.execute(
+    # Bulk-load all customers and orders
+    customers_list = (await db.execute(
         select(Customer).where(Customer.deleted_at.is_(None))
     )).scalars().all()
+    customers = {c.id: c for c in customers_list}
+
+    orders_map = {}
+    for o in (await db.execute(
+        select(SalesOrder).where(SalesOrder.deleted_at.is_(None))
+    )).scalars().all():
+        orders_map.setdefault(o.customer_id, []).append(o)
 
     now = datetime.now(timezone.utc)
     updated = 0
     lifecycle_updated = 0
 
-    for c in customers:
-        c_orders = (await db.execute(
-            select(SalesOrder).where(SalesOrder.customer_id == c.id, SalesOrder.deleted_at.is_(None))
-        )).scalars().all()
+    for c in customers.values():
+        c_orders = orders_map.get(c.id, [])
 
         # Auto-track lifecycle stage
         latest_order = max((o.created_at.replace(tzinfo=timezone.utc) for o in c_orders if o.created_at), default=None)
@@ -854,7 +865,7 @@ async def auto_level_customers(db: AsyncSession = Depends(get_db), _user: dict =
                 break  # first matching rule wins
 
     await db.flush()
-    return ok({"updated": updated, "lifecycle_updated": lifecycle_updated, "rules_checked": len(rules), "customers_checked": len(customers)})
+    return ok({"updated": updated, "lifecycle_updated": lifecycle_updated, "rules_checked": len(rules), "customers_checked": len(customers_list)})
 
 
 def _compare(value: float, op: str, threshold: float) -> bool:
