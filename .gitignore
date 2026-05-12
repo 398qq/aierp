@@ -61,6 +61,8 @@ Thumbs.db
 
 # Claude Code
 .claude/
+.claude-flow/
+.swarm/
 
 # Data directories
 data/
