@@ -44,6 +44,7 @@ export default function ProductList() {
     resizing.current = { key, startX: e.clientX, startW: widths[key] || 100 };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
+    document.body.classList.add("col-resizing");
   }, [widths]);
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export default function ProductList() {
       resizing.current = null;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      document.body.classList.remove("col-resizing");
     };
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
@@ -172,66 +174,25 @@ export default function ProductList() {
     finally { setBomParsing(false); }
   };
 
+  const makeHeader = (title: string, key: string) => (
+    <div className="col-resize-header" style={{ width: "100%", position: "relative", display: "flex", alignItems: "center" }}>
+      <span style={{ flex: 1, overflow: "hidden" }}>{title}</span>
+      <div
+        className="col-resize-handle"
+        data-key={key}
+        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onHeaderMouseDown(e, key); }}
+      />
+    </div>
+  );
+
   const columns = [
-    {
-      title: (
-        <div className="col-resize-header" data-col="sku" onMouseDown={(e) => onHeaderMouseDown(e, "sku")}>
-          SKU
-        </div>
-      ),
-      dataIndex: "sku", key: "sku", width: widths.sku,
-    },
-    {
-      title: (
-        <div className="col-resize-header" data-col="name" onMouseDown={(e) => onHeaderMouseDown(e, "name")}>
-          产品名称
-        </div>
-      ),
-      dataIndex: "name", key: "name", width: widths.name,
-      render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a>,
-    },
-    {
-      title: (
-        <div className="col-resize-header" data-col="category" onMouseDown={(e) => onHeaderMouseDown(e, "category")}>
-          分类
-        </div>
-      ),
-      dataIndex: "category", key: "category", width: widths.category,
-      render: (v: string) => v ? <Tag>{v}</Tag> : "-",
-    },
-    {
-      title: (
-        <div className="col-resize-header" data-col="package_type" onMouseDown={(e) => onHeaderMouseDown(e, "package_type")}>
-          封装
-        </div>
-      ),
-      dataIndex: "package_type", key: "package_type", width: widths.package_type,
-    },
-    {
-      title: (
-        <div className="col-resize-header" data-col="specs" onMouseDown={(e) => onHeaderMouseDown(e, "specs")}>
-          规格
-        </div>
-      ),
-      dataIndex: "specs", key: "specs", width: widths.specs, ellipsis: true,
-    },
-    {
-      title: (
-        <div className="col-resize-header" data-col="unit" onMouseDown={(e) => onHeaderMouseDown(e, "unit")}>
-          单位
-        </div>
-      ),
-      dataIndex: "unit", key: "unit", width: widths.unit,
-    },
-    {
-      title: (
-        <div className="col-resize-header" data-col="brand_name" onMouseDown={(e) => onHeaderMouseDown(e, "brand_name")}>
-          品牌
-        </div>
-      ),
-      dataIndex: "brand_name", key: "brand_name", width: widths.brand_name,
-      render: (v: string | null) => v || "-",
-    },
+    { title: makeHeader("SKU", "sku"), dataIndex: "sku", key: "sku", width: widths.sku },
+    { title: makeHeader("产品名称", "name"), dataIndex: "name", key: "name", width: widths.name, render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
+    { title: makeHeader("分类", "category"), dataIndex: "category", key: "category", width: widths.category, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
+    { title: makeHeader("封装", "package_type"), dataIndex: "package_type", key: "package_type", width: widths.package_type },
+    { title: makeHeader("规格", "specs"), dataIndex: "specs", key: "specs", width: widths.specs, ellipsis: true },
+    { title: makeHeader("单位", "unit"), dataIndex: "unit", key: "unit", width: widths.unit },
+    { title: makeHeader("品牌", "brand_name"), dataIndex: "brand_name", key: "brand_name", width: widths.brand_name, render: (v: string | null) => v || "-" },
     {
       title: "操作", key: "actions", width: 160,
       render: (_: unknown, r: Product) => (
@@ -249,25 +210,29 @@ export default function ProductList() {
     <div>
       <style>{`
         .col-resize-header {
-          display: inline-block;
+          display: flex;
+          align-items: center;
           width: 100%;
+          height: 100%;
           cursor: col-resize;
           user-select: none;
           position: relative;
-          padding-right: 8px;
-          box-sizing: border-box;
         }
-        .col-resize-header::after {
-          content: '';
+        .col-resize-handle {
           position: absolute;
           right: 0;
-          top: 20%;
-          height: 60%;
-          width: 3px;
-          background: #d9d9d9;
-          border-radius: 2px;
+          top: 0;
+          height: 100%;
+          width: 4px;
+          cursor: col-resize;
+          background: transparent;
+          z-index: 10;
         }
-        .col-resize-header:hover::after {
+        .col-resize-handle:hover,
+        .col-resize-handle:active {
+          background: #1677ff;
+        }
+        body.col-resizing .col-resize-handle {
           background: #1677ff;
         }
       `}</style>
