@@ -37,15 +37,16 @@ export default function ProductList() {
 
   // Resize state
   const resizing = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  const onHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, key: string) => {
+  const onHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, key: string, currentWidth: number) => {
     e.preventDefault();
     e.stopPropagation();
-    resizing.current = { key, startX: e.clientX, startW: widths[key] || 100 };
+    resizing.current = { key, startX: e.clientX, startW: currentWidth };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     document.body.classList.add("col-resizing");
-  }, [widths]);
+  }, []);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -174,25 +175,47 @@ export default function ProductList() {
     finally { setBomParsing(false); }
   };
 
-  const makeHeader = (title: string, key: string) => (
-    <div className="col-resize-header" style={{ width: "100%", position: "relative", display: "flex", alignItems: "center" }}>
-      <span style={{ flex: 1, overflow: "hidden" }}>{title}</span>
+  const makeHeader = (title: string, key: string, w: number) => (
+    <div
+      style={{
+        width: w,
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        cursor: "col-resize",
+        userSelect: "none",
+        height: "100%",
+      }}
+    >
+      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {title}
+      </span>
       <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          width: 4,
+          height: "100%",
+          cursor: "col-resize",
+          zIndex: 10,
+          background: "transparent",
+        }}
         className="col-resize-handle"
         data-key={key}
-        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onHeaderMouseDown(e, key); }}
+        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onHeaderMouseDown(e, key, w); }}
       />
     </div>
   );
 
   const columns = [
-    { title: makeHeader("SKU", "sku"), dataIndex: "sku", key: "sku", width: widths.sku },
-    { title: makeHeader("产品名称", "name"), dataIndex: "name", key: "name", width: widths.name, render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
-    { title: makeHeader("分类", "category"), dataIndex: "category", key: "category", width: widths.category, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
-    { title: makeHeader("封装", "package_type"), dataIndex: "package_type", key: "package_type", width: widths.package_type },
-    { title: makeHeader("规格", "specs"), dataIndex: "specs", key: "specs", width: widths.specs, ellipsis: true },
-    { title: makeHeader("单位", "unit"), dataIndex: "unit", key: "unit", width: widths.unit },
-    { title: makeHeader("品牌", "brand_name"), dataIndex: "brand_name", key: "brand_name", width: widths.brand_name, render: (v: string | null) => v || "-" },
+    { title: makeHeader("SKU", "sku", widths.sku), dataIndex: "sku", key: "sku", width: widths.sku },
+    { title: makeHeader("产品名称", "name", widths.name), dataIndex: "name", key: "name", width: widths.name, render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
+    { title: makeHeader("分类", "category", widths.category), dataIndex: "category", key: "category", width: widths.category, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
+    { title: makeHeader("封装", "package_type", widths.package_type), dataIndex: "package_type", key: "package_type", width: widths.package_type },
+    { title: makeHeader("规格", "specs", widths.specs), dataIndex: "specs", key: "specs", width: widths.specs, ellipsis: true },
+    { title: makeHeader("单位", "unit", widths.unit), dataIndex: "unit", key: "unit", width: widths.unit },
+    { title: makeHeader("品牌", "brand_name", widths.brand_name), dataIndex: "brand_name", key: "brand_name", width: widths.brand_name, render: (v: string | null) => v || "-" },
     {
       title: "操作", key: "actions", width: 160,
       render: (_: unknown, r: Product) => (
@@ -209,31 +232,12 @@ export default function ProductList() {
   return (
     <div>
       <style>{`
-        .col-resize-header {
-          display: flex;
-          align-items: center;
-          width: 100%;
-          height: 100%;
-          cursor: col-resize;
-          user-select: none;
-          position: relative;
-        }
-        .col-resize-handle {
-          position: absolute;
-          right: 0;
-          top: 0;
-          height: 100%;
-          width: 4px;
-          cursor: col-resize;
-          background: transparent;
-          z-index: 10;
-        }
         .col-resize-handle:hover,
         .col-resize-handle:active {
-          background: #1677ff;
+          background: #1677ff !important;
         }
         body.col-resizing .col-resize-handle {
-          background: #1677ff;
+          background: #1677ff !important;
         }
       `}</style>
 
@@ -261,6 +265,7 @@ export default function ProductList() {
       </Card>
 
       <Table
+        ref={tableRef as any}
         rowKey="id"
         columns={columns as any}
         dataSource={data}
