@@ -19,6 +19,9 @@ user_roles_table = Table(
     Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
 )
 
+# Alias for use as a model in SQLAlchemy queries (join target)
+UserRole = user_roles_table
+
 
 class Permission(TimestampMixin, Base):
     __tablename__ = "permissions"

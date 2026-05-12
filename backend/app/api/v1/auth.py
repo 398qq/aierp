@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,7 +98,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     token = create_access_token(user.id, user.username)
     # Set httpOnly cookie — XSS cannot read the token
-    response = ok({"token": token, "username": user.username, "role": user.role})
+    response = JSONResponse(content=ok({"token": token, "username": user.username, "role": user.role}))
     response.set_cookie(
         key=TOKEN_COOKIE_NAME,
         value=token,

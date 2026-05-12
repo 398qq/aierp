@@ -54,7 +54,7 @@ backend/app/
 ├── main.py              # FastAPI app, lifespan, CORS
 ├── config.py            # Pydantic Settings — all config from env
 ├── database.py          # Async engine, session, Base, pgvector init
-├── core/security.py     # JWT (jose) + bcrypt password hashing
+├── core/               # Security (JWT, bcrypt password hashing)
 ├── api/
 │   ├── deps.py          # get_current_user dependency (Bearer token → user dict)
 │   └── v1/
@@ -71,7 +71,7 @@ backend/app/
 │       ├── notifications.py
 │       ├── users.py
 │       └── inventory_transactions.py
-├── models/              # SQLAlchemy ORM models (all use Base from database.py)
+├── models/             # SQLAlchemy ORM models (all use Base from database.py)
 │   ├── base.py          # TimestampMixin: id, created_at, updated_at, deleted_at
 │   ├── customer.py      # Customer, Contact, FollowUp, Tag, AlertRule, etc.
 │   ├── product.py       # Product, Brand, Supplier, Warehouse, Inventory
@@ -79,6 +79,7 @@ backend/app/
 │   ├── transaction.py   # PurchaseOrder, Ticket, Visit, Sample
 │   ├── finance.py       # Invoice, Payment, Contract, SalesTarget, Notification
 │   └── user.py          # User (role-based: admin/sales/warehouse/finance)
+├── schemas/            # Pydantic request/response schemas (mirrors models/)
 ├── services/
 │   ├── ai/              # AI client + agents
 │   │   ├── client.py    # AIClient singleton (chat, chat_stream, chat_structured, embed)
@@ -111,19 +112,26 @@ frontend/src/
 ├── layouts/MainLayout.tsx  # Ant Design ProLayout with sidebar
 ├── types/index.ts       # TypeScript interfaces for all entities
 ├── pages/
-│   ├── dashboard/       # Watchtower, Global360
-│   ├── customers/       # List, Detail, Form, Dashboard, 360, FollowUps
-│   ├── products/        # List, Detail, PriceImport, InventoryManage
-│   ├── suppliers/       # List, Detail, Dashboard, 360, Compare
-│   ├── brands/          # List, Detail
-│   ├── sales/           # Opportunities, Quotations, Orders, Deliveries, Invoices, Payments, Contracts, Targets, PurchaseOrders
-│   ├── warehouse/       # Warehouses, Inventory Ledger
-│   ├── tickets/         # List, Form, Detail
-│   ├── inventory/       # Inventory list
-│   ├── ai/Chat.tsx      # AI chat (SSE streaming)
-│   ├── auth/Login.tsx
-│   ├── public/InquiryPortal.tsx  # Public inquiry form
-│   └── system/          # User management
+│   ├── ai/             # AI Chat (SSE streaming)
+│   ├── auth/           # Login page
+│   ├── brands/         # List, Detail
+│   ├── customers/      # List, Detail, Form, Dashboard, 360, FollowUps
+│   ├── dashboard/      # Watchtower, Global360
+│   ├── finance/        # Invoices, Payments
+│   ├── import-export/   # Data import/export
+│   ├── inventory/      # Inventory list
+│   ├── notifications/  # Notification management
+│   ├── procurement/    # Purchase orders, procurement
+│   ├── products/       # List, Detail, PriceImport, InventoryManage
+│   ├── public/         # InquiryPortal (unauthenticated)
+│   ├── reports/        # Report generation
+│   ├── sales/          # Opportunities, Quotations, Orders, Deliveries, Invoices, Payments, Contracts, Targets, PurchaseOrders
+│   ├── settings/       # System settings
+│   ├── suppliers/      # List, Detail, Dashboard, 360, Compare
+│   ├── system/         # User management
+│   ├── tickets/        # List, Form, Detail
+│   ├── users/          # User administration
+│   └── warehouse/      # Warehouses, Inventory Ledger
 └── components/
     ├── ai/AIInsight.tsx
     └── sales/           # PipelineBoard, OpportunityCard, SalesAIInsight
@@ -144,7 +152,7 @@ Frontend (Ant Design) → axios → FastAPI /api/v1/* → Service Layer → SQLA
 - **Soft delete**: All models inherit `TimestampMixin` with `deleted_at`. Queries always filter `deleted_at.is_(None)`.
 - **AI calls**: `ai_client.chat()` for text, `ai_client.chat_structured(schema)` for JSON, `ai_client.embed()` for vectors. Tenacity retry (3 attempts, exponential backoff).
 - **Embeddings**: Customers, Products, Suppliers, and Brand entities have pgvector `Vector(1024)` columns for semantic search.
-- **Tests**: Backend uses `httpx.AsyncClient` with FastAPI dependency overrides. SQLite (aiosqlite) replaces PostgreSQL in tests; pgvector Vector columns are patched to Text for SQLite compatibility.
+- **Tests**: Backend uses `httpx.AsyncClient` with FastAPI dependency overrides. SQLite (aiosqlite) replaces PostgreSQL in tests; pgvector Vector columns are patched to Text for SQLite compatibility. Run single test: `pytest tests/path/to/test_file.py::test_name -v`
 - **Auth**: JWT Bearer token. `get_current_user` dependency extracts `{user_id, username}` from token payload.
 - **Env**: `backend/.env` (optional, overrides defaults in config.py). Test DB config via `TEST_DATABASE_URL` env var.
 

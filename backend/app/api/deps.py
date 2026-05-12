@@ -1,9 +1,11 @@
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_access_token
 from app.database import get_db
+from app.models.rbac import Role, user_roles_table
 
 security_scheme = HTTPBearer(auto_error=False)
 TOKEN_COOKIE_NAME = "aierp_token"
@@ -21,4 +23,11 @@ async def get_current_user(
     payload = decode_access_token(token)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
-    return {"user_id": int(payload["sub"]), "username": payload["username"]}
+    user_id = int(payload["sub"])
+    result = await db.execute(
+        select(Role.name)
+        .join(user_roles_table, user_roles_table.c.role_id == Role.id)
+        .where(user_roles_table.c.user_id == user_id, Role.deleted_at.is_(None))
+    )
+    roles = [row[0] for row in result.fetchall()]
+    return {"user_id": user_id, "username": payload["username"], "roles": roles}

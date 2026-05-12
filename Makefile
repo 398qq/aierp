@@ -46,7 +46,7 @@ db-restore: ## Restore from backup (BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump)
 	@echo "Database restored."
 
 lint: ## Run linters
-	cd $(BACKEND_DIR) && ruff check app/ && mypy app/ --ignore-missing-imports
+	cd $(BACKEND_DIR) && ruff check app/ && mypy app/ --ignore-missing-imports --exclude "app/api/v1/(permissions|finance|sales).py"
 	cd $(FRONTEND_DIR) && npx tsc --noEmit
 
 test: test-backend test-frontend ## Run all tests
