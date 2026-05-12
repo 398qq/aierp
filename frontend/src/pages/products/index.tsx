@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Card, Row, Col } from "antd";
 import { PlusOutlined, SearchOutlined, ThunderboltOutlined, FileTextOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import { getProducts, createProduct, updateProduct, deleteProduct, getBrands, aiParseProduct, aiParseBom } from "../../api";
 import type { Product, Brand } from "../../types";
 
@@ -147,20 +146,20 @@ export default function ProductList() {
     finally { setBomParsing(false); }
   };
 
-  const columns: ColumnsType<Product> = [
-    { title: "SKU", dataIndex: "sku", key: "sku", width: 120 },
+  const [columns, setColumns] = useState<any[]>([
+    { title: "SKU", dataIndex: "sku", key: "sku", width: 120, resizable: true },
     {
-      title: "产品名称", dataIndex: "name", key: "name", width: 220,
+      title: "产品名称", dataIndex: "name", key: "name", width: 220, resizable: true,
       render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a>,
     },
-    { title: "分类", dataIndex: "category", key: "category", width: 80, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
-    { title: "封装", dataIndex: "package_type", key: "package_type", width: 90 },
+    { title: "分类", dataIndex: "category", key: "category", width: 80, resizable: true, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
+    { title: "封装", dataIndex: "package_type", key: "package_type", width: 90, resizable: true },
     {
-      title: "规格", dataIndex: "specs", key: "specs", width: 180, ellipsis: true,
+      title: "规格", dataIndex: "specs", key: "specs", width: 180, resizable: true, ellipsis: true,
     },
-    { title: "单位", dataIndex: "unit", key: "unit", width: 60 },
+    { title: "单位", dataIndex: "unit", key: "unit", width: 60, resizable: true },
     {
-      title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 100,
+      title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 100, resizable: true,
       render: (v: string | null) => v || "-",
     },
     {
@@ -174,7 +173,7 @@ export default function ProductList() {
         </Space>
       ),
     },
-  ];
+  ]);
 
   return (
     <div>
@@ -203,9 +202,19 @@ export default function ProductList() {
 
       <Table
         rowKey="id"
-        columns={columns}
+        columns={columns as any}
         dataSource={data}
         loading={loading}
+        tableLayout="fixed"
+        onChange={(pagination, _filters, _sorter, extra: any) => {
+          if (extra?.action === "columnResize" && extra?.columnResize?.widths) {
+            const widths = extra.columnResize.widths as number[];
+            setColumns((prev) =>
+              prev.map((col, i) => ({ ...col, width: widths[i] ?? col.width }))
+            );
+          }
+          if (pagination.current) setPage(pagination.current);
+        }}
         pagination={{
           current: page, total, pageSize: 20,
           showTotal: (t) => `共 ${t} 条`,
