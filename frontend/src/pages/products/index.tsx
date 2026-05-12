@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Card, Row, Col } from "antd";
 import { PlusOutlined, SearchOutlined, ThunderboltOutlined, FileTextOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
@@ -208,7 +208,7 @@ export default function ProductList() {
     </div>
   );
 
-  const columns = [
+  const columns = useMemo(() => [
     { title: makeHeader("SKU", "sku", widths.sku), dataIndex: "sku", key: "sku", width: widths.sku },
     { title: makeHeader("产品名称", "name", widths.name), dataIndex: "name", key: "name", width: widths.name, render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
     { title: makeHeader("分类", "category", widths.category), dataIndex: "category", key: "category", width: widths.category, render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
@@ -227,7 +227,7 @@ export default function ProductList() {
         </Space>
       ),
     },
-  ];
+  ], [widths, navigate]);
 
   return (
     <div>
