@@ -5,11 +5,6 @@ import { PlusOutlined, SearchOutlined, ThunderboltOutlined, FileTextOutlined, Ed
 import { getProducts, createProduct, updateProduct, deleteProduct, getBrands, aiParseProduct, aiParseBom } from "../../api";
 import type { Product, Brand } from "../../types";
 
-interface ColumnWidth {
-  key: string;
-  width: number;
-}
-
 export default function ProductList() {
   const [data, setData] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -29,8 +24,8 @@ export default function ProductList() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const navigate = useNavigate();
 
-  // Column resize state
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+  // Column widths state
+  const [widths, setWidths] = useState<Record<string, number>>({
     sku: 120,
     name: 220,
     category: 80,
@@ -39,10 +34,39 @@ export default function ProductList() {
     unit: 60,
     brand_name: 100,
   });
-  const resizingRef = useRef<{ colKey: string; startX: number; startWidth: number } | null>(null);
-  const tableWrapRef = useRef<HTMLDivElement>(null);
 
-  // Fetch products
+  // Resize state
+  const resizing = useRef<{ key: string; startX: number; startW: number } | null>(null);
+
+  const onHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, key: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizing.current = { key, startX: e.clientX, startW: widths[key] || 100 };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [widths]);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!resizing.current) return;
+      const delta = e.clientX - resizing.current.startX;
+      const next = Math.max(40, resizing.current.startW + delta);
+      setWidths(prev => ({ ...prev, [resizing.current!.key]: next }));
+    };
+    const onMouseUp = () => {
+      if (!resizing.current) return;
+      resizing.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
   const fetch = async (p = page, search = q) => {
     setLoading(true);
     try {
@@ -61,8 +85,7 @@ export default function ProductList() {
   const loadBrands = async () => {
     try {
       const r = await getBrands();
-      const list = (r.data.data || []) as Brand[];
-      setBrands(list);
+      setBrands((r.data.data || []) as Brand[]);
     } catch (err: any) {
       console.error("加载品牌失败", err?.response?.status, err?.message);
     }
@@ -77,51 +100,21 @@ export default function ProductList() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
 
-  // Column resize mouse handlers
-  const onHeaderMouseDown = useCallback((e: React.MouseEvent, colKey: string) => {
-    e.preventDefault();
-    const startWidth = columnWidths[colKey] || 100;
-    resizingRef.current = { colKey, startX: e.clientX, startWidth };
-  }, [columnWidths]);
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!resizingRef.current) return;
-      const { colKey, startX, startWidth } = resizingRef.current;
-      const delta = e.clientX - startX;
-      const newWidth = Math.max(40, startWidth + delta);
-      setColumnWidths((prev) => ({ ...prev, [colKey]: newWidth }));
-    };
-    const onMouseUp = () => {
-      resizingRef.current = null;
-    };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
-
   const openCreate = () => { setEditing(null); form.resetFields(); loadBrands(); setModalOpen(true); };
   const openEdit = (p: Product) => { setEditing(p); form.setFieldsValue(p); loadBrands(); setModalOpen(true); };
 
   const handleSave = async (values: Record<string, unknown>) => {
     try {
-      if (editing) {
-        await updateProduct(editing.id, values);
-        message.success("已更新");
-      } else {
-        await createProduct(values);
-        message.success("已创建");
-      }
+      if (editing) { await updateProduct(editing.id, values); message.success("已更新"); }
+      else { await createProduct(values); message.success("已创建"); }
       setModalOpen(false);
       fetch();
     } catch { message.error(editing ? "更新失败" : "创建失败"); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await deleteProduct(id); message.success("已删除"); fetch(); } catch { message.error("删除失败"); }
+    try { await deleteProduct(id); message.success("已删除"); fetch(); }
+    catch { message.error("删除失败"); }
   };
 
   const handleAiParse = async () => {
@@ -131,32 +124,22 @@ export default function ProductList() {
       const resp = await aiParseProduct(aiText.trim());
       const parsed = resp.data.data as Record<string, unknown>;
       const specsStr = parsed.specs && typeof parsed.specs === "object"
-        ? JSON.stringify(parsed.specs)
-        : String(parsed.specs || "");
-
+        ? JSON.stringify(parsed.specs) : String(parsed.specs || "");
       let brandId: number | undefined;
       const brandName = String(parsed.brand_name || "").toLowerCase();
       if (brandName) {
-        const match = brands.find((b) =>
+        const match = brands.find(b =>
           b.name.toLowerCase().includes(brandName) || (b.name_cn || "").toLowerCase().includes(brandName)
         );
         if (match) brandId = match.id;
       }
-
       form.setFieldsValue({
-        name: parsed.name,
-        sku: parsed.sku || undefined,
-        category: parsed.category || undefined,
-        package_type: parsed.package_type || undefined,
-        specs: specsStr,
-        unit: parsed.unit || undefined,
-        brand_id: brandId,
+        name: parsed.name, sku: parsed.sku || undefined,
+        category: parsed.category || undefined, package_type: parsed.package_type || undefined,
+        specs: specsStr, unit: parsed.unit || undefined, brand_id: brandId,
         notes: parsed.description || undefined,
       });
-      setEditing(null);
-      setAiModalOpen(false);
-      setAiText("");
-      setModalOpen(true);
+      setAiModalOpen(false); setAiText(""); setModalOpen(true);
       message.success("AI 解析完成，请确认后保存");
     } catch { message.error("AI 解析失败"); }
     finally { setAiParsing(false); }
@@ -180,96 +163,77 @@ export default function ProductList() {
             notes: `BOM导入: 客户料号=${item.customer_pn || ""} 位号=${item.reference || ""} 用量=${item.quantity || ""}`,
           });
           created++;
-        } catch { /* skip failed */ }
+        } catch { /* skip */ }
       }
-      setBomModalOpen(false);
-      setBomText("");
+      setBomModalOpen(false); setBomText("");
       message.success(`BOM 解析完成，成功创建 ${created}/${items.length} 个产品`);
       fetch(1);
     } catch { message.error("BOM 解析失败"); }
     finally { setBomParsing(false); }
   };
 
-  // Build columns with dynamic widths and resize handles
   const columns = [
     {
       title: (
-        <div className="resize-handle" data-col="sku" onMouseDown={(e) => onHeaderMouseDown(e, "sku")}>
+        <div className="col-resize-header" data-col="sku" onMouseDown={(e) => onHeaderMouseDown(e, "sku")}>
           SKU
         </div>
       ),
-      dataIndex: "sku",
-      key: "sku",
-      width: columnWidths.sku,
+      dataIndex: "sku", key: "sku", width: widths.sku,
     },
     {
       title: (
-        <div className="resize-handle" data-col="name" onMouseDown={(e) => onHeaderMouseDown(e, "name")}>
+        <div className="col-resize-header" data-col="name" onMouseDown={(e) => onHeaderMouseDown(e, "name")}>
           产品名称
         </div>
       ),
-      dataIndex: "name",
-      key: "name",
-      width: columnWidths.name,
+      dataIndex: "name", key: "name", width: widths.name,
       render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a>,
     },
     {
       title: (
-        <div className="resize-handle" data-col="category" onMouseDown={(e) => onHeaderMouseDown(e, "category")}>
+        <div className="col-resize-header" data-col="category" onMouseDown={(e) => onHeaderMouseDown(e, "category")}>
           分类
         </div>
       ),
-      dataIndex: "category",
-      key: "category",
-      width: columnWidths.category,
+      dataIndex: "category", key: "category", width: widths.category,
       render: (v: string) => v ? <Tag>{v}</Tag> : "-",
     },
     {
       title: (
-        <div className="resize-handle" data-col="package_type" onMouseDown={(e) => onHeaderMouseDown(e, "package_type")}>
+        <div className="col-resize-header" data-col="package_type" onMouseDown={(e) => onHeaderMouseDown(e, "package_type")}>
           封装
         </div>
       ),
-      dataIndex: "package_type",
-      key: "package_type",
-      width: columnWidths.package_type,
+      dataIndex: "package_type", key: "package_type", width: widths.package_type,
     },
     {
       title: (
-        <div className="resize-handle" data-col="specs" onMouseDown={(e) => onHeaderMouseDown(e, "specs")}>
+        <div className="col-resize-header" data-col="specs" onMouseDown={(e) => onHeaderMouseDown(e, "specs")}>
           规格
         </div>
       ),
-      dataIndex: "specs",
-      key: "specs",
-      width: columnWidths.specs,
-      ellipsis: true,
+      dataIndex: "specs", key: "specs", width: widths.specs, ellipsis: true,
     },
     {
       title: (
-        <div className="resize-handle" data-col="unit" onMouseDown={(e) => onHeaderMouseDown(e, "unit")}>
+        <div className="col-resize-header" data-col="unit" onMouseDown={(e) => onHeaderMouseDown(e, "unit")}>
           单位
         </div>
       ),
-      dataIndex: "unit",
-      key: "unit",
-      width: columnWidths.unit,
+      dataIndex: "unit", key: "unit", width: widths.unit,
     },
     {
       title: (
-        <div className="resize-handle" data-col="brand_name" onMouseDown={(e) => onHeaderMouseDown(e, "brand_name")}>
+        <div className="col-resize-header" data-col="brand_name" onMouseDown={(e) => onHeaderMouseDown(e, "brand_name")}>
           品牌
         </div>
       ),
-      dataIndex: "brand_name",
-      key: "brand_name",
-      width: columnWidths.brand_name,
+      dataIndex: "brand_name", key: "brand_name", width: widths.brand_name,
       render: (v: string | null) => v || "-",
     },
     {
-      title: "操作",
-      key: "actions",
-      width: 160,
+      title: "操作", key: "actions", width: 160,
       render: (_: unknown, r: Product) => (
         <Space size="small">
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
@@ -284,26 +248,30 @@ export default function ProductList() {
   return (
     <div>
       <style>{`
-        .resize-handle {
+        .col-resize-header {
+          display: inline-block;
+          width: 100%;
           cursor: col-resize;
           user-select: none;
           position: relative;
-          padding-right: 12px;
+          padding-right: 8px;
+          box-sizing: border-box;
         }
-        .resize-handle::after {
+        .col-resize-header::after {
           content: '';
           position: absolute;
-          right: 4px;
-          top: 25%;
-          height: 50%;
+          right: 0;
+          top: 20%;
+          height: 60%;
           width: 3px;
-          background: #e8e8e8;
+          background: #d9d9d9;
           border-radius: 2px;
         }
-        .resize-handle:hover::after {
+        .col-resize-header:hover::after {
           background: #1677ff;
         }
       `}</style>
+
       <Card size="small" style={{ marginBottom: 16 }}>
         <Row gutter={[12, 12]} align="middle">
           <Col>
@@ -328,9 +296,8 @@ export default function ProductList() {
       </Card>
 
       <Table
-        ref={tableWrapRef as any}
         rowKey="id"
-        columns={columns}
+        columns={columns as any}
         dataSource={data}
         loading={loading}
         tableLayout="fixed"
@@ -342,7 +309,6 @@ export default function ProductList() {
         }}
       />
 
-      {/* Create / Edit Modal */}
       <Modal
         title={editing ? "编辑产品" : "新建产品"}
         open={modalOpen}
@@ -352,23 +318,13 @@ export default function ProductList() {
       >
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="sku" label="SKU"><Input /></Form.Item>
-            </Col>
+            <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="sku" label="SKU"><Input /></Form.Item></Col>
           </Row>
           <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item name="category" label="分类"><Input /></Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="package_type" label="封装"><Input /></Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="unit" label="单位"><Input /></Form.Item>
-            </Col>
+            <Col span={8}><Form.Item name="category" label="分类"><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="package_type" label="封装"><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="unit" label="单位"><Input /></Form.Item></Col>
           </Row>
           <Form.Item name="specs" label="规格"><Input.TextArea rows={2} /></Form.Item>
           <Row gutter={12}>
@@ -377,15 +333,12 @@ export default function ProductList() {
                 <Select allowClear placeholder="选择品牌" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="image_url" label="图片URL"><Input /></Form.Item>
-            </Col>
+            <Col span={12}><Form.Item name="image_url" label="图片URL"><Input /></Form.Item></Col>
           </Row>
           <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
 
-      {/* AI Parse Modal */}
       <Modal
         title="AI 智能解析"
         open={aiModalOpen}
@@ -394,9 +347,7 @@ export default function ProductList() {
         confirmLoading={aiParsing}
         okText="解析并填充表单"
       >
-        <p style={{ color: "#888", marginBottom: 8 }}>
-          粘贴料号、型号、数据手册描述或供应商报价文本，AI 自动提取产品信息
-        </p>
+        <p style={{ color: "#888", marginBottom: 8 }}>粘贴料号、型号、数据手册描述或供应商报价文本，AI 自动提取产品信息</p>
         <Input.TextArea
           rows={6}
           placeholder={"例如：\nSamsung CL05A105KP5NNNC\n0402 1uF ±10% 10V X5R MLCC\n原装正品，整盘4000PCS"}
@@ -405,7 +356,6 @@ export default function ProductList() {
         />
       </Modal>
 
-      {/* BOM Import Modal */}
       <Modal
         title="BOM 批量导入"
         open={bomModalOpen}
@@ -414,9 +364,7 @@ export default function ProductList() {
         confirmLoading={bomParsing}
         okText="解析并创建产品"
       >
-        <p style={{ color: "#888", marginBottom: 8 }}>
-          粘贴 BOM 清单，AI 逐行解析并自动创建产品。支持多行粘贴。
-        </p>
+        <p style={{ color: "#888", marginBottom: 8 }}>粘贴 BOM 清单，AI 逐行解析并自动创建产品。支持多行粘贴。</p>
         <Input.TextArea
           rows={10}
           placeholder={"例如：\n1 GRM155R61A105KE15 1uF 16V 0402 X5R 10% 100pcs\n2 CL05A105KP5NNNC 1uF 10V 0402 X5R 10% 200pcs"}
