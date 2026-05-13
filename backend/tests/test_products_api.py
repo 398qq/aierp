@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from httpx import AsyncClient
 
 
@@ -124,3 +126,118 @@ class TestProductsAPI:
         data = resp.json()
         assert data["data"]["name"] == "Bare Minimum"
         assert data["data"]["id"] > 0
+
+    @patch("app.services.embedding_pipeline.after_product_save")
+    async def test_list_products_filter_in_stock(self, mock_embed, async_client: AsyncClient, auth_headers: dict, db_session):
+        """Filter by in_stock returns only products with positive available inventory."""
+        # Create warehouse first
+        from app.models.product import Warehouse, Inventory
+        wh = Warehouse(name="主仓")
+        db_session.add(wh)
+        await db_session.flush()
+
+        # Create product with inventory (quantity > 0, no lock)
+        p1_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "有库存商品", "sku": "STOCK-001",
+        })
+        p1_id = p1_resp.json()["data"]["id"]
+        inv1 = Inventory(product_id=p1_id, warehouse_id=wh.id, quantity=100, safety_stock=10, locked_quantity=0)
+        db_session.add(inv1)
+
+        # Create product with zero inventory
+        p2_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "无库存商品", "sku": "STOCK-002",
+        })
+        p2_id = p2_resp.json()["data"]["id"]
+        inv2 = Inventory(product_id=p2_id, warehouse_id=wh.id, quantity=0, safety_stock=10, locked_quantity=0)
+        db_session.add(inv2)
+        await db_session.flush()
+
+        resp = await async_client.get("/api/v1/products?stock_status=in_stock", headers=auth_headers)
+        data = resp.json()["data"]
+        assert data["total"] >= 1
+        names = [p["name"] for p in data["list"]]
+        assert "有库存商品" in names
+        assert "无库存商品" not in names
+
+    @patch("app.services.embedding_pipeline.after_product_save")
+    async def test_list_products_filter_out_of_stock(self, mock_embed, async_client: AsyncClient, auth_headers: dict, db_session):
+        """Filter by out_of_stock returns products with zero available inventory."""
+        from app.models.product import Warehouse, Inventory
+        wh = Warehouse(name="主仓")
+        db_session.add(wh)
+        await db_session.flush()
+
+        # Product with stock
+        p1_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "热销产品", "sku": "OOS-001",
+        })
+        p1_id = p1_resp.json()["data"]["id"]
+        db_session.add(Inventory(product_id=p1_id, warehouse_id=wh.id, quantity=50, safety_stock=5, locked_quantity=0))
+
+        # Product without stock
+        p2_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "缺货产品", "sku": "OOS-002",
+        })
+        p2_id = p2_resp.json()["data"]["id"]
+        db_session.add(Inventory(product_id=p2_id, warehouse_id=wh.id, quantity=0, safety_stock=5, locked_quantity=0))
+        await db_session.flush()
+
+        resp = await async_client.get("/api/v1/products?stock_status=out_of_stock", headers=auth_headers)
+        data = resp.json()["data"]
+        names = [p["name"] for p in data["list"]]
+        assert "缺货产品" in names
+        assert "热销产品" not in names
+
+    @patch("app.services.embedding_pipeline.after_product_save")
+    async def test_list_products_filter_low_stock(self, mock_embed, async_client: AsyncClient, auth_headers: dict, db_session):
+        """Filter by low_stock returns products where quantity <= safety_stock."""
+        from app.models.product import Warehouse, Inventory
+        wh = Warehouse(name="主仓")
+        db_session.add(wh)
+        await db_session.flush()
+
+        # Low stock: qty=5 <= safety_stock=10
+        p1_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "低库存商品", "sku": "LOW-001",
+        })
+        p1_id = p1_resp.json()["data"]["id"]
+        db_session.add(Inventory(product_id=p1_id, warehouse_id=wh.id, quantity=5, safety_stock=10, locked_quantity=0))
+
+        # Normal stock: qty=100 > safety_stock=10
+        p2_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "正常库存", "sku": "LOW-002",
+        })
+        p2_id = p2_resp.json()["data"]["id"]
+        db_session.add(Inventory(product_id=p2_id, warehouse_id=wh.id, quantity=100, safety_stock=10, locked_quantity=0))
+        await db_session.flush()
+
+        resp = await async_client.get("/api/v1/products?stock_status=low_stock", headers=auth_headers)
+        data = resp.json()["data"]
+        names = [p["name"] for p in data["list"]]
+        assert "低库存商品" in names
+        assert "正常库存" not in names
+
+    async def test_list_products_sort_by_name_asc(self, async_client: AsyncClient, auth_headers: dict):
+        """Sort by name ascending."""
+        for name in ["Zebra", "Apple", "Mango"]:
+            await async_client.post("/api/v1/products", headers=auth_headers, json={
+                "name": name, "sku": f"SORT-{name}",
+            })
+
+        resp = await async_client.get("/api/v1/products?sort=name_asc", headers=auth_headers)
+        data = resp.json()["data"]
+        names = [p["name"] for p in data["list"] if p["name"] in ("Apple", "Mango", "Zebra")]
+        assert names == ["Apple", "Mango", "Zebra"], f"Expected sorted asc, got {names}"
+
+    async def test_list_products_sort_by_created_at_desc(self, async_client: AsyncClient, auth_headers: dict):
+        """Sort by created_at descending (newest first, default)."""
+        for i, name in enumerate(["First", "Second", "Third"]):
+            await async_client.post("/api/v1/products", headers=auth_headers, json={
+                "name": name, "sku": f"SORT-DATE-{i}",
+            })
+
+        resp = await async_client.get("/api/v1/products?sort=created_at_desc", headers=auth_headers)
+        data = resp.json()["data"]
+        names = [p["name"] for p in data["list"] if p["name"] in ("First", "Second", "Third")]
+        assert names == ["Third", "Second", "First"], f"Expected newest first, got {names}"

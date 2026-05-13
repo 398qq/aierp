@@ -1146,3 +1146,24 @@ export interface SimilarCustomer {
   region: string;
   similarity: number;
 }
+
+export interface CustomerQuotationHistory {
+  quotations: Array<{
+    id: number;
+    quotation_no: string;
+    status: string;
+    total_amount: number;
+    valid_until: string | null;
+    notes: string | null;
+    created_at: string | null;
+    items: Array<{ id: number; product_id: number; quantity: number; unit_price: number; total_price: number }>;
+  }>;
+  total: number;
+  stats: {
+    won: number;
+    lost: number;
+    pending: number;
+    conversion_rate: number;
+    total_won_amount: number;
+  };
+}

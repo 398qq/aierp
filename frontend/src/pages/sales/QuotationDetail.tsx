@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
-import { getQuotation, convertQuotationToOrder, downloadQuotationPDF } from "../../api";
+import { getQuotation, convertQuotationToOrder, downloadQuotationPDF, sendQuotation } from "../../api";
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation } from "../../types";
@@ -39,6 +39,11 @@ export default function QuotationDetail() {
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/quotations")}>返回</Button>
         <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/quotations/${quote.id}/edit`)}>编辑</Button>
         <Button onClick={() => { downloadQuotationPDF(quote.id, `quotation_${quote.quotation_no || quote.id}.pdf`).catch(() => message.error("下载失败")); }}>下载PDF</Button>
+        {quote.status !== "sent" && quote.status !== "won" && quote.status !== "lost" && (
+          <Button onClick={async () => {
+            try { await sendQuotation(quote.id); message.success("已标记为已发送"); navigate(0); } catch { message.error("发送失败"); }
+          }}>发送报价</Button>
+        )}
         {quote.status !== "won" && (
           <Button type="primary" onClick={async () => {
             try { await convertQuotationToOrder(quote.id); message.success("已转为订单"); navigate("/sales/orders"); } catch { message.error("转换失败"); }

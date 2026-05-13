@@ -8,6 +8,7 @@ import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
 import CustomerFormFields from "./CustomerForm";
 import VendAsSupplierModal from "./VendAsSupplierModal";
+import QuotationHistoryPanel from "./QuotationHistoryPanel";
 import dayjs from "dayjs";
 import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, Visit } from "../../types";
 
@@ -238,7 +239,7 @@ export default function CustomerDetail() {
                 {
                   key: "quotations",
                   label: "报价历史",
-                  children: <Empty description="销售模块重建中" />,
+                  children: <QuotationHistoryPanel customerId={customerId} />,
                 },
                 {
                   key: "visits",

@@ -530,6 +530,12 @@ export const checkAlerts = () =>
 export const getCustomerInsight = (id: number) =>
   client.get<APIResponse<import("../types").CustomerInsight>>(`/customers/${id}/insight`);
 
+export const getCustomerQuotationHistory = (customerId: number, status?: string) =>
+  client.get<APIResponse<import("../types").CustomerQuotationHistory>>(
+    `/customers/${customerId}/quotation-history`,
+    status ? { params: { status } } : undefined
+  );
+
 // Customer Visits
 export const getCustomerVisits = (customerId: number) =>
   client.get<APIResponse<Visit[]>>(`/customers/${customerId}/visits`);
@@ -722,6 +728,9 @@ export const updateQuotation = (id: number, data: Record<string, unknown>) =>
 
 export const deleteQuotation = (id: number) =>
   client.delete<APIResponse>(`/quotations/${id}`);
+
+export const sendQuotation = (id: number) =>
+  client.put<APIResponse>(`/quotations/${id}/send`);
 
 export const batchDeleteQuotations = (ids: number[]) =>
   client.post<APIResponse>("/quotations/batch-delete", { ids });

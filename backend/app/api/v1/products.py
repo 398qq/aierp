@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -270,6 +270,8 @@ async def list_products(
     q: str | None = None,
     category: str | None = None,
     brand_id: int | None = None,
+    stock_status: str | None = Query(None, description="in_stock | out_of_stock | low_stock"),
+    sort: str | None = Query(None, description="name_asc | name_desc | created_at_asc | created_at_desc"),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -287,9 +289,59 @@ async def list_products(
         base = base.where(Product.brand_id == brand_id)
         count_base = count_base.where(Product.brand_id == brand_id)
 
+    if stock_status:
+        # available = quantity - locked_quantity
+        avail_expr = case(
+            (Inventory.quantity.is_(None), None),
+            else_=Inventory.quantity - Inventory.locked_quantity,
+        )
+        inv_subq = (
+            select(
+                Inventory.product_id,
+                func.sum(avail_expr).label("available"),
+                func.min(Inventory.safety_stock).label("safety_stock"),
+            )
+            .where(Inventory.deleted_at.is_(None))
+            .group_by(Inventory.product_id)
+            .subquery()
+        )
+
+        base = base.outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
+        count_base = count_base.outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
+
+        if stock_status == "in_stock":
+            base = base.where(inv_subq.c.available > 0)
+            count_base = count_base.where(inv_subq.c.available > 0)
+        elif stock_status == "out_of_stock":
+            base = base.where(
+                (inv_subq.c.available == 0) | (inv_subq.c.available.is_(None))
+            )
+            count_base = count_base.where(
+                (inv_subq.c.available == 0) | (inv_subq.c.available.is_(None))
+            )
+        elif stock_status == "low_stock":
+            base = base.where(
+                inv_subq.c.available > 0,
+                inv_subq.c.available <= inv_subq.c.safety_stock,
+            )
+            count_base = count_base.where(
+                inv_subq.c.available > 0,
+                inv_subq.c.available <= inv_subq.c.safety_stock,
+            )
+
+    # Sorting
+    if sort == "name_asc":
+        order_col = Product.name.asc()
+    elif sort == "name_desc":
+        order_col = Product.name.desc()
+    elif sort == "created_at_asc":
+        order_col = Product.created_at.asc()
+    else:
+        order_col = Product.created_at.desc()  # default: newest first
+
     total = (await db.execute(count_base)).scalar() or 0
     rows = (await db.execute(
-        base.order_by(Product.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        base.order_by(order_col, Product.id.desc()).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()
 
     return ok({"list": [_product_row(p) for p in rows], "total": total, "page": page, "page_size": page_size})
