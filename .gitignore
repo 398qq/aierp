@@ -88,3 +88,4 @@ backend/reportlab-*.dist-info/
 backend/PIL/
 
 .vite/
+backend/app/uploads/
