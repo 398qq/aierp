@@ -33,6 +33,9 @@ make test-backend-cov    # pytest with coverage
 make test-frontend       # vitest run
 make test-frontend-cov   # vitest with coverage
 
+# Single test
+pytest backend/tests/path/to/test_file.py::test_name -v
+
 # Linting
 make lint                # Backend: ruff + mypy, Frontend: tsc --noEmit
 
@@ -41,8 +44,8 @@ make db-reset            # Drop and recreate PostgreSQL database
 make db-backup           # pg_dump to ~/date/
 make db-restore BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump
 
-# Docker
-docker compose up -d     # Start pgvector + redis
+# Docker (start pgvector + redis)
+docker compose up -d
 ```
 
 ## Architecture
@@ -108,7 +111,7 @@ frontend/src/
 ├── App.tsx              # Routes, lazy-loaded pages, auth guard
 ├── api/index.ts         # All API calls — axios-based, typed request/response
 ├── api/client.ts        # Axios instance with Bearer token interceptor
-├── store/auth.ts        # Zustand auth store (token, login, logout)
+├── store/auth.ts        # Zustand auth store (httpOnly cookie, login, logout)
 ├── layouts/MainLayout.tsx  # Ant Design ProLayout with sidebar
 ├── types/index.ts       # TypeScript interfaces for all entities
 ├── pages/
@@ -152,8 +155,10 @@ Frontend (Ant Design) → axios → FastAPI /api/v1/* → Service Layer → SQLA
 - **Soft delete**: All models inherit `TimestampMixin` with `deleted_at`. Queries always filter `deleted_at.is_(None)`.
 - **AI calls**: `ai_client.chat()` for text, `ai_client.chat_structured(schema)` for JSON, `ai_client.embed()` for vectors. Tenacity retry (3 attempts, exponential backoff).
 - **Embeddings**: Customers, Products, Suppliers, and Brand entities have pgvector `Vector(1024)` columns for semantic search.
-- **Tests**: Backend uses `httpx.AsyncClient` with FastAPI dependency overrides. SQLite (aiosqlite) replaces PostgreSQL in tests; pgvector Vector columns are patched to Text for SQLite compatibility. Run single test: `pytest tests/path/to/test_file.py::test_name -v`
-- **Auth**: JWT Bearer token. `get_current_user` dependency extracts `{user_id, username}` from token payload.
+- **AI Agents**: `services/ai/agents.py` defines domain-specific agents (CustomerAgent, ProductAgent, InventoryAgent, etc.) that combine AI calls with database operations.
+- **Tests**: Backend uses `httpx.AsyncClient` with FastAPI dependency overrides. SQLite (aiosqlite) replaces PostgreSQL in tests; pgvector Vector columns are patched to Text for SQLite compatibility. Run single test: `pytest backend/tests/path/to/test_file.py::test_name -v`
+- **Auth**: JWT stored in httpOnly cookie (not localStorage). `get_current_user` dependency extracts `{user_id, username}` from cookie payload.
+- **Scheduler**: 9 APScheduler jobs — sales insights refresh, overdue payment alerts, embedding pipeline, contact reminders, RFM analysis, churn prediction, daily reports, expired quotations check, and cleanup.
 - **Env**: `backend/.env` (optional, overrides defaults in config.py). Test DB config via `TEST_DATABASE_URL` env var.
 
 ### Frontend Conventions
