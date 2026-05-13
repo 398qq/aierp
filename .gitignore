@@ -89,3 +89,9 @@ backend/PIL/
 
 .vite/
 backend/app/uploads/
+\.mcp\.json
+claude-flow\.config\.json
+\.env\.test
+frontend/Dockerfile
+backend/Dockerfile
+nginx\.conf
