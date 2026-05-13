@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal, Form, Input, Select, message } from "antd";
 import { createUser, updateUser } from "../../../api";
+import client from "../../../api/client";
 
-const ROLE_OPTIONS = [
-  { label: "管理员", value: "admin" },
-  { label: "销售", value: "sales" },
-  { label: "采购", value: "purchase" },
-  { label: "仓库", value: "warehouse" },
-  { label: "财务", value: "finance" },
-];
+interface Role {
+  id: number;
+  name: string;
+  description: string;
+}
 
 interface UserItem {
   id: number;
@@ -28,6 +27,19 @@ interface Props {
 export default function UserForm({ open, editing, onClose, onSuccess }: Props) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setLoadingRoles(true);
+      client
+        .get<{ data: Role[] }>("/permissions/roles")
+        .then((r) => setRoles(r.data.data || []))
+        .catch(() => setRoles([]))
+        .finally(() => setLoadingRoles(false));
+    }
+  }, [open]);
 
   const handleSubmit = async () => {
     try {
@@ -35,12 +47,18 @@ export default function UserForm({ open, editing, onClose, onSuccess }: Props) {
       setSubmitting(true);
       if (editing) {
         await updateUser(editing.id, {
-          role: values.role,
+          role: values.role || "",
           ...(values.password ? { password: values.password } : {}),
+          role_ids: values.role_ids ?? [],
         });
         message.success("更新成功");
       } else {
-        await createUser(values);
+        await createUser({
+          username: values.username,
+          password: values.password,
+          role: values.role || "",
+          role_ids: values.role_ids ?? [],
+        });
         message.success("创建成功");
       }
       form.resetFields();
@@ -59,6 +77,11 @@ export default function UserForm({ open, editing, onClose, onSuccess }: Props) {
     onClose();
   };
 
+  const roleOptions = roles.map((r) => ({
+    label: `${r.name}${r.description ? ` - ${r.description}` : ""}`,
+    value: r.id,
+  }));
+
   return (
     <Modal
       title={editing ? "编辑用户" : "新增用户"}
@@ -69,7 +92,11 @@ export default function UserForm({ open, editing, onClose, onSuccess }: Props) {
       okText={editing ? "保存" : "创建"}
       width={480}
     >
-      <Form form={form} layout="vertical" initialValues={editing ? { username: editing.username, role: editing.role } : undefined}>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={editing ? { username: editing.username, role: editing.role } : undefined}
+      >
         <Form.Item
           name="username"
           label="用户名"
@@ -87,11 +114,19 @@ export default function UserForm({ open, editing, onClose, onSuccess }: Props) {
         </Form.Item>
 
         <Form.Item
-          name="role"
+          name="role_ids"
           label="角色"
           rules={[{ required: true, message: "请选择角色" }]}
         >
-          <Select placeholder="选择角色" options={ROLE_OPTIONS} />
+          <Select
+            placeholder="选择角色"
+            options={roleOptions}
+            loading={loadingRoles}
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+            }
+          />
         </Form.Item>
       </Form>
     </Modal>

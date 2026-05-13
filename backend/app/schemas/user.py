@@ -16,9 +16,11 @@ class UserResponse(BaseModel):
 class UserCreate(BaseModel):
     username: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=1, max_length=255)
-    role: str = Field(min_length=1, max_length=50)
+    role: str = Field("", max_length=50)
+    role_ids: list[int] = Field(default_factory=list)
 
 
 class UserUpdate(BaseModel):
     role: str | None = Field(None, max_length=50)
     password: str | None = Field(None, max_length=255)
+    role_ids: list[int] | None = Field(None)

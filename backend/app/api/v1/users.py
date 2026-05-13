@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.security import hash_password
+from app.core.permissions import _invalidate_perm_cache
 from app.database import get_db
 from app.models.user import User
+from app.models.rbac import Role
 from app.schemas.common import ok, fail
 from app.schemas.user import UserCreate, UserUpdate
 
@@ -118,8 +120,17 @@ async def create_user(
     user = User(username=body.username, password=hashed, role=body.role)
     db.add(user)
     await db.flush()
-    await db.refresh(user)
 
+    if body.role_ids:
+        roles = (await db.execute(
+            select(Role).where(Role.id.in_(body.role_ids), Role.deleted_at.is_(None))
+        )).scalars().all()
+        user.roles = roles
+        await db.flush()
+
+    await db.commit()
+    await _invalidate_perm_cache()
+    await db.refresh(user)
     return ok(_user_row(user))
 
 
@@ -144,6 +155,14 @@ async def update_user(
     if body.password is not None:
         row.password = hash_password(body.password)
 
+    if body.role_ids is not None:
+        roles = (await db.execute(
+            select(Role).where(Role.id.in_(body.role_ids), Role.deleted_at.is_(None))
+        )).scalars().all()
+        row.roles = roles
+
+    await db.commit()
+    await _invalidate_perm_cache()
     await db.flush()
     await db.refresh(row)
 
