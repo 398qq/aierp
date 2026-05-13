@@ -8,20 +8,9 @@ const client = axios.create({
 });
 
 client.interceptors.request.use((config) => {
-  // httpOnly cookie is sent automatically by browser — no JS access needed.
-  // Explicitly read from cookie only when no Authorization header is set
-  // (i.e., during SSR or when localStorage token is unavailable).
-  if (!config.headers.Authorization) {
-    // Token is in httpOnly cookie; axios sends it automatically via withCredentials
-    // But we still support Bearer header for programmatic clients.
-    const cookieToken = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("aierp_token="))
-      ?.split("=")[1];
-    if (cookieToken) {
-      config.headers.Authorization = `Bearer ${cookieToken}`;
-    }
-  }
+  // httpOnly cookie is sent automatically by the browser with withCredentials.
+  // This interceptor intentionally left empty — token lives in httpOnly cookie,
+  // JS never needs to read it.
   return config;
 });
 
@@ -29,7 +18,6 @@ client.interceptors.response.use(
   (resp) => resp,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear any stale state and redirect to login
       window.location.href = "/login";
     }
     return Promise.reject(error);

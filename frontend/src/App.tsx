@@ -91,8 +91,8 @@ function PageLoader() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token);
-  if (!token) return <Navigate to="/login" replace />;
+  const username = useAuthStore((s) => s.username);
+  if (!username) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
