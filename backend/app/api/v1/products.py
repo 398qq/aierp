@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -391,6 +391,26 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
     return ok(msg="deleted")
 
 
+@router.patch("/batch")
+async def batch_update_products(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Batch update products: fields (brand_id/category/package_type/specs/unit/notes), ids[]"""
+    ids: list[int] = body.get("ids", [])
+    if not ids:
+        return fail("No product IDs provided", 400)
+    allowed = {"brand_id", "category", "package_type", "specs", "unit", "notes"}
+    updates = {k: v for k, v in body.items() if k in allowed and v is not None}
+    if not updates:
+        return fail("No valid fields to update", 400)
+    await db.execute(
+        update(Product).where(Product.id.in_(ids), Product.deleted_at.is_(None)).values(**updates)
+    )
+    return ok({"updated": len(ids), "fields": list(updates.keys())})
+
+
 @router.get("/{product_id}/sales")
 async def get_product_sales(
     product_id: int,
@@ -537,15 +557,36 @@ def _brand_row(b: Brand) -> dict:
 
 @brands_router.get("")
 async def list_brands(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
     q: str | None = None,
+    status: str | None = None,
+    level: str | None = None,
+    brand_type: str | None = None,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
     base = select(Brand).where(Brand.deleted_at.is_(None))
+    count_base = select(func.count(Brand.id)).where(Brand.deleted_at.is_(None))
     if q:
-        base = base.where(Brand.name.ilike(f"%{q}%"))
-    rows = (await db.execute(base.order_by(Brand.name))).scalars().all()
-    return ok([_brand_row(b) for b in rows])
+        like = f"%{q}%"
+        filt = or_(Brand.name.ilike(like), Brand.name_cn.ilike(like), Brand.code.ilike(like))
+        base = base.where(filt)
+        count_base = count_base.where(filt)
+    if status:
+        base = base.where(Brand.status == status)
+        count_base = count_base.where(Brand.status == status)
+    if level:
+        base = base.where(Brand.level == level)
+        count_base = count_base.where(Brand.level == level)
+    if brand_type:
+        base = base.where(Brand.brand_type == brand_type)
+        count_base = count_base.where(Brand.brand_type == brand_type)
+    total = (await db.execute(count_base)).scalar() or 0
+    rows = (await db.execute(
+        base.order_by(Brand.name).offset((page - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return ok({"list": [_brand_row(b) for b in rows], "total": total, "page": page, "page_size": page_size})
 
 
 @brands_router.get("/{brand_id}")

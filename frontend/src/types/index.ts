@@ -182,6 +182,12 @@ export interface Product {
   category: string | null; package_type: string | null; specs: string | null;
   unit: string | null; notes: string | null; image_url: string | null;
   created_at: string;
+  // Inventory (joined from API)
+  quantity?: number | null;
+  available?: number | null;
+  locked_quantity?: number | null;
+  safety_stock?: number | null;
+  unit_price?: number | null;
 }
 
 export interface Brand {

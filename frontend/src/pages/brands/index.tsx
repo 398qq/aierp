@@ -53,6 +53,9 @@ const typeLabel: Record<string, string> = { own_brand: "自有", agency: "代理
 
 export default function BrandList() {
   const [data, setData] = useState<Brand[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -67,20 +70,24 @@ export default function BrandList() {
   const [filterType, setFilterType] = useState<string | undefined>();
   const navigate = useNavigate();
 
-  const fetch = async (q = search) => {
+  const fetch = async (p = page, ps = pageSize) => {
     setLoading(true);
     try {
-      const resp = await getBrands(q ? { q } : undefined);
-      let list = resp.data.data as Brand[];
-      if (filterStatus) list = list.filter((b) => b.status === filterStatus);
-      if (filterLevel) list = list.filter((b) => b.level === filterLevel);
-      if (filterType) list = list.filter((b) => b.brand_type === filterType);
-      setData(list);
+      const params: Record<string, unknown> = { page: p, page_size: ps };
+      if (search) params.q = search;
+      if (filterStatus) params.status = filterStatus;
+      if (filterLevel) params.level = filterLevel;
+      if (filterType) params.brand_type = filterType;
+      const resp = await getBrands(params);
+      const d = resp.data.data as { list: Brand[]; total: number };
+      setData(d.list || []);
+      setTotal(d.total || 0);
     } catch { message.error("加载品牌失败"); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [filterStatus, filterLevel, filterType]);
+  useEffect(() => { fetch(); }, [page, pageSize, filterStatus, filterLevel, filterType]);
+  useEffect(() => { setPage(1); }, [search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -144,6 +151,7 @@ export default function BrandList() {
       render: (v, r) => <a onClick={() => navigate(`/brands/${r.id}`)}>{v}</a>,
     },
     { title: "中文名", dataIndex: "name_cn", width: 100, render: (v) => v || "-" },
+    { title: "简称", dataIndex: "short_name", width: 80, render: (v) => v || "-" },
     {
       title: "状态", dataIndex: "status", width: 70,
       render: (v) => <Tag color={statusColor[v] || "default"}>{statusLabel[v] || v}</Tag>,
@@ -184,7 +192,7 @@ export default function BrandList() {
             <Input.Search
               placeholder="搜索品牌" allowClear
               value={search} onChange={(e) => setSearch(e.target.value)}
-              onSearch={(v) => fetch(v)} style={{ width: 180 }}
+              onSearch={(v) => { setSearch(v); }} style={{ width: 180 }}
             />
             <Select placeholder="状态" allowClear style={{ width: 80 }} value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
             <Select placeholder="等级" allowClear style={{ width: 80 }} value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
@@ -197,8 +205,13 @@ export default function BrandList() {
       >
         <Table
           rowKey="id" columns={columns} dataSource={data}
-          loading={loading} size="small" pagination={false}
-          scroll={{ x: 1100 }}
+          loading={loading} size="small" pagination={{
+            current: page, total, pageSize: pageSize,
+            pageSizeOptions: ["10", "20", "50", "100"],
+            showSizeChanger: true, showTotal: (t) => `共 ${t} 条`,
+            onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+          }}
+          scroll={{ x: 1200 }}
         />
       </Card>
 

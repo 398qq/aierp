@@ -206,6 +206,20 @@ export const updateProduct = (id: number, data: Record<string, unknown>) =>
 export const deleteProduct = (id: number) =>
   client.delete<APIResponse>(`/products/${id}`);
 
+export const batchDeleteProducts = (ids: number[]) =>
+  client.post<APIResponse>(`/products/batch-delete`, { ids });
+
+export const batchUpdateProducts = (ids: number[], fields: Record<string, unknown>) =>
+  client.patch<APIResponse>(`/products/batch`, { ids, ...fields });
+
+export const importProducts = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post<APIResponse>(`/import/products`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
 export const getProductSales = (productId: number) =>
   client.get<APIResponse<{ quotations: Record<string, unknown>[]; orders: Record<string, unknown>[]; deliveries: Record<string, unknown>[] }>>(`/products/${productId}/sales`);
 
@@ -215,7 +229,7 @@ export const priceImport = (items: { sku: string; warehouse_id: number; unit_pri
 
 // Brands
 export const getBrands = (params?: Record<string, unknown>) =>
-  client.get<APIResponse<Brand[]>>("/brands", { params });
+  client.get<APIResponse<PageData<Brand>> | APIResponse<Brand[]>>("/brands", { params });
 
 export const getBrand = (id: number) =>
   client.get<APIResponse<Brand>>(`/brands/${id}`);
@@ -407,6 +421,9 @@ export const embedAllProducts = () =>
 
 export const similarProducts = (id: number, top_k = 10) =>
   client.get<APIResponse>(`/ai/products/${id}/similar?top_k=${top_k}`);
+
+export const aiSearchProducts = (q: string, top_k = 20) =>
+  client.post<APIResponse>(`/ai/products/search?q=${encodeURIComponent(q)}&top_k=${top_k}`, {});
 
 export const productSubstitutes = (id: number) =>
   client.get<APIResponse>(`/ai/products/${id}/substitutes`);
