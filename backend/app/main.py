@@ -11,7 +11,9 @@ from app.api.v1.router import api_router
 from app.config import settings
 from app.core.error_handlers import register_exception_handlers
 from app.core.rate_limit import RateLimitMiddleware
+from app.core.request_logging import RequestLoggingMiddleware
 from app.core.request_context import RequestContextMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.database import engine, init_db
 from app.services.cache_service import get_redis
 
@@ -51,6 +53,8 @@ app.add_middleware(
 )
 
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestContextMiddleware)
 register_exception_handlers(app)
 

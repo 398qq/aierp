@@ -1,3 +1,5 @@
+import json
+
 from httpx import AsyncClient
 
 
@@ -7,6 +9,9 @@ class TestHealthAPI:
         assert resp.status_code == 200
         assert resp.headers.get("X-Request-ID") == "rid-test-123"
         assert resp.json()["status"] == "ok"
+        assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+        assert resp.headers.get("X-Frame-Options") == "DENY"
+        assert "Content-Security-Policy" in resp.headers
 
     async def test_health_status_summary(self, async_client: AsyncClient, monkeypatch):
         import app.main as main_module
@@ -64,3 +69,17 @@ class TestHealthAPI:
         assert data["data"] is None
         assert isinstance(data.get("request_id"), str)
         assert "name" in data.get("msg", "")
+
+    async def test_request_logging_is_structured(self, async_client: AsyncClient, caplog):
+        caplog.set_level("INFO", logger="app.request")
+        resp = await async_client.get("/health/live", headers={"X-Request-ID": "rid-log-456"})
+        assert resp.status_code == 200
+
+        structured = [record.message for record in caplog.records if record.name == "app.request"]
+        assert structured
+        payload = json.loads(structured[-1])
+        assert payload["request_id"] == "rid-log-456"
+        assert payload["message"] == "request completed"
+        assert payload["path"] == "/health/live"
+        assert payload["status_code"] == 200
+        assert "timestamp" in payload

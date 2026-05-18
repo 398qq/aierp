@@ -1,3 +1,6 @@
+import json
+
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -10,12 +13,12 @@ class Settings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_USER: str = "aierp"
-    DB_PASSWORD: str = "aierp"
+    DB_PASSWORD: str = ""
     DB_NAME: str = "aierp"
 
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    JWT_SECRET: str = "aierp-dev-secret-change-in-production"
+    JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480
 
@@ -26,6 +29,38 @@ class Settings(BaseSettings):
     AI_EMBEDDING_MODEL: str = "BAAI/bge-large-zh-v1.5"
 
     CORS_ORIGINS: list[str] = ["http://localhost:3002", "http://localhost:5173"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value):
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return []
+            if raw.startswith("["):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except json.JSONDecodeError:
+                    pass
+            return [item.strip() for item in raw.split(",") if item.strip()]
+        if isinstance(value, (tuple, set)):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return value
+
+    @model_validator(mode="after")
+    def validate_secrets(self) -> "Settings":
+        if self.APP_ENV == "production":
+            if not self.DB_PASSWORD:
+                raise ValueError("DB_PASSWORD must be set in production")
+            if not self.JWT_SECRET:
+                raise ValueError("JWT_SECRET must be set in production")
+            if not self.CORS_ORIGINS:
+                raise ValueError("CORS_ORIGINS must be set in production")
+            if "*" in self.CORS_ORIGINS:
+                raise ValueError("CORS_ORIGINS cannot contain '*' in production")
+        return self
 
     @property
     def DATABASE_URL(self) -> str:
