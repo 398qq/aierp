@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore lint test help
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore lint test security-check help
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -62,3 +62,7 @@ test-frontend: ## Run frontend tests
 
 test-frontend-cov: ## Run frontend tests with coverage
 	cd $(FRONTEND_DIR) && npx vitest run --coverage
+
+security-check: ## Run dependency vulnerability checks
+	cd $(BACKEND_DIR) && pip-audit -r requirements.txt
+	cd $(FRONTEND_DIR) && npm audit --audit-level=high
