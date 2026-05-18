@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_RECYCLE_SECONDS: int = 1800
     DB_POOL_PRE_PING: bool = True
+    SLOW_QUERY_THRESHOLD_MS: int = 500
 
     REDIS_URL: str = "redis://localhost:6379/0"
 

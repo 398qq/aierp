@@ -1,9 +1,17 @@
+import json
+import logging
+import time
+
 from sqlalchemy import func
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.config import settings
+from app.core.request_context import get_request_id
+
+slow_query_logger = logging.getLogger("app.db.slow_query")
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -14,6 +22,47 @@ engine = create_async_engine(
     pool_pre_ping=settings.DB_POOL_PRE_PING,
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+def _normalize_sql(statement: str, max_length: int = 400) -> str:
+    normalized = " ".join(statement.split())
+    if len(normalized) > max_length:
+        return normalized[:max_length] + "..."
+    return normalized
+
+
+def _install_slow_query_logging(target_engine=None) -> None:
+    async_engine = target_engine or engine
+    sync_engine = async_engine.sync_engine
+    if getattr(sync_engine, "_aierp_slow_query_listener_installed", False):
+        return
+    setattr(sync_engine, "_aierp_slow_query_listener_installed", True)
+
+    @event.listens_for(sync_engine, "before_cursor_execute")
+    def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        conn.info.setdefault("query_start_time", []).append(time.perf_counter())
+
+    @event.listens_for(sync_engine, "after_cursor_execute")
+    def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        timings = conn.info.get("query_start_time")
+        if not timings:
+            return
+        started = timings.pop(-1)
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        if elapsed_ms < settings.SLOW_QUERY_THRESHOLD_MS:
+            return
+
+        payload = {
+            "event": "slow_query",
+            "request_id": get_request_id() or None,
+            "duration_ms": round(elapsed_ms, 2),
+            "threshold_ms": settings.SLOW_QUERY_THRESHOLD_MS,
+            "sql": _normalize_sql(statement),
+        }
+        slow_query_logger.warning(json.dumps(payload, ensure_ascii=False))
+
+
+_install_slow_query_logging()
 
 
 class Base(DeclarativeBase):
