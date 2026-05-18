@@ -38,7 +38,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         # Skip health checks and non-API paths
         path = request.url.path
-        if path in ("/health", "/docs", "/openapi.json") or path.startswith("/api/v1/auth"):
+        if path.startswith("/health") or path in ("/docs", "/openapi.json") or path.startswith("/api/v1/auth"):
             return await call_next(request)
 
         client_ip = self._client_ip(request)
@@ -67,9 +67,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             if current_count >= RATE_LIMIT_CALLS:
                 retry_after = int(RATE_LIMIT_WINDOW - (now - window_start))
+                request_id = getattr(getattr(request, "state", None), "request_id", None)
                 return JSONResponse(
                     status_code=429,
-                    content={"detail": f"请求过于频繁，请 {retry_after} 秒后重试"},
+                    content={
+                        "code": 429,
+                        "msg": f"请求过于频繁，请 {retry_after} 秒后重试",
+                        "data": None,
+                        "request_id": request_id,
+                    },
                     headers={"Retry-After": str(max(retry_after, 1))},
                 )
 
