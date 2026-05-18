@@ -103,6 +103,11 @@ export interface OverdueFollowUp {
   overdue_days: number;
 }
 
+export interface FollowUpReminder extends OverdueFollowUp {
+  due_bucket: "overdue" | "today" | "upcoming";
+  days_until: number | null;
+}
+
 export interface DashboardStats {
   total: number;
   by_industry: { name: string; value: number }[];

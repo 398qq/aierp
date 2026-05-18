@@ -3,7 +3,7 @@ import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
   ChurnRisk, Contract, Customer, Customer360, CustomerAIStats, CustomerLog, CustomerProductMatch, CustomerStats,
   DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
-  FollowUp,
+  FollowUp, FollowUpReminder,
   Global360, GroupStats,
   Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
   MergeResult,
@@ -100,6 +100,9 @@ export const batchScoreAI = (ids?: number[]) =>
 
 export const getOverdueFollowUps = () =>
   client.get<APIResponse<{ total: number; items: OverdueFollowUp[] }>>("/customers/overdue-followups");
+
+export const getFollowUpReminders = () =>
+  client.get<APIResponse<{ total: number; counts: Record<string, number>; items: FollowUpReminder[] }>>("/customers/follow-up-reminders");
 
 export const exportCustomers = (params: Record<string, unknown>) =>
   client.get("/customers/export", { params, responseType: "blob" });

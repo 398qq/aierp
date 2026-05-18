@@ -5,39 +5,17 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Form, Input, Select, DatePicker, Button, Card, Spin, message, Space } from "antd";
+import { App, Form, Input, Select, DatePicker, Button, Card, Spin, Space } from "antd";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { createFollowUp, updateFollowUp, getFollowUps } from "../../api";
 import type { FollowUp } from "../../types";
+import { FOLLOW_UP_METHOD_OPTIONS, FOLLOW_UP_PRIORITY_OPTIONS, FOLLOW_UP_STATUS_OPTIONS } from "./customerUi";
 
 const { TextArea } = Input;
 
-// 跟进方式选项
-const METHOD_OPTIONS = [
-  { value: "phone", label: "电话拜访" },
-  { value: "visit", label: "上门拜访" },
-  { value: "video", label: "视频会议" },
-  { value: "email", label: "邮件" },
-  { value: "other", label: "其他" },
-];
-
-// 状态选项
-const STATUS_OPTIONS = [
-  { value: "planned", label: "计划中" },
-  { value: "in_progress", label: "进行中" },
-  { value: "completed", label: "已完成" },
-  { value: "cancelled", label: "已取消" },
-];
-
-// 优先级选项
-const PRIORITY_OPTIONS = [
-  { value: "high", label: "高" },
-  { value: "medium", label: "中" },
-  { value: "low", label: "低" },
-];
-
 export default function FollowUpForm() {
+  const { message } = App.useApp();
   const { customerId, followupId } = useParams<{ customerId: string; followupId: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm();
@@ -85,10 +63,19 @@ export default function FollowUpForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
+      if (values.status === "planned" && !values.planned_at) {
+        message.warning("计划中的跟进必须填写计划时间");
+        setLoading(false);
+        return;
+      }
       const submitData = {
         ...values,
         planned_at: values.planned_at ? (values.planned_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss") : null,
-        completed_at: values.completed_at ? (values.completed_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss") : null,
+        completed_at: values.completed_at
+          ? (values.completed_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss")
+          : values.status === "completed"
+            ? dayjs().format("YYYY-MM-DD HH:mm:ss")
+            : null,
       };
 
       if (isEdit && followupIdNum) {
@@ -140,17 +127,22 @@ export default function FollowUpForm() {
           form={form}
           layout="vertical"
           onFinish={onFinish}
+          onValuesChange={(changed) => {
+            if (changed.status === "completed" && !form.getFieldValue("completed_at")) {
+              form.setFieldValue("completed_at", dayjs());
+            }
+          }}
           initialValues={{
             status: "planned",
             priority: "medium",
           }}
         >
           <Form.Item name="method" label="跟进方式" rules={[{ required: true, message: "请选择跟进方式" }]}>
-            <Select options={METHOD_OPTIONS} placeholder="选择跟进方式" />
+            <Select options={FOLLOW_UP_METHOD_OPTIONS} placeholder="选择跟进方式" />
           </Form.Item>
 
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
-            <Select options={STATUS_OPTIONS} placeholder="选择状态" />
+            <Select options={FOLLOW_UP_STATUS_OPTIONS} placeholder="选择状态" />
           </Form.Item>
 
           <Form.Item name="content" label="内容">
@@ -165,8 +157,12 @@ export default function FollowUpForm() {
             <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
           </Form.Item>
 
+          <Form.Item name="completed_at" label="完成时间">
+            <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
+          </Form.Item>
+
           <Form.Item name="priority" label="优先级">
-            <Select options={PRIORITY_OPTIONS} placeholder="选择优先级" />
+            <Select options={FOLLOW_UP_PRIORITY_OPTIONS} placeholder="选择优先级" />
           </Form.Item>
 
           <Form.Item name="assigned_to" label="负责人">

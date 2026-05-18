@@ -4,38 +4,16 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Table, Button, Space, Spin, Tag, Card, Popconfirm, message, Empty } from "antd";
-import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty } from "antd";
+import { ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { TablePaginationConfig } from "antd/es/table/interface";
-import { getFollowUps, deleteFollowUp } from "../../api";
+import { getFollowUps, deleteFollowUp, updateFollowUp } from "../../api";
 import type { FollowUp } from "../../types";
-
-// 跟进方式映射
-const METHOD_OPTIONS: Record<string, { label: string; color: string }> = {
-  phone: { label: "电话拜访", color: "blue" },
-  visit: { label: "上门拜访", color: "green" },
-  video: { label: "视频会议", color: "purple" },
-  email: { label: "邮件", color: "cyan" },
-  other: { label: "其他", color: "default" },
-};
-
-// 状态映射
-const STATUS_OPTIONS: Record<string, { label: string; color: string }> = {
-  planned: { label: "计划中", color: "default" },
-  in_progress: { label: "进行中", color: "processing" },
-  completed: { label: "已完成", color: "green" },
-  cancelled: { label: "已取消", color: "red" },
-};
-
-// 优先级映射
-const PRIORITY_OPTIONS: Record<string, { label: string; color: string }> = {
-  low: { label: "低", color: "default" },
-  medium: { label: "中", color: "orange" },
-  high: { label: "高", color: "red" },
-};
+import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
 
 export default function FollowUpList() {
+  const { message } = App.useApp();
   const { customerId } = useParams<{ customerId: string }>();
   const navigate = useNavigate();
   const [allData, setAllData] = useState<FollowUp[]>([]);
@@ -89,6 +67,19 @@ export default function FollowUpList() {
     }
   };
 
+  const handleComplete = async (followupId: number) => {
+    try {
+      await updateFollowUp(custId, followupId, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      });
+      message.success("已完成");
+      load();
+    } catch {
+      message.error("操作失败");
+    }
+  };
+
   // 跳转到编辑页面
   const handleEdit = (followupId: number) => {
     navigate(`/customers/${custId}/follow-ups/${followupId}/edit`);
@@ -106,20 +97,14 @@ export default function FollowUpList() {
       dataIndex: "method",
       key: "method",
       width: 100,
-      render: (method: string) => {
-        const opt = METHOD_OPTIONS[method] || { label: method || "-", color: "default" };
-        return <Tag color={opt.color}>{opt.label}</Tag>;
-      },
+      render: (method: string | null) => <FollowUpMethodTag method={method} />,
     },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
       width: 100,
-      render: (status: string) => {
-        const opt = STATUS_OPTIONS[status] || { label: status || "-", color: "default" };
-        return <Tag color={opt.color}>{opt.label}</Tag>;
-      },
+      render: (status: string | null) => <FollowUpStatusTag status={status} />,
     },
     {
       title: "内容",
@@ -154,11 +139,7 @@ export default function FollowUpList() {
       dataIndex: "priority",
       key: "priority",
       width: 80,
-      render: (priority: string) => {
-        if (!priority) return "-";
-        const opt = PRIORITY_OPTIONS[priority] || { label: priority, color: "default" };
-        return <Tag color={opt.color}>{opt.label}</Tag>;
-      },
+      render: (priority: string | null) => <FollowUpPriorityTag priority={priority} />,
     },
     {
       title: "负责人",
@@ -174,6 +155,11 @@ export default function FollowUpList() {
       fixed: "right",
       render: (_, record) => (
         <Space size="small">
+          {record.status !== "completed" && (
+            <Button type="link" size="small" icon={<CheckCircleOutlined />} onClick={() => handleComplete(record.id)}>
+              完成
+            </Button>
+          )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record.id)}>
             编辑
           </Button>

@@ -1,30 +1,217 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, Tag, Select, Row, Col, message, Popconfirm, Card, Modal, Upload, Tooltip, List, Typography, Empty, Popover, Checkbox } from "antd";
-import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, TagsOutlined, UploadOutlined, BarChartOutlined, ShoppingCartOutlined, PhoneOutlined, MailOutlined, MergeCellsOutlined, SafetyCertificateOutlined, SettingOutlined, SendOutlined, SwapOutlined } from "@ant-design/icons";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  App,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Descriptions,
+  Divider,
+  Dropdown,
+  Drawer,
+  Empty,
+  DatePicker,
+  Form,
+  Input,
+  List,
+  Modal,
+  Popconfirm,
+  Popover,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+  Upload,
+} from "antd";
+import {
+  BellOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  DownloadOutlined,
+  EyeOutlined,
+  FilterOutlined,
+  MergeCellsOutlined,
+  MoreOutlined,
+  PhoneOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SearchOutlined,
+  SendOutlined,
+  ShoppingCartOutlined,
+  SwapOutlined,
+  TagsOutlined,
+  UploadOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { getCustomers, deleteCustomer, exportCustomers, batchDeleteCustomers, batchTagCustomers, getTags, downloadImportTemplate, importCustomers, getOverdueFollowUps, detectDuplicates, mergeCustomers, getAlertEvents, markAllAlertsRead, checkAlerts, searchSimilarCustomers } from "../../api";
+import {
+  batchDeleteCustomers,
+  batchTagCustomers,
+  checkAlerts,
+  createFollowUp,
+  deleteCustomer,
+  detectDuplicates,
+  downloadImportTemplate,
+  exportCustomers,
+  getAlertEvents,
+  getCustomer,
+  getCustomers,
+  getCustomerStats,
+  getDashboardStats,
+  getFollowUpReminders,
+  getTags,
+  importCustomers,
+  markAllAlertsRead,
+  mergeCustomers,
+  searchSimilarCustomers,
+  updateFollowUp,
+} from "../../api";
+import type {
+  Customer,
+  CustomerStats,
+  DashboardStats,
+  DuplicatePair,
+  FollowUpReminder,
+  OverdueFollowUp,
+  SimilarCustomer,
+  Tag as TagType,
+} from "../../types";
 import VendAsSupplierModal from "./VendAsSupplierModal";
-import type { AlertEvent, Customer, DuplicatePair, OverdueFollowUp, SimilarCustomer, Tag as TagType } from "../../types";
+import CustomerModuleShell from "./CustomerModuleShell";
+import dayjs from "dayjs";
+import {
+  FOLLOW_UP_METHOD_OPTIONS,
+  FOLLOW_UP_PRIORITY_OPTIONS,
+  FOLLOW_UP_STATUS_OPTIONS,
+  FollowUpMethodTag,
+} from "./customerUi";
 
 const INDUSTRIES = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗设备", "安防监控", "其他"];
 const LEVELS = ["A", "B", "C", "D"];
 const REGIONS = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
 const SOURCES = ["展会", "转介绍", "线上推广", "陌生拜访", "公司资源"];
+const CREDIT_LEVELS = ["AAA", "AA", "A", "B", "C"];
+
+type SceneValue = "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
+
+const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
+  { label: "全部客户", value: "all" },
+  { label: "重点客户", value: "key_accounts" },
+  { label: "华东区域", value: "east_region" },
+  { label: "展会线索", value: "expo_leads" },
+  { label: "高信用", value: "high_credit" },
+];
+
+const SCENE_FILTERS: Record<SceneValue, { level?: string; region?: string; source?: string; creditLevel?: string }> = {
+  all: {},
+  key_accounts: { level: "A" },
+  east_region: { region: "华东" },
+  expo_leads: { source: "展会" },
+  high_credit: { creditLevel: "A" },
+};
+
+const COL_LABEL_MAP: Record<string, string> = {
+  code: "编码",
+  name: "名称",
+  industry: "行业",
+  level: "等级",
+  region: "区域",
+  credit_level: "信用",
+  health: "健康度",
+  next_followup: "下一次跟进",
+  tags: "标签",
+  owner: "负责人",
+  contact_person: "联系人",
+  last_contacted_at: "最近联系",
+  source: "来源",
+  created_at: "创建时间",
+  actions: "操作",
+};
+
+const DEFAULT_VISIBLE_COL_KEYS = ["name", "level", "health", "next_followup", "last_contacted_at", "owner", "tags", "actions"];
+type ReminderBucket = "all" | FollowUpReminder["due_bucket"];
+
+const REMINDER_BUCKETS: { key: ReminderBucket; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "overdue", label: "逾期" },
+  { key: "today", label: "今日" },
+  { key: "upcoming", label: "未来" },
+];
+
+const DEFAULT_STATS: DashboardStats = {
+  total: 0,
+  by_industry: [],
+  by_level: [],
+  by_region: [],
+  by_source: [],
+  by_type: [],
+  monthly: [],
+};
+
+const getLevelColor = (level?: string | null) => {
+  if (!level) return "default";
+  if (level === "A") return "red";
+  if (level === "B") return "orange";
+  if (level === "C") return "gold";
+  return "default";
+};
+
+const getHealthColor = (value?: number | null) => {
+  if (value == null) return "default";
+  if (value >= 80) return "green";
+  if (value >= 60) return "gold";
+  return "red";
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  return value.slice(0, 10);
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  return value.slice(0, 16).replace("T", " ");
+};
+
+const formatReminderRefreshTime = (value: Date | null) => {
+  if (!value) return "尚未刷新";
+  const diffMs = Date.now() - value.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "刚刚刷新";
+  if (diffMinutes < 60) return `${diffMinutes}分钟前刷新`;
+  return `${value.getHours().toString().padStart(2, "0")}:${value.getMinutes().toString().padStart(2, "0")} 刷新`;
+};
+
+const plusOneDayIso = (value?: string | null) => {
+  const currentTime = value ? new Date(value).getTime() : Date.now();
+  const baseTime = Number.isNaN(currentTime) ? Date.now() : Math.max(currentTime, Date.now());
+  return new Date(baseTime + 24 * 60 * 60 * 1000).toISOString();
+};
 
 export default function CustomerList() {
+  const { message, modal } = App.useApp();
+  const [quickFollowUpForm] = Form.useForm();
   const [data, setData] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => new URLSearchParams(window.location.search).get("q")?.trim() || "");
+  const [scene, setScene] = useState<SceneValue>("all");
   const [industry, setIndustry] = useState<string | undefined>();
   const [level, setLevel] = useState<string | undefined>();
   const [region, setRegion] = useState<string | undefined>();
   const [source, setSource] = useState<string | undefined>();
   const [creditLevel, setCreditLevel] = useState<string | undefined>();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [sortBy, setSortBy] = useState<string>("id");
   const [sortOrder, setSortOrder] = useState<string>("desc");
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
@@ -33,6 +220,14 @@ export default function CustomerList() {
   const [batchTagIds, setBatchTagIds] = useState<number[]>([]);
   const [importing, setImporting] = useState(false);
   const [overdueList, setOverdueList] = useState<OverdueFollowUp[]>([]);
+  const [followUpReminders, setFollowUpReminders] = useState<FollowUpReminder[]>([]);
+  const [reminderBucket, setReminderBucket] = useState<ReminderBucket>("all");
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderActionKey, setReminderActionKey] = useState<string | null>(null);
+  const [reminderRefreshedAt, setReminderRefreshedAt] = useState<Date | null>(null);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [quickFollowUpCustomer, setQuickFollowUpCustomer] = useState<Customer | null>(null);
+  const [quickFollowUpSaving, setQuickFollowUpSaving] = useState(false);
   const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
   const [dupLoading, setDupLoading] = useState(false);
   const [dupModalOpen, setDupModalOpen] = useState(false);
@@ -46,25 +241,152 @@ export default function CustomerList() {
   const [semanticResults, setSemanticResults] = useState<SimilarCustomer[]>([]);
   const [semanticLoading, setSemanticLoading] = useState(false);
   const [vendCustomer, setVendCustomer] = useState<Customer | null>(null);
-  const allColKeys = ["code", "name", "industry", "level", "region", "tags", "owner", "contact_person", "source", "created_at", "actions"];
-  const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [detailStats, setDetailStats] = useState<CustomerStats | null>(null);
+
+  const allColKeys = [
+    "code",
+    "name",
+    "industry",
+    "level",
+    "region",
+    "credit_level",
+    "health",
+    "next_followup",
+    "tags",
+    "owner",
+    "contact_person",
+    "last_contacted_at",
+    "source",
+    "created_at",
+    "actions",
+  ];
+  const [visibleCols, setVisibleCols] = useState<string[]>(DEFAULT_VISIBLE_COL_KEYS);
   const navigate = useNavigate();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const location = useLocation();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const overdueCustomerIds = useMemo(() => new Set(overdueList.map((item) => item.customer_id)), [overdueList]);
+  const selectedIdSet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
+  const selectedA = useMemo(
+    () => data.filter((item) => selectedIdSet.has(item.id) && item.level === "A").length,
+    [data, selectedIdSet],
+  );
+  const selectedOverdue = useMemo(
+    () => overdueList.filter((item) => selectedIdSet.has(item.customer_id)).length,
+    [overdueList, selectedIdSet],
+  );
+  const levelACount = useMemo(
+    () => stats.by_level.find((row) => String(row.name).toUpperCase() === "A")?.value || 0,
+    [stats],
+  );
+  const monthlyNewCount = useMemo(
+    () => stats.monthly[stats.monthly.length - 1]?.count || 0,
+    [stats],
+  );
+  const topIndustry = useMemo(() => stats.by_industry[0], [stats]);
+  const topRegion = useMemo(() => stats.by_region[0], [stats]);
+  const activeAdvancedFilterCount = useMemo(
+    () => [industry, level, region, source, creditLevel].filter(Boolean).length,
+    [industry, level, region, source, creditLevel],
+  );
+  const reminderCounts = useMemo(
+    () => ({
+      all: followUpReminders.length,
+      overdue: followUpReminders.filter((item) => item.due_bucket === "overdue").length,
+      today: followUpReminders.filter((item) => item.due_bucket === "today").length,
+      upcoming: followUpReminders.filter((item) => item.due_bucket === "upcoming").length,
+    }),
+    [followUpReminders],
+  );
+  const visibleReminders = useMemo(
+    () => reminderBucket === "all"
+      ? followUpReminders
+      : followUpReminders.filter((item) => item.due_bucket === reminderBucket),
+    [followUpReminders, reminderBucket],
+  );
+  const nextFollowUpByCustomer = useMemo(() => {
+    const map = new Map<number, FollowUpReminder>();
+    for (const item of followUpReminders) {
+      const existing = map.get(item.customer_id);
+      if (!existing || new Date(item.planned_at).getTime() < new Date(existing.planned_at).getTime()) {
+        map.set(item.customer_id, item);
+      }
+    }
+    return map;
+  }, [followUpReminders]);
+  const tableData = useMemo(
+    () => overdueOnly ? data.filter((item) => overdueCustomerIds.has(item.id)) : data,
+    [data, overdueOnly, overdueCustomerIds],
+  );
+
+  const loadStats = async () => {
+    setStatsLoading(true);
+    try {
+      const resp = await getDashboardStats();
+      setStats(resp.data.data || DEFAULT_STATS);
+    } catch {
+      // ignore
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const refreshAlertCount = async () => {
+    try {
+      const r = await getAlertEvents({ page: 1, page_size: 1, is_read: false });
+      setAlertCount(r.data.data?.total || 0);
+    } catch {
+      // ignore
+    }
+  };
+
+  const loadOverdue = async () => {
+    setReminderLoading(true);
+    try {
+      const r = await getFollowUpReminders();
+      const items = r.data.data?.items || [];
+      setFollowUpReminders(items);
+      setOverdueList(items.filter((item) => item.due_bucket === "overdue"));
+      setReminderRefreshedAt(new Date());
+    } catch {
+      // ignore
+    } finally {
+      setReminderLoading(false);
+    }
+  };
 
   const fetch = async (p = page, ps = pageSize, search = q) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: ps, sort_by: sortBy, sort_order: sortOrder };
-      if (search) params.q = search;
+      const sceneFilter = SCENE_FILTERS[scene];
+      const resolvedLevel = level ?? sceneFilter.level;
+      const resolvedRegion = region ?? sceneFilter.region;
+      const resolvedSource = source ?? sceneFilter.source;
+      const resolvedCreditLevel = creditLevel ?? sceneFilter.creditLevel;
+
+      const params: Record<string, unknown> = {
+        page: p,
+        page_size: ps,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      };
+
+      if (search.trim()) {
+        params.keyword = search.trim();
+        params.q = search.trim();
+      }
       if (industry) params.industry = industry;
-      if (level) params.level = level;
-      if (region) params.region = region;
-      if (source) params.source = source;
-      if (creditLevel) params.credit_level = creditLevel;
+      if (resolvedLevel) params.level = resolvedLevel;
+      if (resolvedRegion) params.region = resolvedRegion;
+      if (resolvedSource) params.source = resolvedSource;
+      if (resolvedCreditLevel) params.credit_level = resolvedCreditLevel;
+
       const resp = await getCustomers(params);
-      setData(resp.data.data.list);
-      setTotal(resp.data.data.total);
+      setData(resp.data.data.list || []);
+      setTotal(resp.data.data.total || 0);
     } catch {
       message.error("加载客户列表失败");
     } finally {
@@ -72,39 +394,105 @@ export default function CustomerList() {
     }
   };
 
-  // Debounced search: auto-fetches 350ms after user stops typing
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setPage(1); fetch(1, pageSize, q); }, 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      fetch(1, pageSize, q);
+    }, 350);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [q]);
 
-  useEffect(() => { fetch(); }, [page, pageSize, industry, level, region, source, creditLevel, sortBy, sortOrder]);
+  // Sync external route query (`/customers?q=...`) into local search state.
+  useEffect(() => {
+    const urlQ = new URLSearchParams(location.search).get("q")?.trim() || "";
+    setQ((current) => {
+      if (urlQ === current) return current;
+      setPage(1);
+      return urlQ;
+    });
+  }, [location.search]);
 
   useEffect(() => {
-    getTags().then((r) => setTags(r.data.data)).catch(() => {});
-    getOverdueFollowUps().then((r) => setOverdueList(r.data.data?.items || [])).catch(() => {});
-    getAlertEvents({ page: 1, page_size: 1, is_read: false }).then((r) => setAlertCount(r.data.data?.total || 0)).catch(() => {});
+    fetch();
+  }, [page, pageSize, industry, level, region, source, creditLevel, sortBy, sortOrder, scene]);
+
+  useEffect(() => {
+    getTags().then((r) => setTags(r.data.data || [])).catch(() => {});
+    loadStats();
+    loadOverdue();
+    refreshAlertCount();
   }, []);
 
+  useEffect(() => {
+    const refreshReminderState = () => {
+      loadOverdue();
+      refreshAlertCount();
+    };
+    const refreshWhenVisible = () => {
+      if (!document.hidden) refreshReminderState();
+    };
+
+    window.addEventListener("focus", refreshReminderState);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshReminderState);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, []);
+
+  const resetFilters = () => {
+    setQ("");
+    setScene("all");
+    setIndustry(undefined);
+    setLevel(undefined);
+    setRegion(undefined);
+    setSource(undefined);
+    setCreditLevel(undefined);
+    setOverdueOnly(false);
+    setAdvancedOpen(false);
+    setSortBy("id");
+    setSortOrder("desc");
+    setPage(1);
+  };
 
   const handleDelete = async (id: number) => {
-    try { await deleteCustomer(id); message.success("已删除"); fetch(); } catch { message.error("删除失败"); }
+    try {
+      await deleteCustomer(id);
+      message.success("已删除");
+      await Promise.all([fetch(), loadStats(), loadOverdue()]);
+    } catch {
+      message.error("删除失败");
+    }
   };
 
   const handleExport = async () => {
     try {
+      const sceneFilter = SCENE_FILTERS[scene];
       const params: Record<string, unknown> = {};
-      if (q) params.q = q;
+      if (q.trim()) {
+        params.keyword = q.trim();
+        params.q = q.trim();
+      }
       if (industry) params.industry = industry;
-      if (level) params.level = level;
+      if (level ?? sceneFilter.level) params.level = level ?? sceneFilter.level;
+      if (region ?? sceneFilter.region) params.region = region ?? sceneFilter.region;
+      if (source ?? sceneFilter.source) params.source = source ?? sceneFilter.source;
+      if (creditLevel ?? sceneFilter.creditLevel) params.credit_level = creditLevel ?? sceneFilter.creditLevel;
+
       const resp = await exportCustomers(params);
       const url = URL.createObjectURL(new Blob([resp.data]));
       const a = document.createElement("a");
-      a.href = url; a.download = "customers.csv"; a.click();
+      a.href = url;
+      a.download = "customers.csv";
+      a.click();
       URL.revokeObjectURL(url);
       message.success("导出成功");
-    } catch { message.error("导出失败"); }
+    } catch {
+      message.error("导出失败");
+    }
   };
 
   const handleTemplate = async () => {
@@ -112,30 +500,56 @@ export default function CustomerList() {
       const resp = await downloadImportTemplate();
       const url = URL.createObjectURL(new Blob([resp.data]));
       const a = document.createElement("a");
-      a.href = url; a.download = "customer_template.csv"; a.click();
+      a.href = url;
+      a.download = "customer_template.csv";
+      a.click();
       URL.revokeObjectURL(url);
-    } catch { message.error("下载模板失败"); }
+    } catch {
+      message.error("下载模板失败");
+    }
   };
 
   const handleImport = async (file: File) => {
     setImporting(true);
     try {
       const resp = await importCustomers(file);
-      const result = resp.data.data as { created: number; skipped: number };
-      message.success(`导入成功: 新建 ${result.created} 条, 跳过 ${result.skipped} 条`);
-      fetch();
-    } catch { message.error("导入失败，请检查文件格式"); }
-    finally { setImporting(false); }
-    return false; // prevent default upload
+      const result = resp.data.data as { created?: number; skipped?: number; imported?: number; updated?: number };
+      const created = result.created ?? result.imported ?? 0;
+      const skipped = result.skipped ?? 0;
+      const updated = result.updated ?? 0;
+      message.success(`导入成功：新建 ${created} 条，更新 ${updated} 条，跳过 ${skipped} 条`);
+      await Promise.all([fetch(), loadStats(), loadOverdue()]);
+    } catch {
+      message.error("导入失败，请检查文件格式");
+    } finally {
+      setImporting(false);
+    }
+    return false;
   };
 
   const handleBatchDelete = async () => {
-    try { await batchDeleteCustomers(selectedRowKeys); message.success(`已删除 ${selectedRowKeys.length} 条`); setSelectedRowKeys([]); fetch(); } catch { message.error("批量删除失败"); }
+    try {
+      await batchDeleteCustomers(selectedRowKeys);
+      message.success(`已删除 ${selectedRowKeys.length} 条`);
+      setSelectedRowKeys([]);
+      await Promise.all([fetch(), loadStats(), loadOverdue()]);
+    } catch {
+      message.error("批量删除失败");
+    }
   };
 
   const handleBatchTag = async () => {
-    if (batchTagIds.length === 0) return;
-    try { await batchTagCustomers(selectedRowKeys, batchTagIds); message.success(`已为 ${selectedRowKeys.length} 个客户添加标签`); setSelectedRowKeys([]); setTagModalOpen(false); setBatchTagIds([]); fetch(); } catch { message.error("批量打标签失败"); }
+    if (!batchTagIds.length) return;
+    try {
+      await batchTagCustomers(selectedRowKeys, batchTagIds);
+      message.success(`已为 ${selectedRowKeys.length} 个客户添加标签`);
+      setSelectedRowKeys([]);
+      setTagModalOpen(false);
+      setBatchTagIds([]);
+      fetch();
+    } catch {
+      message.error("批量打标签失败");
+    }
   };
 
   const handleDetectDups = async () => {
@@ -145,9 +559,12 @@ export default function CustomerList() {
       const pairs = (resp.data.data?.pairs || []) as DuplicatePair[];
       setDuplicatePairs(pairs);
       setDupModalOpen(true);
-      if (pairs.length === 0) message.info("未发现疑似重复客户");
-    } catch { message.error("检测失败"); }
-    finally { setDupLoading(false); }
+      if (!pairs.length) message.info("未发现疑似重复客户");
+    } catch {
+      message.error("检测失败");
+    } finally {
+      setDupLoading(false);
+    }
   };
 
   const openMergeModal = (pair: DuplicatePair) => {
@@ -164,9 +581,12 @@ export default function CustomerList() {
       setMergeModalOpen(false);
       setMergeSource(null);
       setDupModalOpen(false);
-      fetch();
-    } catch { message.error("合并失败"); }
-    finally { setMerging(false); }
+      await Promise.all([fetch(), loadStats(), loadOverdue()]);
+    } catch {
+      message.error("合并失败");
+    } finally {
+      setMerging(false);
+    }
   };
 
   const handleCheckAlerts = async () => {
@@ -174,9 +594,22 @@ export default function CustomerList() {
     try {
       const resp = await checkAlerts();
       message.success(`预警检查完成，生成 ${resp.data.data.generated} 条`);
-      getAlertEvents({ page: 1, page_size: 1, is_read: false }).then((r) => setAlertCount(r.data.data?.total || 0)).catch(() => {});
-    } catch { message.error("预警检查失败"); }
-    finally { setAlertChecking(false); }
+      await refreshAlertCount();
+    } catch {
+      message.error("预警检查失败");
+    } finally {
+      setAlertChecking(false);
+    }
+  };
+
+  const handleMarkAllAlertsRead = async () => {
+    try {
+      await markAllAlertsRead();
+      setAlertCount(0);
+      message.success("已全部标记为已读");
+    } catch {
+      message.error("操作失败");
+    }
   };
 
   const handleSemanticSearch = async () => {
@@ -184,163 +617,683 @@ export default function CustomerList() {
     setSemanticLoading(true);
     try {
       const resp = await searchSimilarCustomers(semanticQ);
-      setSemanticResults((resp.data.data as SimilarCustomer[]) || []);
-    } catch { message.error("语义搜索失败"); }
-    finally { setSemanticLoading(false); }
+      setSemanticResults((resp.data.data || []) as SimilarCustomer[]);
+    } catch {
+      message.error("语义搜索失败");
+    } finally {
+      setSemanticLoading(false);
+    }
   };
 
   const handleTableChange = (
     pag: TablePaginationConfig,
-    _filters: unknown,
+    _filters: Record<string, unknown>,
     sorter: SorterResult<Customer> | SorterResult<Customer>[],
   ) => {
     if (pag.current) setPage(pag.current);
-    if (pag.pageSize) { setPageSize(pag.pageSize); setPage(1); }
+    if (pag.pageSize) {
+      setPageSize(pag.pageSize);
+      if (pag.pageSize !== pageSize) setPage(1);
+    }
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
     if (s.field && typeof s.field === "string") {
       setSortBy(s.field);
-      setSortOrder(s.order === "ascend" ? "asc" : s.order === "descend" ? "desc" : "desc");
+      if (s.order === "ascend") setSortOrder("asc");
+      if (s.order === "descend") setSortOrder("desc");
+      if (!s.order) setSortOrder("desc");
+    }
+  };
+
+  const openDetailDrawer = async (customerId: number) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const [detailResp, statsResp] = await Promise.all([
+        getCustomer(customerId),
+        getCustomerStats(customerId),
+      ]);
+      setDetailCustomer(detailResp.data.data);
+      setDetailStats(statsResp.data.data);
+    } catch {
+      message.error("加载客户详情失败");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const confirmDeleteCustomer = (customer: Customer) => {
+    modal.confirm({
+      title: "删除客户",
+      content: `确定删除「${customer.name}」？此操作不可撤销。`,
+      okText: "删除",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: () => handleDelete(customer.id),
+    });
+  };
+
+  const handleCompleteReminder = async (item: FollowUpReminder) => {
+    const actionKey = `complete-${item.id}`;
+    setReminderActionKey(actionKey);
+    try {
+      await updateFollowUp(item.customer_id, item.id, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      });
+      message.success("跟进已完成");
+      await Promise.all([loadOverdue(), fetch()]);
+    } catch {
+      message.error("完成跟进失败");
+    } finally {
+      setReminderActionKey(null);
+    }
+  };
+
+  const handlePostponeReminder = async (item: FollowUpReminder) => {
+    const actionKey = `postpone-${item.id}`;
+    setReminderActionKey(actionKey);
+    try {
+      await updateFollowUp(item.customer_id, item.id, {
+        planned_at: plusOneDayIso(item.planned_at),
+        status: item.status || "planned",
+      });
+      message.success("已延期 1 天");
+      await Promise.all([loadOverdue(), fetch()]);
+    } catch {
+      message.error("延期失败");
+    } finally {
+      setReminderActionKey(null);
+    }
+  };
+
+  const openQuickFollowUp = (customer: Customer) => {
+    setQuickFollowUpCustomer(customer);
+    quickFollowUpForm.setFieldsValue({
+      method: "phone",
+      status: "planned",
+      priority: "medium",
+      planned_at: dayjs().add(1, "day"),
+    });
+  };
+
+  const handleQuickFollowUpSubmit = async () => {
+    if (!quickFollowUpCustomer) return;
+    const values = await quickFollowUpForm.validateFields();
+    if (values.status === "planned" && !values.planned_at) {
+      message.warning("计划中的跟进必须填写计划时间");
+      return;
+    }
+    setQuickFollowUpSaving(true);
+    try {
+      await createFollowUp(quickFollowUpCustomer.id, {
+        ...values,
+        planned_at: values.planned_at ? values.planned_at.format("YYYY-MM-DD HH:mm:ss") : null,
+        completed_at: values.completed_at
+          ? values.completed_at.format("YYYY-MM-DD HH:mm:ss")
+          : values.status === "completed"
+            ? dayjs().format("YYYY-MM-DD HH:mm:ss")
+            : null,
+      });
+      message.success("跟进已创建");
+      setQuickFollowUpCustomer(null);
+      quickFollowUpForm.resetFields();
+      await Promise.all([loadOverdue(), fetch()]);
+    } catch {
+      message.error("创建跟进失败");
+    } finally {
+      setQuickFollowUpSaving(false);
     }
   };
 
   const columns: ColumnsType<Customer> = [
-    { title: "客户编码", dataIndex: "code", key: "code", width: 120, sorter: true, sortOrder: sortBy === "code" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "客户名称", dataIndex: "name", key: "name", width: 200, sorter: true, sortOrder: sortBy === "name" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (text: string, r: Customer) => (<a onClick={() => navigate(`/customers/${r.id}`)}>{text}</a>) },
-    { title: "行业", dataIndex: "industry", key: "industry", width: 100, sorter: true, sortOrder: sortBy === "industry" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "等级", dataIndex: "level", key: "level", width: 80, sorter: true, sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (v: string) => <Tag color={v === "A" ? "red" : v === "B" ? "orange" : "default"}>{v}</Tag> },
-    { title: "区域", dataIndex: "region", key: "region", width: 100, sorter: true, sortOrder: sortBy === "region" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "标签", dataIndex: "tags", key: "tags", width: 160, render: (tags: TagType[]) => tags?.map((t) => <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>) },
-    { title: "负责人", dataIndex: "owner", key: "owner", width: 80 },
-    { title: "联系人", dataIndex: "contact_person", key: "contact_person", width: 100 },
-    { title: "来源", dataIndex: "source", key: "source", width: 80, sorter: true, sortOrder: sortBy === "source" ? (sortOrder === "asc" ? "ascend" : "descend") : null },
-    { title: "创建时间", dataIndex: "created_at", key: "created_at", width: 100, sorter: true, sortOrder: sortBy === "created_at" ? (sortOrder === "asc" ? "ascend" : "descend") : null, render: (v: string) => v?.slice(0, 10) },
     {
-      title: "操作", key: "actions", width: 220, render: (_: unknown, r: Customer) => (
-        <Space size={4}>
-          <Button size="small" onClick={() => navigate(`/customers/${r.id}`)}>详情</Button>
-          <Tooltip title="创建销售订单">
-            <Button size="small" icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${r.id}`)} />
-          </Tooltip>
-          <Tooltip title="新增跟进">
-            <Button size="small" icon={<PhoneOutlined />} onClick={() => navigate(`/customers/${r.id}?tab=followups`)} />
-          </Tooltip>
-          <Tooltip title="转为供应商">
-            <Button size="small" icon={<SwapOutlined />} onClick={() => setVendCustomer(r)} />
-          </Tooltip>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger>删除</Button>
-          </Popconfirm>
+      title: "客户编码",
+      dataIndex: "code",
+      key: "code",
+      width: 120,
+      sorter: true,
+      sortOrder: sortBy === "code" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string | null) => (
+        <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{v || "-"}</span>
+      ),
+    },
+    {
+      title: "客户",
+      dataIndex: "name",
+      key: "name",
+      width: 260,
+      sorter: true,
+      sortOrder: sortBy === "name" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (text: string, r: Customer) => (
+        <Space direction="vertical" size={0}>
+          <a onClick={() => navigate(`/customers/${r.id}`)}>{text}</a>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {[r.code, r.short_name].filter(Boolean).join(" / ") || "-"}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: "行业",
+      dataIndex: "industry",
+      key: "industry",
+      width: 120,
+      sorter: true,
+      sortOrder: sortBy === "industry" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string | null) => (v ? <Tag>{v}</Tag> : "-"),
+    },
+    {
+      title: "等级",
+      dataIndex: "level",
+      key: "level",
+      width: 84,
+      sorter: true,
+      sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string | null) => <Tag color={getLevelColor(v)}>{v || "-"}</Tag>,
+    },
+    {
+      title: "区域",
+      dataIndex: "region",
+      key: "region",
+      width: 100,
+      sorter: true,
+      sortOrder: sortBy === "region" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "信用",
+      dataIndex: "credit_level",
+      key: "credit_level",
+      width: 90,
+      sorter: true,
+      sortOrder: sortBy === "credit_level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string | null) => v ? <Tag>{v}</Tag> : "-",
+    },
+    {
+      title: "健康/风险",
+      key: "health",
+      width: 130,
+      render: (_: unknown, row: Customer) => (
+        <Space size={4} wrap>
+          <Tag color={getHealthColor(row.health_score)}>
+            {row.health_score != null ? `${row.health_score}` : "-"}
+          </Tag>
+          {overdueCustomerIds.has(row.id) && <Tag color="red">逾期</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: "下一次跟进",
+      key: "next_followup",
+      width: 170,
+      render: (_: unknown, row: Customer) => {
+        const next = nextFollowUpByCustomer.get(row.id);
+        if (!next) return "-";
+        const color = next.due_bucket === "overdue" ? "red" : next.due_bucket === "today" ? "orange" : "blue";
+        const label = next.due_bucket === "overdue"
+          ? `逾期${next.overdue_days}天`
+          : next.due_bucket === "today"
+            ? "今日"
+            : `${next.days_until ?? "-"}天后`;
+        return (
+          <Space direction="vertical" size={0}>
+            <Space size={4}>
+              <Tag color={color}>{label}</Tag>
+              <FollowUpMethodTag method={next.method} />
+            </Space>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(next.planned_at)}</Typography.Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: "标签",
+      dataIndex: "tags",
+      key: "tags",
+      width: 180,
+      render: (rowTags: TagType[] | undefined) => {
+        const items = rowTags || [];
+        if (!items.length) return "-";
+        return (
+          <Space size={[4, 4]} wrap>
+            {items.slice(0, 2).map((t) => (
+              <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>
+            ))}
+            {items.length > 2 && <Tag>+{items.length - 2}</Tag>}
+          </Space>
+        );
+      },
+    },
+    {
+      title: "负责人",
+      dataIndex: "owner",
+      key: "owner",
+      width: 100,
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "联系人",
+      dataIndex: "contact_person",
+      key: "contact_person",
+      width: 120,
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "最近联系",
+      dataIndex: "last_contacted_at",
+      key: "last_contacted_at",
+      width: 120,
+      render: (v: string | null) => formatDate(v),
+    },
+    {
+      title: "来源",
+      dataIndex: "source",
+      key: "source",
+      width: 100,
+      sorter: true,
+      sortOrder: sortBy === "source" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "创建时间",
+      dataIndex: "created_at",
+      key: "created_at",
+      width: 120,
+      sorter: true,
+      sortOrder: sortBy === "created_at" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
+      render: (v: string) => formatDate(v),
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 190,
+      fixed: "right",
+      render: (_: unknown, r: Customer) => (
+        <Space size={6}>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => openDetailDrawer(r.id)}>查看</Button>
+          <Button size="small" icon={<PhoneOutlined />} onClick={() => openQuickFollowUp(r)}>跟进</Button>
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                { key: "order", icon: <ShoppingCartOutlined />, label: "创建销售订单" },
+                { key: "supplier", icon: <SwapOutlined />, label: "转为供应商" },
+                { type: "divider" },
+                { key: "delete", icon: <DeleteOutlined />, danger: true, label: "删除客户" },
+              ],
+              onClick: ({ key }) => {
+                if (key === "order") navigate(`/sales/orders/new?customer_id=${r.id}`);
+                if (key === "supplier") setVendCustomer(r);
+                if (key === "delete") confirmDeleteCustomer(r);
+              },
+            }}
+          >
+            <Button size="small" icon={<MoreOutlined />} />
+          </Dropdown>
         </Space>
       ),
     },
   ];
 
+  const moreActionsContent = (
+    <Space direction="vertical" size={8} style={{ width: 260 }}>
+      <Upload accept=".csv" showUploadList={false} beforeUpload={handleImport} disabled={importing}>
+        <Button style={{ width: 260 }} icon={<UploadOutlined />} loading={importing}>导入客户</Button>
+      </Upload>
+      <Button block onClick={handleTemplate}>下载导入模板</Button>
+      <Button block icon={<DownloadOutlined />} onClick={handleExport}>导出当前筛选</Button>
+      <Button block icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>疑似重复检测</Button>
+      <Button block icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>语义搜索</Button>
+      <Button block danger={alertCount > 0} loading={alertChecking} onClick={handleCheckAlerts}>
+        {alertCount > 0 ? `预警检查(${alertCount})` : "预警检查"}
+      </Button>
+      {alertCount > 0 && <Button block onClick={handleMarkAllAlertsRead}>全部预警标为已读</Button>}
+      <Divider style={{ margin: "4px 0" }} />
+      <Typography.Text type="secondary">显示列</Typography.Text>
+      <Checkbox.Group
+        options={allColKeys.map((k) => ({ label: COL_LABEL_MAP[k] || k, value: k }))}
+        value={visibleCols}
+        onChange={(vals) => setVisibleCols(vals as string[])}
+        style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 4 }}
+      />
+    </Space>
+  );
+
   return (
-    <div>
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col>
+    <CustomerModuleShell title="客户列表" subtitle="客户主数据、跟进风险与批量运营操作">
+      <style>{`
+        .customer-batch-bar {
+          position: sticky;
+          top: 8px;
+          z-index: 5;
+          margin-bottom: 12px;
+          padding: 10px 12px;
+          background: #f0f5ff;
+          border: 1px solid #adc6ff;
+          border-radius: 8px;
+        }
+        .customer-row-overdue td:first-child { border-left: 3px solid #ff4d4f; }
+        .customer-row-key td:first-child { border-left: 3px solid #52c41a; }
+      `}</style>
+
+      <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
+        <Col xs={24} sm={12} xl={6}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="客户总数" value={stats.total} prefix={<UserOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="重点客户(A)" value={levelACount} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card size="small">
+            <Statistic title="逾期跟进" value={overdueList.length} valueStyle={{ color: overdueList.length > 0 ? "#cf1322" : undefined }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card size="small">
+            <Statistic title="未读预警" value={alertCount} prefix={<BellOutlined />} valueStyle={{ color: alertCount > 0 ? "#cf1322" : undefined }} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Row gutter={[10, 10]} align="middle">
+          <Col xs={24} lg={9} xl={8}>
             <Input
-              placeholder="搜索客户名称/编码"
+              placeholder="搜索客户名称/编码/联系人/电话"
               prefix={<SearchOutlined />}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               allowClear
-              style={{ width: 240 }}
             />
           </Col>
-          <Col><Select allowClear placeholder="行业" style={{ width: 110 }} value={industry} onChange={(v) => { setIndustry(v); setPage(1); }} options={INDUSTRIES.map((v) => ({ value: v, label: v }))} /></Col>
-          <Col><Select allowClear placeholder="等级" style={{ width: 80 }} value={level} onChange={(v) => { setLevel(v); setPage(1); }} options={LEVELS.map((v) => ({ value: v, label: v }))} /></Col>
-          <Col><Select allowClear placeholder="区域" style={{ width: 100 }} value={region} onChange={(v) => { setRegion(v); setPage(1); }} options={REGIONS.map((v) => ({ value: v, label: v }))} /></Col>
-          <Col><Select allowClear placeholder="来源" style={{ width: 100 }} value={source} onChange={(v) => { setSource(v); setPage(1); }} options={SOURCES.map((v) => ({ value: v, label: v }))} /></Col>
-          <Col><Select allowClear placeholder="信用等级" style={{ width: 100 }} value={creditLevel} onChange={(v) => { setCreditLevel(v); setPage(1); }} options={LEVELS.map((v) => ({ value: v, label: v }))} /></Col>
-          <Col flex="auto" />
-          <Col>
-            <Space>
-              {selectedRowKeys.length > 0 && (
-                <>
-                  <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个客户?`} onConfirm={handleBatchDelete}>
-                    <Button danger icon={<DeleteOutlined />}>批量删除</Button>
-                  </Popconfirm>
-                  <Button icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>批量打标签</Button>
-                </>
-              )}
-              <Upload accept=".csv" showUploadList={false} beforeUpload={handleImport} disabled={importing}>
-                <Button icon={<UploadOutlined />} loading={importing}>导入</Button>
-              </Upload>
-              <Button onClick={handleTemplate}>模板</Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
-              <Button icon={<BarChartOutlined />} onClick={() => navigate("/customers/stats")}>统计</Button>
-              <Popover
-                content={
-                  <Checkbox.Group
-                    options={allColKeys.map((k) => {
-                      const labelMap: Record<string, string> = { code: "编码", name: "名称", industry: "行业", level: "等级", region: "区域", tags: "标签", owner: "负责人", contact_person: "联系人", source: "来源", created_at: "创建时间", actions: "操作" };
-                      return { label: labelMap[k] || k, value: k };
-                    })}
-                    value={visibleCols}
-                    onChange={(vals) => setVisibleCols(vals as string[])}
-                  />
-                }
-                title="显示列"
-                trigger="click"
+          <Col xs={24} lg={10} xl={11}>
+            <Segmented
+              style={{ maxWidth: "100%" }}
+              options={SCENE_OPTIONS}
+              value={scene}
+              onChange={(v) => {
+                setScene(v as SceneValue);
+                setPage(1);
+              }}
+            />
+          </Col>
+          <Col xs={24} lg={5} xl={5}>
+            <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
+              <Button
+                icon={<FilterOutlined />}
+                type={activeAdvancedFilterCount > 0 ? "primary" : "default"}
+                onClick={() => setAdvancedOpen((open) => !open)}
               >
-                <Button icon={<SettingOutlined />}>列</Button>
-              </Popover>
-              <Button icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>查重</Button>
-              <Button icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>语义搜索</Button>
-              <Button danger={alertCount > 0} loading={alertChecking} onClick={handleCheckAlerts}>
-                {alertCount > 0 ? `预警(${alertCount})` : "预警"}
+                高级筛选{activeAdvancedFilterCount > 0 ? `(${activeAdvancedFilterCount})` : ""}
+                <DownOutlined />
               </Button>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/customers/new")}>新建客户</Button>
+              <Button icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
+              <Popover content={moreActionsContent} title="更多操作" trigger="click" placement="bottomRight">
+                <Button icon={<MoreOutlined />}>更多操作</Button>
+              </Popover>
+            </Space>
+          </Col>
+        </Row>
+
+        {advancedOpen && (
+          <Row gutter={[10, 10]} style={{ marginTop: 10 }}>
+            <Col xs={12} md={6} xl={4}>
+              <Select
+                allowClear
+                placeholder="行业"
+                style={{ width: "100%" }}
+                value={industry}
+                options={INDUSTRIES.map((v) => ({ value: v, label: v }))}
+                onChange={(v) => {
+                  setIndustry(v);
+                  setPage(1);
+                }}
+              />
+            </Col>
+            <Col xs={12} md={6} xl={4}>
+              <Select
+                allowClear
+                placeholder="等级"
+                style={{ width: "100%" }}
+                value={level}
+                options={LEVELS.map((v) => ({ value: v, label: v }))}
+                onChange={(v) => {
+                  setLevel(v);
+                  setPage(1);
+                }}
+              />
+            </Col>
+            <Col xs={12} md={6} xl={4}>
+              <Select
+                allowClear
+                placeholder="区域"
+                style={{ width: "100%" }}
+                value={region}
+                options={REGIONS.map((v) => ({ value: v, label: v }))}
+                onChange={(v) => {
+                  setRegion(v);
+                  setPage(1);
+                }}
+              />
+            </Col>
+            <Col xs={12} md={6} xl={4}>
+              <Select
+                allowClear
+                placeholder="来源"
+                style={{ width: "100%" }}
+                value={source}
+                options={SOURCES.map((v) => ({ value: v, label: v }))}
+                onChange={(v) => {
+                  setSource(v);
+                  setPage(1);
+                }}
+              />
+            </Col>
+            <Col xs={12} md={6} xl={4}>
+              <Select
+                allowClear
+                placeholder="信用等级"
+                style={{ width: "100%" }}
+                value={creditLevel}
+                options={CREDIT_LEVELS.map((v) => ({ value: v, label: v }))}
+                onChange={(v) => {
+                  setCreditLevel(v);
+                  setPage(1);
+                }}
+              />
+            </Col>
+          </Row>
+        )}
+
+        <Row gutter={[10, 10]} style={{ marginTop: 8 }}>
+          <Col flex="auto">
+            <Space wrap>
+              <Typography.Text type="secondary">共 {total} 条客户</Typography.Text>
+              {topRegion && <Tag color="blue">主力区域：{topRegion.name}（{topRegion.value}）</Tag>}
+              {topIndustry && <Tag>主力行业：{topIndustry.name}（{topIndustry.value}）</Tag>}
+              <Tag>本月新增：{monthlyNewCount}</Tag>
+              {scene !== "all" && <Tag color="geekblue">场景：{SCENE_OPTIONS.find((item) => item.value === scene)?.label}</Tag>}
             </Space>
           </Col>
         </Row>
       </Card>
 
-      {overdueList.length > 0 && (
-        <Card size="small" style={{ marginBottom: 16, borderColor: "#ff4d4f" }}
-          title={<span style={{ color: "#ff4d4f" }}>跟进提醒 ({overdueList.length})</span>}
-        >
-          <div style={{ maxHeight: 160, overflow: "auto" }}>
-            {overdueList.slice(0, 10).map((o) => (
-              <Tag key={o.id} color="error" style={{ marginBottom: 4, cursor: "pointer" }}
-                onClick={() => navigate(`/customers/${o.customer_id}`)}
-              >
-                {o.customer_name}: {o.method} — 逾期 {o.overdue_days} 天 {o.owner ? `(@${o.owner})` : ""}
-              </Tag>
-            ))}
-            {overdueList.length > 10 && <div style={{ color: "#888", fontSize: 12 }}>还有 {overdueList.length - 10} 条...</div>}
-          </div>
-        </Card>
+      {selectedRowKeys.length > 0 && (
+        <div className="customer-batch-bar">
+          <Space wrap>
+            <Tag color="blue">已选 {selectedRowKeys.length} 个客户</Tag>
+            <Tag color="red">A级 {selectedA}</Tag>
+            <Tag color="orange">逾期跟进 {selectedOverdue}</Tag>
+            <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个客户?`} onConfirm={handleBatchDelete}>
+              <Button danger icon={<DeleteOutlined />}>批量删除</Button>
+            </Popconfirm>
+            <Button icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>批量打标签</Button>
+            <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
+          </Space>
+        </div>
       )}
 
-      <Table
-        rowKey="id"
-        columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
-        dataSource={data}
-        loading={loading}
-        onChange={handleTableChange}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys as number[]),
-        }}
-        pagination={{
-          current: page,
-          total,
-          pageSize,
-          pageSizeOptions: ["10", "20", "50", "100"],
-          showSizeChanger: true,
-          showTotal: (t) => `共 ${t} 条`,
-          onChange: (p, ps) => { setPage(p); setPageSize(ps); },
-        }}
-      />
+      <Card
+        size="small"
+        style={{ marginBottom: 12, borderColor: reminderCounts.overdue > 0 ? "#ff4d4f" : undefined }}
+      >
+        <Row gutter={[10, 10]} align="middle">
+          <Col flex="auto">
+            <Space wrap>
+              <Typography.Text strong style={{ color: reminderCounts.overdue > 0 ? "#ff4d4f" : undefined }}>
+                跟进提醒
+              </Typography.Text>
+              <Typography.Text type="secondary">{formatReminderRefreshTime(reminderRefreshedAt)}</Typography.Text>
+              <Segmented
+                size="small"
+                value={reminderBucket}
+                options={REMINDER_BUCKETS.map((item) => ({
+                  value: item.key,
+                  label: `${item.label} ${reminderCounts[item.key]}`,
+                }))}
+                onChange={(value) => setReminderBucket(value as ReminderBucket)}
+              />
+            </Space>
+          </Col>
+          <Col>
+            <Space size={8}>
+              <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue}>
+                刷新提醒
+              </Button>
+              <Button
+                size="small"
+                type={overdueOnly ? "primary" : "default"}
+                onClick={() => setOverdueOnly((value) => !value)}
+              >
+                {overdueOnly ? "取消逾期筛选" : "筛选逾期客户"}
+              </Button>
+              <Button
+                size="small"
+                onClick={() => {
+                  setScene("all");
+                  setQ("");
+                  setPage(1);
+                }}
+              >
+                查看全部客户
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+
+        <div style={{ marginTop: 8, maxHeight: 220, overflow: "auto" }}>
+          {visibleReminders.length === 0 ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理跟进提醒" />
+          ) : (
+            <List
+              size="small"
+              dataSource={visibleReminders.slice(0, 12)}
+              renderItem={(item) => {
+                const dueText = item.due_bucket === "overdue"
+                  ? `逾期 ${item.overdue_days} 天`
+                  : item.due_bucket === "today"
+                    ? "今日待跟进"
+                    : `${item.days_until ?? "-"} 天后`;
+                const dueColor = item.due_bucket === "overdue" ? "red" : item.due_bucket === "today" ? "orange" : "blue";
+                return (
+                  <List.Item
+                    actions={[
+                      <Button
+                        key="complete"
+                        size="small"
+                        type="link"
+                        loading={reminderActionKey === `complete-${item.id}`}
+                        onClick={() => handleCompleteReminder(item)}
+                      >
+                        完成
+                      </Button>,
+                      <Button
+                        key="postpone"
+                        size="small"
+                        type="link"
+                        loading={reminderActionKey === `postpone-${item.id}`}
+                        onClick={() => handlePostponeReminder(item)}
+                      >
+                        延期1天
+                      </Button>,
+                      <Button key="customer" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                        查看客户
+                      </Button>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={(
+                        <Space size={6} wrap>
+                          <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                            {item.customer_name}
+                          </Typography.Link>
+                          <Tag color={dueColor}>{dueText}</Tag>
+                          {item.priority && <Tag>{item.priority}</Tag>}
+                          {item.owner && <Typography.Text type="secondary">{item.owner}</Typography.Text>}
+                        </Space>
+                      )}
+                      description={`${item.method || "跟进"} | 计划 ${formatDateTime(item.planned_at)}${item.content ? ` | ${item.content}` : ""}`}
+                    />
+                  </List.Item>
+                );
+              }}
+            />
+          )}
+          {visibleReminders.length > 12 && (
+            <Typography.Text type="secondary">还有 {visibleReminders.length - 12} 条，可切换分组继续查看</Typography.Text>
+          )}
+        </div>
+      </Card>
+
+      <Card bodyStyle={{ padding: 0 }}>
+        <Table
+          rowKey="id"
+          columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+          dataSource={tableData}
+          loading={loading}
+          onChange={handleTableChange}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys as number[]),
+          }}
+          rowClassName={(record) => {
+            if (overdueCustomerIds.has(record.id)) return "customer-row-overdue";
+            if (record.level === "A") return "customer-row-key";
+            return "";
+          }}
+          scroll={{ x: "max-content" }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
+          pagination={{
+            current: page,
+            total: overdueOnly ? tableData.length : total,
+            pageSize,
+            pageSizeOptions: ["10", "20", "50", "100"],
+            showSizeChanger: true,
+            showTotal: (t) => `共 ${t} 条`,
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+        />
+      </Card>
 
       <Modal title="选择标签" open={tagModalOpen} onCancel={() => setTagModalOpen(false)} onOk={handleBatchTag}>
-        <Select mode="multiple" style={{ width: "100%" }} placeholder="选择要添加的标签" value={batchTagIds} onChange={(v) => setBatchTagIds(v)} options={tags.map((t) => ({ value: t.id, label: t.name }))} />
+        <Select
+          mode="multiple"
+          style={{ width: "100%" }}
+          placeholder="选择要添加的标签"
+          value={batchTagIds}
+          onChange={(v) => setBatchTagIds(v)}
+          options={tags.map((t) => ({ value: t.id, label: t.name }))}
+        />
       </Modal>
 
-      <Modal title="疑似重复客户" open={dupModalOpen} onCancel={() => setDupModalOpen(false)} footer={null} width={700}>
+      <Modal title="疑似重复客户" open={dupModalOpen} onCancel={() => setDupModalOpen(false)} footer={null} width={720}>
         {duplicatePairs.length === 0 ? (
           <Empty description="未发现疑似重复客户" />
         ) : (
@@ -353,21 +1306,21 @@ export default function CustomerList() {
                 ]}
               >
                 <List.Item.Meta
-                  title={
+                  title={(
                     <Space>
                       <Typography.Text>{pair.customer_a.name}</Typography.Text>
                       <Tag color="orange">相似 {(pair.similarity * 100).toFixed(0)}%</Tag>
                       <Typography.Text>{pair.customer_b.name}</Typography.Text>
                     </Space>
-                  }
-                  description={
+                  )}
+                  description={(
                     <Space size={16}>
-                      <span>📞 {pair.customer_a.phone || "-"}</span>
-                      <span>📞 {pair.customer_b.phone || "-"}</span>
-                      <span>👤 {pair.customer_a.owner || "-"}</span>
-                      <span>👤 {pair.customer_b.owner || "-"}</span>
+                      <span>电话A: {pair.customer_a.phone || "-"}</span>
+                      <span>电话B: {pair.customer_b.phone || "-"}</span>
+                      <span>负责人A: {pair.customer_a.owner || "-"}</span>
+                      <span>负责人B: {pair.customer_b.owner || "-"}</span>
                     </Space>
-                  }
+                  )}
                 />
               </List.Item>
             )}
@@ -375,16 +1328,10 @@ export default function CustomerList() {
         )}
       </Modal>
 
-      <Modal
-        title="语义搜索"
-        open={semanticOpen}
-        onCancel={() => setSemanticOpen(false)}
-        footer={null}
-        width={600}
-      >
+      <Modal title="语义搜索" open={semanticOpen} onCancel={() => setSemanticOpen(false)} footer={null} width={620}>
         <Space.Compact style={{ width: "100%", marginBottom: 16 }}>
           <Input
-            placeholder="输入自然语言描述，例如：华东地区做汽车电子的A级客户"
+            placeholder="例如：华东地区做汽车电子的A级客户"
             value={semanticQ}
             onChange={(e) => setSemanticQ(e.target.value)}
             onPressEnter={handleSemanticSearch}
@@ -398,9 +1345,23 @@ export default function CustomerList() {
           pagination={false}
           locale={{ emptyText: semanticQ && !semanticLoading ? "未找到匹配客户" : "输入关键词后搜索" }}
           columns={[
-            { title: "客户名称", dataIndex: "name", key: "name", render: (name: string, r: SimilarCustomer) => <a onClick={() => { setSemanticOpen(false); navigate(`/customers/${r.id}`); }}>{name}</a> },
+            {
+              title: "客户名称",
+              dataIndex: "name",
+              key: "name",
+              render: (name: string, r: SimilarCustomer) => (
+                <a
+                  onClick={() => {
+                    setSemanticOpen(false);
+                    navigate(`/customers/${r.id}`);
+                  }}
+                >
+                  {name}
+                </a>
+              ),
+            },
             { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <Tag>{v || "-"}</Tag> },
-            { title: "区域", dataIndex: "region", key: "region" },
+            { title: "区域", dataIndex: "region", key: "region", render: (v: string) => v || "-" },
             { title: "相似度", dataIndex: "similarity", key: "similarity", render: (v: number) => `${(v * 100).toFixed(1)}%` },
           ]}
         />
@@ -409,7 +1370,10 @@ export default function CustomerList() {
       <Modal
         title="合并客户"
         open={mergeModalOpen}
-        onCancel={() => { setMergeModalOpen(false); setMergeSource(null); }}
+        onCancel={() => {
+          setMergeModalOpen(false);
+          setMergeSource(null);
+        }}
         onOk={handleMerge}
         confirmLoading={merging}
         okText="确认合并"
@@ -420,26 +1384,140 @@ export default function CustomerList() {
             <p>确认将以下客户合并？</p>
             <Card size="small" style={{ marginBottom: 12, backgroundColor: "#fff2f0" }}>
               <Typography.Text strong delete>源客户: {mergeSource.customer_a.name}</Typography.Text>
-              <div style={{ fontSize: 12, color: "#888" }}>电话: {mergeSource.customer_a.phone || "无"} | 负责人: {mergeSource.customer_a.owner || "无"}</div>
+              <div style={{ fontSize: 12, color: "#888" }}>
+                电话: {mergeSource.customer_a.phone || "无"} | 负责人: {mergeSource.customer_a.owner || "无"}
+              </div>
             </Card>
             <Card size="small" style={{ backgroundColor: "#f6ffed" }}>
               <Typography.Text strong>目标客户: {mergeSource.customer_b.name}</Typography.Text>
-              <div style={{ fontSize: 12, color: "#888" }}>电话: {mergeSource.customer_b.phone || "无"} | 负责人: {mergeSource.customer_b.owner || "无"}</div>
+              <div style={{ fontSize: 12, color: "#888" }}>
+                电话: {mergeSource.customer_b.phone || "无"} | 负责人: {mergeSource.customer_b.owner || "无"}
+              </div>
             </Card>
             <p style={{ marginTop: 12, color: "#ff4d4f" }}>
-              合并后，源客户的所有联系人、跟进记录、标签、附件和订单将转移到目标客户，源客户将被删除。
+              合并后，源客户的联系人、跟进记录、标签、附件和订单将转移到目标客户，源客户将被删除。
             </p>
           </div>
         )}
       </Modal>
+
+      <Drawer
+        title={detailCustomer ? `客户详情 - ${detailCustomer.name}` : "客户详情"}
+        width={700}
+        placement="right"
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+      >
+        {detailLoading ? (
+          <Card loading />
+        ) : !detailCustomer ? (
+          <Empty description="暂无详情" />
+        ) : (
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Space wrap>
+              <Tag color={getLevelColor(detailCustomer.level)}>等级 {detailCustomer.level || "-"}</Tag>
+              <Tag>行业 {detailCustomer.industry || "-"}</Tag>
+              <Tag>区域 {detailCustomer.region || "-"}</Tag>
+              <Tag color={getHealthColor(detailCustomer.health_score)}>健康度 {detailCustomer.health_score ?? "-"}</Tag>
+            </Space>
+
+            <Descriptions bordered size="small" column={2}>
+              <Descriptions.Item label="客户编码">{detailCustomer.code || "-"}</Descriptions.Item>
+              <Descriptions.Item label="客户简称">{detailCustomer.short_name || "-"}</Descriptions.Item>
+              <Descriptions.Item label="负责人">{detailCustomer.owner || "-"}</Descriptions.Item>
+              <Descriptions.Item label="联系人">{detailCustomer.contact_person || "-"}</Descriptions.Item>
+              <Descriptions.Item label="电话">{detailCustomer.phone || "-"}</Descriptions.Item>
+              <Descriptions.Item label="邮箱">{detailCustomer.email || "-"}</Descriptions.Item>
+              <Descriptions.Item label="来源">{detailCustomer.source || "-"}</Descriptions.Item>
+              <Descriptions.Item label="信用等级">{detailCustomer.credit_level || "-"}</Descriptions.Item>
+              <Descriptions.Item label="创建时间">{formatDate(detailCustomer.created_at)}</Descriptions.Item>
+              <Descriptions.Item label="最近联系">{formatDate(detailCustomer.last_contacted_at)}</Descriptions.Item>
+              <Descriptions.Item label="地址" span={2}>{detailCustomer.address || "-"}</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{detailCustomer.notes || "-"}</Descriptions.Item>
+            </Descriptions>
+
+            <Divider style={{ margin: "4px 0" }}>经营指标</Divider>
+            {!detailStats ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无指标数据" />
+            ) : (
+              <Row gutter={[10, 10]}>
+                <Col span={8}><Card size="small"><Statistic title="订单数" value={detailStats.order_count} /></Card></Col>
+                <Col span={8}><Card size="small"><Statistic title="总营收" value={detailStats.total_revenue} precision={2} /></Card></Col>
+                <Col span={8}><Card size="small"><Statistic title="信用占用%" value={detailStats.credit_usage_pct} precision={1} /></Card></Col>
+              </Row>
+            )}
+
+            <Divider style={{ margin: "4px 0" }}>快速动作</Divider>
+            <Space wrap>
+              <Button icon={<EyeOutlined />} onClick={() => navigate(`/customers/${detailCustomer.id}`)}>完整详情</Button>
+              <Button icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${detailCustomer.id}`)}>建订单</Button>
+              <Button icon={<PhoneOutlined />} onClick={() => navigate(`/customers/${detailCustomer.id}?tab=followups`)}>建跟进</Button>
+              <Button icon={<SwapOutlined />} onClick={() => setVendCustomer(detailCustomer)}>转供应商</Button>
+            </Space>
+          </Space>
+        )}
+      </Drawer>
+
+      <Drawer
+        title={quickFollowUpCustomer ? `新增跟进 - ${quickFollowUpCustomer.name}` : "新增跟进"}
+        width={520}
+        open={!!quickFollowUpCustomer}
+        onClose={() => setQuickFollowUpCustomer(null)}
+        extra={(
+          <Space>
+            <Button onClick={() => setQuickFollowUpCustomer(null)}>取消</Button>
+            <Button type="primary" loading={quickFollowUpSaving} onClick={handleQuickFollowUpSubmit}>保存</Button>
+          </Space>
+        )}
+      >
+        <Form
+          form={quickFollowUpForm}
+          layout="vertical"
+          initialValues={{ method: "phone", status: "planned", priority: "medium" }}
+          onValuesChange={(changed) => {
+            if (changed.status === "completed" && !quickFollowUpForm.getFieldValue("completed_at")) {
+              quickFollowUpForm.setFieldValue("completed_at", dayjs());
+            }
+          }}
+        >
+          <Form.Item name="method" label="跟进方式" rules={[{ required: true, message: "请选择跟进方式" }]}>
+            <Select options={FOLLOW_UP_METHOD_OPTIONS} />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+            <Select options={FOLLOW_UP_STATUS_OPTIONS} />
+          </Form.Item>
+          <Form.Item name="priority" label="优先级">
+            <Select options={FOLLOW_UP_PRIORITY_OPTIONS} />
+          </Form.Item>
+          <Form.Item name="planned_at" label="计划时间">
+            <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="completed_at" label="完成时间">
+            <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="assigned_to" label="负责人">
+            <Input placeholder="客户负责人或跟进人" />
+          </Form.Item>
+          <Form.Item name="content" label="跟进内容">
+            <Input.TextArea rows={4} placeholder="记录计划、沟通重点或客户需求" />
+          </Form.Item>
+          <Form.Item name="result" label="跟进结果">
+            <Input.TextArea rows={3} placeholder="已完成时填写结果" />
+          </Form.Item>
+        </Form>
+      </Drawer>
+
       {vendCustomer && (
         <VendAsSupplierModal
           customer={vendCustomer}
           open={!!vendCustomer}
           onCancel={() => setVendCustomer(null)}
-          onSuccess={() => { setVendCustomer(null); fetch(); }}
+          onSuccess={() => {
+            setVendCustomer(null);
+            fetch();
+          }}
         />
       )}
-    </div>
+    </CustomerModuleShell>
   );
 }

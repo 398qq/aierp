@@ -437,6 +437,9 @@ async def recent_activity(limit: int = Query(20, le=100), db: AsyncSession = Dep
 
 # --- Overdue Follow-ups (reminders) ---
 
+TERMINAL_FOLLOWUP_STATUSES = ("completed", "cancelled")
+
+
 @router.get("/overdue-followups")
 async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
@@ -444,8 +447,12 @@ async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = De
         select(CustomerFollowUp, Customer).join(Customer, CustomerFollowUp.customer_id == Customer.id).where(
             CustomerFollowUp.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
+            CustomerFollowUp.planned_at.is_not(None),
             CustomerFollowUp.planned_at < now,
-            CustomerFollowUp.status != "completed",
+            or_(
+                CustomerFollowUp.status.is_(None),
+                CustomerFollowUp.status.not_in(TERMINAL_FOLLOWUP_STATUSES),
+            ),
         ).order_by(CustomerFollowUp.planned_at.asc()).limit(50)
     )).all()
 
@@ -467,6 +474,70 @@ async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = De
 
     result.sort(key=lambda x: -x["overdue_days"])
     return ok({"total": len(result), "items": result})
+
+
+@router.get("/follow-up-reminders")
+async def follow_up_reminders(
+    days_ahead: int = Query(default=14, ge=0, le=90),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    window_end = now + timedelta(days=days_ahead)
+    rows = (await db.execute(
+        select(CustomerFollowUp, Customer).join(Customer, CustomerFollowUp.customer_id == Customer.id).where(
+            CustomerFollowUp.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+            CustomerFollowUp.planned_at.is_not(None),
+            CustomerFollowUp.planned_at <= window_end,
+            or_(
+                CustomerFollowUp.status.is_(None),
+                CustomerFollowUp.status.not_in(TERMINAL_FOLLOWUP_STATUSES),
+            ),
+        ).order_by(CustomerFollowUp.planned_at.asc()).limit(100)
+    )).all()
+
+    items = []
+    for fu, cust in rows:
+        planned_at = fu.planned_at.replace(tzinfo=timezone.utc)
+        planned_date = planned_at.date()
+        if planned_date < today:
+            due_bucket = "overdue"
+            overdue_days = (today - planned_date).days
+            days_until = None
+        elif planned_date == today:
+            due_bucket = "today"
+            overdue_days = 0
+            days_until = 0
+        else:
+            due_bucket = "upcoming"
+            overdue_days = 0
+            days_until = (planned_date - today).days
+
+        items.append({
+            "id": fu.id,
+            "customer_id": cust.id,
+            "customer_name": cust.name,
+            "owner": cust.owner,
+            "method": fu.method,
+            "priority": fu.priority,
+            "planned_at": str(fu.planned_at),
+            "status": fu.status,
+            "content": fu.content,
+            "overdue_days": overdue_days,
+            "days_until": days_until,
+            "due_bucket": due_bucket,
+        })
+
+    bucket_order = {"overdue": 0, "today": 1, "upcoming": 2}
+    items.sort(key=lambda x: (bucket_order[x["due_bucket"]], x["planned_at"]))
+    counts = {
+        "overdue": sum(1 for item in items if item["due_bucket"] == "overdue"),
+        "today": sum(1 for item in items if item["due_bucket"] == "today"),
+        "upcoming": sum(1 for item in items if item["due_bucket"] == "upcoming"),
+    }
+    return ok({"total": len(items), "counts": counts, "items": items})
 
 
 # --- Customer Merge ---
@@ -1310,8 +1381,8 @@ async def create_followup(customer_id: int, body: FollowUpCreate, db: AsyncSessi
         for date_field in ("planned_at", "completed_at"):
             if data.get(date_field):
                 data[date_field] = datetime.fromisoformat(data[date_field])
-        if not data.get("planned_at"):
-            data["planned_at"] = datetime.now(timezone.utc)
+        if data.get("completed_at") and not data.get("status"):
+            data["status"] = "completed"
         followup = CustomerFollowUp(customer_id=customer_id, **data)
         db.add(followup)
         with db.no_autoflush:
@@ -1346,6 +1417,8 @@ async def update_followup(customer_id: int, followup_id: int, body: FollowUpUpda
             del data[date_field]  # don't overwrite with None if NOT NULL
         elif data.get(date_field):
             data[date_field] = datetime.fromisoformat(data[date_field])
+    if data.get("completed_at") and not data.get("status"):
+        data["status"] = "completed"
     for key, val in data.items():
         setattr(followup, key, val)
     await db.flush()

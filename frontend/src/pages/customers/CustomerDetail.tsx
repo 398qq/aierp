@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, message, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
+import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
 import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
@@ -11,8 +11,22 @@ import VendAsSupplierModal from "./VendAsSupplierModal";
 import QuotationHistoryPanel from "./QuotationHistoryPanel";
 import dayjs from "dayjs";
 import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, Visit } from "../../types";
+import {
+  CustomerHealthBadge,
+  FOLLOW_UP_METHOD_OPTIONS,
+  FOLLOW_UP_PRIORITY_OPTIONS,
+  FOLLOW_UP_STATUS_OPTIONS,
+  FollowUpMethodTag,
+  FollowUpPriorityTag,
+  FollowUpStatusTag,
+  getLevelColor,
+} from "./customerUi";
+
+const formatShortDateTime = (value?: string | null) => value ? value.slice(0, 16).replace("T", " ") : "-";
+const isOpenFollowUp = (item: FollowUp) => item.status !== "completed" && item.status !== "cancelled";
 
 export default function CustomerDetail() {
+  const { message } = App.useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -34,6 +48,12 @@ export default function CustomerDetail() {
   const [vendModalOpen, setVendModalOpen] = useState(false);
 
   const customerId = Number(id);
+  const nextOpenFollowUp = useMemo(
+    () => followUps
+      .filter((item) => isOpenFollowUp(item))
+      .sort((a, b) => new Date(a.planned_at || a.created_at).getTime() - new Date(b.planned_at || b.created_at).getTime())[0],
+    [followUps],
+  );
 
   const load = async () => {
     setLoading(true);
@@ -87,19 +107,6 @@ export default function CustomerDetail() {
 
   return (
     <div>
-      <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")} style={{ marginBottom: 16 }}>
-        返回列表
-      </Button>
-      <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs} style={{ marginBottom: 16, marginLeft: 8 }}>
-        AI 产品推荐
-      </Button>
-      <Button icon={<SwapOutlined />} onClick={() => setVendModalOpen(true)} style={{ marginBottom: 16, marginLeft: 8 }}>
-        转为供应商
-      </Button>
-      <Button icon={<PieChartOutlined />} onClick={() => navigate(`/customers/${customerId}/360`)} style={{ marginBottom: 16, marginLeft: 8 }}>
-        AI 360
-      </Button>
-
       {loading && <Spin style={{ display: "block", margin: "100px auto" }} />}
       {error && <Alert type="error" message={error} />}
       {!loading && !error && !customer && <Empty description="未找到客户" />}
@@ -107,37 +114,71 @@ export default function CustomerDetail() {
           <>
             <Card
               style={{ marginBottom: 16 }}
-              title={customer.name}
-              extra={
-                <Space>
+              title={(
+                <Space wrap>
+                  <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")}>返回列表</Button>
+                  <Typography.Title level={4} style={{ margin: 0 }}>{customer.name}</Typography.Title>
+                  <Tag color={getLevelColor(customer.level)}>等级 {customer.level || "-"}</Tag>
+                  <CustomerHealthBadge value={customer.health_score} />
+                </Space>
+              )}
+              extra={(
+                <Space wrap>
                   {customerTags.map((t) => (
                     <Tag key={t.id} color={t.color || "blue"} closable onClose={() => handleUnlinkTag(t.id)}>{t.name}</Tag>
                   ))}
                   <Button size="small" icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>标签</Button>
                   <Button icon={<EditOutlined />} onClick={() => setEditModalOpen(true)}>编辑</Button>
+                  <Button type="primary" icon={<PhoneOutlined />} onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}>建跟进</Button>
+                  <Button icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${customerId}`)}>建订单</Button>
+                  <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs}>AI 产品推荐</Button>
+                  <Button icon={<PieChartOutlined />} onClick={() => navigate(`/customers/${customerId}/360`)}>AI 360</Button>
+                  <Button icon={<SwapOutlined />} onClick={() => setVendModalOpen(true)}>转为供应商</Button>
                 </Space>
-              }
+              )}
             >
-              <Descriptions column={3} size="small">
+              <Descriptions column={4} size="small">
                 <Descriptions.Item label="编码">{customer.code || "-"}</Descriptions.Item>
                 <Descriptions.Item label="行业">{customer.industry || "-"}</Descriptions.Item>
-                <Descriptions.Item label="等级"><Tag color={customer.level === "A" ? "red" : customer.level === "B" ? "orange" : "default"}>{customer.level}</Tag></Descriptions.Item>
                 <Descriptions.Item label="区域">{customer.region || "-"}</Descriptions.Item>
+                <Descriptions.Item label="负责人">{customer.owner || "-"}</Descriptions.Item>
                 <Descriptions.Item label="来源">{customer.source || "-"}</Descriptions.Item>
                 <Descriptions.Item label="类型">{customer.customer_type || "-"}</Descriptions.Item>
                 <Descriptions.Item label="联系人">{customer.contact_person || "-"}</Descriptions.Item>
                 <Descriptions.Item label="电话">{customer.phone || "-"}</Descriptions.Item>
                 <Descriptions.Item label="邮箱">{customer.email || "-"}</Descriptions.Item>
                 <Descriptions.Item label="信用等级">{customer.credit_level || "-"}</Descriptions.Item>
-                <Descriptions.Item label="最近联系">{customer.last_contacted_at || "-"}</Descriptions.Item>
-                <Descriptions.Item label="地址" span={3}>{customer.address || "-"}</Descriptions.Item>
-                <Descriptions.Item label="备注" span={3}>{customer.notes || "-"}</Descriptions.Item>
+                <Descriptions.Item label="最近联系">{formatShortDateTime(customer.last_contacted_at)}</Descriptions.Item>
+                <Descriptions.Item label="下一次跟进">
+                  {nextOpenFollowUp ? (
+                    <Space size={4}>
+                      <FollowUpStatusTag status={nextOpenFollowUp.status} />
+                      <span>{formatShortDateTime(nextOpenFollowUp.planned_at)}</span>
+                    </Space>
+                  ) : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="地址" span={4}>{customer.address || "-"}</Descriptions.Item>
+                <Descriptions.Item label="备注" span={4}>{customer.notes || "-"}</Descriptions.Item>
               </Descriptions>
             </Card>
 
             <Tabs
-              defaultActiveKey="ai"
+              defaultActiveKey="overview"
               items={[
+                {
+                  key: "overview",
+                  label: "概览",
+                  children: (
+                    <CustomerOverview
+                      customerId={customerId}
+                      contacts={contacts}
+                      followUps={followUps}
+                      nextOpenFollowUp={nextOpenFollowUp}
+                      onNewFollowUp={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}
+                      onOpenAllFollowUps={() => navigate(`/customers/${customerId}/follow-ups`)}
+                    />
+                  ),
+                },
                 {
                   key: "profile",
                   label: "客户画像",
@@ -208,10 +249,10 @@ export default function CustomerDetail() {
                           ]}
                         >
                           <Descriptions column={3} size="small">
-                            <Descriptions.Item label="方式"><Tag>{f.method}</Tag></Descriptions.Item>
-                            <Descriptions.Item label="状态"><Tag color={f.status === "completed" ? "green" : "processing"}>{f.status}</Tag></Descriptions.Item>
-                            <Descriptions.Item label="优先级">{f.priority && <Tag color={f.priority === "high" ? "red" : f.priority === "medium" ? "orange" : "default"}>{f.priority}</Tag>}</Descriptions.Item>
-                            <Descriptions.Item label="计划时间">{f.planned_at || "-"}</Descriptions.Item>
+                            <Descriptions.Item label="方式"><FollowUpMethodTag method={f.method} /></Descriptions.Item>
+                            <Descriptions.Item label="状态"><FollowUpStatusTag status={f.status} /></Descriptions.Item>
+                            <Descriptions.Item label="优先级"><FollowUpPriorityTag priority={f.priority} /></Descriptions.Item>
+                            <Descriptions.Item label="计划时间">{formatShortDateTime(f.planned_at)}</Descriptions.Item>
                             <Descriptions.Item label="负责人">{f.assigned_to || "-"}</Descriptions.Item>
                           </Descriptions>
                           {f.content && <p style={{ marginTop: 8 }}>{f.content}</p>}
@@ -295,6 +336,97 @@ export default function CustomerDetail() {
   );
 }
 
+function CustomerOverview({
+  customerId,
+  contacts,
+  followUps,
+  nextOpenFollowUp,
+  onNewFollowUp,
+  onOpenAllFollowUps,
+}: {
+  customerId: number;
+  contacts: Contact[];
+  followUps: FollowUp[];
+  nextOpenFollowUp?: FollowUp;
+  onNewFollowUp: () => void;
+  onOpenAllFollowUps: () => void;
+}) {
+  const recentFollowUps = followUps.slice(0, 5);
+  const openFollowUps = followUps.filter(isOpenFollowUp);
+  const primaryContact = contacts.find((item) => item.is_primary) || contacts[0];
+
+  return (
+    <Row gutter={[16, 16]}>
+      <Col xs={24} lg={16}>
+        <CustomerProfile customerId={customerId} />
+      </Col>
+      <Col xs={24} lg={8}>
+        <Card size="small" title="下一步动作">
+          <Space direction="vertical" size={10} style={{ width: "100%" }}>
+            {nextOpenFollowUp ? (
+              <div style={{ border: "1px solid #f0f0f0", borderRadius: 6, padding: 10 }}>
+                <Space direction="vertical" size={4}>
+                  <Space wrap>
+                    <FollowUpStatusTag status={nextOpenFollowUp.status} />
+                    <FollowUpMethodTag method={nextOpenFollowUp.method} />
+                    <FollowUpPriorityTag priority={nextOpenFollowUp.priority} />
+                  </Space>
+                  <Typography.Text strong>{formatShortDateTime(nextOpenFollowUp.planned_at)}</Typography.Text>
+                  <Typography.Text type="secondary">{nextOpenFollowUp.content || "暂无跟进内容"}</Typography.Text>
+                </Space>
+              </div>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理跟进" />
+            )}
+            <Space wrap>
+              <Button type="primary" icon={<PhoneOutlined />} onClick={onNewFollowUp}>建跟进</Button>
+              <Button onClick={onOpenAllFollowUps}>查看全部跟进</Button>
+            </Space>
+          </Space>
+        </Card>
+        <Card size="small" title="联系人" style={{ marginTop: 16 }}>
+          {primaryContact ? (
+            <Descriptions size="small" column={1}>
+              <Descriptions.Item label="姓名">{primaryContact.name}</Descriptions.Item>
+              <Descriptions.Item label="职位">{primaryContact.title || "-"}</Descriptions.Item>
+              <Descriptions.Item label="电话">{primaryContact.phone || "-"}</Descriptions.Item>
+              <Descriptions.Item label="邮箱">{primaryContact.email || "-"}</Descriptions.Item>
+            </Descriptions>
+          ) : (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无联系人" />
+          )}
+        </Card>
+      </Col>
+      <Col xs={24}>
+        <Card size="small" title={`最近跟进 (${openFollowUps.length} 未完成)`}>
+          {recentFollowUps.length === 0 ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" />
+          ) : (
+            <List
+              size="small"
+              dataSource={recentFollowUps}
+              renderItem={(item) => (
+                <List.Item>
+                  <List.Item.Meta
+                    title={(
+                      <Space wrap>
+                        <FollowUpStatusTag status={item.status} />
+                        <FollowUpMethodTag method={item.method} />
+                        <span>{formatShortDateTime(item.planned_at)}</span>
+                      </Space>
+                    )}
+                    description={item.content || item.result || "-"}
+                  />
+                </List.Item>
+              )}
+            />
+          )}
+        </Card>
+      </Col>
+    </Row>
+  );
+}
+
 // --- Timeline component ---
 
 function CustomerTimeline({ customerId }: { customerId: number }) {
@@ -333,6 +465,7 @@ function CustomerTimeline({ customerId }: { customerId: number }) {
 // --- Edit Customer Modal ---
 
 function EditCustomerModal({ open, customer, onClose, onUpdated }: { open: boolean; customer: Customer; onClose: () => void; onUpdated: () => void }) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -355,6 +488,7 @@ function EditCustomerModal({ open, customer, onClose, onUpdated }: { open: boole
 // --- Contact Form Modal (create + edit) ---
 
 function ContactFormModal({ open, customerId, contact, onClose, onSaved }: { open: boolean; customerId: number; contact: Contact | null; onClose: () => void; onSaved: () => void }) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -400,12 +534,19 @@ function ContactFormModal({ open, customerId, contact, onClose, onSaved }: { ope
 // --- FollowUp Form Modal (create + edit) ---
 
 function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { open: boolean; customerId: number; followUp: FollowUp | null; onClose: () => void; onSaved: () => void }) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
-      if (followUp) form.setFieldsValue(followUp);
+      if (followUp) {
+        form.setFieldsValue({
+          ...followUp,
+          planned_at: followUp.planned_at ? dayjs(followUp.planned_at) : null,
+          completed_at: followUp.completed_at ? dayjs(followUp.completed_at) : null,
+        });
+      }
       else form.resetFields();
     }
   }, [open, followUp, form]);
@@ -413,11 +554,25 @@ function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { o
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
+      if (values.status === "planned" && !values.planned_at) {
+        message.warning("计划中的跟进必须填写计划时间");
+        setLoading(false);
+        return;
+      }
+      const submitData = {
+        ...values,
+        planned_at: values.planned_at ? (values.planned_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss") : null,
+        completed_at: values.completed_at
+          ? (values.completed_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss")
+          : values.status === "completed"
+            ? dayjs().format("YYYY-MM-DD HH:mm:ss")
+            : null,
+      };
       if (followUp) {
-        await updateFollowUp(customerId, followUp.id, values);
+        await updateFollowUp(customerId, followUp.id, submitData);
         message.success("跟进记录更新成功");
       } else {
-        await createFollowUp(customerId, values);
+        await createFollowUp(customerId, submitData);
         message.success("跟进记录新增成功");
       }
       form.resetFields();
@@ -427,25 +582,30 @@ function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { o
 
   return (
     <Modal title={followUp ? "编辑跟进记录" : "新增跟进记录"} open={open} onCancel={onClose} onOk={() => form.submit()} confirmLoading={loading}>
-      <Form form={form} layout="vertical" onFinish={onFinish}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        initialValues={{ status: "planned", priority: "medium" }}
+        onValuesChange={(changed) => {
+          if (changed.status === "completed" && !form.getFieldValue("completed_at")) {
+            form.setFieldValue("completed_at", dayjs());
+          }
+        }}
+      >
         <Form.Item name="method" label="跟进方式">
-          <Select allowClear placeholder="选择方式" options={[
-            { value: "call", label: "电话" }, { value: "email", label: "邮件" },
-            { value: "visit", label: "拜访" }, { value: "wechat", label: "微信" },
-          ]} />
+          <Select allowClear placeholder="选择方式" options={FOLLOW_UP_METHOD_OPTIONS} />
         </Form.Item>
         <Form.Item name="content" label="跟进内容"><Input.TextArea rows={4} /></Form.Item>
         <Form.Item name="result" label="跟进结果"><Input.TextArea rows={2} /></Form.Item>
         <Form.Item name="status" label="状态">
-          <Select allowClear placeholder="选择状态" options={[
-            { value: "pending", label: "待跟进" }, { value: "in_progress", label: "进行中" }, { value: "completed", label: "已完成" },
-          ]} />
+          <Select allowClear placeholder="选择状态" options={FOLLOW_UP_STATUS_OPTIONS} />
         </Form.Item>
         <Form.Item name="priority" label="优先级">
-          <Select allowClear placeholder="选择优先级" options={[
-            { value: "high", label: "高" }, { value: "medium", label: "中" }, { value: "low", label: "低" },
-          ]} />
+          <Select allowClear placeholder="选择优先级" options={FOLLOW_UP_PRIORITY_OPTIONS} />
         </Form.Item>
+        <Form.Item name="planned_at" label="计划时间"><DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="completed_at" label="完成时间"><DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} /></Form.Item>
         <Form.Item name="assigned_to" label="负责人"><Input /></Form.Item>
       </Form>
     </Modal>
@@ -620,6 +780,7 @@ function ChangeLogPanel({ customerId }: { customerId: number }) {
 // --- Group Panel ---
 
 function GroupPanel({ customerId, customerName }: { customerId: number; customerName: string }) {
+  const { message } = App.useApp();
   const [children, setChildren] = useState<Customer[]>([]);
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -730,6 +891,7 @@ function SimilarCustomersPanel({ customerId }: { customerId: number }) {
 // --- Visit Panel ---
 
 function VisitPanel({ customerId }: { customerId: number }) {
+  const { message } = App.useApp();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);

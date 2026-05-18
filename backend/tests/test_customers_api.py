@@ -1,4 +1,6 @@
 """Customer API tests."""
+from datetime import datetime, timedelta, timezone
+
 from httpx import AsyncClient
 
 
@@ -208,6 +210,75 @@ class TestCustomerStats:
         resp = await async_client.get("/api/v1/customers/overdue-followups", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
+
+    async def test_overdue_followups_only_include_scheduled_open_items(self, async_client: AsyncClient, auth_headers: dict):
+        cust = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "跟进提醒客户", "type": "终端客户"},
+        )
+        cid = cust.json()["data"]["id"]
+
+        unscheduled = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={"method": "phone", "status": "planned", "content": "无计划时间"},
+        )
+        assert unscheduled.status_code == 201
+
+        past_time = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        scheduled = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={"method": "phone", "status": "planned", "planned_at": past_time},
+        )
+        scheduled_id = scheduled.json()["data"]["id"]
+
+        overdue = await async_client.get("/api/v1/customers/overdue-followups", headers=auth_headers)
+        overdue_ids = {item["id"] for item in overdue.json()["data"]["items"]}
+        assert scheduled_id in overdue_ids
+        assert unscheduled.json()["data"]["id"] not in overdue_ids
+
+        await async_client.put(
+            f"/api/v1/customers/{cid}/follow-ups/{scheduled_id}",
+            headers=auth_headers,
+            json={"status": "completed"},
+        )
+        overdue_after_complete = await async_client.get("/api/v1/customers/overdue-followups", headers=auth_headers)
+        overdue_ids_after_complete = {item["id"] for item in overdue_after_complete.json()["data"]["items"]}
+        assert scheduled_id not in overdue_ids_after_complete
+
+    async def test_follow_up_reminders_group_by_due_bucket(self, async_client: AsyncClient, auth_headers: dict):
+        cust = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "提醒分组客户", "type": "终端客户"},
+        )
+        cid = cust.json()["data"]["id"]
+        now = datetime.now(timezone.utc)
+
+        past = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={"method": "phone", "status": "planned", "planned_at": (now - timedelta(days=2)).isoformat()},
+        )
+        today = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={"method": "email", "status": "planned", "planned_at": now.isoformat()},
+        )
+        upcoming = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={"method": "visit", "status": "planned", "planned_at": (now + timedelta(days=3)).isoformat()},
+        )
+
+        resp = await async_client.get("/api/v1/customers/follow-up-reminders", headers=auth_headers)
+        assert resp.status_code == 200
+        items_by_id = {item["id"]: item for item in resp.json()["data"]["items"]}
+        assert items_by_id[past.json()["data"]["id"]]["due_bucket"] == "overdue"
+        assert items_by_id[today.json()["data"]["id"]]["due_bucket"] == "today"
+        assert items_by_id[upcoming.json()["data"]["id"]]["due_bucket"] == "upcoming"
 
     async def test_customer_alerts(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get("/api/v1/customers/alerts", headers=auth_headers)
