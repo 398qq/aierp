@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Form, Input, message } from "antd";
+import { Form, Input, App as AntdApp } from "antd";
 import { useAuthStore } from "../../store/auth";
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const { message } = AntdApp.useApp();
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
 
@@ -14,8 +15,8 @@ export default function Login() {
       await login(values.username, values.password);
       message.success("登录成功");
       navigate("/");
-    } catch {
-      message.error("用户名或密码错误");
+    } catch (error: any) {
+      message.error(error?.response?.data?.msg || error?.message || "用户名或密码错误");
     } finally {
       setLoading(false);
     }
