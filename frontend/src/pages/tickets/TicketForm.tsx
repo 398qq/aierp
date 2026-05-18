@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, Button, message, Spin } from "antd";
 import { getTicket, createTicket, updateTicket } from "../../api";
 import { getCustomers } from "../../api";
-import type { Ticket } from "../../types";
+import type { Customer, Ticket } from "../../types";
 
 const STATUS_OPTIONS = [
   { value: "open", label: "待处理" },
@@ -38,7 +38,7 @@ export default function TicketForm() {
   useEffect(() => {
     getCustomers({ page: 1, page_size: 200 }).then(r => {
       const list = r.data.data?.list || [];
-      setCustomers(list.map((c: any) => ({ value: c.id, label: c.name })));
+      setCustomers(list.map((c: Customer) => ({ value: c.id, label: c.name })));
     }).catch(() => {});
   }, []);
 

@@ -127,6 +127,88 @@ class TestProductsAPI:
         assert data["data"]["name"] == "Bare Minimum"
         assert data["data"]["id"] > 0
 
+    async def test_brand_stats_summary_and_product_count(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        db_session,
+    ):
+        """Brand stats summary route should not be swallowed by /brands/{brand_id}."""
+        from app.models.product import Product
+
+        brand_resp = await async_client.post(
+            "/api/v1/brands/",
+            headers=auth_headers,
+            json={
+                "name": "Risky Brand",
+                "status": "active",
+                "level": "A",
+                "brand_type": "agency",
+                "lifecycle_stage": "eol",
+                "risk_level": "high",
+                "risk_score": 88,
+                "authorization_status": "authorized",
+                "is_automotive": True,
+            },
+        )
+        assert brand_resp.status_code == 200
+        brand_id = brand_resp.json()["data"]["id"]
+
+        db_session.add(Product(name="Brand Product", sku="BRAND-PROD", brand_id=brand_id))
+        await db_session.flush()
+
+        list_resp = await async_client.get("/api/v1/brands/", headers=auth_headers)
+        assert list_resp.status_code == 200
+        brands = list_resp.json()["data"]["list"]
+        assert brands[0]["product_count"] == 1
+
+        stats_resp = await async_client.get("/api/v1/brands/stats/summary", headers=auth_headers)
+        assert stats_resp.status_code == 200
+        stats = stats_resp.json()["data"]
+        assert stats["total"] == 1
+        assert stats["eol_nrnd_count"] == 1
+        assert stats["automotive_count"] == 1
+        assert stats["high_risk_count"] == 1
+        assert stats["by_status"] == [{"status": "active", "count": 1}]
+        assert stats["top_risk_brands"][0]["id"] == brand_id
+
+    async def test_brand_batch_update_and_delete_contract(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+    ):
+        brand_resp = await async_client.post(
+            "/api/v1/brands/",
+            headers=auth_headers,
+            json={"name": "Batch Brand", "status": "active", "level": "C"},
+        )
+        brand_id = brand_resp.json()["data"]["id"]
+
+        update_resp = await async_client.patch(
+            "/api/v1/brands/batch",
+            headers=auth_headers,
+            json={"ids": [brand_id], "updates": {"status": "inactive", "level": "B"}},
+        )
+        assert update_resp.status_code == 200
+        update_data = update_resp.json()["data"]
+        assert update_data["updated"] == 1
+        assert update_data["fields"] == ["level", "status"]
+
+        get_resp = await async_client.get(f"/api/v1/brands/{brand_id}", headers=auth_headers)
+        assert get_resp.json()["data"]["status"] == "inactive"
+        assert get_resp.json()["data"]["level"] == "B"
+
+        delete_resp = await async_client.post(
+            "/api/v1/brands/batch-delete",
+            headers=auth_headers,
+            json={"ids": [brand_id]},
+        )
+        assert delete_resp.status_code == 200
+        assert delete_resp.json()["data"]["deleted"] == 1
+
+        missing_resp = await async_client.get(f"/api/v1/brands/{brand_id}", headers=auth_headers)
+        assert missing_resp.json()["code"] == 404
+
     @patch("app.services.embedding_pipeline.after_product_save")
     async def test_list_products_filter_in_stock(self, mock_embed, async_client: AsyncClient, auth_headers: dict, db_session):
         """Filter by in_stock returns only products with positive available inventory."""

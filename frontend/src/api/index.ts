@@ -1,7 +1,7 @@
 import client from "./client";
 import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
-  ChurnRisk, Contract, Customer, Customer360, CustomerLog, CustomerProductMatch, CustomerStats,
+  ChurnRisk, Contract, Customer, Customer360, CustomerAIStats, CustomerLog, CustomerProductMatch, CustomerStats,
   DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
   FollowUp,
   Global360, GroupStats,
@@ -89,6 +89,14 @@ export const getCustomerStats = (customerId: number) =>
 
 export const getDashboardStats = () =>
   client.get<APIResponse<DashboardStats>>("/customers/stats");
+
+export const getCustomerAIStats = () =>
+  client.get<APIResponse<CustomerAIStats>>("/customers/ai-stats");
+
+export const batchScoreAI = (ids?: number[]) =>
+  client.post<APIResponse<{ scored: number; errors: number; total: number }>>(
+    "/customers/batch-score-ai", ids ? { ids } : {}
+  );
 
 export const getOverdueFollowUps = () =>
   client.get<APIResponse<{ total: number; items: OverdueFollowUp[] }>>("/customers/overdue-followups");
@@ -355,6 +363,20 @@ export const getBrandPriceTrends = (brandId: number) =>
 
 export const autoCompleteBrand = (brandId: number) =>
   client.post<APIResponse<{filled: Record<string, string>; message: string}>>(`/ai/brands/${brandId}/auto-complete`);
+
+export const getBrandStats = () =>
+  client.get<APIResponse<Record<string, unknown>>>("/brands/stats/summary");
+
+export const batchUpdateBrands = (ids: number[], updates: Record<string, unknown>) =>
+  client.patch<APIResponse<{updated: number; fields: string[]}>>("/brands/batch", { ids, updates });
+
+export const batchDeleteBrands = (ids: number[]) =>
+  client.post<APIResponse<{deleted: number}>>("/brands/batch-delete", { ids });
+
+export const getEolAlerts = (urgency?: string) =>
+  client.get<APIResponse<{total_alerts: number; critical_count: number; warning_count: number; alerts: {brand_id: number; brand_name: string; lifecycle_stage: string; stage_label: string; severity: string; affected_products: number; sales_exposure: number; alternative_brands: string[]; recommended_action: string}[]}>>(
+    `/ai/brands/eol-alerts${urgency ? `?urgency_threshold=${urgency}` : ""}`
+  );
 
 // Warehouses & Inventory
 export const getWarehouses = () =>

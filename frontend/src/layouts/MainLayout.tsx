@@ -24,6 +24,7 @@ import {
   SwapOutlined,
   UploadOutlined,
   IssuesCloseOutlined,
+  HeartOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 import { getUnreadCount, naturalLanguageQuery } from "../api";
@@ -104,6 +105,7 @@ export default function MainLayout() {
       children: [
         { key: "/customers", icon: <TeamOutlined />, label: "客户列表" },
         { key: "/customers/segments", icon: <PieChartOutlined />, label: "客户分群" },
+        { key: "/customers/intelligence", icon: <HeartOutlined />, label: "AI智能分析" },
       ],
     },
     {
