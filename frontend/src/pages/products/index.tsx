@@ -1,11 +1,98 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, Tag, message, Modal, Form, Select, Popconfirm, Card, Row, Col, Popover, Checkbox, Tooltip } from "antd";
-import { PlusOutlined, SearchOutlined, ThunderboltOutlined, FileTextOutlined, EditOutlined, DeleteOutlined, SettingOutlined, DownloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Descriptions,
+  Divider,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  List,
+  Modal,
+  Popconfirm,
+  Popover,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Tooltip,
+  message,
+} from "antd";
+import {
+  CheckCircleOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  InboxOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SaveOutlined,
+  SearchOutlined,
+  SettingOutlined,
+  StopOutlined,
+  ThunderboltOutlined,
+  UploadOutlined,
+  WarningOutlined,
+} from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { getProducts, createProduct, updateProduct, deleteProduct, getBrands, aiParseProduct, aiParseBom, batchDeleteProducts, batchUpdateProducts, importProducts, aiSearchProducts } from "../../api";
-import type { Product, Brand } from "../../types";
+import {
+  aiParseBom,
+  aiParseProduct,
+  aiSearchProducts,
+  batchDeleteProducts,
+  batchUpdateProducts,
+  createProduct,
+  deleteProduct,
+  getBrands,
+  getProduct,
+  getProductInventories,
+  getProducts,
+  getProductSales,
+  getProductStats,
+  importProducts,
+  updateProduct,
+  updateProductInventory,
+} from "../../api";
+import type { Brand, InventoryItem, Product } from "../../types";
+
+type SceneValue = "all" | "in_stock" | "low_stock" | "out_of_stock" | "pending_completion" | "stale_30d";
+type BatchTaskType = "update" | "delete" | "export";
+
+type ProductStats = {
+  total: number;
+  in_stock_count: number;
+  out_of_stock_count: number;
+  low_stock_count: number;
+  pending_completion_count: number;
+  stale_30d_count: number;
+};
+
+type SavedView = {
+  name: string;
+  scene: SceneValue;
+  q: string;
+  category?: string;
+  brandId?: number;
+  stockStatus?: string;
+  sort: string;
+  visibleCols: string[];
+};
+
+type ProductSalesData = {
+  quotations: Record<string, unknown>[];
+  orders: Record<string, unknown>[];
+  deliveries: Record<string, unknown>[];
+};
 
 const CATEGORIES = ["MLCC", "IC", "电阻", "电容", "连接器", "晶体管", "传感器", "电源管理", "存储", "其他"];
 const STOCK_OPTIONS = [
@@ -20,12 +107,82 @@ const SORT_OPTIONS = [
   { value: "name_asc", label: "名称升序" },
   { value: "name_desc", label: "名称降序" },
 ];
+const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
+  { label: "全部", value: "all" },
+  { label: "待补货", value: "low_stock" },
+  { label: "缺货", value: "out_of_stock" },
+  { label: "待完善", value: "pending_completion" },
+  { label: "30天无动销", value: "stale_30d" },
+];
 
 const COL_LABEL_MAP: Record<string, string> = {
-  sku: "SKU", name: "产品名称", category: "分类", package_type: "封装",
-  specs: "规格", unit: "单位", brand_name: "品牌",
-  quantity: "库存", available: "可用", locked: "锁定", safety_stock: "安全库存",
-  unit_price: "单价", actions: "操作",
+  sku: "SKU",
+  name: "产品名称",
+  category: "分类",
+  package_type: "封装",
+  specs: "规格",
+  unit: "单位",
+  brand_name: "品牌",
+  stock_state: "库存状态",
+  quantity: "库存",
+  available: "可用",
+  locked: "锁定",
+  safety_stock: "安全库存",
+  unit_price: "单价",
+  last_sale_at: "最近销售",
+  actions: "操作",
+};
+
+const PAGE_SIZE = 20;
+const SAVED_VIEW_STORAGE_KEY = "aierp.products.saved_views.v1";
+
+const getAvailableQty = (p: Product) => {
+  if (typeof p.available === "number") return p.available;
+  return (p.quantity ?? 0) - (p.locked_quantity ?? 0);
+};
+
+const getStockState = (p: Product): "in" | "low" | "out" => {
+  const available = getAvailableQty(p);
+  const safety = p.safety_stock ?? 0;
+  if (available <= 0) return "out";
+  if (available <= safety) return "low";
+  return "in";
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
+};
+
+const exportProductsCsv = (rows: Product[], filename: string) => {
+  if (!rows.length) return false;
+  const headers = ["SKU", "产品名称", "分类", "封装", "规格", "单位", "品牌", "库存", "可用", "锁定", "安全库存", "单价", "最近销售"];
+  const body = rows.map((p) => [
+    p.sku || "",
+    p.name || "",
+    p.category || "",
+    p.package_type || "",
+    p.specs || "",
+    p.unit || "",
+    p.brand_name || "",
+    p.quantity ?? 0,
+    getAvailableQty(p),
+    p.locked_quantity ?? 0,
+    p.safety_stock ?? "",
+    p.unit_price != null ? `¥${p.unit_price.toFixed(2)}` : "",
+    p.last_sale_at || "",
+  ]);
+  const csv = [headers, ...body].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return true;
 };
 
 export default function ProductList() {
@@ -34,6 +191,7 @@ export default function ProductList() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [scene, setScene] = useState<SceneValue>("all");
   const [aiSearchMode, setAiSearchMode] = useState(false);
   const [aiSearchResults, setAiSearchResults] = useState<Record<string, unknown>[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
@@ -41,8 +199,6 @@ export default function ProductList() {
   const [brandId, setBrandId] = useState<number | undefined>();
   const [stockStatus, setStockStatus] = useState<string | undefined>();
   const [sort, setSort] = useState<string>("created_at_desc");
-  const [sortBy, setSortBy] = useState<string>("created_at");
-  const [sortOrder, setSortOrder] = useState<string>("desc");
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -56,66 +212,132 @@ export default function ProductList() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [batchEditModalOpen, setBatchEditModalOpen] = useState(false);
+  const [batchTaskModalOpen, setBatchTaskModalOpen] = useState(false);
+  const [batchTaskType, setBatchTaskType] = useState<BatchTaskType>("update");
+  const [batchTaskConfirm, setBatchTaskConfirm] = useState(false);
   const [batchEditForm] = Form.useForm();
   const [batchEditing, setBatchEditing] = useState(false);
-  const [compareOpen, setCompareOpen] = useState(false);
+  const [saveViewModalOpen, setSaveViewModalOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState("");
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeSavedView, setActiveSavedView] = useState<string>("");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailInventories, setDetailInventories] = useState<InventoryItem[]>([]);
+  const [detailSales, setDetailSales] = useState<ProductSalesData | null>(null);
+  const [quickActionOpen, setQuickActionOpen] = useState(false);
+  const [quickActionLoading, setQuickActionLoading] = useState(false);
+  const [quickActionSaving, setQuickActionSaving] = useState(false);
+  const [quickActionType, setQuickActionType] = useState<"price" | "safety">("price");
+  const [quickActionProduct, setQuickActionProduct] = useState<Product | null>(null);
+  const [quickInventoryOptions, setQuickInventoryOptions] = useState<InventoryItem[]>([]);
+  const [quickInventoryId, setQuickInventoryId] = useState<number | undefined>();
+  const [quickValue, setQuickValue] = useState<number | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [stats, setStats] = useState<ProductStats>({
+    total: 0,
+    in_stock_count: 0,
+    out_of_stock_count: 0,
+    low_stock_count: 0,
+    pending_completion_count: 0,
+    stale_30d_count: 0,
+  });
+
   const [form] = Form.useForm();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const navigate = useNavigate();
-  const allColKeys = ["sku", "name", "category", "package_type", "specs", "unit", "brand_name", "quantity", "available", "locked", "safety_stock", "unit_price", "actions"];
+  const allColKeys = [
+    "sku",
+    "name",
+    "category",
+    "package_type",
+    "specs",
+    "unit",
+    "brand_name",
+    "stock_state",
+    "quantity",
+    "available",
+    "locked",
+    "safety_stock",
+    "unit_price",
+    "last_sale_at",
+    "actions",
+  ];
   const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
 
-  // Direct DOM column resize
-  const resizing = useRef<{ th: HTMLTableCellElement; startX: number; startW: number } | null>(null);
-  const onHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
-    const th = e.currentTarget as HTMLTableCellElement;
-    e.preventDefault(); e.stopPropagation();
-    resizing.current = { th, startX: e.clientX, startW: th.offsetWidth };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.body.classList.add("col-resizing");
-  }, []);
+  const selectedProducts = useMemo(
+    () => data.filter((item) => selectedRowKeys.includes(item.id)),
+    [data, selectedRowKeys],
+  );
 
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!resizing.current) return;
-      const delta = e.clientX - resizing.current.startX;
-      const next = Math.max(40, resizing.current.startW + delta);
-      resizing.current.th.style.width = `${next}px`;
-      resizing.current.th.style.minWidth = `${next}px`;
-    };
-    const onMouseUp = () => {
-      if (!resizing.current) return;
-      resizing.current = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.body.classList.remove("col-resizing");
-    };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    return () => { document.removeEventListener("mousemove", onMouseMove); document.removeEventListener("mouseup", onMouseUp); };
-  }, []);
+  const selectedMetrics = useMemo(() => {
+    const result = { inStock: 0, lowStock: 0, outOfStock: 0 };
+    selectedProducts.forEach((item) => {
+      const state = getStockState(item);
+      if (state === "in") result.inStock += 1;
+      if (state === "low") result.lowStock += 1;
+      if (state === "out") result.outOfStock += 1;
+    });
+    return result;
+  }, [selectedProducts]);
 
-  const fetch = async (p = page, search = q) => {
-    if (aiSearchMode) return; // AI mode bypasses normal fetch
+  const loadSavedViews = () => {
+    try {
+      const raw = localStorage.getItem(SAVED_VIEW_STORAGE_KEY);
+      if (!raw) {
+        setSavedViews([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as SavedView[];
+      setSavedViews(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedViews([]);
+    }
+  };
+
+  const persistSavedViews = (next: SavedView[]) => {
+    setSavedViews(next);
+    localStorage.setItem(SAVED_VIEW_STORAGE_KEY, JSON.stringify(next));
+  };
+
+  const loadStats = async () => {
+    setStatsLoading(true);
+    try {
+      const resp = await getProductStats();
+      setStats(resp.data.data);
+    } catch {
+      // no-op
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const fetch = async (nextPage = page, search = q) => {
+    if (aiSearchMode) return;
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: 20, sort };
+      const params: Record<string, unknown> = { page: nextPage, page_size: PAGE_SIZE, sort };
       if (search) params.q = search;
+      if (scene && scene !== "all") params.scene = scene;
       if (category) params.category = category;
       if (brandId) params.brand_id = brandId;
       if (stockStatus) params.stock_status = stockStatus;
       const resp = await getProducts(params);
-      const list = (resp.data.data.list || []) as any[];
+      const list = (resp.data.data.list || []) as Product[];
       setData(list);
       setTotal(resp.data.data.total || 0);
-    } catch { message.error("加载产品列表失败"); }
-    finally { setLoading(false); }
+    } catch {
+      message.error("加载产品列表失败");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAiSearch = useCallback(async (text: string) => {
-    if (!text.trim()) { setAiSearchResults(null); return; }
+  const handleAiSearch = async (text: string) => {
+    if (!text.trim()) {
+      setAiSearchResults(null);
+      return;
+    }
     setAiSearching(true);
     try {
       const r = await aiSearchProducts(text, 20);
@@ -124,56 +346,87 @@ export default function ProductList() {
       } else {
         message.error(r.data.msg || "搜索失败");
       }
-    } catch { message.error("AI 搜索失败"); }
-    finally { setAiSearching(false); }
-  }, []);
+    } catch {
+      message.error("AI 搜索失败");
+    } finally {
+      setAiSearching(false);
+    }
+  };
 
   const loadBrands = async () => {
     try {
       const r = await getBrands();
-      setBrands((r.data.data || []) as Brand[]);
-    } catch { /* silent */ }
+      const payload = r.data.data as Brand[] | { list?: Brand[] };
+      setBrands(Array.isArray(payload) ? payload : (payload.list || []));
+    } catch {
+      // no-op
+    }
   };
 
-  useEffect(() => { loadBrands(); }, []);
-  useEffect(() => { fetch(); }, [page, sort]);
+  const resetAllFilters = () => {
+    setQ("");
+    setScene("all");
+    setCategory(undefined);
+    setBrandId(undefined);
+    setStockStatus(undefined);
+    setSort("created_at_desc");
+    setAiSearchMode(false);
+    setAiSearchResults(null);
+    setPage(1);
+    setActiveSavedView("");
+  };
 
-  // Debounced search
-  useEffect(() => {
-    if (aiSearchMode) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setPage(1); fetch(1, q); }, 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [q, aiSearchMode]);
+  const applySavedView = (view: SavedView) => {
+    setScene(view.scene || "all");
+    setQ(view.q || "");
+    setCategory(view.category || undefined);
+    setBrandId(view.brandId || undefined);
+    setStockStatus(view.stockStatus || undefined);
+    setSort(view.sort || "created_at_desc");
+    setVisibleCols(view.visibleCols?.length ? view.visibleCols : [...allColKeys]);
+    setAiSearchMode(false);
+    setAiSearchResults(null);
+    setPage(1);
+  };
 
-  // AI search trigger
-  useEffect(() => {
-    if (aiSearchMode && q.trim()) {
-      const t = setTimeout(() => handleAiSearch(q), 500);
-      return () => clearTimeout(t);
-    } else {
-      setAiSearchResults(null);
-    }
-  }, [q, aiSearchMode, handleAiSearch]);
+  const openCreate = () => {
+    setEditing(null);
+    form.resetFields();
+    loadBrands();
+    setModalOpen(true);
+  };
 
-  // Filter triggers
-  useEffect(() => { setPage(1); fetch(1); }, [category, brandId, stockStatus]);
-
-  const openCreate = () => { setEditing(null); form.resetFields(); loadBrands(); setModalOpen(true); };
-  const openEdit = (p: Product) => { setEditing(p); form.setFieldsValue(p); loadBrands(); setModalOpen(true); };
+  const openEdit = (p: Product) => {
+    setEditing(p);
+    form.setFieldsValue(p);
+    loadBrands();
+    setModalOpen(true);
+  };
 
   const handleSave = async (values: Record<string, unknown>) => {
     try {
-      if (editing) { await updateProduct(editing.id, values); message.success("已更新"); }
-      else { await createProduct(values); message.success("已创建"); }
+      if (editing) {
+        await updateProduct(editing.id, values);
+        message.success("已更新");
+      } else {
+        await createProduct(values);
+        message.success("已创建");
+      }
       setModalOpen(false);
-      fetch();
-    } catch { message.error(editing ? "更新失败" : "创建失败"); }
+      await Promise.all([fetch(), loadStats()]);
+    } catch {
+      message.error(editing ? "更新失败" : "创建失败");
+    }
   };
 
   const handleDelete = async (id: number) => {
-    try { await deleteProduct(id); message.success("已删除"); fetch(); }
-    catch { message.error("删除失败"); }
+    try {
+      await deleteProduct(id);
+      message.success("已删除");
+      await Promise.all([fetch(), loadStats()]);
+    } catch {
+      message.error("删除失败");
+    }
   };
 
   const handleBatchDelete = async () => {
@@ -181,40 +434,180 @@ export default function ProductList() {
       await batchDeleteProducts(selectedRowKeys);
       message.success(`已删除 ${selectedRowKeys.length} 个产品`);
       setSelectedRowKeys([]);
-      fetch();
-    } catch { message.error("批量删除失败"); }
+      await Promise.all([fetch(), loadStats()]);
+    } catch {
+      message.error("批量删除失败");
+    }
   };
 
   const handleBatchUpdate = async (values: Record<string, unknown>) => {
-    if (!selectedRowKeys.length) { message.warning("未选中产品"); return; }
+    if (!selectedRowKeys.length) {
+      message.warning("未选中产品");
+      return;
+    }
     setBatchEditing(true);
     try {
       const fields = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined && v !== null && v !== ""));
       await batchUpdateProducts(selectedRowKeys, fields);
       message.success(`批量更新成功：${selectedRowKeys.length} 个产品`);
-      setBatchEditModalOpen(false);
+      setBatchTaskModalOpen(false);
       setSelectedRowKeys([]);
-      fetch();
-    } catch { message.error("批量更新失败"); }
-    finally { setBatchEditing(false); }
+      setBatchTaskConfirm(false);
+      await Promise.all([fetch(), loadStats()]);
+    } catch {
+      message.error("批量更新失败");
+    } finally {
+      setBatchEditing(false);
+    }
   };
 
-  const handleExport = () => {
-    if (data.length === 0) { message.warning("无数据可导出"); return; }
-    const headers = ["SKU", "产品名称", "分类", "封装", "规格", "单位", "品牌", "库存", "可用", "锁定", "安全库存", "单价"];
-    const rows = data.map((p) => [
-      p.sku || "", p.name || "", p.category || "", p.package_type || "",
-      p.specs || "", p.unit || "", p.brand_name || "",
-      p.quantity ?? 0, p.available ?? 0, p.locked_quantity ?? 0,
-      p.safety_stock ?? "", p.unit_price != null ? `¥${p.unit_price.toFixed(2)}` : "",
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "products.csv"; a.click();
-    URL.revokeObjectURL(url);
+  const executeBatchTask = async () => {
+    if (!batchTaskConfirm) {
+      message.warning("请先确认影响范围");
+      return;
+    }
+    if (batchTaskType === "delete") {
+      await handleBatchDelete();
+      setBatchTaskModalOpen(false);
+      setBatchTaskConfirm(false);
+      return;
+    }
+    if (batchTaskType === "export") {
+      if (!exportProductsCsv(selectedProducts, "products_selected.csv")) {
+        message.warning("无可导出数据");
+        return;
+      }
+      message.success(`已导出 ${selectedProducts.length} 条`);
+      setBatchTaskModalOpen(false);
+      setBatchTaskConfirm(false);
+      return;
+    }
+    const values = await batchEditForm.validateFields();
+    await handleBatchUpdate(values);
+  };
+
+  const handleExportAll = () => {
+    if (!exportProductsCsv(data, "products.csv")) {
+      message.warning("无数据可导出");
+      return;
+    }
     message.success("导出成功");
+  };
+
+  const openSaveCurrentView = () => {
+    setSaveViewName(activeSavedView || "");
+    setSaveViewModalOpen(true);
+  };
+
+  const saveCurrentView = () => {
+    const name = saveViewName.trim();
+    if (!name) {
+      message.warning("请输入视图名称");
+      return;
+    }
+    const nextView: SavedView = {
+      name,
+      scene,
+      q,
+      category,
+      brandId,
+      stockStatus,
+      sort,
+      visibleCols,
+    };
+    const exists = savedViews.find((v) => v.name === name);
+    const next = exists
+      ? savedViews.map((v) => (v.name === name ? nextView : v))
+      : [nextView, ...savedViews];
+    persistSavedViews(next);
+    setActiveSavedView(name);
+    setSaveViewModalOpen(false);
+    message.success("视图已保存");
+  };
+
+  const deleteCurrentView = () => {
+    if (!activeSavedView) return;
+    const next = savedViews.filter((v) => v.name !== activeSavedView);
+    persistSavedViews(next);
+    setActiveSavedView("");
+    message.success("视图已删除");
+  };
+
+  const openDetail = async (product: Product) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const [prodResp, invResp, salesResp] = await Promise.all([
+        getProduct(product.id),
+        getProductInventories({ product_id: product.id, page: 1, page_size: 200 }),
+        getProductSales(product.id),
+      ]);
+      setDetailProduct(prodResp.data.data);
+      setDetailInventories((invResp.data.data.list || []) as InventoryItem[]);
+      setDetailSales((salesResp.data.data || null) as ProductSalesData | null);
+    } catch {
+      message.error("加载产品详情失败");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const openQuickAction = async (product: Product, type: "price" | "safety") => {
+    setQuickActionType(type);
+    setQuickActionProduct(product);
+    setQuickActionOpen(true);
+    setQuickActionLoading(true);
+    try {
+      const invResp = await getProductInventories({ product_id: product.id, page: 1, page_size: 200 });
+      const invList = (invResp.data.data.list || []) as InventoryItem[];
+      setQuickInventoryOptions(invList);
+      if (!invList.length) {
+        setQuickInventoryId(undefined);
+        setQuickValue(null);
+        message.warning("该产品尚无库存记录，请先在库存管理中创建");
+        return;
+      }
+      const first = invList[0];
+      setQuickInventoryId(first.id);
+      setQuickValue(type === "price" ? (first.unit_price ?? 0) : (first.safety_stock ?? 0));
+    } catch {
+      message.error("加载库存记录失败");
+    } finally {
+      setQuickActionLoading(false);
+    }
+  };
+
+  const onQuickInventoryChange = (inventoryId: number) => {
+    setQuickInventoryId(inventoryId);
+    const selected = quickInventoryOptions.find((item) => item.id === inventoryId);
+    if (!selected) return;
+    if (quickActionType === "price") setQuickValue(selected.unit_price ?? 0);
+    else setQuickValue(selected.safety_stock ?? 0);
+  };
+
+  const saveQuickAction = async () => {
+    if (!quickInventoryId || quickValue == null) {
+      message.warning("请完善参数");
+      return;
+    }
+    setQuickActionSaving(true);
+    try {
+      if (quickActionType === "price") {
+        await updateProductInventory(quickInventoryId, { unit_price: quickValue });
+      } else {
+        await updateProductInventory(quickInventoryId, { safety_stock: quickValue });
+      }
+      message.success("已保存");
+      setQuickActionOpen(false);
+      await Promise.all([fetch(), loadStats()]);
+      if (detailProduct && quickActionProduct && detailProduct.id === quickActionProduct.id) {
+        await openDetail(quickActionProduct);
+      }
+    } catch {
+      message.error("保存失败");
+    } finally {
+      setQuickActionSaving(false);
+    }
   };
 
   const handleAiParse = async () => {
@@ -224,25 +617,35 @@ export default function ProductList() {
       const resp = await aiParseProduct(aiText.trim());
       const parsed = resp.data.data as Record<string, unknown>;
       const specsStr = parsed.specs && typeof parsed.specs === "object"
-        ? JSON.stringify(parsed.specs) : String(parsed.specs || "");
+        ? JSON.stringify(parsed.specs)
+        : String(parsed.specs || "");
       let brandIdVal: number | undefined;
       const brandName = String(parsed.brand_name || "").toLowerCase();
       if (brandName) {
-        const match = brands.find((b) =>
-          b.name.toLowerCase().includes(brandName) || (b.name_cn || "").toLowerCase().includes(brandName)
+        const match = brands.find(
+          (b) => b.name.toLowerCase().includes(brandName) || (b.name_cn || "").toLowerCase().includes(brandName),
         );
         if (match) brandIdVal = match.id;
       }
       form.setFieldsValue({
-        name: parsed.name, sku: parsed.sku || undefined,
-        category: parsed.category || undefined, package_type: parsed.package_type || undefined,
-        specs: specsStr, unit: parsed.unit || undefined, brand_id: brandIdVal,
+        name: parsed.name,
+        sku: parsed.sku || undefined,
+        category: parsed.category || undefined,
+        package_type: parsed.package_type || undefined,
+        specs: specsStr,
+        unit: parsed.unit || undefined,
+        brand_id: brandIdVal,
         notes: parsed.description || undefined,
       });
-      setAiModalOpen(false); setAiText(""); setModalOpen(true);
+      setAiModalOpen(false);
+      setAiText("");
+      setModalOpen(true);
       message.success("AI 解析完成，请确认后保存");
-    } catch { message.error("AI 解析失败"); }
-    finally { setAiParsing(false); }
+    } catch {
+      message.error("AI 解析失败");
+    } finally {
+      setAiParsing(false);
+    }
   };
 
   const handleBomParse = async () => {
@@ -262,72 +665,161 @@ export default function ProductList() {
             specs: String(item.description || ""),
             notes: `BOM导入: 客户料号=${item.customer_pn || ""} 位号=${item.reference || ""} 用量=${item.quantity || ""}`,
           });
-          created++;
-        } catch { /* skip */ }
+          created += 1;
+        } catch {
+          // skip invalid line
+        }
       }
-      setBomModalOpen(false); setBomText("");
+      setBomModalOpen(false);
+      setBomText("");
       message.success(`BOM 解析完成，成功创建 ${created}/${items.length} 个产品`);
-      fetch(1);
-    } catch { message.error("BOM 解析失败"); }
-    finally { setBomParsing(false); }
+      await Promise.all([fetch(1), loadStats()]);
+    } catch {
+      message.error("BOM 解析失败");
+    } finally {
+      setBomParsing(false);
+    }
   };
 
   const handleImport = async () => {
-    if (!importFile) { message.warning("请先选择文件"); return; }
+    if (!importFile) {
+      message.warning("请先选择文件");
+      return;
+    }
     setImporting(true);
     try {
       const resp = await importProducts(importFile);
       if (resp.data.code === 0) {
-        const d = resp.data.data as { created: number; errors: string[] };
-        message.success(`导入成功：新增 ${d.created} 个产品`);
-        if (d.errors?.length) {
-          message.warning(`部分行失败：${d.errors.slice(0, 3).join("；")}`);
+        const payload = resp.data.data as { created: number; errors: string[] };
+        message.success(`导入成功：新增 ${payload.created} 个产品`);
+        if (payload.errors?.length) {
+          message.warning(`部分行失败：${payload.errors.slice(0, 3).join("；")}`);
         }
         setImportModalOpen(false);
         setImportFile(null);
-        fetch(1);
+        await Promise.all([fetch(1), loadStats()]);
       } else {
         message.error(resp.data.msg || "导入失败");
       }
-    } catch { message.error("导入失败，请检查文件格式"); }
-    finally { setImporting(false); }
-  };
-
-  const handleTableChange = (
-    _pagination: TablePaginationConfig,
-    _filters: unknown,
-    sorter: SorterResult<Product> | SorterResult<Product>[],
-  ) => {
-    const s = Array.isArray(sorter) ? sorter[0] : sorter;
-    if (s.field) {
-      const fieldMap: Record<string, string> = { name: "name_asc", sku: "sku_asc", category: "category_asc", created_at: "created_at_asc" };
-      const field = String(s.field);
-      if (s.order === "ascend") {
-        setSort(fieldMap[field] || "name_asc");
-      } else if (s.order === "descend") {
-        setSort(fieldMap[field]?.replace("_asc", "_desc") || "name_desc");
-      }
+    } catch {
+      message.error("导入失败，请检查文件格式");
+    } finally {
+      setImporting(false);
     }
   };
 
+  const handleTableChange = (
+    pagination: TablePaginationConfig,
+    _filters: unknown,
+    sorter: SorterResult<Product> | SorterResult<Product>[],
+  ) => {
+    if (!aiSearchMode && pagination.current && pagination.current !== page) {
+      setPage(pagination.current);
+    }
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (!s.field) return;
+    const fieldMap: Record<string, string> = { name: "name_asc", created_at: "created_at_asc" };
+    const field = String(s.field);
+    if (s.order === "ascend") setSort(fieldMap[field] || "created_at_asc");
+    else if (s.order === "descend") setSort(fieldMap[field]?.replace("_asc", "_desc") || "created_at_desc");
+  };
+
+  useEffect(() => {
+    loadSavedViews();
+    loadBrands();
+    loadStats();
+  }, []);
+
+  useEffect(() => {
+    fetch();
+  }, [page, sort, scene]);
+
+  useEffect(() => {
+    if (aiSearchMode) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      fetch(1, q);
+    }, 350);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [q, aiSearchMode]);
+
+  useEffect(() => {
+    if (aiSearchMode && q.trim()) {
+      const t = setTimeout(() => {
+        handleAiSearch(q);
+      }, 500);
+      return () => clearTimeout(t);
+    }
+    setAiSearchResults(null);
+  }, [q, aiSearchMode]);
+
+  useEffect(() => {
+    setPage(1);
+    fetch(1);
+  }, [category, brandId, stockStatus]);
+
   const columns: ColumnsType<Product> = [
-    { title: "SKU", dataIndex: "sku", key: "sku", width: 120, onCell: () => ({ onMouseDown: onHeaderMouseDown }) },
-    { title: "产品名称", dataIndex: "name", key: "name", width: 200, sorter: true, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (text: string, r: Product) => <a onClick={() => navigate(`/products/${r.id}`)}>{text}</a> },
-    { title: "分类", dataIndex: "category", key: "category", width: 80, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: string) => v ? <Tag>{v}</Tag> : "-" },
-    { title: "封装", dataIndex: "package_type", key: "package_type", width: 90, onCell: () => ({ onMouseDown: onHeaderMouseDown }) },
-    { title: "规格", dataIndex: "specs", key: "specs", width: 180, onCell: () => ({ onMouseDown: onHeaderMouseDown }), ellipsis: true },
-    { title: "单位", dataIndex: "unit", key: "unit", width: 60, onCell: () => ({ onMouseDown: onHeaderMouseDown }) },
-    { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 100, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: string | null) => v || "-" },
-    { title: "库存", dataIndex: "quantity", key: "quantity", width: 80, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: number | null) => v != null ? v : 0 },
-    { title: "可用", dataIndex: "available", key: "available", width: 80, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: number | null) => v != null ? v : 0 },
-    { title: "锁定", dataIndex: "locked_quantity", key: "locked", width: 70, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: number | null) => v != null ? v : 0 },
-    { title: "安全库存", dataIndex: "safety_stock", key: "safety_stock", width: 80, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: number | null) => v != null ? v : "-" },
-    { title: "单价", dataIndex: "unit_price", key: "unit_price", width: 90, onCell: () => ({ onMouseDown: onHeaderMouseDown }), render: (v: number | null) => v != null ? `¥${v.toFixed(2)}` : "-" },
     {
-      title: "操作", key: "actions", width: 160,
+      title: "SKU",
+      dataIndex: "sku",
+      key: "sku",
+      width: 140,
+      fixed: "left",
+      render: (v: string | null) => <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{v || "-"}</span>,
+    },
+    {
+      title: "产品名称",
+      dataIndex: "name",
+      key: "name",
+      width: 220,
+      fixed: "left",
+      sorter: true,
+      render: (text: string, r: Product) => <a onClick={() => openDetail(r)}>{text}</a>,
+    },
+    { title: "分类", dataIndex: "category", key: "category", width: 100, render: (v: string) => (v ? <Tag>{v}</Tag> : "-") },
+    { title: "封装", dataIndex: "package_type", key: "package_type", width: 100, render: (v: string | null) => v || "-" },
+    { title: "规格", dataIndex: "specs", key: "specs", width: 220, ellipsis: true, render: (v: string | null) => v || "-" },
+    { title: "单位", dataIndex: "unit", key: "unit", width: 80, render: (v: string | null) => v || "-" },
+    { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 130, render: (v: string | null) => v || "-" },
+    {
+      title: "库存状态",
+      key: "stock_state",
+      width: 110,
+      render: (_: unknown, r: Product) => {
+        const state = getStockState(r);
+        if (state === "out") return <Tag color="red">缺货</Tag>;
+        if (state === "low") return <Tag color="orange">低库存</Tag>;
+        return <Tag color="green">在库</Tag>;
+      },
+    },
+    { title: "库存", dataIndex: "quantity", key: "quantity", width: 90, align: "right", render: (v: number | null) => v != null ? v : 0 },
+    { title: "可用", dataIndex: "available", key: "available", width: 90, align: "right", render: (_: number | null, r: Product) => getAvailableQty(r) },
+    { title: "锁定", dataIndex: "locked_quantity", key: "locked", width: 90, align: "right", render: (v: number | null) => v != null ? v : 0 },
+    { title: "安全库存", dataIndex: "safety_stock", key: "safety_stock", width: 100, align: "right", render: (v: number | null) => v != null ? v : "-" },
+    { title: "单价", dataIndex: "unit_price", key: "unit_price", width: 110, align: "right", render: (v: number | null) => v != null ? `¥${v.toFixed(2)}` : "-" },
+    { title: "最近销售", dataIndex: "last_sale_at", key: "last_sale_at", width: 170, render: (v: string | null) => formatDateTime(v) },
+    {
+      title: "操作",
+      key: "actions",
+      width: 230,
+      fixed: "right",
       render: (_: unknown, r: Product) => (
         <Space size="small">
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
+          <Tooltip title="查看详情">
+            <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(r)} />
+          </Tooltip>
+          <Tooltip title="快捷改价">
+            <Button size="small" onClick={() => openQuickAction(r, "price")}>改价</Button>
+          </Tooltip>
+          <Tooltip title="快捷改安全库存">
+            <Button size="small" onClick={() => openQuickAction(r, "safety")}>安库</Button>
+          </Tooltip>
+          <Tooltip title="编辑产品">
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+          </Tooltip>
           <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -339,76 +831,186 @@ export default function ProductList() {
   return (
     <div>
       <style>{`
-        .ant-table-cell { position: relative; cursor: col-resize; user-select: none; }
-        .ant-table-cell::after { content: ''; position: absolute; right: 0; top: 15%; height: 70%; width: 3px; background: transparent; border-radius: 2px; transition: background 0.15s; }
-        .ant-table-cell:hover::after, .ant-table-cell.resizing::after { background: #1677ff; }
-        body.col-resizing * { cursor: col-resize !important; }
+        .product-batch-bar {
+          position: sticky;
+          top: 8px;
+          z-index: 5;
+          margin-bottom: 12px;
+          padding: 10px 12px;
+          background: #f0f5ff;
+          border: 1px solid #adc6ff;
+          border-radius: 8px;
+        }
+        .product-row-low td { background: #fffbe6 !important; }
+        .product-row-out td { background: #fff2f0 !important; }
       `}</style>
 
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]} align="middle">
-          <Col>
+      <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
+        <Col xs={24} sm={12} xl={4}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="SKU 总数" value={stats.total} prefix={<InboxOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={4}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="在库" value={stats.in_stock_count} prefix={<CheckCircleOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={4}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="低库存" value={stats.low_stock_count} prefix={<WarningOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={4}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="缺货" value={stats.out_of_stock_count} prefix={<StopOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={4}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="待完善" value={stats.pending_completion_count} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={4}>
+          <Card size="small" loading={statsLoading}>
+            <Statistic title="30天无动销" value={stats.stale_30d_count} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Row gutter={[10, 10]} align="middle">
+          <Col flex="420px">
             <Input
               placeholder={aiSearchMode ? "AI 语义搜索（如：高频放大器 贴片）" : "自然语言搜索（如：0402 10uF MLCC）"}
               prefix={<SearchOutlined />}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               allowClear
-              style={{ width: aiSearchMode ? 340 : 300 }}
-              suffix={
+              suffix={(
                 <Tooltip title={aiSearchMode ? "切换普通搜索" : "切换 AI 语义搜索"}>
                   <Button
                     size="small"
                     type={aiSearchMode ? "primary" : "default"}
                     icon={<ThunderboltOutlined />}
-                    onClick={() => { setAiSearchMode(!aiSearchMode); if (aiSearchMode) { setAiSearchResults(null); } else { setQ(""); setPage(1); fetch(1, ""); } }}
+                    onClick={() => {
+                      setAiSearchMode((prev) => !prev);
+                      setPage(1);
+                      if (aiSearchMode) setAiSearchResults(null);
+                    }}
                     style={{ marginLeft: 4 }}
                   />
                 </Tooltip>
-              }
+              )}
             />
           </Col>
           <Col>
-            <Select allowClear placeholder="分类" style={{ width: 100 }}
-              value={category} onChange={(v) => { setCategory(v); setPage(1); }}
-              options={CATEGORIES.map((v) => ({ value: v, label: v }))} />
+            <Segmented
+              options={SCENE_OPTIONS}
+              value={scene}
+              onChange={(v) => {
+                setScene(v as SceneValue);
+                setPage(1);
+              }}
+            />
           </Col>
           <Col>
-            <Select allowClear placeholder="品牌" style={{ width: 130 }}
-              value={brandId} onChange={(v) => { setBrandId(v); setPage(1); }}
-              options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
+            <Select
+              allowClear
+              placeholder="分类"
+              style={{ width: 120 }}
+              value={category}
+              onChange={(v) => {
+                setCategory(v);
+                setPage(1);
+              }}
+              options={CATEGORIES.map((v) => ({ value: v, label: v }))}
+            />
           </Col>
           <Col>
-            <Select placeholder="库存状态" style={{ width: 110 }}
-              value={stockStatus} onChange={(v) => { setStockStatus(v); setPage(1); }}
-              options={STOCK_OPTIONS} />
+            <Select
+              allowClear
+              placeholder="品牌"
+              style={{ width: 160 }}
+              value={brandId}
+              onChange={(v) => {
+                setBrandId(v);
+                setPage(1);
+              }}
+              options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))}
+            />
           </Col>
           <Col>
-            <Select value={sort} onChange={(v) => { setSort(v); setPage(1); }}
-              options={SORT_OPTIONS} style={{ width: 110 }} />
+            <Select
+              placeholder="库存状态"
+              style={{ width: 110 }}
+              value={stockStatus}
+              onChange={(v) => {
+                setStockStatus(v);
+                setPage(1);
+              }}
+              options={STOCK_OPTIONS}
+            />
+          </Col>
+          <Col>
+            <Select
+              value={sort}
+              onChange={(v) => {
+                setSort(v);
+                setPage(1);
+              }}
+              options={SORT_OPTIONS}
+              style={{ width: 110 }}
+            />
+          </Col>
+          <Col>
+            <Button icon={<ReloadOutlined />} onClick={resetAllFilters}>重置</Button>
+          </Col>
+        </Row>
+
+        <Row gutter={[10, 10]} style={{ marginTop: 8 }}>
+          <Col>
+            <Space>
+              <Select
+                value={activeSavedView || undefined}
+                allowClear
+                placeholder="保存视图"
+                style={{ width: 180 }}
+                onChange={(name) => {
+                  const nextName = name || "";
+                  setActiveSavedView(nextName);
+                  if (!nextName) {
+                    resetAllFilters();
+                    return;
+                  }
+                  const view = savedViews.find((v) => v.name === nextName);
+                  if (view) applySavedView(view);
+                }}
+                options={savedViews.map((v) => ({ label: v.name, value: v.name }))}
+              />
+              <Button icon={<SaveOutlined />} onClick={openSaveCurrentView}>保存当前视图</Button>
+              {activeSavedView && (
+                <Popconfirm title={`删除视图「${activeSavedView}」？`} onConfirm={deleteCurrentView}>
+                  <Button danger>删除视图</Button>
+                </Popconfirm>
+              )}
+            </Space>
           </Col>
           <Col flex="auto" />
           <Col>
             <Space>
-              {selectedRowKeys.length > 0 && (
-                <>
-                  <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个产品?`} onConfirm={handleBatchDelete}>
-                    <Button danger icon={<DeleteOutlined />}>批量删除</Button>
-                  </Popconfirm>
-                  <Button icon={<EditOutlined />} onClick={() => { batchEditForm.resetFields(); setBatchEditModalOpen(true); }}>批量编辑</Button>
-                </>
-              )}
               <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+              <Button icon={<DownloadOutlined />} onClick={handleExportAll}>导出</Button>
               <Popover
-                content={
+                content={(
                   <Checkbox.Group
                     options={allColKeys.map((k) => ({ label: COL_LABEL_MAP[k] || k, value: k }))}
                     value={visibleCols}
                     onChange={(vals) => setVisibleCols(vals as string[])}
                   />
-                }
-                title="显示列" trigger="click"
+                )}
+                title="显示列"
+                trigger="click"
               >
                 <Button icon={<SettingOutlined />}>列</Button>
               </Popover>
@@ -420,50 +1022,89 @@ export default function ProductList() {
         </Row>
       </Card>
 
-      <Table
-        rowKey="id"
-        columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
-        dataSource={aiSearchMode ? (aiSearchResults ?? []) as unknown as Product[] : data}
-        loading={aiSearchMode ? aiSearching : loading}
-        tableLayout="fixed"
-        onChange={handleTableChange}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys as number[]),
-      }}
-      pagination={false}
-    />
+      {selectedRowKeys.length > 0 && !aiSearchMode && (
+        <div className="product-batch-bar">
+          <Space wrap>
+            <Tag color="blue">已选 {selectedRowKeys.length} 个产品</Tag>
+            <Tag>在库 {selectedMetrics.inStock}</Tag>
+            <Tag color="orange">低库存 {selectedMetrics.lowStock}</Tag>
+            <Tag color="red">缺货 {selectedMetrics.outOfStock}</Tag>
+            <Button icon={<SettingOutlined />} onClick={() => { setBatchTaskType("update"); setBatchTaskConfirm(false); batchEditForm.resetFields(); setBatchTaskModalOpen(true); }}>批量任务面板</Button>
+            <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
+          </Space>
+        </div>
+      )}
 
-    {/* Compare Panel */}
-    {selectedRowKeys.length >= 2 && (
-      <Card
-        title={`产品对比（${selectedRowKeys.length} 个）`}
-        extra={<Button size="small" onClick={() => setSelectedRowKeys([])}>清除选择</Button>}
-        style={{ marginTop: 16 }}
-        size="small"
-      >
+      <Card bodyStyle={{ padding: 0 }}>
         <Table
           rowKey="id"
-          size="small"
-          pagination={false}
-          dataSource={data.filter((p) => selectedRowKeys.includes(p.id)) as Product[]}
-          columns={[
-            { title: "SKU", dataIndex: "sku", width: 100 },
-            { title: "产品名称", dataIndex: "name", width: 160 },
-            { title: "分类", dataIndex: "category", width: 80 },
-            { title: "封装", dataIndex: "package_type", width: 80 },
-            { title: "规格", dataIndex: "specs", ellipsis: true, width: 150 },
-            { title: "品牌", dataIndex: "brand_name", width: 100 },
-            { title: "库存", dataIndex: "quantity", width: 60 },
-            { title: "可用", dataIndex: "available", width: 60 },
-            { title: "安全库存", dataIndex: "safety_stock", width: 80 },
-            { title: "单价", dataIndex: "unit_price", width: 80, render: (v: number | null) => v != null ? `¥${v.toFixed(2)}` : "-" },
-          ]}
-          scroll={{ x: true }}
-          style={{ overflowX: "auto" }}
+          columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+          dataSource={aiSearchMode ? (aiSearchResults ?? []) as unknown as Product[] : data}
+          loading={aiSearchMode ? aiSearching : loading}
+          size="middle"
+          tableLayout="auto"
+          onChange={handleTableChange}
+          rowSelection={
+            aiSearchMode
+              ? undefined
+              : {
+                  selectedRowKeys,
+                  onChange: (keys) => setSelectedRowKeys(keys as number[]),
+                }
+          }
+          rowClassName={(record) => {
+            const state = getStockState(record);
+            if (state === "low") return "product-row-low";
+            if (state === "out") return "product-row-out";
+            return "";
+          }}
+          locale={{
+            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={aiSearchMode ? "未命中语义搜索结果" : "暂无产品数据"} />,
+          }}
+          scroll={{ x: 1850 }}
+          pagination={
+            aiSearchMode
+              ? false
+              : {
+                  current: page,
+                  pageSize: PAGE_SIZE,
+                  total,
+                  showTotal: (count) => `共 ${count} 条`,
+                  showSizeChanger: false,
+                }
+          }
         />
       </Card>
-    )}
+
+      {selectedRowKeys.length >= 2 && !aiSearchMode && (
+        <Card
+          title={`产品对比（${selectedRowKeys.length} 个）`}
+          extra={<Button size="small" onClick={() => setSelectedRowKeys([])}>清除选择</Button>}
+          style={{ marginTop: 16 }}
+          size="small"
+        >
+          <Table
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={selectedProducts}
+            columns={[
+              { title: "SKU", dataIndex: "sku", width: 100 },
+              { title: "产品名称", dataIndex: "name", width: 160 },
+              { title: "分类", dataIndex: "category", width: 80 },
+              { title: "封装", dataIndex: "package_type", width: 80 },
+              { title: "规格", dataIndex: "specs", ellipsis: true, width: 150 },
+              { title: "品牌", dataIndex: "brand_name", width: 100 },
+              { title: "库存", dataIndex: "quantity", width: 60 },
+              { title: "可用", dataIndex: "available", width: 60, render: (_: number, r: Product) => getAvailableQty(r) },
+              { title: "安全库存", dataIndex: "safety_stock", width: 80 },
+              { title: "单价", dataIndex: "unit_price", width: 80, render: (v: number | null) => (v != null ? `¥${v.toFixed(2)}` : "-") },
+            ]}
+            scroll={{ x: true }}
+            style={{ overflowX: "auto" }}
+          />
+        </Card>
+      )}
 
       <Modal
         title={editing ? "编辑产品" : "新建产品"}
@@ -494,6 +1135,188 @@ export default function ProductList() {
           <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title="批量任务面板"
+        open={batchTaskModalOpen}
+        onCancel={() => setBatchTaskModalOpen(false)}
+        onOk={executeBatchTask}
+        confirmLoading={batchEditing}
+        okText="执行任务"
+        width={560}
+      >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Descriptions size="small" bordered column={3}>
+            <Descriptions.Item label="选中数量">{selectedRowKeys.length}</Descriptions.Item>
+            <Descriptions.Item label="低库存">{selectedMetrics.lowStock}</Descriptions.Item>
+            <Descriptions.Item label="缺货">{selectedMetrics.outOfStock}</Descriptions.Item>
+          </Descriptions>
+          <Select
+            value={batchTaskType}
+            onChange={(v) => setBatchTaskType(v as BatchTaskType)}
+            options={[
+              { value: "update", label: "批量更新字段" },
+              { value: "delete", label: "批量删除产品" },
+              { value: "export", label: "导出选中产品" },
+            ]}
+          />
+
+          {batchTaskType === "update" && (
+            <Form form={batchEditForm} layout="vertical">
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="brand_id" label="品牌">
+                    <Select allowClear placeholder="保持不变" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="category" label="分类">
+                    <Input placeholder="保持不变" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="package_type" label="封装">
+                    <Input placeholder="保持不变" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="unit" label="单位">
+                    <Input placeholder="保持不变" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="specs" label="规格">
+                <Input.TextArea rows={2} placeholder="保持不变" />
+              </Form.Item>
+              <Form.Item name="notes" label="备注">
+                <Input.TextArea rows={2} placeholder="保持不变" />
+              </Form.Item>
+            </Form>
+          )}
+
+          {batchTaskType === "delete" && (
+            <Tag color="red">该任务将删除 {selectedRowKeys.length} 条产品记录（软删除）</Tag>
+          )}
+          {batchTaskType === "export" && (
+            <Tag color="blue">将导出 {selectedRowKeys.length} 条已选产品记录</Tag>
+          )}
+
+          <Checkbox checked={batchTaskConfirm} onChange={(e) => setBatchTaskConfirm(e.target.checked)}>
+            我已确认本次任务影响范围
+          </Checkbox>
+        </Space>
+      </Modal>
+
+      <Modal
+        title="保存视图"
+        open={saveViewModalOpen}
+        onCancel={() => setSaveViewModalOpen(false)}
+        onOk={saveCurrentView}
+      >
+        <Input
+          placeholder="请输入视图名称"
+          value={saveViewName}
+          onChange={(e) => setSaveViewName(e.target.value)}
+          maxLength={30}
+        />
+      </Modal>
+
+      <Modal
+        title={quickActionType === "price" ? "快捷改价" : "快捷改安全库存"}
+        open={quickActionOpen}
+        onCancel={() => setQuickActionOpen(false)}
+        onOk={saveQuickAction}
+        confirmLoading={quickActionSaving}
+      >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <div>产品：{quickActionProduct?.name || "-"}</div>
+          <Select
+            loading={quickActionLoading}
+            placeholder="选择仓库库存记录"
+            value={quickInventoryId}
+            onChange={onQuickInventoryChange}
+            options={quickInventoryOptions.map((item) => ({
+              value: item.id,
+              label: `${item.warehouse_name} | 库存:${item.quantity} | 可用:${item.available_quantity}`,
+            }))}
+          />
+          <InputNumber
+            style={{ width: "100%" }}
+            min={0}
+            precision={quickActionType === "price" ? 2 : 0}
+            value={quickValue as number}
+            onChange={(v) => setQuickValue(v)}
+            placeholder={quickActionType === "price" ? "输入单价" : "输入安全库存"}
+          />
+        </Space>
+      </Modal>
+
+      <Drawer
+        title={`产品详情${detailProduct ? ` - ${detailProduct.name}` : ""}`}
+        placement="right"
+        width={680}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+      >
+        {detailLoading ? (
+          <Card loading />
+        ) : !detailProduct ? (
+          <Empty description="暂无详情" />
+        ) : (
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Descriptions column={2} size="small" bordered>
+              <Descriptions.Item label="SKU">{detailProduct.sku || "-"}</Descriptions.Item>
+              <Descriptions.Item label="品牌">{detailProduct.brand_name || "-"}</Descriptions.Item>
+              <Descriptions.Item label="分类">{detailProduct.category || "-"}</Descriptions.Item>
+              <Descriptions.Item label="封装">{detailProduct.package_type || "-"}</Descriptions.Item>
+              <Descriptions.Item label="单位">{detailProduct.unit || "-"}</Descriptions.Item>
+              <Descriptions.Item label="最近销售">{formatDateTime(detailProduct.last_sale_at)}</Descriptions.Item>
+              <Descriptions.Item label="规格" span={2}>{detailProduct.specs || "-"}</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{detailProduct.notes || "-"}</Descriptions.Item>
+            </Descriptions>
+
+            <Divider style={{ margin: "4px 0" }}>库存分仓</Divider>
+            <Table
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={detailInventories}
+              columns={[
+                { title: "仓库", dataIndex: "warehouse_name", width: 120 },
+                { title: "库存", dataIndex: "quantity", width: 90, align: "right" },
+                { title: "可用", dataIndex: "available_quantity", width: 90, align: "right" },
+                { title: "锁定", dataIndex: "locked_quantity", width: 90, align: "right" },
+                { title: "安全库存", dataIndex: "safety_stock", width: 100, align: "right" },
+                { title: "单价", dataIndex: "unit_price", width: 100, align: "right", render: (v: number | null) => (v != null ? `¥${Number(v).toFixed(2)}` : "-") },
+              ]}
+            />
+
+            <Divider style={{ margin: "4px 0" }}>最近销售动作</Divider>
+            <List
+              size="small"
+              bordered
+              dataSource={detailSales?.orders || []}
+              locale={{ emptyText: "暂无销售订单记录" }}
+              renderItem={(item) => {
+                const row = item as { order_no?: string; status?: string; quantity?: number; unit_price?: number; created_at?: string };
+                return (
+                  <List.Item>
+                    <Space split={<span>|</span>} size={4}>
+                      <span>{row.order_no || "-"}</span>
+                      <Tag>{row.status || "-"}</Tag>
+                      <span>数量 {row.quantity || 0}</span>
+                      <span>单价 {row.unit_price != null ? `¥${Number(row.unit_price).toFixed(2)}` : "-"}</span>
+                      <span>{formatDateTime(row.created_at || null)}</span>
+                    </Space>
+                  </List.Item>
+                );
+              }}
+            />
+          </Space>
+        )}
+      </Drawer>
 
       <Modal
         title="AI 智能解析"
@@ -532,7 +1355,10 @@ export default function ProductList() {
       <Modal
         title="批量导入产品"
         open={importModalOpen}
-        onCancel={() => { setImportModalOpen(false); setImportFile(null); }}
+        onCancel={() => {
+          setImportModalOpen(false);
+          setImportFile(null);
+        }}
         onOk={handleImport}
         confirmLoading={importing}
         okText="导入"
@@ -554,75 +1380,20 @@ export default function ProductList() {
           style={{ fontSize: 12, color: "#1677ff" }}
           onClick={(e) => {
             e.preventDefault();
-            // Generate template CSV content
             const headers = ["name", "sku", "category", "brand", "package_type", "specs", "unit", "notes"];
             const sample = ["8658B传感器", "8658B", "传感器", "QST", "BGA", "原装正品", "pcs", "导入备注"];
             const csv = [headers, sample].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
             const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = url; a.download = "products_template.csv"; a.click();
+            a.href = url;
+            a.download = "products_template.csv";
+            a.click();
             URL.revokeObjectURL(url);
           }}
         >
           下载模板文件
         </a>
-      </Modal>
-
-      <Modal
-        title={`批量编辑 ${selectedRowKeys.length > 0 ? `（已选 ${selectedRowKeys.length} 个）` : ""}`}
-        open={batchEditModalOpen}
-        onCancel={() => setBatchEditModalOpen(false)}
-        onOk={() => batchEditForm.submit()}
-        confirmLoading={batchEditing}
-        okText="保存更新"
-        width={500}
-      >
-        <p style={{ color: "#888", marginBottom: 16 }}>留空字段将保持不变，已选中 <strong>{selectedRowKeys.length}</strong> 个产品</p>
-        <Form form={batchEditForm} layout="vertical" onFinish={handleBatchUpdate}>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="brand_id" label="品牌">
-                <Select allowClear placeholder="保持不变" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="category" label="分类">
-                <Input placeholder="保持不变" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="package_type" label="封装">
-                <Input placeholder="保持不变" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="unit" label="单位">
-                <Input placeholder="保持不变" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="category" label="分类">
-                <Input placeholder="保持不变" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="brand_id" label="品牌">
-                <Select allowClear placeholder="保持不变" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="specs" label="规格">
-            <Input.TextArea rows={2} placeholder="保持不变" />
-          </Form.Item>
-          <Form.Item name="notes" label="备注">
-            <Input.TextArea rows={2} placeholder="保持不变" />
-          </Form.Item>
-        </Form>
       </Modal>
     </div>
   );

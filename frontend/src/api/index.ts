@@ -205,6 +205,17 @@ export const getProducts = (params: Record<string, unknown>) =>
 export const getProduct = (id: number) =>
   client.get<APIResponse<Product>>(`/products/${id}`);
 
+export const getProductStats = () =>
+  client.get<APIResponse<{
+    total: number;
+    in_stock_count: number;
+    out_of_stock_count: number;
+    low_stock_count: number;
+    pending_completion_count: number;
+    stale_30d_count: number;
+    generated_at: string;
+  }>>(`/products/stats/summary`);
+
 export const createProduct = (data: Record<string, unknown>) =>
   client.post<APIResponse>("/products", data);
 

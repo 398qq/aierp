@@ -113,6 +113,60 @@ class TestProductsAPI:
         assert data["total"] >= 1
         assert any("FPGA" in p["name"] for p in data["list"])
 
+    async def test_products_stats_summary_contract(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "Stats Product 1",
+            "sku": "STATS-001",
+        })
+        await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "Stats Product 2",
+            "sku": "STATS-002",
+        })
+
+        resp = await async_client.get("/api/v1/products/stats/summary", headers=auth_headers)
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] >= 2
+        for key in [
+            "in_stock_count",
+            "out_of_stock_count",
+            "low_stock_count",
+            "pending_completion_count",
+            "stale_30d_count",
+            "generated_at",
+        ]:
+            assert key in payload
+
+    async def test_list_products_scene_pending_completion(self, async_client: AsyncClient, auth_headers: dict):
+        brand_resp = await async_client.post(
+            "/api/v1/brands/",
+            headers=auth_headers,
+            json={"name": "Scene Brand", "status": "active"},
+        )
+        brand_id = brand_resp.json()["data"]["id"]
+
+        await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "Pending Product",
+            "sku": "SCENE-PENDING",
+            "category": "IC",
+            # intentionally incomplete (brand/package/specs/unit missing)
+        })
+        await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "Complete Product",
+            "sku": "SCENE-COMPLETE",
+            "brand_id": brand_id,
+            "category": "IC",
+            "package_type": "QFN",
+            "specs": "complete specs",
+            "unit": "PCS",
+        })
+
+        resp = await async_client.get("/api/v1/products?scene=pending_completion", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [p["name"] for p in resp.json()["data"]["list"]]
+        assert "Pending Product" in names
+        assert "Complete Product" not in names
+
     async def test_create_product_requires_auth(self, async_client: AsyncClient):
         resp = await async_client.post("/api/v1/products", json={"name": "NoAuth"})
         assert resp.status_code == 401

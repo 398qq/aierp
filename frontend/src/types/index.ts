@@ -28,10 +28,13 @@ export interface Customer {
   region: string | null;
   credit_limit: number | null;
   credit_level: string | null;
+  lifecycle: string | null;
   last_contacted_at: string | null;
   created_at: string;
   owner: string | null;
   parent_id: number | null;
+  health_score: number | null;
+  health_label: string | null;
   contacts?: Contact[];
   follow_ups?: FollowUp[];
   tags?: Tag[];
@@ -125,6 +128,20 @@ export interface CustomerStats {
   health_label: string;
 }
 
+export interface CustomerAIStats {
+  total: number;
+  ai_computed: number;
+  ai_coverage_pct: number;
+  rfm_tiers: Record<string, number>;
+  churn_dist: Record<string, number>;
+  never_contacted: number;
+  stale_high_value: number;
+  active_30d: number;
+  avg_health_score: number;
+  by_lifecycle: { stage: string; count: number }[];
+  high_churn_count: number;
+}
+
 export interface TimelineEvent {
   type: "contact" | "followup" | "order";
   title: string;
@@ -188,6 +205,8 @@ export interface Product {
   locked_quantity?: number | null;
   safety_stock?: number | null;
   unit_price?: number | null;
+  last_sale_at?: string | null;
+  inventory_updated_at?: string | null;
 }
 
 export interface Brand {
@@ -229,6 +248,7 @@ export interface InventoryItem {
   quantity: number; safety_stock: number; locked_quantity: number; created_at: string;
   sku?: string; product_name?: string; category?: string;
   brand_name?: string; warehouse_name?: string;
+  available_quantity?: number;
   unit_price?: number | null;
 }
 

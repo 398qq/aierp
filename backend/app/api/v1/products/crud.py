@@ -1,10 +1,10 @@
 """Products CRUD + price import endpoints."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -101,15 +101,136 @@ class ProductUpdate(BaseModel):
     image_url: str | None = None
 
 
-def _product_row(p: Product) -> dict:
+def _inventory_metrics_subquery():
+    available_expr = Inventory.quantity - func.coalesce(Inventory.locked_quantity, 0)
+    return (
+        select(
+            Inventory.product_id.label("product_id"),
+            func.coalesce(func.sum(Inventory.quantity), 0).label("quantity"),
+            func.coalesce(func.sum(Inventory.locked_quantity), 0).label("locked_quantity"),
+            func.coalesce(func.sum(available_expr), 0).label("available"),
+            func.min(Inventory.safety_stock).label("safety_stock"),
+            func.max(Inventory.unit_price).label("unit_price"),
+            func.max(Inventory.updated_at).label("inventory_updated_at"),
+        )
+        .where(Inventory.deleted_at.is_(None))
+        .group_by(Inventory.product_id)
+        .subquery()
+    )
+
+
+def _sales_metrics_subquery():
+    from app.models.sales import SalesOrderItem
+
+    return (
+        select(
+            SalesOrderItem.product_id.label("product_id"),
+            func.max(SalesOrderItem.created_at).label("last_sale_at"),
+        )
+        .where(SalesOrderItem.deleted_at.is_(None), SalesOrderItem.product_id.is_not(None))
+        .group_by(SalesOrderItem.product_id)
+        .subquery()
+    )
+
+
+def _product_row(
+    p: Product,
+    quantity: int | None = None,
+    available: int | None = None,
+    locked_quantity: int | None = None,
+    safety_stock: int | None = None,
+    unit_price: float | None = None,
+    last_sale_at=None,
+    inventory_updated_at=None,
+) -> dict:
     return {
         "id": p.id, "sku": p.sku, "name": p.name, "brand_id": p.brand_id,
         "brand_name": p.brand.name_cn or p.brand.name if p.brand else None,
         "category": p.category, "package_type": p.package_type,
         "specs": p.specs, "unit": p.unit, "notes": p.notes,
         "image_url": p.image_url,
+        "quantity": int(quantity or 0),
+        "available": int(available or 0),
+        "locked_quantity": int(locked_quantity or 0),
+        "safety_stock": int(safety_stock) if safety_stock is not None else None,
+        "unit_price": float(unit_price) if unit_price is not None else None,
+        "last_sale_at": str(last_sale_at) if last_sale_at else None,
+        "inventory_updated_at": str(inventory_updated_at) if inventory_updated_at else None,
         "created_at": str(p.created_at) if p.created_at else None,
     }
+
+
+@router.get("/stats/summary")
+async def products_stats_summary(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    inv_subq = _inventory_metrics_subquery()
+    sales_subq = _sales_metrics_subquery()
+
+    base = (
+        select(
+            Product.id,
+            Product.brand_id,
+            Product.category,
+            Product.package_type,
+            Product.specs,
+            Product.unit,
+            inv_subq.c.available,
+            inv_subq.c.safety_stock,
+            sales_subq.c.last_sale_at,
+        )
+        .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
+        .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
+        .where(Product.deleted_at.is_(None))
+        .subquery()
+    )
+
+    cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
+
+    total = (await db.execute(select(func.count()).select_from(base))).scalar() or 0
+    in_stock_count = (await db.execute(
+        select(func.count()).select_from(base).where(base.c.available > 0)
+    )).scalar() or 0
+    out_of_stock_count = (await db.execute(
+        select(func.count()).select_from(base).where((base.c.available <= 0) | (base.c.available.is_(None)))
+    )).scalar() or 0
+    low_stock_count = (await db.execute(
+        select(func.count()).select_from(base).where(
+            base.c.available > 0,
+            base.c.available <= func.coalesce(base.c.safety_stock, 0),
+        )
+    )).scalar() or 0
+    pending_completion_count = (await db.execute(
+        select(func.count()).select_from(base).where(
+            or_(
+                base.c.brand_id.is_(None),
+                base.c.category.is_(None),
+                base.c.category == "",
+                base.c.package_type.is_(None),
+                base.c.package_type == "",
+                base.c.specs.is_(None),
+                base.c.specs == "",
+                base.c.unit.is_(None),
+                base.c.unit == "",
+            )
+        )
+    )).scalar() or 0
+    stale_30d_count = (await db.execute(
+        select(func.count()).select_from(base).where(
+            (base.c.last_sale_at.is_(None)) | (base.c.last_sale_at < cutoff_30d)
+        )
+    )).scalar() or 0
+
+    return ok({
+        "total": total,
+        "in_stock_count": in_stock_count,
+        "out_of_stock_count": out_of_stock_count,
+        "low_stock_count": low_stock_count,
+        "pending_completion_count": pending_completion_count,
+        "stale_30d_count": stale_30d_count,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 @router.get("")
@@ -119,53 +240,70 @@ async def list_products(
     q: str | None = None,
     category: str | None = None,
     brand_id: int | None = None,
+    scene: str | None = Query(None, description="all | in_stock | out_of_stock | low_stock | pending_completion | stale_30d"),
     stock_status: str | None = Query(None, description="in_stock | out_of_stock | low_stock"),
     sort: str | None = Query(None, description="name_asc | name_desc | created_at_asc | created_at_desc"),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    base = select(Product).where(Product.deleted_at.is_(None))
-    count_base = select(func.count(Product.id)).where(Product.deleted_at.is_(None))
+    effective_stock_status = stock_status
+    if not effective_stock_status and scene in {"in_stock", "out_of_stock", "low_stock"}:
+        effective_stock_status = scene
+
+    inv_subq = _inventory_metrics_subquery()
+    sales_subq = _sales_metrics_subquery()
+
+    base = (
+        select(
+            Product,
+            inv_subq.c.quantity,
+            inv_subq.c.available,
+            inv_subq.c.locked_quantity,
+            inv_subq.c.safety_stock,
+            inv_subq.c.unit_price,
+            inv_subq.c.inventory_updated_at,
+            sales_subq.c.last_sale_at,
+        )
+        .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
+        .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
+        .where(Product.deleted_at.is_(None))
+    )
 
     if q:
         like = f"%{q}%"
         base = base.where(or_(Product.name.ilike(like), Product.sku.ilike(like)))
-        count_base = count_base.where(or_(Product.name.ilike(like), Product.sku.ilike(like)))
     if category:
         base = base.where(Product.category == category)
-        count_base = count_base.where(Product.category == category)
     if brand_id:
         base = base.where(Product.brand_id == brand_id)
-        count_base = count_base.where(Product.brand_id == brand_id)
 
-    if stock_status:
-        avail_expr = case(
-            (Inventory.quantity.is_(None), None),
-            else_=Inventory.quantity - Inventory.locked_quantity,
+    if effective_stock_status == "in_stock":
+        base = base.where(inv_subq.c.available > 0)
+    elif effective_stock_status == "out_of_stock":
+        base = base.where((inv_subq.c.available <= 0) | (inv_subq.c.available.is_(None)))
+    elif effective_stock_status == "low_stock":
+        base = base.where(
+            inv_subq.c.available > 0,
+            inv_subq.c.available <= func.coalesce(inv_subq.c.safety_stock, 0),
         )
-        inv_subq = (
-            select(
-                Inventory.product_id,
-                func.sum(avail_expr).label("available"),
-                func.min(Inventory.safety_stock).label("safety_stock"),
+
+    if scene == "pending_completion":
+        base = base.where(
+            or_(
+                Product.brand_id.is_(None),
+                Product.category.is_(None),
+                Product.category == "",
+                Product.package_type.is_(None),
+                Product.package_type == "",
+                Product.specs.is_(None),
+                Product.specs == "",
+                Product.unit.is_(None),
+                Product.unit == "",
             )
-            .where(Inventory.deleted_at.is_(None))
-            .group_by(Inventory.product_id)
-            .subquery()
         )
-
-        base = base.outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
-        count_base = count_base.outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
-
-        if stock_status == "in_stock":
-            base = base.where(inv_subq.c.available > 0)
-            count_base = count_base.where(inv_subq.c.available > 0)
-        elif stock_status == "out_of_stock":
-            base = base.where((inv_subq.c.available == 0) | (inv_subq.c.available.is_(None)))
-            count_base = count_base.where((inv_subq.c.available == 0) | (inv_subq.c.available.is_(None)))
-        elif stock_status == "low_stock":
-            base = base.where(inv_subq.c.available > 0, inv_subq.c.available <= inv_subq.c.safety_stock)
-            count_base = count_base.where(inv_subq.c.available > 0, inv_subq.c.available <= inv_subq.c.safety_stock)
+    elif scene == "stale_30d":
+        cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
+        base = base.where((sales_subq.c.last_sale_at.is_(None)) | (sales_subq.c.last_sale_at < cutoff_30d))
 
     if sort == "name_asc":
         order_col = Product.name.asc()
@@ -176,12 +314,25 @@ async def list_products(
     else:
         order_col = Product.created_at.desc()
 
-    total = (await db.execute(count_base)).scalar() or 0
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
     rows = (await db.execute(
         base.order_by(order_col, Product.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    )).all()
 
-    return ok({"list": [_product_row(p) for p in rows], "total": total, "page": page, "page_size": page_size})
+    items = [
+        _product_row(
+            p,
+            quantity=quantity,
+            available=available,
+            locked_quantity=locked_quantity,
+            safety_stock=safety_stock,
+            unit_price=unit_price,
+            last_sale_at=last_sale_at,
+            inventory_updated_at=inventory_updated_at,
+        )
+        for p, quantity, available, locked_quantity, safety_stock, unit_price, inventory_updated_at, last_sale_at in rows
+    ]
+    return ok({"list": items, "total": total, "page": page, "page_size": page_size})
 
 
 @router.get("/{product_id}")
