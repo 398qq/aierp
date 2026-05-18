@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     DB_USER: str = "aierp"
     DB_PASSWORD: str = ""
     DB_NAME: str = "aierp"
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_RECYCLE_SECONDS: int = 1800
+    DB_POOL_PRE_PING: bool = True
 
     REDIS_URL: str = "redis://localhost:6379/0"
 

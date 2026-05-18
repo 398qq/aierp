@@ -5,7 +5,14 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG, pool_size=20, max_overflow=10)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DEBUG,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+    pool_pre_ping=settings.DB_POOL_PRE_PING,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -47,9 +54,24 @@ def date_format(column, pg_fmt: str) -> ColumnElement:
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _ensure_brand_schema(engine)
     await _ensure_pgvector(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
+
+
+async def _ensure_brand_schema(eng):
+    """Backfill columns that create_all will not add to existing tables."""
+    if eng.dialect.name != "postgresql":
+        return
+
+    async with eng.connect() as conn:
+        for stmt in (
+            "ALTER TABLE brands ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES users(id)",
+            "ALTER TABLE brands ADD COLUMN IF NOT EXISTS updated_by BIGINT REFERENCES users(id)",
+        ):
+            await conn.exec_driver_sql(stmt)
+        await conn.commit()
 
 
 async def _ensure_pgvector(eng):

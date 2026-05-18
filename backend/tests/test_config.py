@@ -19,3 +19,15 @@ class TestSettings:
                 JWT_SECRET="jwt-secret",
                 CORS_ORIGINS="*",
             )
+
+    def test_database_pool_settings_are_configurable(self):
+        cfg = Settings(
+            DB_POOL_SIZE=30,
+            DB_MAX_OVERFLOW=15,
+            DB_POOL_RECYCLE_SECONDS=900,
+            DB_POOL_PRE_PING=False,
+        )
+        assert cfg.DB_POOL_SIZE == 30
+        assert cfg.DB_MAX_OVERFLOW == 15
+        assert cfg.DB_POOL_RECYCLE_SECONDS == 900
+        assert cfg.DB_POOL_PRE_PING is False
