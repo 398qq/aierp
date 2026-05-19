@@ -93,8 +93,9 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
       const recognized = resp.data.data;
       applyRecognizedCustomer(recognized, recognized.raw_text || text.trim());
       if (recognized.raw_text) setText(recognized.raw_text);
-    } catch {
-      message.error("名片识别失败，请换一张更清晰的图片或改用文本识别");
+    } catch (error: any) {
+      const backendMsg = error?.response?.data?.msg || error?.message;
+      message.error(backendMsg || "名片识别失败，请换一张更清晰的图片或改用文本识别");
     } finally {
       setCardRecognizing(false);
     }
@@ -114,16 +115,24 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
         confirmLoading={recognizing}
         okText="识别并填充"
         cancelText="取消"
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Upload accept="image/*" beforeUpload={handleCardUpload} disabled={cardRecognizing} maxCount={1} showUploadList={false}>
+              <Button icon={<UploadOutlined />} loading={cardRecognizing}>
+                上传名片识别
+              </Button>
+            </Upload>
+            <Space>
+              <CancelBtn />
+              <OkBtn />
+            </Space>
+          </div>
+        )}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
           粘贴名片、展会线索、聊天记录或邮件签名，系统会识别客户名称、联系人、电话、邮箱、行业、区域和负责人。
         </Typography.Paragraph>
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Upload accept="image/*" beforeUpload={handleCardUpload} disabled={cardRecognizing} maxCount={1} showUploadList={false}>
-            <Button block icon={<UploadOutlined />} loading={cardRecognizing}>
-              上传名片识别
-            </Button>
-          </Upload>
           <Input.TextArea
             rows={8}
             value={text}

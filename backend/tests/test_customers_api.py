@@ -230,6 +230,51 @@ class TestCustomers:
         assert data["contact_person"] == "张工"
         assert data["raw_text"].startswith("深圳市星河电子有限公司")
 
+    async def test_ai_recognize_business_card_accepts_body_file(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+        def fake_extract_business_card_text(content: bytes):
+            assert content == b"fake-card-image"
+            return "深圳市星河电子有限公司\n张工 13800001111"
+
+        async def fake_recognize_customer(text: str):
+            return {
+                "name": "深圳市星河电子有限公司",
+                "short_name": "星河电子",
+                "customer_type": "OEM",
+                "industry": "汽车电子",
+                "level": "A",
+                "region": "华南",
+                "source": "展会",
+                "contact_person": "张工",
+                "phone": "13800001111",
+                "email": "",
+                "owner": "",
+                "credit_limit": None,
+                "credit_level": "",
+                "address": "",
+                "notes": "",
+                "confidence": 0.88,
+                "summary": "已从名片识别客户资料",
+            }
+
+        monkeypatch.setattr(
+            "app.api.v1.ai.customer_ai._extract_business_card_text",
+            fake_extract_business_card_text,
+        )
+        monkeypatch.setattr(
+            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            fake_recognize_customer,
+        )
+
+        resp = await async_client.post(
+            "/api/v1/ai/customer/card-recognition",
+            headers=auth_headers,
+            files={"body.file": ("card.png", b"fake-card-image", "image/png")},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["name"] == "深圳市星河电子有限公司"
+
 
 class TestCustomerContacts:
     """Contact management."""

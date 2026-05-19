@@ -112,13 +112,13 @@ def _extract_business_card_text(content: bytes) -> str:
         from PIL import Image
         import pytesseract
     except Exception as exc:
-        raise RuntimeError("OCR依赖不可用") from exc
+        raise RuntimeError("OCR依赖不可用，请安装 Pillow、pytesseract 和系统 tesseract-ocr") from exc
 
     try:
         image = Image.open(io.BytesIO(content))
         return pytesseract.image_to_string(image, lang="chi_sim+eng").strip()
     except Exception as exc:
-        raise RuntimeError("图片文字提取失败") from exc
+        raise RuntimeError("图片文字提取失败，请确认图片清晰且系统已安装中文OCR语言包") from exc
 
 
 @router.post("/customer/{customer_id}/rfm")
@@ -353,15 +353,20 @@ async def recognize_customer(
 
 @router.post("/customer/card-recognition")
 async def recognize_customer_card(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(default=None),
+    body_file: UploadFile | None = File(default=None, alias="body.file"),
     _user: dict = Depends(get_current_user),
 ):
     """OCR a business-card image, then AI-recognize it into customer create fields."""
-    content_type = file.content_type or ""
+    upload = file or body_file
+    if upload is None:
+        return fail("缺少名片文件，请使用 file 字段上传")
+
+    content_type = upload.content_type or ""
     if not content_type.startswith("image/"):
         return fail("请上传名片图片")
 
-    content = await file.read()
+    content = await upload.read()
     if not content:
         return fail("名片图片不能为空")
     if len(content) > MAX_CARD_IMAGE_BYTES:
