@@ -526,6 +526,12 @@ export const getChurnRisk = (customerId: number) =>
 export const recognizeCustomer = (text: string) =>
   client.post<APIResponse<CustomerRecognition>>("/ai/customer/recognition", { text });
 
+export const recognizeBusinessCard = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return client.post<APIResponse<CustomerRecognition>>("/ai/customer/card-recognition", formData);
+};
+
 export const getFollowUpSuggestion = (customerId: number) =>
   client.post<APIResponse>(`/ai/customer/${customerId}/followup-suggestion`);
 

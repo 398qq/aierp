@@ -1,8 +1,9 @@
-import { ThunderboltOutlined } from "@ant-design/icons";
-import { App, Button, Input, Modal, Typography } from "antd";
+import { ThunderboltOutlined, UploadOutlined } from "@ant-design/icons";
+import { App, Button, Input, Modal, Space, Typography, Upload } from "antd";
 import type { FormInstance } from "antd/es/form";
+import type { UploadProps } from "antd";
 import { useState } from "react";
-import { recognizeCustomer } from "../../api";
+import { recognizeBusinessCard, recognizeCustomer } from "../../api";
 import type { CustomerRecognition } from "../../types";
 import { generateCustomerShortName } from "./CustomerForm";
 
@@ -48,12 +49,19 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [recognizing, setRecognizing] = useState(false);
+  const [cardRecognizing, setCardRecognizing] = useState(false);
 
   const openModal = () => {
     const values = form.getFieldsValue(["name", "contact_person", "phone", "email", "notes"]) as Record<string, string | undefined>;
     const seededText = [values.name, values.contact_person, values.phone, values.email, values.notes].filter(Boolean).join("\n");
     setText(seededText.trim());
     setOpen(true);
+  };
+
+  const applyRecognizedCustomer = (recognized: CustomerRecognition, fallbackText: string) => {
+    form.setFieldsValue(buildCustomerFormValues(recognized, fallbackText));
+    setOpen(false);
+    message.success(recognized.summary || "AI识别完成，请确认后保存");
   };
 
   const handleRecognize = async () => {
@@ -65,15 +73,32 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
     setRecognizing(true);
     try {
       const resp = await recognizeCustomer(rawText);
-      const recognized = resp.data.data;
-      form.setFieldsValue(buildCustomerFormValues(recognized, rawText));
-      setOpen(false);
-      message.success(recognized.summary || "AI识别完成，请确认后保存");
+      applyRecognizedCustomer(resp.data.data, rawText);
     } catch {
       message.error("AI识别失败");
     } finally {
       setRecognizing(false);
     }
+  };
+
+  const handleCardUpload: UploadProps["beforeUpload"] = async (file) => {
+    if (!file.type.startsWith("image/")) {
+      message.warning("请上传名片图片");
+      return Upload.LIST_IGNORE;
+    }
+
+    setCardRecognizing(true);
+    try {
+      const resp = await recognizeBusinessCard(file);
+      const recognized = resp.data.data;
+      applyRecognizedCustomer(recognized, recognized.raw_text || text.trim());
+      if (recognized.raw_text) setText(recognized.raw_text);
+    } catch {
+      message.error("名片识别失败，请换一张更清晰的图片或改用文本识别");
+    } finally {
+      setCardRecognizing(false);
+    }
+    return false;
   };
 
   return (
@@ -93,12 +118,19 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
         <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
           粘贴名片、展会线索、聊天记录或邮件签名，系统会识别客户名称、联系人、电话、邮箱、行业、区域和负责人。
         </Typography.Paragraph>
-        <Input.TextArea
-          rows={8}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder={"例如：深圳市星河电子有限公司，汽车电子OEM，华南区域，联系人张工 13800001111 zhang@example.com，展会线索，负责人王明，授信20万。"}
-        />
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Upload accept="image/*" beforeUpload={handleCardUpload} disabled={cardRecognizing} maxCount={1} showUploadList={false}>
+            <Button block icon={<UploadOutlined />} loading={cardRecognizing}>
+              上传名片识别
+            </Button>
+          </Upload>
+          <Input.TextArea
+            rows={8}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder={"例如：深圳市星河电子有限公司，汽车电子OEM，华南区域，联系人张工 13800001111 zhang@example.com，展会线索，负责人王明，授信20万。"}
+          />
+        </Space>
       </Modal>
     </>
   );

@@ -1,9 +1,10 @@
 """Customer AI endpoints."""
+import io
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,7 @@ CUSTOMER_INDUSTRIES = {"汽车电子", "消费电子", "工业控制", "通信�
 CUSTOMER_LEVELS = {"A", "B", "C", "D"}
 CUSTOMER_REGIONS = {"华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"}
 CUSTOMER_SOURCES = {"展会", "转介绍", "线上推广", "电话开发", "公司资源"}
+MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
 
 
 class FollowUpRecognitionRequest(BaseModel):
@@ -78,6 +80,45 @@ def _clean_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return amount if amount >= 0 else None
+
+
+def _normalize_customer_recognition(recognized: dict[str, Any], fallback_text: str) -> dict[str, Any]:
+    payload = {
+        "name": _clean_text(recognized.get("name")),
+        "short_name": _clean_text(recognized.get("short_name")),
+        "customer_type": _clean_choice(recognized.get("customer_type"), CUSTOMER_TYPES),
+        "industry": _clean_choice(recognized.get("industry"), CUSTOMER_INDUSTRIES),
+        "level": _clean_choice(recognized.get("level"), CUSTOMER_LEVELS),
+        "region": _clean_choice(recognized.get("region"), CUSTOMER_REGIONS),
+        "source": _clean_choice(recognized.get("source"), CUSTOMER_SOURCES),
+        "contact_person": _clean_text(recognized.get("contact_person")),
+        "phone": _clean_text(recognized.get("phone")),
+        "email": _clean_text(recognized.get("email")),
+        "owner": _clean_text(recognized.get("owner")),
+        "credit_limit": _clean_float(recognized.get("credit_limit")),
+        "credit_level": _clean_choice(recognized.get("credit_level"), CUSTOMER_LEVELS),
+        "address": _clean_text(recognized.get("address")),
+        "notes": _clean_text(recognized.get("notes")),
+        "confidence": _clean_confidence(recognized.get("confidence")),
+        "summary": _clean_text(recognized.get("summary")) or "已识别客户资料",
+    }
+    if not payload["name"]:
+        payload["notes"] = payload["notes"] or fallback_text
+    return payload
+
+
+def _extract_business_card_text(content: bytes) -> str:
+    try:
+        from PIL import Image
+        import pytesseract
+    except Exception as exc:
+        raise RuntimeError("OCR依赖不可用") from exc
+
+    try:
+        image = Image.open(io.BytesIO(content))
+        return pytesseract.image_to_string(image, lang="chi_sim+eng").strip()
+    except Exception as exc:
+        raise RuntimeError("图片文字提取失败") from exc
 
 
 @router.post("/customer/{customer_id}/rfm")
@@ -305,28 +346,39 @@ async def recognize_customer(
     _user: dict = Depends(get_current_user),
 ):
     """AI-recognize natural-language customer profile text into create form fields."""
-    recognized = await CustomerAgent.recognize_customer(body.text.strip())
-    payload = {
-        "name": _clean_text(recognized.get("name")),
-        "short_name": _clean_text(recognized.get("short_name")),
-        "customer_type": _clean_choice(recognized.get("customer_type"), CUSTOMER_TYPES),
-        "industry": _clean_choice(recognized.get("industry"), CUSTOMER_INDUSTRIES),
-        "level": _clean_choice(recognized.get("level"), CUSTOMER_LEVELS),
-        "region": _clean_choice(recognized.get("region"), CUSTOMER_REGIONS),
-        "source": _clean_choice(recognized.get("source"), CUSTOMER_SOURCES),
-        "contact_person": _clean_text(recognized.get("contact_person")),
-        "phone": _clean_text(recognized.get("phone")),
-        "email": _clean_text(recognized.get("email")),
-        "owner": _clean_text(recognized.get("owner")),
-        "credit_limit": _clean_float(recognized.get("credit_limit")),
-        "credit_level": _clean_choice(recognized.get("credit_level"), CUSTOMER_LEVELS),
-        "address": _clean_text(recognized.get("address")),
-        "notes": _clean_text(recognized.get("notes")),
-        "confidence": _clean_confidence(recognized.get("confidence")),
-        "summary": _clean_text(recognized.get("summary")) or "已识别客户资料",
-    }
-    if not payload["name"]:
-        payload["notes"] = payload["notes"] or body.text.strip()
+    raw_text = body.text.strip()
+    recognized = await CustomerAgent.recognize_customer(raw_text)
+    return ok(_normalize_customer_recognition(recognized, raw_text))
+
+
+@router.post("/customer/card-recognition")
+async def recognize_customer_card(
+    file: UploadFile = File(...),
+    _user: dict = Depends(get_current_user),
+):
+    """OCR a business-card image, then AI-recognize it into customer create fields."""
+    content_type = file.content_type or ""
+    if not content_type.startswith("image/"):
+        return fail("请上传名片图片")
+
+    content = await file.read()
+    if not content:
+        return fail("名片图片不能为空")
+    if len(content) > MAX_CARD_IMAGE_BYTES:
+        return fail("名片图片不能超过 8MB")
+
+    try:
+        raw_text = _extract_business_card_text(content)
+    except RuntimeError as exc:
+        logger.warning("Business card OCR failed: %s", exc)
+        return fail(f"名片OCR失败: {exc}")
+
+    if not raw_text:
+        return fail("未识别到名片文字，请换一张更清晰的图片或改用文本识别")
+
+    recognized = await CustomerAgent.recognize_customer(raw_text)
+    payload = _normalize_customer_recognition(recognized, raw_text)
+    payload["raw_text"] = raw_text
     return ok(payload)
 
 
