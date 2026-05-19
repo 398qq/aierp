@@ -368,6 +368,27 @@ class TestCustomers:
         assert result["score"] > 0
         assert len(result["candidates"]) == 2
 
+    def test_business_card_ocr_merge_keeps_key_fields_from_other_candidates(self):
+        from app.api.v1.ai.customer_ai import _merge_card_ocr_results
+
+        result = _merge_card_ocr_results([
+            {
+                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                "engine": "rapidocr:original",
+                "confidence": 0.6,
+            },
+            {
+                "text": "深圳市星河电子有限公司\n销售经理\n地址: 深圳市南山区科技园\n官网 www.example.com\n主营电子元器件代理销售",
+                "engine": "rapidocr:threshold_190",
+                "confidence": 0.96,
+            },
+        ])
+
+        assert result["engine"] == "rapidocr:original"
+        assert "13800001111" in result["text"]
+        assert "zhang@example.com" in result["text"]
+        assert "深圳市南山区科技园" in result["text"]
+
     async def test_ai_recognize_customer_fallback_extracts_key_fields(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
         async def fake_chat_structured(*_args, **_kwargs):
             raise RuntimeError("AI down")
