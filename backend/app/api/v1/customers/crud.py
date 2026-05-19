@@ -635,7 +635,12 @@ async def create_customer(
     await db.flush()
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
-    return ok({"id": customer.id, "name": customer.name, "code": customer.code})
+    return ok({
+        "id": customer.id,
+        "name": customer.name,
+        "code": customer.code,
+        "created_at": str(customer.created_at) if customer.created_at else None,
+    })
 
 
 @router.put("/{customer_id:int}")

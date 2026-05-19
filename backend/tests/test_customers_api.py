@@ -21,6 +21,15 @@ class TestCustomers:
         assert resp.status_code == 201
         assert resp.json()["code"] == 0
         assert "id" in resp.json()["data"]
+        assert resp.json()["data"]["created_at"]
+
+        cid = resp.json()["data"]["id"]
+        detail = await async_client.get(f"/api/v1/customers/{cid}", headers=auth_headers)
+        assert detail.json()["data"]["created_at"]
+
+        customers = await async_client.get("/api/v1/customers", headers=auth_headers)
+        row = next(item for item in customers.json()["data"]["list"] if item["id"] == cid)
+        assert row["created_at"]
 
     async def test_create_customer_auto_generates_short_name(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.post(
