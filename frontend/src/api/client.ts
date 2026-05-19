@@ -9,6 +9,9 @@ type APIErrorPayload = {
 };
 
 type APIError = Error & {
+  config?: {
+    url?: string;
+  };
   response?: {
     status?: number;
     data?: APIErrorPayload;
@@ -16,6 +19,18 @@ type APIError = Error & {
   };
   requestId?: string;
 };
+
+const AUTH_PROBE_PATH = "/auth/me";
+const LOGIN_PATH = "/login";
+
+function getRequestPath(url?: string) {
+  if (!url) return "";
+  try {
+    return new URL(url, window.location.origin).pathname;
+  } catch {
+    return url;
+  }
+}
 
 const client = axios.create({
   baseURL: "/api/v1",
@@ -41,7 +56,13 @@ client.interceptors.response.use(
     const withRequestId = (msg: string) => (requestId ? `${msg} [RID: ${requestId}]` : msg);
 
     if (status === 401) {
-      window.location.href = "/login";
+      const requestPath = getRequestPath(error.config?.url);
+      const isAuthProbe = requestPath.endsWith(AUTH_PROBE_PATH);
+      const isLoginPage = window.location.pathname === LOGIN_PATH;
+
+      if (!isAuthProbe && !isLoginPage) {
+        window.location.assign(LOGIN_PATH);
+      }
       return Promise.reject(error);
     }
 
