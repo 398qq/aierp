@@ -15,6 +15,7 @@ import {
   Modal,
   Popconfirm,
   Popover,
+  Progress,
   Row,
   Segmented,
   Select,
@@ -123,6 +124,9 @@ const COL_LABEL_MAP: Record<string, string> = {
   specs: "规格",
   unit: "单位",
   brand_name: "品牌",
+  completion_score: "完整度",
+  supplier_count: "供应商",
+  inventory_location_count: "分仓",
   stock_state: "库存状态",
   quantity: "库存",
   available: "可用",
@@ -158,7 +162,7 @@ const formatDateTime = (value?: string | null) => {
 
 const exportProductsCsv = (rows: Product[], filename: string) => {
   if (!rows.length) return false;
-  const headers = ["SKU", "产品名称", "分类", "封装", "规格", "单位", "品牌", "库存", "可用", "锁定", "安全库存", "单价", "最近销售"];
+  const headers = ["SKU", "产品名称", "分类", "封装", "规格", "单位", "品牌", "完整度", "供应商数", "分仓数", "库存", "可用", "锁定", "安全库存", "单价", "最近销售"];
   const body = rows.map((p) => [
     p.sku || "",
     p.name || "",
@@ -167,6 +171,9 @@ const exportProductsCsv = (rows: Product[], filename: string) => {
     p.specs || "",
     p.unit || "",
     p.brand_name || "",
+    p.completion_score ?? "",
+    p.supplier_count ?? 0,
+    p.inventory_location_count ?? 0,
     p.quantity ?? 0,
     getAvailableQty(p),
     p.locked_quantity ?? 0,
@@ -254,6 +261,9 @@ export default function ProductList() {
     "specs",
     "unit",
     "brand_name",
+    "completion_score",
+    "supplier_count",
+    "inventory_location_count",
     "stock_state",
     "quantity",
     "available",
@@ -785,6 +795,23 @@ export default function ProductList() {
     { title: "单位", dataIndex: "unit", key: "unit", width: 80, render: (v: string | null) => v || "-" },
     { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 130, render: (v: string | null) => v || "-" },
     {
+      title: "完整度",
+      dataIndex: "completion_score",
+      key: "completion_score",
+      width: 120,
+      render: (v: number | null, r: Product) => {
+        const score = v ?? 0;
+        const missing = r.missing_fields?.length ? `缺少：${r.missing_fields.join("、")}` : "资料完整";
+        return (
+          <Tooltip title={missing}>
+            <Progress percent={score} size="small" showInfo={false} strokeColor={score >= 80 ? "#52c41a" : score >= 50 ? "#faad14" : "#ff4d4f"} />
+          </Tooltip>
+        );
+      },
+    },
+    { title: "供应商", dataIndex: "supplier_count", key: "supplier_count", width: 90, align: "right", render: (v: number | null) => v ?? 0 },
+    { title: "分仓", dataIndex: "inventory_location_count", key: "inventory_location_count", width: 80, align: "right", render: (v: number | null) => v ?? 0 },
+    {
       title: "库存状态",
       key: "stock_state",
       width: 110,
@@ -1095,6 +1122,9 @@ export default function ProductList() {
               { title: "封装", dataIndex: "package_type", width: 80 },
               { title: "规格", dataIndex: "specs", ellipsis: true, width: 150 },
               { title: "品牌", dataIndex: "brand_name", width: 100 },
+              { title: "完整度", dataIndex: "completion_score", width: 80, render: (v: number | null) => `${v ?? 0}%` },
+              { title: "供应商", dataIndex: "supplier_count", width: 70 },
+              { title: "分仓", dataIndex: "inventory_location_count", width: 60 },
               { title: "库存", dataIndex: "quantity", width: 60 },
               { title: "可用", dataIndex: "available", width: 60, render: (_: number, r: Product) => getAvailableQty(r) },
               { title: "安全库存", dataIndex: "safety_stock", width: 80 },
@@ -1273,6 +1303,12 @@ export default function ProductList() {
               <Descriptions.Item label="封装">{detailProduct.package_type || "-"}</Descriptions.Item>
               <Descriptions.Item label="单位">{detailProduct.unit || "-"}</Descriptions.Item>
               <Descriptions.Item label="最近销售">{formatDateTime(detailProduct.last_sale_at)}</Descriptions.Item>
+              <Descriptions.Item label="资料完整度">{detailProduct.completion_score ?? 0}%</Descriptions.Item>
+              <Descriptions.Item label="供应商数">{detailProduct.supplier_count ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="分仓数">{detailProduct.inventory_location_count ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="总库存">{detailProduct.quantity ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="可用库存">{getAvailableQty(detailProduct)}</Descriptions.Item>
+              <Descriptions.Item label="锁定库存">{detailProduct.locked_quantity ?? 0}</Descriptions.Item>
               <Descriptions.Item label="规格" span={2}>{detailProduct.specs || "-"}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{detailProduct.notes || "-"}</Descriptions.Item>
             </Descriptions>

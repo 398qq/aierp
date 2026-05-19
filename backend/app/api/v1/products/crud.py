@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.product import Inventory, Product
+from app.models.product import Brand, Inventory, Product, SupplierProduct
 from app.schemas.common import fail, ok
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -106,6 +106,7 @@ def _inventory_metrics_subquery():
     return (
         select(
             Inventory.product_id.label("product_id"),
+            func.count(Inventory.id).label("inventory_location_count"),
             func.coalesce(func.sum(Inventory.quantity), 0).label("quantity"),
             func.coalesce(func.sum(Inventory.locked_quantity), 0).label("locked_quantity"),
             func.coalesce(func.sum(available_expr), 0).label("available"),
@@ -115,6 +116,18 @@ def _inventory_metrics_subquery():
         )
         .where(Inventory.deleted_at.is_(None))
         .group_by(Inventory.product_id)
+        .subquery()
+    )
+
+
+def _supplier_metrics_subquery():
+    return (
+        select(
+            SupplierProduct.product_id.label("product_id"),
+            func.count(SupplierProduct.supplier_id).label("supplier_count"),
+        )
+        .where(SupplierProduct.deleted_at.is_(None))
+        .group_by(SupplierProduct.product_id)
         .subquery()
     )
 
@@ -133,16 +146,42 @@ def _sales_metrics_subquery():
     )
 
 
+def _product_completion(p: Product) -> tuple[int, list[str]]:
+    fields = [
+        ("SKU", p.sku),
+        ("品牌", p.brand_id),
+        ("分类", p.category),
+        ("封装", p.package_type),
+        ("规格", p.specs),
+        ("单位", p.unit),
+    ]
+    completed = sum(1 for _, value in fields if value not in (None, ""))
+    missing = [label for label, value in fields if value in (None, "")]
+    return round(completed / len(fields) * 100), missing
+
+
+def _stock_status(available: int | None, safety_stock: int | None) -> str:
+    available_qty = available or 0
+    if available_qty <= 0:
+        return "out_of_stock"
+    if available_qty <= (safety_stock or 0):
+        return "low_stock"
+    return "in_stock"
+
+
 def _product_row(
     p: Product,
+    inventory_location_count: int | None = None,
     quantity: int | None = None,
     available: int | None = None,
     locked_quantity: int | None = None,
     safety_stock: int | None = None,
     unit_price: float | None = None,
+    supplier_count: int | None = None,
     last_sale_at=None,
     inventory_updated_at=None,
 ) -> dict:
+    completion_score, missing_fields = _product_completion(p)
     return {
         "id": p.id, "sku": p.sku, "name": p.name, "brand_id": p.brand_id,
         "brand_name": p.brand.name_cn or p.brand.name if p.brand else None,
@@ -154,6 +193,11 @@ def _product_row(
         "locked_quantity": int(locked_quantity or 0),
         "safety_stock": int(safety_stock) if safety_stock is not None else None,
         "unit_price": float(unit_price) if unit_price is not None else None,
+        "stock_status": _stock_status(available, safety_stock),
+        "inventory_location_count": int(inventory_location_count or 0),
+        "supplier_count": int(supplier_count or 0),
+        "completion_score": completion_score,
+        "missing_fields": missing_fields,
         "last_sale_at": str(last_sale_at) if last_sale_at else None,
         "inventory_updated_at": str(inventory_updated_at) if inventory_updated_at else None,
         "created_at": str(p.created_at) if p.created_at else None,
@@ -252,26 +296,40 @@ async def list_products(
 
     inv_subq = _inventory_metrics_subquery()
     sales_subq = _sales_metrics_subquery()
+    supplier_subq = _supplier_metrics_subquery()
 
     base = (
         select(
             Product,
+            inv_subq.c.inventory_location_count,
             inv_subq.c.quantity,
             inv_subq.c.available,
             inv_subq.c.locked_quantity,
             inv_subq.c.safety_stock,
             inv_subq.c.unit_price,
             inv_subq.c.inventory_updated_at,
+            supplier_subq.c.supplier_count,
             sales_subq.c.last_sale_at,
         )
         .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
+        .outerjoin(supplier_subq, Product.id == supplier_subq.c.product_id)
         .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
         .where(Product.deleted_at.is_(None))
     )
 
     if q:
         like = f"%{q}%"
-        base = base.where(or_(Product.name.ilike(like), Product.sku.ilike(like)))
+        base = base.outerjoin(Brand, Product.brand_id == Brand.id).where(
+            or_(
+                Product.name.ilike(like),
+                Product.sku.ilike(like),
+                Product.category.ilike(like),
+                Product.package_type.ilike(like),
+                Product.specs.ilike(like),
+                Brand.name.ilike(like),
+                Brand.name_cn.ilike(like),
+            )
+        )
     if category:
         base = base.where(Product.category == category)
     if brand_id:
@@ -322,26 +380,82 @@ async def list_products(
     items = [
         _product_row(
             p,
+            inventory_location_count=inventory_location_count,
             quantity=quantity,
             available=available,
             locked_quantity=locked_quantity,
             safety_stock=safety_stock,
             unit_price=unit_price,
+            supplier_count=supplier_count,
             last_sale_at=last_sale_at,
             inventory_updated_at=inventory_updated_at,
         )
-        for p, quantity, available, locked_quantity, safety_stock, unit_price, inventory_updated_at, last_sale_at in rows
+        for (
+            p,
+            inventory_location_count,
+            quantity,
+            available,
+            locked_quantity,
+            safety_stock,
+            unit_price,
+            inventory_updated_at,
+            supplier_count,
+            last_sale_at,
+        ) in rows
     ]
     return ok({"list": items, "total": total, "page": page, "page_size": page_size})
 
 
 @router.get("/{product_id}")
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(select(Product).where(Product.id == product_id, Product.deleted_at.is_(None)))
-    product = result.scalar_one_or_none()
-    if product is None:
+    inv_subq = _inventory_metrics_subquery()
+    sales_subq = _sales_metrics_subquery()
+    supplier_subq = _supplier_metrics_subquery()
+    result = await db.execute(
+        select(
+            Product,
+            inv_subq.c.inventory_location_count,
+            inv_subq.c.quantity,
+            inv_subq.c.available,
+            inv_subq.c.locked_quantity,
+            inv_subq.c.safety_stock,
+            inv_subq.c.unit_price,
+            inv_subq.c.inventory_updated_at,
+            supplier_subq.c.supplier_count,
+            sales_subq.c.last_sale_at,
+        )
+        .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
+        .outerjoin(supplier_subq, Product.id == supplier_subq.c.product_id)
+        .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
+        .where(Product.id == product_id, Product.deleted_at.is_(None))
+    )
+    row = result.one_or_none()
+    if row is None:
         return fail("Product not found", 404)
-    return ok(_product_row(product))
+    (
+        product,
+        inventory_location_count,
+        quantity,
+        available,
+        locked_quantity,
+        safety_stock,
+        unit_price,
+        inventory_updated_at,
+        supplier_count,
+        last_sale_at,
+    ) = row
+    return ok(_product_row(
+        product,
+        inventory_location_count=inventory_location_count,
+        quantity=quantity,
+        available=available,
+        locked_quantity=locked_quantity,
+        safety_stock=safety_stock,
+        unit_price=unit_price,
+        supplier_count=supplier_count,
+        last_sale_at=last_sale_at,
+        inventory_updated_at=inventory_updated_at,
+    ))
 
 
 @router.post("", status_code=201)
@@ -377,6 +491,20 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
     product.deleted_at = datetime.now(timezone.utc)
     await db.flush()
     return ok(msg="deleted")
+
+
+@router.post("/batch-delete")
+async def batch_delete_products(body: dict, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+    ids: list[int] = body.get("ids", [])
+    if not ids:
+        return fail("No product IDs provided", 400)
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        update(Product)
+        .where(Product.id.in_(ids), Product.deleted_at.is_(None))
+        .values(deleted_at=now)
+    )
+    return ok({"deleted": result.rowcount or 0})
 
 
 @router.patch("/batch")

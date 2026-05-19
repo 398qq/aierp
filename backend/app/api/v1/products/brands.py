@@ -44,6 +44,7 @@ class BrandCreate(BaseModel):
     risk_level: str | None = None
     rohs_status: str | None = None
     ai_keywords: str | None = None
+    risk_score: float | None = None
     alternative_brands: str | None = None
 
 
@@ -74,6 +75,7 @@ class BrandUpdate(BaseModel):
     risk_level: str | None = None
     rohs_status: str | None = None
     ai_keywords: str | None = None
+    risk_score: float | None = None
     alternative_brands: str | None = None
 
 
@@ -86,7 +88,65 @@ class BrandBatchDelete(BaseModel):
     ids: list[int] = Field(min_length=1)
 
 
-def _brand_row(brand: Brand) -> dict:
+def _brand_completion(brand: Brand) -> tuple[int, list[str]]:
+    fields = [
+        ("编码", brand.code),
+        ("中文名", brand.name_cn),
+        ("类型", brand.brand_type),
+        ("分类", brand.category),
+        ("等级", brand.level),
+        ("负责人", brand.owner),
+        ("产品线", brand.product_lines),
+        ("授权状态", brand.authorization_status),
+        ("生命周期", brand.lifecycle_stage),
+        ("风险等级", brand.risk_level),
+        ("RoHS", brand.rohs_status),
+    ]
+    completed = sum(1 for _, value in fields if value not in (None, ""))
+    missing = [label for label, value in fields if value in (None, "")]
+    return round(completed / len(fields) * 100), missing
+
+
+def _brand_incomplete_clause():
+    return or_(
+        Brand.code.is_(None),
+        Brand.code == "",
+        Brand.name_cn.is_(None),
+        Brand.name_cn == "",
+        Brand.brand_type.is_(None),
+        Brand.brand_type == "",
+        Brand.category.is_(None),
+        Brand.category == "",
+        Brand.level.is_(None),
+        Brand.level == "",
+        Brand.owner.is_(None),
+        Brand.owner == "",
+        Brand.product_lines.is_(None),
+        Brand.product_lines == "",
+        Brand.authorization_status.is_(None),
+        Brand.authorization_status == "",
+        Brand.lifecycle_stage.is_(None),
+        Brand.lifecycle_stage == "",
+        Brand.risk_level.is_(None),
+        Brand.risk_level == "",
+        Brand.rohs_status.is_(None),
+        Brand.rohs_status == "",
+    )
+
+
+def _product_count_subquery():
+    return (
+        select(Product.brand_id, func.count(Product.id).label("product_count"))
+        .where(Product.deleted_at.is_(None))
+        .group_by(Product.brand_id)
+        .subquery()
+    )
+
+
+def _brand_row(brand: Brand, product_count: int | None = None) -> dict:
+    completion_score, missing_fields = _brand_completion(brand)
+    if product_count is None:
+        product_count = getattr(brand, "product_count", None)
     return {
         "id": brand.id,
         "code": brand.code,
@@ -117,7 +177,10 @@ def _brand_row(brand: Brand) -> dict:
         "ai_keywords": brand.ai_keywords,
         "alternative_brands": brand.alternative_brands,
         "risk_score": brand.risk_score,
-        "product_count": getattr(brand, "product_count", None),
+        "product_count": product_count,
+        "has_products": product_count is None or product_count > 0,
+        "completion_score": completion_score,
+        "missing_fields": missing_fields,
         "created_at": brand.created_at,
         "updated_at": brand.updated_at,
     }
@@ -135,6 +198,17 @@ async def _count_by(db: AsyncSession, column, key: str) -> list[dict]:
     return [{key: value or "unknown", "count": count} for value, count in rows]
 
 
+async def _brand_product_count(db: AsyncSession, brand_id: int) -> int:
+    return (
+        await db.execute(
+            select(func.count(Product.id)).where(
+                Product.brand_id == brand_id,
+                Product.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
+
+
 # --- CRUD ---
 
 
@@ -143,16 +217,26 @@ async def list_brands(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     keyword: str | None = None,
+    q: str | None = None,
     status: str | None = None,
     level: str | None = None,
     brand_type: str | None = None,
     category: str | None = None,
     lifecycle_stage: str | None = None,
     risk_level: str | None = None,
+    scene: str | None = Query(None, description="high_risk | eol_nrnd | pending_completion | no_products | automotive | unauthorized"),
+    sort: str | None = Query(None, description="created_at_desc | name_asc | name_desc | risk_score_desc | product_count_desc"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    query = select(Brand).where(Brand.deleted_at.is_(None))
+    keyword = keyword or q
+    product_count_subq = _product_count_subquery()
+    product_count_expr = func.coalesce(product_count_subq.c.product_count, 0)
+    query = (
+        select(Brand, product_count_expr.label("product_count"))
+        .outerjoin(product_count_subq, Brand.id == product_count_subq.c.brand_id)
+        .where(Brand.deleted_at.is_(None))
+    )
     if keyword:
         pattern = f"%{keyword}%"
         query = query.where(
@@ -160,6 +244,11 @@ async def list_brands(
                 Brand.name.ilike(pattern),
                 Brand.name_cn.ilike(pattern),
                 Brand.code.ilike(pattern),
+                Brand.short_name.ilike(pattern),
+                Brand.category.ilike(pattern),
+                Brand.manufacturer_name.ilike(pattern),
+                Brand.product_lines.ilike(pattern),
+                Brand.ai_keywords.ilike(pattern),
             )
         )
     if status:
@@ -175,31 +264,38 @@ async def list_brands(
     if risk_level:
         query = query.where(Brand.risk_level == risk_level)
 
+    if scene == "high_risk":
+        query = query.where(or_(Brand.risk_score >= 70, Brand.risk_level.in_(("high", "critical"))))
+    elif scene == "eol_nrnd":
+        query = query.where(Brand.lifecycle_stage.in_(("eol", "nrnd")))
+    elif scene == "pending_completion":
+        query = query.where(_brand_incomplete_clause())
+    elif scene == "no_products":
+        query = query.where(product_count_expr == 0)
+    elif scene == "automotive":
+        query = query.where(Brand.is_automotive.is_(True))
+    elif scene == "unauthorized":
+        query = query.where(Brand.authorization_status == "unauthorized")
+
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar() or 0
 
-    query = query.order_by(Brand.created_at.desc())
+    if sort == "name_asc":
+        query = query.order_by(Brand.name.asc(), Brand.id.desc())
+    elif sort == "name_desc":
+        query = query.order_by(Brand.name.desc(), Brand.id.desc())
+    elif sort == "risk_score_desc":
+        query = query.order_by(case((Brand.risk_score.is_(None), 1), else_=0), Brand.risk_score.desc(), Brand.id.desc())
+    elif sort == "product_count_desc":
+        query = query.order_by(product_count_expr.desc(), Brand.id.desc())
+    else:
+        query = query.order_by(Brand.created_at.desc(), Brand.id.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
-    rows = (await db.execute(query)).scalars().all()
+    rows = (await db.execute(query)).all()
 
-    product_counts: dict[int, int] = {}
-    if rows:
-        product_counts = dict(
-            (
-                await db.execute(
-                    select(Product.brand_id, func.count(Product.id))
-                    .where(
-                        Product.brand_id.in_([brand.id for brand in rows]),
-                        Product.deleted_at.is_(None),
-                    )
-                    .group_by(Product.brand_id)
-                )
-            ).all()
-        )
     items = []
-    for brand in rows:
-        item = _brand_row(brand)
-        item["product_count"] = product_counts.get(brand.id, 0)
+    for brand, product_count in rows:
+        item = _brand_row(brand, product_count=int(product_count or 0))
         items.append(item)
 
     return ok({"list": items, "total": total, "page": page, "page_size": page_size})
@@ -250,6 +346,25 @@ async def brand_stats_summary(
             )
         )
     ).scalar() or 0
+    completion_base = select(Brand).where(
+        Brand.deleted_at.is_(None),
+        _brand_incomplete_clause(),
+    ).subquery()
+    pending_completion_count = (
+        await db.execute(select(func.count()).select_from(completion_base))
+    ).scalar() or 0
+
+    product_count_subq = _product_count_subquery()
+    no_product_count = (
+        await db.execute(
+            select(func.count(Brand.id))
+            .outerjoin(product_count_subq, Brand.id == product_count_subq.c.brand_id)
+            .where(
+                Brand.deleted_at.is_(None),
+                func.coalesce(product_count_subq.c.product_count, 0) == 0,
+            )
+        )
+    ).scalar() or 0
 
     top_risk_rows = (
         await db.execute(
@@ -286,6 +401,8 @@ async def brand_stats_summary(
         "eol_nrnd_count": eol_nrnd_count,
         "automotive_count": automotive_count,
         "high_risk_count": high_risk_count,
+        "pending_completion_count": pending_completion_count,
+        "no_product_count": no_product_count,
         "by_status": await _count_by(db, Brand.status, "status"),
         "by_level": await _count_by(db, Brand.level, "level"),
         "by_type": await _count_by(db, Brand.brand_type, "type"),
@@ -339,6 +456,8 @@ async def batch_update_brands(
         "risk_level",
         "authorization_status",
         "owner",
+        "positioning",
+        "rohs_status",
     }
     invalid_fields = sorted(set(updates) - allowed_fields)
     if invalid_fields:
@@ -380,7 +499,7 @@ async def get_brand(
     row = await db.get(Brand, brand_id)
     if not row or row.deleted_at is not None:
         return fail("Brand not found", 404)
-    return ok(_brand_row(row))
+    return ok(_brand_row(row, product_count=await _brand_product_count(db, brand_id)))
 
 
 @brands_router.post("/")
@@ -393,7 +512,7 @@ async def create_brand(
     db.add(brand)
     await db.commit()
     await db.refresh(brand)
-    return ok(_brand_row(brand))
+    return ok(_brand_row(brand, product_count=0))
 
 
 @brands_router.put("/{brand_id}")
@@ -411,7 +530,7 @@ async def update_brand(
     brand.updated_by = current_user["user_id"]
     await db.commit()
     await db.refresh(brand)
-    return ok(_brand_row(brand))
+    return ok(_brand_row(brand, product_count=await _brand_product_count(db, brand_id)))
 
 
 @brands_router.delete("/{brand_id}")

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch } from "antd";
-import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined } from "@ant-design/icons";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Statistic, Progress, Tooltip, Segmented } from "antd";
+import { BankOutlined, AlertOutlined, RiseOutlined, CarOutlined, WarningOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText } from "../../api";
+import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats } from "../../api";
 import type { Brand } from "../../types";
 
 const { Text } = Typography;
@@ -50,6 +50,37 @@ const statusColor: Record<string, string> = { active: "green", inactive: "orange
 const statusLabel: Record<string, string> = { active: "启用", inactive: "停用", frozen: "冻结" };
 const levelColor: Record<string, string> = { A: "red", B: "blue", C: "default" };
 const typeLabel: Record<string, string> = { own_brand: "自有", agency: "代理", oem: "OEM" };
+const riskTagColor: Record<string, string> = { low: "green", medium: "orange", high: "red", critical: "purple" };
+const lcTagColor: Record<string, string> = { active: "green", nrnd: "orange", eol: "red" };
+type BrandScene = "all" | "high_risk" | "eol_nrnd" | "pending_completion" | "no_products" | "automotive" | "unauthorized";
+
+const SCENE_OPTIONS: { label: string; value: BrandScene }[] = [
+  { label: "全部", value: "all" },
+  { label: "高风险", value: "high_risk" },
+  { label: "EOL/NRND", value: "eol_nrnd" },
+  { label: "待完善", value: "pending_completion" },
+  { label: "未铺货", value: "no_products" },
+  { label: "车规", value: "automotive" },
+  { label: "未授权", value: "unauthorized" },
+];
+
+const SORT_OPTIONS = [
+  { label: "最新创建", value: "created_at_desc" },
+  { label: "名称升序", value: "name_asc" },
+  { label: "名称降序", value: "name_desc" },
+  { label: "风险最高", value: "risk_score_desc" },
+  { label: "产品最多", value: "product_count_desc" },
+];
+
+interface BrandStats {
+  total: number; recent_30d: number; eol_nrnd_count: number;
+  automotive_count: number; high_risk_count: number;
+  pending_completion_count?: number; no_product_count?: number;
+  by_status: { status: string; count: number }[];
+  by_level: { level: string; count: number }[];
+  by_risk: { level: string; count: number }[];
+  by_lifecycle: { stage: string; count: number }[];
+}
 
 export default function BrandList() {
   const [data, setData] = useState<Brand[]>([]);
@@ -68,16 +99,31 @@ export default function BrandList() {
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
   const [filterLevel, setFilterLevel] = useState<string | undefined>();
   const [filterType, setFilterType] = useState<string | undefined>();
+  const [filterLifecycle, setFilterLifecycle] = useState<string | undefined>();
+  const [filterRisk, setFilterRisk] = useState<string | undefined>();
+  const [scene, setScene] = useState<BrandScene>("all");
+  const [sort, setSort] = useState("created_at_desc");
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchField, setBatchField] = useState<string>("");
+  const [batchValue, setBatchValue] = useState<string>("");
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [stats, setStats] = useState<BrandStats | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const fetch = async (p = page, ps = pageSize) => {
+  const fetch = async (p = page, ps = pageSize, keyword = search) => {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { page: p, page_size: ps };
-      if (search) params.q = search;
+      if (keyword) params.q = keyword;
       if (filterStatus) params.status = filterStatus;
       if (filterLevel) params.level = filterLevel;
       if (filterType) params.brand_type = filterType;
+      if (filterLifecycle) params.lifecycle_stage = filterLifecycle;
+      if (filterRisk) params.risk_level = filterRisk;
+      if (scene !== "all") params.scene = scene;
+      if (sort) params.sort = sort;
       const resp = await getBrands(params);
       const d = resp.data.data as { list: Brand[]; total: number };
       setData(d.list || []);
@@ -86,8 +132,36 @@ export default function BrandList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [page, pageSize, filterStatus, filterLevel, filterType]);
-  useEffect(() => { setPage(1); }, [search]);
+  const fetchStats = async () => {
+    try {
+      const resp = await getBrandStats();
+      setStats(resp.data.data as unknown as BrandStats);
+    } catch { /* non-blocking */ }
+  };
+
+  useEffect(() => { fetch(); fetchStats(); }, [page, pageSize, filterStatus, filterLevel, filterType, filterLifecycle, filterRisk, scene, sort]);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setSearch(params.get("q") || params.get("keyword") || "");
+    setFilterStatus(params.get("status") || undefined);
+    setFilterLevel(params.get("level") || undefined);
+    setFilterType(params.get("brand_type") || undefined);
+    setFilterLifecycle(params.get("lifecycle_stage") || undefined);
+    setFilterRisk(params.get("risk_level") || undefined);
+    setScene((params.get("scene") as BrandScene) || "all");
+    setSort(params.get("sort") || "created_at_desc");
+    setPage(1);
+  }, [location.search]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (page !== 1) {
+        setPage(1);
+      } else {
+        fetch(1, pageSize, search);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -143,15 +217,98 @@ export default function BrandList() {
     finally { setImportLoading(false); }
   };
 
+  const handleBatchUpdate = async () => {
+    if (!batchField || !batchValue || selectedRowKeys.length === 0) {
+      message.error("请选择字段和值");
+      return;
+    }
+    setBatchSubmitting(true);
+    try {
+      await batchUpdateBrands(selectedRowKeys as number[], { [batchField]: batchValue });
+      message.success(`已更新 ${selectedRowKeys.length} 个品牌`);
+      setBatchModalOpen(false);
+      setBatchField("");
+      setBatchValue("");
+      setSelectedRowKeys([]);
+      fetch();
+    } catch { message.error("批量更新失败"); }
+    finally { setBatchSubmitting(false); }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) return;
+    setBatchSubmitting(true);
+    try {
+      await batchDeleteBrands(selectedRowKeys as number[]);
+      message.success(`已删除 ${selectedRowKeys.length} 个品牌`);
+      setSelectedRowKeys([]);
+      fetch();
+    } catch { message.error("批量删除失败"); }
+    finally { setBatchSubmitting(false); }
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setFilterStatus(undefined);
+    setFilterLevel(undefined);
+    setFilterType(undefined);
+    setFilterLifecycle(undefined);
+    setFilterRisk(undefined);
+    setScene("all");
+    setSort("created_at_desc");
+    setPage(1);
+  };
+
+  const exportCurrentPage = () => {
+    if (!data.length) {
+      message.warning("当前无可导出数据");
+      return;
+    }
+    const headers = ["编码", "名称", "中文名", "状态", "类型", "等级", "生命周期", "风险", "风险分", "完整度", "产品数", "授权", "负责人", "产品线"];
+    const rows = data.map((b) => [
+      b.code || "",
+      b.name || "",
+      b.name_cn || "",
+      statusLabel[b.status] || b.status || "",
+      b.brand_type ? typeLabel[b.brand_type] || b.brand_type : "",
+      b.level || "",
+      b.lifecycle_stage || "",
+      b.risk_level || "",
+      b.risk_score ?? "",
+      b.completion_score ?? "",
+      b.product_count ?? 0,
+      b.authorization_status || "",
+      b.owner || "",
+      b.product_lines || "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "brands_current_page.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success(`已导出 ${data.length} 条`);
+  };
+
+  const getBrandAction = (brand: Brand) => {
+    if (!brand.has_products) return <Tag color="orange">补产品</Tag>;
+    if ((brand.completion_score ?? 0) < 70) return <Tag color="gold">补资料</Tag>;
+    if (brand.lifecycle_stage === "eol" || brand.lifecycle_stage === "nrnd") return <Tag color="red">替代评估</Tag>;
+    if (brand.authorization_status === "unauthorized") return <Tag color="volcano">授权核验</Tag>;
+    if (brand.risk_level === "high" || brand.risk_level === "critical" || (brand.risk_score ?? 0) >= 70) return <Tag color="red">风险复核</Tag>;
+    return <Tag color="green">正常维护</Tag>;
+  };
+
   const columns: ColumnsType<Brand> = [
     { title: "ID", dataIndex: "id", width: 50 },
     { title: "编码", dataIndex: "code", width: 80, render: (v) => v || "-" },
     {
-      title: "名称", dataIndex: "name", width: 150,
+      title: "名称", dataIndex: "name", width: 160,
       render: (v, r) => <a onClick={() => navigate(`/brands/${r.id}`)}>{v}</a>,
     },
     { title: "中文名", dataIndex: "name_cn", width: 100, render: (v) => v || "-" },
-    { title: "简称", dataIndex: "short_name", width: 80, render: (v) => v || "-" },
     {
       title: "状态", dataIndex: "status", width: 70,
       render: (v) => <Tag color={statusColor[v] || "default"}>{statusLabel[v] || v}</Tag>,
@@ -164,11 +321,46 @@ export default function BrandList() {
       title: "等级", dataIndex: "level", width: 60,
       render: (v) => v ? <Tag color={levelColor[v]}>{v}级</Tag> : "-",
     },
-    { title: "分类", dataIndex: "category", width: 90, render: (v) => v || "-" },
-    { title: "负责人", dataIndex: "owner", width: 80, render: (v) => v || "-" },
     {
-      title: "创建时间", dataIndex: "created_at", width: 90,
-      render: (v: string) => v?.slice(0, 10) || "-",
+      title: "生命周期", dataIndex: "lifecycle_stage", width: 80,
+      render: (v) => v ? <Tag color={lcTagColor[v] || "default"}>{v.toUpperCase()}</Tag> : "-",
+    },
+    {
+      title: "风险", dataIndex: "risk_level", width: 70,
+      render: (v, r) => v ? (
+        <Space size={4}>
+          <Tag color={riskTagColor[v] || "default"}>{v === "low" ? "低" : v === "medium" ? "中" : v === "high" ? "高" : "严重"}</Tag>
+          {r.risk_score != null && <Progress percent={r.risk_score} size="small" style={{ width: 40 }} showInfo={false} status={r.risk_score > 70 ? "exception" : "normal"} />}
+        </Space>
+      ) : "-",
+    },
+    {
+      title: "完整度", dataIndex: "completion_score", width: 95,
+      render: (v: number | null, r) => {
+        const score = v ?? 0;
+        const missing = r.missing_fields?.length ? `缺少：${r.missing_fields.join("、")}` : "资料完整";
+        return (
+          <Tooltip title={missing}>
+            <Progress percent={score} size="small" showInfo={false} strokeColor={score >= 80 ? "#52c41a" : score >= 50 ? "#faad14" : "#ff4d4f"} />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "车规", dataIndex: "is_automotive", width: 55,
+      render: (v) => v ? <Tag color="blue" style={{padding: "0 4px"}}>车规</Tag> : <Text type="secondary">-</Text>,
+    },
+    {
+      title: "授权", dataIndex: "authorization_status", width: 70,
+      render: (v) => v ? <Tag color={v === "authorized" ? "green" : v === "unauthorized" ? "red" : "default"}>{v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}</Tag> : "-",
+    },
+    {
+      title: "产品", dataIndex: "product_count", width: 55,
+      render: (v) => v != null && v > 0 ? <Text style={{ fontSize: 12 }}>{v}</Text> : <Tag color="orange">未铺货</Tag>,
+    },
+    {
+      title: "建议", key: "next_action", width: 90,
+      render: (_: unknown, r) => getBrandAction(r),
     },
     {
       title: "操作", key: "action", width: 120, fixed: "right",
@@ -183,35 +375,145 @@ export default function BrandList() {
     },
   ];
 
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+  };
+
   return (
     <div>
+      <style>{`
+        .brand-row-critical td { background: #fff2f0 !important; }
+        .brand-row-eol td { background: #fff7e6 !important; }
+      `}</style>
+      {/* Stats bar */}
+      {stats && (
+        <Row gutter={12} style={{ marginBottom: 12 }}>
+          <Col span={4}>
+            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setScene("all")}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>品牌总数</Text>}
+                value={stats.total} prefix={<BankOutlined />}
+                valueStyle={{ fontSize: 20 }}
+              />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setSort("created_at_desc"); setScene("all"); }}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>近30天新增</Text>}
+                value={stats.recent_30d} prefix={<RiseOutlined />}
+                valueStyle={{ fontSize: 20, color: "#52c41a" }}
+              />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("eol_nrnd"); setPage(1); }}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>EOL/NRND</Text>}
+                value={stats.eol_nrnd_count} prefix={<AlertOutlined />}
+                valueStyle={{ fontSize: 20, color: stats.eol_nrnd_count > 0 ? "#f5222d" : undefined }}
+              />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("pending_completion"); setPage(1); }}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>待完善</Text>}
+                value={stats.pending_completion_count ?? 0} prefix={<AlertOutlined />}
+                valueStyle={{ fontSize: 20 }}
+              />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("high_risk"); setPage(1); }}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>高风险(&gt;70分)</Text>}
+                value={stats.high_risk_count} prefix={<WarningOutlined />}
+                valueStyle={{ fontSize: 20, color: stats.high_risk_count > 0 ? "#f5222d" : undefined }}
+              />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("no_products"); setPage(1); }}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>未铺货</Text>}
+                value={stats.no_product_count ?? 0} prefix={<CarOutlined />}
+                valueStyle={{ fontSize: 20, color: (stats.no_product_count ?? 0) > 0 ? "#fa8c16" : undefined }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
+
       <Card
-        title="品牌管理"
+        title={
+          <Space>
+            品牌列表
+            {selectedRowKeys.length > 0 && (
+              <Tag color="blue">{selectedRowKeys.length} 已选</Tag>
+            )}
+          </Space>
+        }
         extra={
           <Space wrap>
+            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>看板</Button>
             <Input.Search
-              placeholder="搜索品牌" allowClear
+              placeholder="搜索品牌/产品线/关键词" allowClear
               value={search} onChange={(e) => setSearch(e.target.value)}
-              onSearch={(v) => { setSearch(v); }} style={{ width: 180 }}
+              onSearch={(v) => {
+                setSearch(v);
+                if (page !== 1) setPage(1);
+                else fetch(1, pageSize, v);
+              }} style={{ width: 220 }}
             />
             <Select placeholder="状态" allowClear style={{ width: 80 }} value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
             <Select placeholder="等级" allowClear style={{ width: 80 }} value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
             <Select placeholder="类型" allowClear style={{ width: 100 }} value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
-            <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+            <Select placeholder="生命周期" allowClear style={{ width: 100 }} value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
+            <Select placeholder="风险" allowClear style={{ width: 80 }} value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
+            <Select value={sort} style={{ width: 110 }} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} />
+            <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>导出</Button>
+            <Button onClick={resetFilters}>重置</Button>
+            <Button icon={<ReloadOutlined />} onClick={() => { fetch(); fetchStats(); }}>刷新</Button>
             <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
+            {selectedRowKeys.length > 0 && (
+              <>
+                <Button icon={<EditOutlined />} onClick={() => setBatchModalOpen(true)}>批量更新</Button>
+                <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个品牌？`} onConfirm={handleBatchDelete}>
+                  <Button danger icon={<DeleteOutlined />}>批量删除</Button>
+                </Popconfirm>
+              </>
+            )}
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
           </Space>
         }
       >
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Segmented
+            options={SCENE_OPTIONS}
+            value={scene}
+            onChange={(v) => {
+              setScene(v as BrandScene);
+              setPage(1);
+            }}
+          />
+        </Space>
         <Table
           rowKey="id" columns={columns} dataSource={data}
+          rowSelection={rowSelection}
+          rowClassName={(record) => {
+            if (record.risk_level === "critical" || (record.risk_score ?? 0) >= 80) return "brand-row-critical";
+            if (record.lifecycle_stage === "eol") return "brand-row-eol";
+            return "";
+          }}
           loading={loading} size="small" pagination={{
             current: page, total, pageSize: pageSize,
             pageSizeOptions: ["10", "20", "50", "100"],
             showSizeChanger: true, showTotal: (t) => `共 ${t} 条`,
             onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1300 }}
         />
       </Card>
 
@@ -370,6 +672,63 @@ export default function BrandList() {
           placeholder="例如：意法半导体 (STMicroelectronics) 是全球领先的半导体公司，专注于MCU、电源管理、传感器等产品线..."
           style={{ marginTop: 8 }}
         />
+      </Modal>
+
+      <Modal
+        title={`批量更新 ${selectedRowKeys.length} 个品牌`}
+        open={batchModalOpen}
+        onCancel={() => { setBatchModalOpen(false); setBatchField(""); setBatchValue(""); }}
+        onOk={handleBatchUpdate}
+        confirmLoading={batchSubmitting}
+        okText="更新"
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div>
+            <Text strong>选择更新字段：</Text>
+            <Select
+              style={{ width: "100%", marginTop: 4 }}
+              placeholder="选择字段"
+              value={batchField}
+              onChange={(v) => setBatchField(v)}
+              options={[
+                { label: "状态", value: "status" },
+                { label: "等级", value: "level" },
+                { label: "风险等级", value: "risk_level" },
+                { label: "生命周期", value: "lifecycle_stage" },
+                { label: "授权状态", value: "authorization_status" },
+                { label: "RoHS 状态", value: "rohs_status" },
+                { label: "品牌定位", value: "positioning" },
+                { label: "负责人", value: "owner" },
+              ]}
+            />
+          </div>
+          {batchField === "status" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={STATUS_OPTIONS} />
+          )}
+          {batchField === "level" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={LEVEL_OPTIONS} />
+          )}
+          {batchField === "risk_level" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={RISK_OPTIONS} />
+          )}
+          {batchField === "lifecycle_stage" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={LIFECYCLE_OPTIONS} />
+          )}
+          {batchField === "authorization_status" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={AUTH_OPTIONS} />
+          )}
+          {batchField === "rohs_status" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={ROHS_OPTIONS} />
+          )}
+          {batchField === "positioning" && (
+            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={[
+              { label: "高端", value: "high" }, { label: "中端", value: "mid" }, { label: "低端", value: "low" },
+            ]} />
+          )}
+          {(batchField === "owner" || !["status", "level", "risk_level", "lifecycle_stage", "authorization_status", "rohs_status", "positioning"].includes(batchField)) && (
+            <Input placeholder="输入值" value={batchValue} onChange={(e) => setBatchValue(e.target.value)} />
+          )}
+        </Space>
       </Modal>
     </div>
   );

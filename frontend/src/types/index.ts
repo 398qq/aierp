@@ -254,6 +254,11 @@ export interface Product {
   locked_quantity?: number | null;
   safety_stock?: number | null;
   unit_price?: number | null;
+  stock_status?: "in_stock" | "low_stock" | "out_of_stock";
+  inventory_location_count?: number;
+  supplier_count?: number;
+  completion_score?: number;
+  missing_fields?: string[];
   last_sale_at?: string | null;
   inventory_updated_at?: string | null;
 }
@@ -276,6 +281,9 @@ export interface Brand {
   ai_keywords: string | null; risk_score: number | null; alternative_brands: string | null;
   // meta
   product_count?: number;
+  has_products?: boolean;
+  completion_score?: number;
+  missing_fields?: string[];
   created_at?: string;
   updated_at?: string | null;
 }
