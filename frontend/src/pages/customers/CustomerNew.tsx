@@ -1,16 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { App, Card, Button, Form, Space } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { createCustomer } from "../../api";
+import { useAuthStore } from "../../store/auth";
 import CustomerAIRecognizer from "./CustomerAIRecognizer";
 import CustomerFormFields from "./CustomerForm";
+
+export function getDefaultCustomerOwner(username?: string | null) {
+  return username?.trim() || "";
+}
 
 export default function CustomerNew() {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const username = useAuthStore((state) => state.username);
+
+  useEffect(() => {
+    const defaultOwner = getDefaultCustomerOwner(username);
+    const currentOwner = form.getFieldValue("owner");
+    if (defaultOwner && !currentOwner) {
+      form.setFieldValue("owner", defaultOwner);
+    }
+  }, [form, username]);
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);

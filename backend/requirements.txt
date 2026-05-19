@@ -18,3 +18,4 @@ openpyxl==3.1.5
 tenacity==9.1.2
 Pillow==11.2.1
 pytesseract==0.3.13
+rapidocr==3.8.1

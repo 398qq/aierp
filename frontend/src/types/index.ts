@@ -165,6 +165,17 @@ export interface CustomerRecognition {
   notes: string | null;
   confidence: number;
   summary: string | null;
+  raw_text?: string | null;
+  ocr_engine?: string | null;
+  ocr_confidence?: number | null;
+  ocr_score?: number | null;
+  ocr_candidates?: Array<{
+    engine: string;
+    confidence: number;
+    score: number;
+    text_length: number;
+  }> | null;
+  recognition_warnings?: string[] | null;
 }
 
 export interface TimelineEvent {

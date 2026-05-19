@@ -183,9 +183,15 @@ class TestCustomers:
         assert data["confidence"] == 0.9
 
     async def test_ai_recognize_business_card(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
-        def fake_extract_business_card_text(content: bytes):
+        def fake_extract_business_card_ocr(content: bytes):
             assert content == b"fake-card-image"
-            return "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com\n汽车电子OEM"
+            return {
+                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com\n汽车电子OEM",
+                "engine": "rapidocr",
+                "confidence": 0.91,
+                "score": 3.2,
+                "candidates": [{"engine": "rapidocr", "confidence": 0.91, "score": 3.2, "text_length": 55}],
+            }
 
         async def fake_recognize_customer(text: str):
             assert "张工" in text
@@ -210,8 +216,8 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai._extract_business_card_text",
-            fake_extract_business_card_text,
+            "app.api.v1.ai.customer_ai._extract_business_card_ocr",
+            fake_extract_business_card_ocr,
         )
         monkeypatch.setattr(
             "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
@@ -229,11 +235,20 @@ class TestCustomers:
         assert data["name"] == "深圳市星河电子有限公司"
         assert data["contact_person"] == "张工"
         assert data["raw_text"].startswith("深圳市星河电子有限公司")
+        assert data["ocr_engine"] == "rapidocr"
+        assert data["ocr_confidence"] == 0.91
+        assert data["ocr_score"] == 3.2
+        assert data["ocr_candidates"][0]["engine"] == "rapidocr"
+        assert data["recognition_warnings"] == []
 
     async def test_ai_recognize_business_card_accepts_body_file(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
-        def fake_extract_business_card_text(content: bytes):
+        def fake_extract_business_card_ocr(content: bytes):
             assert content == b"fake-card-image"
-            return "深圳市星河电子有限公司\n张工 13800001111"
+            return {
+                "text": "深圳市星河电子有限公司\n张工 13800001111",
+                "engine": "tesseract",
+                "confidence": 0,
+            }
 
         async def fake_recognize_customer(text: str):
             return {
@@ -257,8 +272,8 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai._extract_business_card_text",
-            fake_extract_business_card_text,
+            "app.api.v1.ai.customer_ai._extract_business_card_ocr",
+            fake_extract_business_card_ocr,
         )
         monkeypatch.setattr(
             "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
@@ -274,6 +289,189 @@ class TestCustomers:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["name"] == "深圳市星河电子有限公司"
+
+    async def test_ai_recognize_business_card_returns_missing_field_warnings(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        monkeypatch,
+    ):
+        def fake_extract_business_card_ocr(content: bytes):
+            return {
+                "text": "张工 13800001111",
+                "engine": "rapidocr:original",
+                "confidence": 0.42,
+                "score": 0.8,
+                "candidates": [{"engine": "rapidocr:original", "confidence": 0.42, "score": 0.8, "text_length": 14}],
+            }
+
+        async def fake_recognize_customer(text: str):
+            return {
+                "name": "",
+                "short_name": "",
+                "customer_type": "",
+                "industry": "",
+                "level": "",
+                "region": "",
+                "source": "",
+                "contact_person": "张工",
+                "phone": "13800001111",
+                "email": "",
+                "owner": "",
+                "credit_limit": None,
+                "credit_level": "",
+                "address": "",
+                "notes": "",
+                "confidence": 0.4,
+                "summary": "部分识别",
+            }
+
+        monkeypatch.setattr(
+            "app.api.v1.ai.customer_ai._extract_business_card_ocr",
+            fake_extract_business_card_ocr,
+        )
+        monkeypatch.setattr(
+            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            fake_recognize_customer,
+        )
+
+        resp = await async_client.post(
+            "/api/v1/ai/customer/card-recognition",
+            headers=auth_headers,
+            files={"file": ("card.png", b"fake-card-image", "image/png")},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert "未识别到客户名称" in data["recognition_warnings"]
+        assert "未识别到邮箱" in data["recognition_warnings"]
+        assert "OCR评分较低，建议上传更清晰、无遮挡的名片图片" in data["recognition_warnings"]
+
+    def test_business_card_ocr_scoring_prefers_field_rich_text(self):
+        from app.api.v1.ai.customer_ai import _merge_card_ocr_results
+
+        result = _merge_card_ocr_results([
+            {
+                "text": "AAAA BBBB CCCC DDDD EEEE FFFF GGGG HHHH IIII JJJJ KKKK LLLL",
+                "engine": "rapidocr:original",
+                "confidence": 0.95,
+            },
+            {
+                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                "engine": "rapidocr:gray_autocontrast",
+                "confidence": 0.72,
+            },
+        ])
+
+        assert result["engine"] == "rapidocr:gray_autocontrast"
+        assert result["text"].startswith("深圳市星河电子有限公司")
+        assert result["score"] > 0
+        assert len(result["candidates"]) == 2
+
+    async def test_ai_recognize_customer_fallback_extracts_key_fields(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+        async def fake_chat_structured(*_args, **_kwargs):
+            raise RuntimeError("AI down")
+
+        monkeypatch.setattr(
+            "app.services.ai.agents.ai_client.chat_structured",
+            fake_chat_structured,
+        )
+
+        text = (
+            "公司：深圳市星河电子有限公司，联系人：张工，手机：13800001111，"
+            "邮箱：zhang@example.com，行业：车规电子，区域：深圳，来源：expo，"
+            "负责人：王明，授信：20万，类型：OEM。"
+        )
+        resp = await async_client.post(
+            "/api/v1/ai/customer/recognition",
+            headers=auth_headers,
+            json={"text": text},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["name"] == "深圳市星河电子有限公司"
+        assert data["short_name"] in ("星河电子", "深圳市星河电子")
+        assert data["phone"] == "13800001111"
+        assert data["email"] == "zhang@example.com"
+        assert data["industry"] == "汽车电子"
+        assert data["region"] == "华南"
+        assert data["source"] == "展会"
+        assert data["customer_type"] == "OEM"
+        assert data["owner"] == "王明"
+        assert data["credit_limit"] == 200000
+
+    async def test_ai_recognize_customer_fallback_complex_text(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+        async def fake_chat_structured(*_args, **_kwargs):
+            raise RuntimeError("AI down")
+
+        monkeypatch.setattr(
+            "app.services.ai.agents.ai_client.chat_structured",
+            fake_chat_structured,
+        )
+
+        text = (
+            "Company: Shenzhen Nova Tech Co., Ltd. contact: Alice 电话:0755-12345678 手机:13912345678 "
+            "email:alice@novatech.com 行业: automotive electronics 区域: 广东 来源: website留资 "
+            "授信等级:A 授信:80万 owner:Bob"
+        )
+        resp = await async_client.post(
+            "/api/v1/ai/customer/recognition",
+            headers=auth_headers,
+            json={"text": text},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["phone"] == "13912345678"
+        assert data["email"] == "alice@novatech.com"
+        assert data["industry"] == "汽车电子"
+        assert data["region"] == "华南"
+        assert data["source"] == "线上推广"
+        assert data["credit_level"] == "A"
+        assert data["credit_limit"] == 800000
+
+    async def test_ai_recognize_customer_fallback_repairs_ocr_spacing(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+        async def fake_chat_structured(*_args, **_kwargs):
+            raise RuntimeError("AI down")
+
+        monkeypatch.setattr(
+            "app.services.ai.agents.ai_client.chat_structured",
+            fake_chat_structured,
+        )
+
+        text = (
+            "深圳市星河电子有限公司\n"
+            "张伟 / 销售经理\n"
+            "Mobile: 138-0000 1111\n"
+            "E mail: zhang @ example . com\n"
+            "Address: 深圳市南山区科技园"
+        )
+        resp = await async_client.post(
+            "/api/v1/ai/customer/recognition",
+            headers=auth_headers,
+            json={"text": text},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["name"] == "深圳市星河电子有限公司"
+        assert data["contact_person"] == "张伟"
+        assert data["phone"] == "13800001111"
+        assert data["email"] == "zhang@example.com"
+        assert data["address"] == "深圳市南山区科技园"
+
+    def test_customer_fallback_helpers_extract_name_and_title_line(self):
+        from app.services.ai.agents import _heuristic_customer_recognition
+
+        result = _heuristic_customer_recognition(
+            "Shenzhen Nova Electronics Co., Ltd.\nAlice Wang Sales Director\nTel: 0755-1234 5678\nEmail: alice @ nova . com"
+        )
+
+        assert result["name"] == "Shenzhen Nova Electronics Co."
+        assert result["contact_person"] == "Alice Wang"
+        assert result["phone"] == "075512345678"
+        assert result["email"] == "alice@nova.com"
 
 
 class TestCustomerContacts:

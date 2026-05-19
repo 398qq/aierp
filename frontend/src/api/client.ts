@@ -40,6 +40,14 @@ const client = axios.create({
 });
 
 client.interceptors.request.use((config) => {
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    if (config.headers && "Content-Type" in config.headers) {
+      delete (config.headers as Record<string, unknown>)["Content-Type"];
+    }
+    if (config.headers && "content-type" in config.headers) {
+      delete (config.headers as Record<string, unknown>)["content-type"];
+    }
+  }
   // httpOnly cookie is sent automatically by the browser with withCredentials.
   // This interceptor intentionally left empty — token lives in httpOnly cookie,
   // JS never needs to read it.

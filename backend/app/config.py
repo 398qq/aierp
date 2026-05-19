@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     AI_BASE_URL: str = "https://api.siliconflow.cn/v1"
     AI_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
     AI_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
+    AI_FOLLOWUP_MODEL: str = ""
     AI_EMBEDDING_MODEL: str = "BAAI/bge-large-zh-v1.5"
 
     CORS_ORIGINS: list[str] = ["http://localhost:3002", "http://localhost:5173"]

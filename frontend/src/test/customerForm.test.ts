@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { generateCustomerShortName } from "../pages/customers/CustomerForm";
+import { getDefaultCustomerOwner } from "../pages/customers/CustomerNew";
 
 describe("generateCustomerShortName", () => {
   it("removes common company suffixes from customer names", () => {
@@ -14,5 +15,16 @@ describe("generateCustomerShortName", () => {
 
   it("keeps plain names usable as short names", () => {
     expect(generateCustomerShortName("星河电子")).toBe("星河电子");
+  });
+});
+
+describe("getDefaultCustomerOwner", () => {
+  it("uses the current logged-in username as the default owner", () => {
+    expect(getDefaultCustomerOwner(" sales01 ")).toBe("sales01");
+  });
+
+  it("does not produce an owner when the user is unavailable", () => {
+    expect(getDefaultCustomerOwner(null)).toBe("");
+    expect(getDefaultCustomerOwner("")).toBe("");
   });
 });

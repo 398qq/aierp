@@ -1,6 +1,8 @@
 """Customer AI endpoints."""
 import io
 import logging
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -28,6 +30,15 @@ CUSTOMER_LEVELS = {"A", "B", "C", "D"}
 CUSTOMER_REGIONS = {"华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"}
 CUSTOMER_SOURCES = {"展会", "转介绍", "线上推广", "电话开发", "公司资源"}
 MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
+_rapidocr_engine: Any | None = None
+
+CARD_OCR_FIELD_PATTERNS = (
+    r"1[3-9]\d{9}",
+    r"0\d{2,3}-?\d{7,8}",
+    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+    r"(?:有限公司|股份|集团|公司|Co\.?|Ltd\.?|Inc\.?)",
+    r"(?:地址|电话|手机|邮箱|联系人|职务|销售|经理|工程师|官网|网址|Address|Tel|Mobile|Email|Web|Manager|Engineer)",
+)
 
 
 class FollowUpRecognitionRequest(BaseModel):
@@ -72,6 +83,72 @@ def _clean_confidence(value: Any) -> float:
     return max(0.0, min(1.0, confidence))
 
 
+def _normalize_ocr_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text or "")
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = re.sub(r"[ \t]+", " ", normalized)
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
+    normalized = re.sub(r"(?<=\d)\s+(?=\d)", "", normalized)
+    normalized = re.sub(r"(?i)\bE[-\s]*mail\b", "Email", normalized)
+    normalized = re.sub(r"(?i)\bM(?:ob(?:ile)?)?\s*[:：]", "Mobile:", normalized)
+    normalized = re.sub(r"(?i)\bT(?:el)?\s*[:：]", "Tel:", normalized)
+    return normalized.strip()
+
+
+def _score_card_ocr_text(text: str, confidence: Any = 0) -> float:
+    normalized = _normalize_ocr_text(text)
+    if not normalized:
+        return 0.0
+
+    score = min(len(normalized), 500) / 500
+    lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+    score += min(len(lines), 8) * 0.08
+
+    for pattern in CARD_OCR_FIELD_PATTERNS:
+        if re.search(pattern, normalized, re.IGNORECASE):
+            score += 0.45
+
+    chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", normalized))
+    latin_words = len(re.findall(r"[A-Za-z]{2,}", normalized))
+    score += min(chinese_chars, 80) / 160
+    score += min(latin_words, 30) / 120
+    score += _clean_confidence(confidence) * 0.6
+
+    replacement_noise = normalized.count("?") + normalized.count("�")
+    if replacement_noise:
+        score -= min(replacement_noise * 0.2, 1.0)
+    return round(max(score, 0.0), 4)
+
+
+def _merge_card_ocr_results(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    usable = [item for item in candidates if _normalize_ocr_text(str(item.get("text") or ""))]
+    if not usable:
+        return {"text": "", "engine": "none", "confidence": 0.0, "score": 0.0, "candidates": []}
+
+    normalized_candidates = []
+    for item in usable:
+        text = _normalize_ocr_text(str(item.get("text") or ""))
+        confidence = _clean_confidence(item.get("confidence"))
+        normalized_candidates.append({
+            **item,
+            "text": text,
+            "confidence": confidence,
+            "score": _score_card_ocr_text(text, confidence),
+        })
+
+    best = max(normalized_candidates, key=lambda item: item["score"])
+    best["candidates"] = [
+        {
+            "engine": item.get("engine") or "unknown",
+            "confidence": _clean_confidence(item.get("confidence")),
+            "score": item.get("score") or 0,
+            "text_length": len(str(item.get("text") or "")),
+        }
+        for item in sorted(normalized_candidates, key=lambda item: item["score"], reverse=True)
+    ]
+    return best
+
+
 def _clean_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
@@ -107,18 +184,149 @@ def _normalize_customer_recognition(recognized: dict[str, Any], fallback_text: s
     return payload
 
 
-def _extract_business_card_text(content: bytes) -> str:
+def _customer_recognition_warnings(payload: dict[str, Any], *, is_card: bool = False) -> list[str]:
+    warnings = []
+    if not payload.get("name"):
+        warnings.append("未识别到客户名称")
+    if not payload.get("contact_person"):
+        warnings.append("未识别到联系人")
+    if not payload.get("phone"):
+        warnings.append("未识别到电话")
+    if is_card and not payload.get("email"):
+        warnings.append("未识别到邮箱")
+    if is_card and float(payload.get("ocr_score") or 0) < 1.2:
+        warnings.append("OCR评分较低，建议上传更清晰、无遮挡的名片图片")
+    return warnings
+
+
+def _get_rapidocr_engine() -> Any:
+    global _rapidocr_engine
+    if _rapidocr_engine is None:
+        from rapidocr import RapidOCR
+        _rapidocr_engine = RapidOCR()
+    return _rapidocr_engine
+
+
+def _business_card_image_variants(image: Any) -> list[tuple[str, Any]]:
+    from PIL import ImageEnhance, ImageFilter, ImageOps
+
+    base = image.convert("RGB")
+    variants: list[tuple[str, Any]] = [("original", base)]
+
+    width, height = base.size
+    longest = max(width, height)
+    if longest and longest < 1600:
+        scale = min(3, 1600 / longest)
+        resized = base.resize((int(width * scale), int(height * scale)))
+        variants.append(("resized", resized))
+        base = resized
+
+    gray = ImageOps.grayscale(base)
+    variants.append(("gray_autocontrast", ImageOps.autocontrast(gray)))
+    variants.append(("sharp_contrast", ImageEnhance.Contrast(gray.filter(ImageFilter.SHARPEN)).enhance(1.6)))
+    variants.append(("threshold_160", gray.point(lambda p: 255 if p > 160 else 0)))
+    variants.append(("threshold_190", gray.point(lambda p: 255 if p > 190 else 0)))
+    return variants
+
+
+def _ocr_with_rapidocr(image: Any) -> dict[str, Any]:
     try:
-        from PIL import Image
-        import pytesseract
+        import numpy as np
     except Exception as exc:
-        raise RuntimeError("OCR依赖不可用，请安装 Pillow、pytesseract 和系统 tesseract-ocr") from exc
+        raise RuntimeError("RapidOCR依赖不可用") from exc
+
+    engine = _get_rapidocr_engine()
+    np_image = np.array(image.convert("RGB"))
+    result = engine(np_image)
+    texts = [str(item).strip() for item in (getattr(result, "txts", None) or []) if str(item).strip()]
+    scores = [float(item) for item in (getattr(result, "scores", None) or []) if item is not None]
+    confidence = round(sum(scores) / len(scores), 4) if scores else 0.0
+    return {
+        "text": "\n".join(texts).strip(),
+        "engine": "rapidocr",
+        "confidence": confidence,
+    }
+
+
+def _ocr_with_tesseract(image: Any) -> dict[str, Any]:
+    import pytesseract
+
+    candidates: list[dict[str, Any]] = []
+    configs = ("--oem 3 --psm 6", "--oem 3 --psm 11")
+    for variant_name, variant in _business_card_image_variants(image):
+        for config in configs:
+            text = pytesseract.image_to_string(variant, lang="chi_sim+eng", config=config).strip()
+            if not text:
+                continue
+            confidence = 0.0
+            try:
+                data = pytesseract.image_to_data(variant, lang="chi_sim+eng", config=config, output_type=pytesseract.Output.DICT)
+                scores = []
+                for score in data.get("conf", []):
+                    try:
+                        value = float(score)
+                    except (TypeError, ValueError):
+                        continue
+                    if value >= 0:
+                        scores.append(value / 100)
+                confidence = round(sum(scores) / len(scores), 4) if scores else 0.0
+            except Exception:
+                confidence = 0.0
+            candidates.append({
+                "text": text,
+                "engine": f"tesseract:{variant_name}:{config.split()[-1]}",
+                "confidence": confidence,
+            })
+
+    best = _merge_card_ocr_results(candidates)
+
+    return {
+        "text": best.get("text") or "",
+        "engine": best.get("engine") or "tesseract",
+        "confidence": best.get("confidence") or 0.0,
+    }
+
+
+def _extract_business_card_ocr(content: bytes) -> dict[str, Any]:
+    try:
+        from PIL import Image, ImageOps
+    except Exception as exc:
+        raise RuntimeError("OCR依赖不可用，请安装 Pillow") from exc
 
     try:
         image = Image.open(io.BytesIO(content))
-        return pytesseract.image_to_string(image, lang="chi_sim+eng").strip()
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+
+        candidates: list[dict[str, Any]] = []
+        for variant_name, variant in _business_card_image_variants(image):
+            try:
+                rapid = _ocr_with_rapidocr(variant)
+                if rapid["text"]:
+                    rapid["engine"] = f"rapidocr:{variant_name}"
+                    candidates.append(rapid)
+            except Exception as exc:
+                logger.warning("RapidOCR failed on %s, fallback to tesseract: %s", variant_name, exc)
+                break
+
+        try:
+            tesseract = _ocr_with_tesseract(image)
+            if tesseract["text"]:
+                candidates.append(tesseract)
+        except Exception as exc:
+            logger.warning("Tesseract OCR failed: %s", exc)
+
+        if not candidates:
+            return {"text": "", "engine": "none", "confidence": 0.0}
+
+        return _merge_card_ocr_results(candidates)
     except Exception as exc:
-        raise RuntimeError("图片文字提取失败，请确认图片清晰且系统已安装中文OCR语言包") from exc
+        raise RuntimeError("图片文字提取失败，请确认图片清晰且OCR依赖已安装") from exc
+
+
+def _extract_business_card_text(content: bytes) -> str:
+    return str(_extract_business_card_ocr(content).get("text") or "")
 
 
 @router.post("/customer/{customer_id}/rfm")
@@ -373,17 +581,23 @@ async def recognize_customer_card(
         return fail("名片图片不能超过 8MB")
 
     try:
-        raw_text = _extract_business_card_text(content)
+        ocr_result = _extract_business_card_ocr(content)
     except RuntimeError as exc:
         logger.warning("Business card OCR failed: %s", exc)
         return fail(f"名片OCR失败: {exc}")
 
+    raw_text = str(ocr_result.get("text") or "").strip()
     if not raw_text:
         return fail("未识别到名片文字，请换一张更清晰的图片或改用文本识别")
 
     recognized = await CustomerAgent.recognize_customer(raw_text)
     payload = _normalize_customer_recognition(recognized, raw_text)
     payload["raw_text"] = raw_text
+    payload["ocr_engine"] = ocr_result.get("engine") or "unknown"
+    payload["ocr_confidence"] = _clean_confidence(ocr_result.get("confidence"))
+    payload["ocr_score"] = float(ocr_result.get("score") or 0)
+    payload["ocr_candidates"] = ocr_result.get("candidates") or []
+    payload["recognition_warnings"] = _customer_recognition_warnings(payload, is_card=True)
     return ok(payload)
 
 

@@ -26,6 +26,10 @@ def _coerce_numbers(obj):
     return obj
 
 
+EMBEDDING_BATCH_SIZE = 16
+EMBEDDING_TEXT_LIMIT = 2000
+
+
 class AIClient:
     """Unified AI client — text generation + embeddings."""
 
@@ -38,7 +42,7 @@ class AIClient:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def chat(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> str:
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=180) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self.headers,
@@ -68,7 +72,7 @@ class AIClient:
             return text
 
     async def chat_stream(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> AsyncGenerator[str, None]:
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=120) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
@@ -94,7 +98,14 @@ class AIClient:
                         except (json.JSONDecodeError, KeyError, IndexError):
                             continue
 
-    async def chat_structured(self, messages: list[dict], output_schema: dict, temperature: float = 0.3, max_tokens: int = 8192) -> dict:
+    async def chat_structured(
+        self,
+        messages: list[dict],
+        output_schema: dict,
+        temperature: float = 0.3,
+        max_tokens: int = 8192,
+        model: str | None = None,
+    ) -> dict:
         """Get structured JSON output matching the given schema."""
         system_msg = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         schema_str = json.dumps(output_schema, indent=2, ensure_ascii=False)
@@ -111,7 +122,7 @@ class AIClient:
                 f"```json\n{schema_str}\n```"
             ),
         }
-        text = await self.chat(messages, temperature=temperature, max_tokens=max_tokens)
+        text = await self.chat(messages, temperature=temperature, max_tokens=max_tokens, model=model)
         text = text.strip()
         # Sanitize control characters and invalid Unicode that break JSON
         import unicodedata
@@ -209,6 +220,13 @@ class AIClient:
 
         # Fix trailing comma inside string values: "value"," -> "value",
         text = re.sub(r'"([^"]+),"(\s*[,}"a-z_])', r'"\1"\2', text)
+        # Fix missing commas between a value and the next key on one line.
+        # Examples:
+        #   "phone":13800001111"email":"..."
+        #   "credit_limit":null"credit_level":"A"
+        text = re.sub(r'(\d)\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r'\1,\2', text)
+        text = re.sub(r'(null|true|false)\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r'\1,\2', text)
+        text = re.sub(r'(")\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r'\1,\2', text)
 
         # Line-by-line fix: insert comma after value lines followed by key lines
         if text.strip().startswith("{"):
@@ -282,15 +300,25 @@ class AIClient:
 
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{self.base_url}/embeddings",
-                headers=self.headers,
-                json={"model": settings.AI_EMBEDDING_MODEL, "input": texts},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return [item["embedding"] for item in data["data"]]
+        if not texts:
+            return []
+
+        safe_texts = [text[:EMBEDDING_TEXT_LIMIT] for text in texts]
+        embeddings: list[list[float]] = []
+
+        async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
+            for start in range(0, len(safe_texts), EMBEDDING_BATCH_SIZE):
+                batch = safe_texts[start:start + EMBEDDING_BATCH_SIZE]
+                resp = await client.post(
+                    f"{self.base_url}/embeddings",
+                    headers=self.headers,
+                    json={"model": settings.AI_EMBEDDING_MODEL, "input": batch},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                embeddings.extend(item["embedding"] for item in data["data"])
+
+        return embeddings
 
     async def embed_single(self, text: str) -> list[float]:
         results = await self.embed([text])

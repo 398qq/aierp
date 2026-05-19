@@ -1,5 +1,5 @@
 import { ThunderboltOutlined, UploadOutlined } from "@ant-design/icons";
-import { App, Button, Input, Modal, Space, Typography, Upload } from "antd";
+import { Alert, App, Button, Descriptions, Input, Modal, Space, Typography, Upload } from "antd";
 import type { FormInstance } from "antd/es/form";
 import type { UploadProps } from "antd";
 import { useState } from "react";
@@ -50,11 +50,13 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
   const [text, setText] = useState("");
   const [recognizing, setRecognizing] = useState(false);
   const [cardRecognizing, setCardRecognizing] = useState(false);
+  const [pendingRecognition, setPendingRecognition] = useState<CustomerRecognition | null>(null);
 
   const openModal = () => {
     const values = form.getFieldsValue(["name", "contact_person", "phone", "email", "notes"]) as Record<string, string | undefined>;
     const seededText = [values.name, values.contact_person, values.phone, values.email, values.notes].filter(Boolean).join("\n");
     setText(seededText.trim());
+    setPendingRecognition(null);
     setOpen(true);
   };
 
@@ -65,6 +67,11 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
   };
 
   const handleRecognize = async () => {
+    if (pendingRecognition) {
+      applyRecognizedCustomer(pendingRecognition, pendingRecognition.raw_text || text.trim());
+      return;
+    }
+
     const rawText = text.trim();
     if (!rawText) {
       message.warning("请先输入需要识别的客户资料");
@@ -73,7 +80,11 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
     setRecognizing(true);
     try {
       const resp = await recognizeCustomer(rawText);
-      applyRecognizedCustomer(resp.data.data, rawText);
+      const recognized = resp.data?.data as CustomerRecognition | null | undefined;
+      if (!recognized) {
+        throw new Error(resp.data?.msg || "AI识别失败");
+      }
+      applyRecognizedCustomer(recognized, rawText);
     } catch {
       message.error("AI识别失败");
     } finally {
@@ -90,9 +101,13 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
     setCardRecognizing(true);
     try {
       const resp = await recognizeBusinessCard(file);
-      const recognized = resp.data.data;
-      applyRecognizedCustomer(recognized, recognized.raw_text || text.trim());
+      const recognized = resp.data?.data as CustomerRecognition | null | undefined;
+      if (!recognized) {
+        throw new Error(resp.data?.msg || "名片识别失败");
+      }
       if (recognized.raw_text) setText(recognized.raw_text);
+      setPendingRecognition(recognized);
+      message.success("名片识别完成，请确认字段后填充");
     } catch (error: any) {
       const backendMsg = error?.response?.data?.msg || error?.message;
       message.error(backendMsg || "名片识别失败，请换一张更清晰的图片或改用文本识别");
@@ -136,9 +151,41 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
           <Input.TextArea
             rows={8}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              setPendingRecognition(null);
+            }}
             placeholder={"例如：深圳市星河电子有限公司，汽车电子OEM，华南区域，联系人张工 13800001111 zhang@example.com，展会线索，负责人王明，授信20万。"}
           />
+          {pendingRecognition && (
+            <>
+              <Alert
+                showIcon
+                type="info"
+                message="名片识别预览"
+                description={`OCR引擎: ${pendingRecognition.ocr_engine || "unknown"}；置信度: ${
+                  pendingRecognition.ocr_confidence != null ? Math.round(pendingRecognition.ocr_confidence * 100) + "%" : "未知"
+                }；候选: ${pendingRecognition.ocr_candidates?.length || 1}；评分: ${pendingRecognition.ocr_score != null ? pendingRecognition.ocr_score.toFixed(2) : "未知"}`}
+              />
+              {!!pendingRecognition.recognition_warnings?.length && (
+                <Alert showIcon type="warning" message="请重点核对" description={pendingRecognition.recognition_warnings.join("；")} />
+              )}
+              <Descriptions
+                bordered
+                size="small"
+                column={2}
+                items={[
+                  { key: "name", label: "客户名称", children: pendingRecognition.name || "-" },
+                  { key: "contact", label: "联系人", children: pendingRecognition.contact_person || "-" },
+                  { key: "phone", label: "电话", children: pendingRecognition.phone || "-" },
+                  { key: "email", label: "邮箱", children: pendingRecognition.email || "-" },
+                  { key: "industry", label: "行业", children: pendingRecognition.industry || "-" },
+                  { key: "region", label: "区域", children: pendingRecognition.region || "-" },
+                ]}
+              />
+              <Input.TextArea rows={4} value={pendingRecognition.raw_text || ""} readOnly />
+            </>
+          )}
         </Space>
       </Modal>
     </>
