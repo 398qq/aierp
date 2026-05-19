@@ -22,6 +22,55 @@ class TestCustomers:
         assert resp.json()["code"] == 0
         assert "id" in resp.json()["data"]
 
+    async def test_create_customer_auto_generates_short_name(self, async_client: AsyncClient, auth_headers: dict):
+        resp = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "深圳市星河电子有限公司", "type": "终端客户"},
+        )
+        assert resp.status_code == 201
+        cid = resp.json()["data"]["id"]
+
+        detail = await async_client.get(f"/api/v1/customers/{cid}", headers=auth_headers)
+        assert detail.status_code == 200
+        assert detail.json()["data"]["short_name"] == "深圳市星河电子"
+
+    async def test_create_customer_keeps_manual_short_name(self, async_client: AsyncClient, auth_headers: dict):
+        resp = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "上海星河电子有限公司", "short_name": "星河", "type": "终端客户"},
+        )
+        assert resp.status_code == 201
+        cid = resp.json()["data"]["id"]
+
+        detail = await async_client.get(f"/api/v1/customers/{cid}", headers=auth_headers)
+        assert detail.status_code == 200
+        assert detail.json()["data"]["short_name"] == "星河"
+
+    async def test_create_customer_dedupes_auto_short_name_conflicts(self, async_client: AsyncClient, auth_headers: dict):
+        first = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "冲突简称电子有限公司", "type": "终端客户"},
+        )
+        second = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "冲突简称电子有限公司", "type": "终端客户"},
+        )
+        assert first.status_code == 201
+        assert second.status_code == 201
+
+        first_detail = await async_client.get(f"/api/v1/customers/{first.json()['data']['id']}", headers=auth_headers)
+        second_detail = await async_client.get(f"/api/v1/customers/{second.json()['data']['id']}", headers=auth_headers)
+        first_short_name = first_detail.json()["data"]["short_name"]
+        second_short_name = second_detail.json()["data"]["short_name"]
+
+        assert first_short_name == "冲突简称电子"
+        assert second_short_name.startswith("冲突简称电子-")
+        assert second_short_name != first_short_name
+
     async def test_get_customer(self, async_client: AsyncClient, auth_headers: dict):
         c = await async_client.post(
             "/api/v1/customers",

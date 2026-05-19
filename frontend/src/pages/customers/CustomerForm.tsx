@@ -1,3 +1,4 @@
+import { useEffect, useRef, type ReactNode } from "react";
 import { Form, Input, Select, InputNumber } from "antd";
 
 const { Item: FormItem } = Form;
@@ -9,11 +10,62 @@ const typeOptions = ["终端", "贸易商", "方案商", "OEM"];
 const regionOptions = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
 const sourceOptions = ["展会", "转介绍", "线上推广", "电话开发", "公司资源"];
 
-function FormRow({ cols, children }: { cols: number; children: React.ReactNode }) {
+const COMPANY_SUFFIXES = [
+  "有限责任公司",
+  "股份有限公司",
+  "集团有限公司",
+  "控股有限公司",
+  "有限公司",
+  "责任公司",
+  "股份公司",
+  "控股集团",
+  "集团",
+  "公司",
+];
+
+export function generateCustomerShortName(name?: string | null) {
+  if (!name) return "";
+  let value = name.normalize("NFKC").trim().replace(/\s+/g, "");
+  value = value.replace(/\([^()]*\)/g, "");
+  for (const suffix of COMPANY_SUFFIXES) {
+    if (value.endsWith(suffix) && value.length > suffix.length) {
+      value = value.slice(0, -suffix.length);
+      break;
+    }
+  }
+  return (value || name.trim()).slice(0, 100);
+}
+
+function FormRow({ cols, children }: { cols: number; children: ReactNode }) {
   return <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "0 16px" }}>{children}</div>;
 }
 
 export default function CustomerFormFields() {
+  const form = Form.useFormInstance();
+  const customerName = Form.useWatch("name", form) as string | undefined;
+  const shortName = Form.useWatch("short_name", form) as string | undefined;
+  const previousGeneratedRef = useRef("");
+
+  useEffect(() => {
+    const generated = generateCustomerShortName(customerName);
+    const current = typeof shortName === "string" ? shortName.trim() : "";
+    const previousGenerated = previousGeneratedRef.current;
+
+    if (!generated) {
+      if (current && current === previousGenerated) {
+        form.setFieldValue("short_name", undefined);
+      }
+      previousGeneratedRef.current = "";
+      return;
+    }
+
+    const canAutoFill = !current || current === previousGenerated || current === generated;
+    if (canAutoFill && current !== generated) {
+      form.setFieldValue("short_name", generated);
+    }
+    previousGeneratedRef.current = generated;
+  }, [customerName, shortName, form]);
+
   return (
     <>
       <FormRow cols={2}>
@@ -26,7 +78,7 @@ export default function CustomerFormFields() {
       </FormRow>
       <FormRow cols={3}>
         <FormItem name="short_name" label="简称">
-          <Input placeholder="便于检索的简称" />
+          <Input placeholder="根据客户名称自动生成，可手动修改" />
         </FormItem>
         <FormItem name="customer_type" label="客户类型">
           <Select placeholder="选择类型" options={opts(typeOptions)} allowClear />
