@@ -7,6 +7,7 @@ import AttachmentPanel from "../../components/AttachmentPanel";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
 import CustomerFormFields from "./CustomerForm";
+import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
 import VendAsSupplierModal from "./VendAsSupplierModal";
 import QuotationHistoryPanel from "./QuotationHistoryPanel";
 import dayjs from "dayjs";
@@ -593,6 +594,19 @@ function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { o
           }
         }}
       >
+        {!followUp && (
+          <Form.Item>
+            <FollowUpAIRecognizer
+              customerId={customerId}
+              form={form}
+              getSeedText={() => {
+                const values = form.getFieldsValue(["content", "result"]) as { content?: string; result?: string };
+                return [values.content, values.result].filter(Boolean).join("\n");
+              }}
+              block
+            />
+          </Form.Item>
+        )}
         <Form.Item name="method" label="跟进方式">
           <Select allowClear placeholder="选择方式" options={FOLLOW_UP_METHOD_OPTIONS} />
         </Form.Item>

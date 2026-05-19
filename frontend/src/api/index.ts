@@ -1,9 +1,9 @@
 import client from "./client";
 import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
-  ChurnRisk, Contract, Customer, Customer360, CustomerAIStats, CustomerLog, CustomerProductMatch, CustomerStats,
+  ChurnRisk, Contract, Customer, Customer360, CustomerAIStats, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
   DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
-  FollowUp, FollowUpReminder,
+  FollowUp, FollowUpRecognition, FollowUpReminder,
   Global360, GroupStats,
   Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
   MergeResult,
@@ -523,8 +523,14 @@ export const getRFMAnalysis = (customerId: number) =>
 export const getChurnRisk = (customerId: number) =>
   client.post<APIResponse<ChurnRisk>>(`/ai/customer/${customerId}/churn-risk`);
 
+export const recognizeCustomer = (text: string) =>
+  client.post<APIResponse<CustomerRecognition>>("/ai/customer/recognition", { text });
+
 export const getFollowUpSuggestion = (customerId: number) =>
   client.post<APIResponse>(`/ai/customer/${customerId}/followup-suggestion`);
+
+export const recognizeFollowUp = (customerId: number, text: string) =>
+  client.post<APIResponse<FollowUpRecognition>>(`/ai/customer/${customerId}/followup-recognition`, { text });
 
 // Customer Logs
 export const getCustomerLogs = (customerId: number) =>

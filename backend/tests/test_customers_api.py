@@ -139,6 +139,49 @@ class TestCustomers:
         resp = await async_client.get("/api/v1/customers")
         assert resp.status_code == 401
 
+    async def test_ai_recognize_customer(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+        async def fake_recognize_customer(text: str):
+            assert "深圳市星河电子有限公司" in text
+            return {
+                "name": "深圳市星河电子有限公司",
+                "short_name": "星河电子",
+                "customer_type": "OEM",
+                "industry": "汽车电子",
+                "level": "A",
+                "region": "华南",
+                "source": "展会",
+                "contact_person": "张工",
+                "phone": "13800001111",
+                "email": "zhang@example.com",
+                "owner": "王明",
+                "credit_limit": 200000,
+                "credit_level": "A",
+                "address": "深圳市南山区",
+                "notes": "展会线索",
+                "confidence": 0.9,
+                "summary": "识别为华南汽车电子OEM客户",
+            }
+
+        monkeypatch.setattr(
+            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            fake_recognize_customer,
+        )
+
+        resp = await async_client.post(
+            "/api/v1/ai/customer/recognition",
+            headers=auth_headers,
+            json={"text": "深圳市星河电子有限公司，汽车电子OEM，联系人张工，13800001111，展会线索。"},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["name"] == "深圳市星河电子有限公司"
+        assert data["customer_type"] == "OEM"
+        assert data["industry"] == "汽车电子"
+        assert data["region"] == "华南"
+        assert data["credit_limit"] == 200000
+        assert data["confidence"] == 0.9
+
 
 class TestCustomerContacts:
     """Contact management."""
@@ -237,6 +280,51 @@ class TestCustomerFollowups:
             json={"content": "已更新内容"},
         )
         assert resp.status_code == 200
+
+    async def test_ai_recognize_followup(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+        cust = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "AI识别跟进客户", "type": "终端客户"},
+        )
+        cid = cust.json()["data"]["id"]
+
+        async def fake_recognize_followup(text: str, customer_data: dict, now_text: str):
+            assert "明天下午3点" in text
+            assert customer_data["name"] == "AI识别跟进客户"
+            assert now_text
+            return {
+                "method": "phone",
+                "status": "planned",
+                "priority": "high",
+                "content": "客户需要重新评估BOM价格",
+                "result": "",
+                "planned_at": "2026-05-20 15:00:00",
+                "completed_at": "",
+                "assigned_to": "王明",
+                "confidence": 0.86,
+                "summary": "识别为高优先级电话跟进计划",
+            }
+
+        monkeypatch.setattr(
+            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_followup",
+            fake_recognize_followup,
+        )
+
+        resp = await async_client.post(
+            f"/api/v1/ai/customer/{cid}/followup-recognition",
+            headers=auth_headers,
+            json={"text": "今天和客户电话沟通，明天下午3点再电话确认BOM价格，优先级高，负责人王明。"},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["method"] == "phone"
+        assert data["status"] == "planned"
+        assert data["priority"] == "high"
+        assert data["planned_at"] == "2026-05-20 15:00:00"
+        assert data["assigned_to"] == "王明"
+        assert data["confidence"] == 0.86
 
 
 class TestCustomerStats:

@@ -85,6 +85,7 @@ import type {
 } from "../../types";
 import VendAsSupplierModal from "./VendAsSupplierModal";
 import CustomerModuleShell from "./CustomerModuleShell";
+import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
 import dayjs from "dayjs";
 import {
   FOLLOW_UP_METHOD_OPTIONS,
@@ -1699,6 +1700,19 @@ export default function CustomerList() {
             }
           }}
         >
+          {quickFollowUpCustomer && (
+            <Form.Item>
+              <FollowUpAIRecognizer
+                customerId={quickFollowUpCustomer.id}
+                form={quickFollowUpForm}
+                getSeedText={() => {
+                  const values = quickFollowUpForm.getFieldsValue(["content", "result"]) as { content?: string; result?: string };
+                  return [values.content, values.result].filter(Boolean).join("\n");
+                }}
+                block
+              />
+            </Form.Item>
+          )}
           <Form.Item name="method" label="跟进方式" rules={[{ required: true, message: "请选择跟进方式" }]}>
             <Select options={FOLLOW_UP_METHOD_OPTIONS} />
           </Form.Item>

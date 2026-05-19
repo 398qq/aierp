@@ -11,6 +11,7 @@ import dayjs from "dayjs";
 import { createFollowUp, updateFollowUp, getFollowUps } from "../../api";
 import type { FollowUp } from "../../types";
 import { FOLLOW_UP_METHOD_OPTIONS, FOLLOW_UP_PRIORITY_OPTIONS, FOLLOW_UP_STATUS_OPTIONS } from "./customerUi";
+import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
 
 const { TextArea } = Input;
 
@@ -122,7 +123,15 @@ export default function FollowUpForm() {
         </Button>
       </Space>
 
-      <Card title={isEdit ? "编辑跟进记录" : "新建跟进记录"}>
+      <Card
+        title={isEdit ? "编辑跟进记录" : "新建跟进记录"}
+        extra={!isEdit && (
+          <FollowUpAIRecognizer
+            customerId={custId}
+            form={form}
+          />
+        )}
+      >
         <Form
           form={form}
           layout="vertical"

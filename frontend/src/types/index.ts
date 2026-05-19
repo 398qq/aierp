@@ -147,6 +147,26 @@ export interface CustomerAIStats {
   high_churn_count: number;
 }
 
+export interface CustomerRecognition {
+  name: string | null;
+  short_name: string | null;
+  customer_type: string | null;
+  industry: string | null;
+  level: string | null;
+  region: string | null;
+  source: string | null;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  owner: string | null;
+  credit_limit: number | null;
+  credit_level: string | null;
+  address: string | null;
+  notes: string | null;
+  confidence: number;
+  summary: string | null;
+}
+
 export interface TimelineEvent {
   type: "contact" | "followup" | "order";
   title: string;
@@ -178,6 +198,19 @@ export interface FollowUp {
   priority: string | null;
   assigned_to: string | null;
   created_at: string;
+}
+
+export interface FollowUpRecognition {
+  method: string | null;
+  status: string | null;
+  content: string | null;
+  result: string | null;
+  planned_at: string | null;
+  completed_at: string | null;
+  priority: string | null;
+  assigned_to: string | null;
+  confidence: number;
+  summary: string | null;
 }
 
 export interface RFMAnalysis {

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Button, Form, message, Space } from "antd";
+import { App, Card, Button, Form, Space } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { createCustomer } from "../../api";
+import CustomerAIRecognizer from "./CustomerAIRecognizer";
 import CustomerFormFields from "./CustomerForm";
 
 export default function CustomerNew() {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const navigate = useNavigate();
@@ -29,7 +31,7 @@ export default function CustomerNew() {
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")}>返回列表</Button>
       </Space>
-      <Card title="新建客户" style={{ maxWidth: 800 }}>
+      <Card title="新建客户" extra={<CustomerAIRecognizer form={form} />} style={{ maxWidth: 800 }}>
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <CustomerFormFields />
           <Form.Item style={{ marginTop: 24, textAlign: "right" }}>

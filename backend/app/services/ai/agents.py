@@ -13,7 +13,9 @@ from app.services.ai.prompts import (
     alert_enrichment_prompt,
     bom_parse_prompt,
     churn_risk_prompt,
+    customer_recognition_prompt,
     followup_analysis_prompt,
+    followup_recognition_prompt,
     followup_suggestion_prompt,
     product_parse_prompt,
     rfm_prompt,
@@ -88,6 +90,98 @@ class CustomerAgent:
         except Exception as e:
             logger.error(f"Followup suggestion failed: {e}")
             return {"topic": "", "recommended_products": [], "risk_points": []}
+
+    @staticmethod
+    async def recognize_customer(text: str) -> dict:
+        schema = {
+            "name": "string",
+            "short_name": "string",
+            "customer_type": "string: 终端/贸易商/方案商/OEM or empty",
+            "industry": "string: 汽车电子/消费电子/工业控制/通信设备/医疗器械/安防监控/其他 or empty",
+            "level": "string: A/B/C/D or empty",
+            "region": "string: 华东/华南/华北/华中/西南/西北/东北/海外 or empty",
+            "source": "string: 展会/转介绍/线上推广/电话开发/公司资源 or empty",
+            "contact_person": "string",
+            "phone": "string",
+            "email": "string",
+            "owner": "string",
+            "credit_limit": "number or null",
+            "credit_level": "string: A/B/C/D or empty",
+            "address": "string",
+            "notes": "string",
+            "confidence": "number 0-1",
+            "summary": "string",
+        }
+        try:
+            result = await ai_client.chat_structured(
+                [
+                    {"role": "system", "content": CUSTOMER_AGENT_SYSTEM},
+                    {"role": "user", "content": customer_recognition_prompt(text)},
+                ],
+                schema,
+                temperature=0.1,
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Customer recognition failed: {e}")
+            return {
+                "name": "",
+                "short_name": "",
+                "customer_type": "",
+                "industry": "",
+                "level": "",
+                "region": "",
+                "source": "",
+                "contact_person": "",
+                "phone": "",
+                "email": "",
+                "owner": "",
+                "credit_limit": None,
+                "credit_level": "",
+                "address": "",
+                "notes": text,
+                "confidence": 0,
+                "summary": "AI识别暂不可用，已保留原始内容",
+            }
+
+    @staticmethod
+    async def recognize_followup(text: str, customer_data: dict, now_text: str) -> dict:
+        schema = {
+            "method": "string: phone/visit/video/email/wechat/other or empty",
+            "status": "string: planned/in_progress/completed/cancelled or empty",
+            "priority": "string: high/medium/low or empty",
+            "content": "string",
+            "result": "string",
+            "planned_at": "string: YYYY-MM-DD HH:mm:ss or empty",
+            "completed_at": "string: YYYY-MM-DD HH:mm:ss or empty",
+            "assigned_to": "string",
+            "confidence": "number 0-1",
+            "summary": "string",
+        }
+        try:
+            result = await ai_client.chat_structured(
+                [
+                    {"role": "system", "content": CUSTOMER_AGENT_SYSTEM},
+                    {"role": "user", "content": followup_recognition_prompt(text, customer_data, now_text)},
+                ],
+                schema,
+                temperature=0.1,
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Followup recognition failed: {e}")
+            return {
+                "method": "",
+                "status": "",
+                "priority": "",
+                "content": text,
+                "result": "",
+                "planned_at": "",
+                "completed_at": "",
+                "assigned_to": customer_data.get("owner") or "",
+                "confidence": 0,
+                "summary": "AI识别暂不可用，已保留原始内容",
+            }
 
     @staticmethod
     async def analyze_followups(followups: list[dict], customer_name: str = "") -> dict:
