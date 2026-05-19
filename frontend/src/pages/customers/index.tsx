@@ -25,6 +25,7 @@ import {
   Statistic,
   Table,
   Tag,
+  Tooltip,
   Typography,
   Upload,
 } from "antd";
@@ -134,7 +135,7 @@ const COL_LABEL_MAP: Record<string, string> = {
   actions: "操作",
 };
 
-const DEFAULT_VISIBLE_COL_KEYS = ["name", "level", "health", "next_followup", "last_contacted_at", "owner", "tags", "actions"];
+const DEFAULT_VISIBLE_COL_KEYS = ["name", "level", "region", "owner", "next_followup", "last_contacted_at", "tags", "actions"];
 type ReminderBucket = "all" | FollowUpReminder["due_bucket"];
 
 const REMINDER_BUCKETS: { key: ReminderBucket; label: string }[] = [
@@ -194,6 +195,16 @@ const plusOneDayIso = (value?: string | null) => {
   return new Date(baseTime + 24 * 60 * 60 * 1000).toISOString();
 };
 
+const getReminderDueMeta = (item: FollowUpReminder) => {
+  if (item.due_bucket === "overdue") {
+    return { text: `逾期 ${item.overdue_days} 天`, color: "red" };
+  }
+  if (item.due_bucket === "today") {
+    return { text: "今日待跟进", color: "orange" };
+  }
+  return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
+};
+
 export default function CustomerList() {
   const { message, modal } = App.useApp();
   const [quickFollowUpForm] = Form.useForm();
@@ -225,6 +236,7 @@ export default function CustomerList() {
   const [reminderLoading, setReminderLoading] = useState(false);
   const [reminderActionKey, setReminderActionKey] = useState<string | null>(null);
   const [reminderRefreshedAt, setReminderRefreshedAt] = useState<Date | null>(null);
+  const [reminderDrawerOpen, setReminderDrawerOpen] = useState(false);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [quickFollowUpCustomer, setQuickFollowUpCustomer] = useState<Customer | null>(null);
   const [quickFollowUpSaving, setQuickFollowUpSaving] = useState(false);
@@ -292,6 +304,29 @@ export default function CustomerList() {
     () => [industry, level, region, source, creditLevel].filter(Boolean).length,
     [industry, level, region, source, creditLevel],
   );
+  const activeFilterItems = useMemo<Array<{ key: string; label: string; clear: () => void }>>(() => {
+    const items: Array<{ key: string; label: string; clear: () => void }> = [];
+    const selectedScene = SCENE_OPTIONS.find((item) => item.value === scene);
+    if (q.trim()) items.push({ key: "q", label: `搜索：${q.trim()}`, clear: () => setQ("") });
+    if (selectedScene && scene !== "all") {
+      items.push({ key: "scene", label: `场景：${selectedScene.label}`, clear: () => setScene("all") });
+    }
+    if (industry) items.push({ key: "industry", label: `行业：${industry}`, clear: () => setIndustry(undefined) });
+    if (level) items.push({ key: "level", label: `等级：${level}`, clear: () => setLevel(undefined) });
+    if (region) items.push({ key: "region", label: `区域：${region}`, clear: () => setRegion(undefined) });
+    if (source) items.push({ key: "source", label: `来源：${source}`, clear: () => setSource(undefined) });
+    if (creditLevel) {
+      items.push({ key: "creditLevel", label: `信用：${creditLevel}`, clear: () => setCreditLevel(undefined) });
+    }
+    if (overdueOnly) items.push({ key: "overdueOnly", label: "仅逾期客户", clear: () => setOverdueOnly(false) });
+    return items.map((item) => ({
+      ...item,
+      clear: () => {
+        item.clear();
+        setPage(1);
+      },
+    }));
+  }, [creditLevel, industry, level, overdueOnly, q, region, scene, source]);
   const reminderCounts = useMemo(
     () => ({
       all: followUpReminders.length,
@@ -761,15 +796,24 @@ export default function CustomerList() {
       title: "客户",
       dataIndex: "name",
       key: "name",
-      width: 260,
+      width: 280,
       sorter: true,
       sortOrder: sortBy === "name" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
       render: (text: string, r: Customer) => (
-        <Space direction="vertical" size={0}>
-          <a onClick={() => navigate(`/customers/${r.id}`)}>{text}</a>
+        <Space direction="vertical" size={2}>
+          <Space size={6} wrap>
+            <Typography.Link strong onClick={() => navigate(`/customers/${r.id}`)}>{text}</Typography.Link>
+            {r.level && <Tag color={getLevelColor(r.level)} style={{ marginInlineEnd: 0 }}>{r.level}</Tag>}
+            {overdueCustomerIds.has(r.id) && <Tag color="red" style={{ marginInlineEnd: 0 }}>逾期</Tag>}
+          </Space>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {[r.code, r.short_name].filter(Boolean).join(" / ") || "-"}
           </Typography.Text>
+          {r.contact_person && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              联系人：{r.contact_person}
+            </Typography.Text>
+          )}
         </Space>
       ),
     },
@@ -786,10 +830,11 @@ export default function CustomerList() {
       title: "等级",
       dataIndex: "level",
       key: "level",
-      width: 84,
+      width: 76,
+      align: "center",
       sorter: true,
       sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => <Tag color={getLevelColor(v)}>{v || "-"}</Tag>,
+      render: (v: string | null) => <Tag color={getLevelColor(v)} style={{ marginInlineEnd: 0 }}>{v || "-"}</Tag>,
     },
     {
       title: "区域",
@@ -869,7 +914,7 @@ export default function CustomerList() {
       dataIndex: "owner",
       key: "owner",
       width: 100,
-      render: (v: string | null) => v || "-",
+      render: (v: string | null) => v ? <Typography.Text>{v}</Typography.Text> : "-",
     },
     {
       title: "联系人",
@@ -882,7 +927,7 @@ export default function CustomerList() {
       title: "最近联系",
       dataIndex: "last_contacted_at",
       key: "last_contacted_at",
-      width: 120,
+      width: 110,
       render: (v: string | null) => formatDate(v),
     },
     {
@@ -906,12 +951,12 @@ export default function CustomerList() {
     {
       title: "操作",
       key: "actions",
-      width: 190,
+      width: 142,
       fixed: "right",
       render: (_: unknown, r: Customer) => (
-        <Space size={6}>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => openDetailDrawer(r.id)}>查看</Button>
-          <Button size="small" icon={<PhoneOutlined />} onClick={() => openQuickFollowUp(r)}>跟进</Button>
+        <Space size={2}>
+          <Button size="small" type="link" onClick={() => openDetailDrawer(r.id)}>查看</Button>
+          <Button size="small" type="link" onClick={() => openQuickFollowUp(r)}>跟进</Button>
           <Dropdown
             trigger={["click"]}
             menu={{
@@ -928,7 +973,9 @@ export default function CustomerList() {
               },
             }}
           >
-            <Button size="small" icon={<MoreOutlined />} />
+            <Tooltip title="更多操作">
+              <Button size="small" type="link" icon={<MoreOutlined />} aria-label="更多操作" />
+            </Tooltip>
           </Dropdown>
         </Space>
       ),
@@ -972,36 +1019,124 @@ export default function CustomerList() {
           border: 1px solid #adc6ff;
           border-radius: 8px;
         }
+        .customer-toolbar-card .ant-card-body {
+          padding: 12px;
+        }
+        .customer-advanced-grid {
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid #f0f0f0;
+        }
+        .customer-summary-strip {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid #f0f0f0;
+        }
+        .customer-stat-grid {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .customer-stat-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 34px;
+          padding: 5px 10px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .customer-stat-pill.is-risk {
+          background: #fff2f0;
+          border-color: #ffccc7;
+        }
+        .customer-stat-pill.is-warning {
+          background: #fffbe6;
+          border-color: #ffe58f;
+        }
+        .customer-stat-label {
+          color: #8c8c8c;
+          font-size: 12px;
+        }
+        .customer-stat-value {
+          color: #262626;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 1;
+        }
+        .customer-active-filters {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 6px;
+          flex-wrap: wrap;
+          max-width: min(100%, 560px);
+        }
+        .customer-summary-strip .ant-tag,
+        .customer-filter-tags .ant-tag,
+        .customer-reminder-strip .ant-tag {
+          margin-inline-end: 0;
+        }
+        .customer-reminder-strip {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+          padding: 10px 12px;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-left: 3px solid #1677ff;
+          border-radius: 8px;
+        }
+        .customer-reminder-strip.is-risk {
+          border-left-color: #ff4d4f;
+          background: #fffafa;
+        }
+        .customer-table-card .ant-card-body {
+          padding: 0;
+        }
+        .customer-table-card .ant-card-head {
+          min-height: 44px;
+          padding: 0 12px;
+        }
+        .customer-table-card .ant-card-head-title,
+        .customer-table-card .ant-card-extra {
+          padding: 10px 0;
+        }
+        .customer-table-card .ant-table-thead > tr > th {
+          background: #fafafa;
+        }
+        .customer-table-card .ant-table-tbody > tr > td {
+          padding-top: 10px;
+          padding-bottom: 10px;
+          vertical-align: top;
+        }
         .customer-row-overdue td:first-child { border-left: 3px solid #ff4d4f; }
         .customer-row-key td:first-child { border-left: 3px solid #52c41a; }
+        @media (max-width: 768px) {
+          .customer-stat-grid,
+          .customer-active-filters,
+          .customer-reminder-strip > .ant-space {
+            width: 100%;
+          }
+          .customer-stat-pill {
+            flex: 1 1 calc(50% - 8px);
+            justify-content: space-between;
+          }
+        }
       `}</style>
 
-      <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
-        <Col xs={24} sm={12} xl={6}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="客户总数" value={stats.total} prefix={<UserOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="重点客户(A)" value={levelACount} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card size="small">
-            <Statistic title="逾期跟进" value={overdueList.length} valueStyle={{ color: overdueList.length > 0 ? "#cf1322" : undefined }} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card size="small">
-            <Statistic title="未读预警" value={alertCount} prefix={<BellOutlined />} valueStyle={{ color: alertCount > 0 ? "#cf1322" : undefined }} />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card size="small" style={{ marginBottom: 12 }}>
+      <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
         <Row gutter={[10, 10]} align="middle">
-          <Col xs={24} lg={9} xl={8}>
+          <Col xs={24} lg={8} xl={7}>
             <Input
               placeholder="搜索客户名称/编码/联系人/电话"
               prefix={<SearchOutlined />}
@@ -1010,7 +1145,7 @@ export default function CustomerList() {
               allowClear
             />
           </Col>
-          <Col xs={24} lg={10} xl={11}>
+          <Col xs={24} lg={9} xl={10}>
             <Segmented
               style={{ maxWidth: "100%" }}
               options={SCENE_OPTIONS}
@@ -1021,7 +1156,7 @@ export default function CustomerList() {
               }}
             />
           </Col>
-          <Col xs={24} lg={5} xl={5}>
+          <Col xs={24} lg={7} xl={7}>
             <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
               <Button
                 icon={<FilterOutlined />}
@@ -1033,14 +1168,14 @@ export default function CustomerList() {
               </Button>
               <Button icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
               <Popover content={moreActionsContent} title="更多操作" trigger="click" placement="bottomRight">
-                <Button icon={<MoreOutlined />}>更多操作</Button>
+                <Button icon={<MoreOutlined />}>更多</Button>
               </Popover>
             </Space>
           </Col>
         </Row>
 
         {advancedOpen && (
-          <Row gutter={[10, 10]} style={{ marginTop: 10 }}>
+          <Row gutter={[10, 10]} className="customer-advanced-grid">
             <Col xs={12} md={6} xl={4}>
               <Select
                 allowClear
@@ -1109,18 +1244,102 @@ export default function CustomerList() {
           </Row>
         )}
 
-        <Row gutter={[10, 10]} style={{ marginTop: 8 }}>
-          <Col flex="auto">
-            <Space wrap>
-              <Typography.Text type="secondary">共 {total} 条客户</Typography.Text>
-              {topRegion && <Tag color="blue">主力区域：{topRegion.name}（{topRegion.value}）</Tag>}
-              {topIndustry && <Tag>主力行业：{topIndustry.name}（{topIndustry.value}）</Tag>}
-              <Tag>本月新增：{monthlyNewCount}</Tag>
-              {scene !== "all" && <Tag color="geekblue">场景：{SCENE_OPTIONS.find((item) => item.value === scene)?.label}</Tag>}
-            </Space>
-          </Col>
-        </Row>
+        <div className="customer-summary-strip">
+          <div className="customer-stat-grid">
+            <div className="customer-stat-pill">
+              <UserOutlined />
+              <span className="customer-stat-label">客户总数</span>
+              <span className="customer-stat-value">{statsLoading ? "..." : stats.total}</span>
+            </div>
+            <div className="customer-stat-pill">
+              <span className="customer-stat-label">A级客户</span>
+              <span className="customer-stat-value">{statsLoading ? "..." : levelACount}</span>
+            </div>
+            <div className={`customer-stat-pill${overdueList.length > 0 ? " is-risk" : ""}`}>
+              <span className="customer-stat-label">逾期跟进</span>
+              <span className="customer-stat-value">{overdueList.length}</span>
+            </div>
+            <div className={`customer-stat-pill${alertCount > 0 ? " is-warning" : ""}`}>
+              <BellOutlined />
+              <span className="customer-stat-label">未读预警</span>
+              <span className="customer-stat-value">{alertCount}</span>
+            </div>
+            <div className="customer-stat-pill">
+              <span className="customer-stat-label">本月新增</span>
+              <span className="customer-stat-value">{statsLoading ? "..." : monthlyNewCount}</span>
+            </div>
+            {topRegion && (
+              <div className="customer-stat-pill">
+                <span className="customer-stat-label">主力区域</span>
+                <span className="customer-stat-value">{topRegion.name} {topRegion.value}</span>
+              </div>
+            )}
+            {topIndustry && (
+              <div className="customer-stat-pill">
+                <span className="customer-stat-label">主力行业</span>
+                <span className="customer-stat-value">{topIndustry.name} {topIndustry.value}</span>
+              </div>
+            )}
+          </div>
+          {activeFilterItems.length > 0 && (
+            <div className="customer-active-filters">
+              <Typography.Text type="secondary">筛选</Typography.Text>
+              {activeFilterItems.map((item) => (
+                <Tag
+                  key={item.key}
+                  closable
+                  onClose={(event) => {
+                    event.preventDefault();
+                    item.clear();
+                  }}
+                >
+                  {item.label}
+                </Tag>
+              ))}
+              <Button size="small" type="link" onClick={resetFilters}>清除</Button>
+            </div>
+          )}
+        </div>
       </Card>
+
+      <div className={`customer-reminder-strip${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
+        <Space wrap>
+          <Typography.Text strong style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }}>
+            跟进提醒
+          </Typography.Text>
+          <Tag color={reminderCounts.overdue > 0 ? "red" : "default"}>逾期 {reminderCounts.overdue}</Tag>
+          <Tag color={reminderCounts.today > 0 ? "orange" : "default"}>今日 {reminderCounts.today}</Tag>
+          <Tag color={reminderCounts.upcoming > 0 ? "blue" : "default"}>未来 {reminderCounts.upcoming}</Tag>
+          <Typography.Text type="secondary">{formatReminderRefreshTime(reminderRefreshedAt)}</Typography.Text>
+        </Space>
+        <Space wrap>
+          <Segmented
+            size="small"
+            value={reminderBucket}
+            options={REMINDER_BUCKETS.map((item) => ({
+              value: item.key,
+              label: `${item.label} ${reminderCounts[item.key]}`,
+            }))}
+            onChange={(value) => {
+              setReminderBucket(value as ReminderBucket);
+              setReminderDrawerOpen(true);
+            }}
+          />
+          <Button
+            size="small"
+            type={overdueOnly ? "primary" : "default"}
+            onClick={() => setOverdueOnly((value) => !value)}
+          >
+            {overdueOnly ? "取消逾期筛选" : "只看逾期客户"}
+          </Button>
+          <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue}>
+            刷新
+          </Button>
+          <Button size="small" onClick={() => setReminderDrawerOpen(true)}>
+            明细
+          </Button>
+        </Space>
+      </div>
 
       {selectedRowKeys.length > 0 && (
         <div className="customer-batch-bar">
@@ -1138,125 +1357,35 @@ export default function CustomerList() {
       )}
 
       <Card
+        className="customer-table-card"
         size="small"
-        style={{ marginBottom: 12, borderColor: reminderCounts.overdue > 0 ? "#ff4d4f" : undefined }}
+        title={(
+          <Space size={8} wrap>
+            <Typography.Text strong>客户清单</Typography.Text>
+            <Typography.Text type="secondary">
+              {overdueOnly ? tableData.length : total} 条
+            </Typography.Text>
+            {activeFilterItems.length > 0 && <Tag color="blue">已筛选</Tag>}
+          </Space>
+        )}
+        extra={(
+          <Space size={8}>
+            <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => fetch()}>
+              刷新列表
+            </Button>
+          </Space>
+        )}
       >
-        <Row gutter={[10, 10]} align="middle">
-          <Col flex="auto">
-            <Space wrap>
-              <Typography.Text strong style={{ color: reminderCounts.overdue > 0 ? "#ff4d4f" : undefined }}>
-                跟进提醒
-              </Typography.Text>
-              <Typography.Text type="secondary">{formatReminderRefreshTime(reminderRefreshedAt)}</Typography.Text>
-              <Segmented
-                size="small"
-                value={reminderBucket}
-                options={REMINDER_BUCKETS.map((item) => ({
-                  value: item.key,
-                  label: `${item.label} ${reminderCounts[item.key]}`,
-                }))}
-                onChange={(value) => setReminderBucket(value as ReminderBucket)}
-              />
-            </Space>
-          </Col>
-          <Col>
-            <Space size={8}>
-              <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue}>
-                刷新提醒
-              </Button>
-              <Button
-                size="small"
-                type={overdueOnly ? "primary" : "default"}
-                onClick={() => setOverdueOnly((value) => !value)}
-              >
-                {overdueOnly ? "取消逾期筛选" : "筛选逾期客户"}
-              </Button>
-              <Button
-                size="small"
-                onClick={() => {
-                  setScene("all");
-                  setQ("");
-                  setPage(1);
-                }}
-              >
-                查看全部客户
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-
-        <div style={{ marginTop: 8, maxHeight: 220, overflow: "auto" }}>
-          {visibleReminders.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理跟进提醒" />
-          ) : (
-            <List
-              size="small"
-              dataSource={visibleReminders.slice(0, 12)}
-              renderItem={(item) => {
-                const dueText = item.due_bucket === "overdue"
-                  ? `逾期 ${item.overdue_days} 天`
-                  : item.due_bucket === "today"
-                    ? "今日待跟进"
-                    : `${item.days_until ?? "-"} 天后`;
-                const dueColor = item.due_bucket === "overdue" ? "red" : item.due_bucket === "today" ? "orange" : "blue";
-                return (
-                  <List.Item
-                    actions={[
-                      <Button
-                        key="complete"
-                        size="small"
-                        type="link"
-                        loading={reminderActionKey === `complete-${item.id}`}
-                        onClick={() => handleCompleteReminder(item)}
-                      >
-                        完成
-                      </Button>,
-                      <Button
-                        key="postpone"
-                        size="small"
-                        type="link"
-                        loading={reminderActionKey === `postpone-${item.id}`}
-                        onClick={() => handlePostponeReminder(item)}
-                      >
-                        延期1天
-                      </Button>,
-                      <Button key="customer" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
-                        查看客户
-                      </Button>,
-                    ]}
-                  >
-                    <List.Item.Meta
-                      title={(
-                        <Space size={6} wrap>
-                          <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
-                            {item.customer_name}
-                          </Typography.Link>
-                          <Tag color={dueColor}>{dueText}</Tag>
-                          {item.priority && <Tag>{item.priority}</Tag>}
-                          {item.owner && <Typography.Text type="secondary">{item.owner}</Typography.Text>}
-                        </Space>
-                      )}
-                      description={`${item.method || "跟进"} | 计划 ${formatDateTime(item.planned_at)}${item.content ? ` | ${item.content}` : ""}`}
-                    />
-                  </List.Item>
-                );
-              }}
-            />
-          )}
-          {visibleReminders.length > 12 && (
-            <Typography.Text type="secondary">还有 {visibleReminders.length - 12} 条，可切换分组继续查看</Typography.Text>
-          )}
-        </div>
-      </Card>
-
-      <Card bodyStyle={{ padding: 0 }}>
         <Table
           rowKey="id"
+          size="middle"
+          sticky
           columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
           dataSource={tableData}
           loading={loading}
           onChange={handleTableChange}
           rowSelection={{
+            columnWidth: 44,
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys as number[]),
           }}
@@ -1281,6 +1410,96 @@ export default function CustomerList() {
           }}
         />
       </Card>
+
+      <Drawer
+        title="跟进提醒"
+        width={620}
+        open={reminderDrawerOpen}
+        onClose={() => setReminderDrawerOpen(false)}
+        extra={(
+          <Space>
+            <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue}>
+              刷新
+            </Button>
+            <Button
+              size="small"
+              type={overdueOnly ? "primary" : "default"}
+              onClick={() => setOverdueOnly((value) => !value)}
+            >
+              {overdueOnly ? "取消逾期筛选" : "只看逾期客户"}
+            </Button>
+          </Space>
+        )}
+      >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Segmented
+            value={reminderBucket}
+            options={REMINDER_BUCKETS.map((item) => ({
+              value: item.key,
+              label: `${item.label} ${reminderCounts[item.key]}`,
+            }))}
+            onChange={(value) => setReminderBucket(value as ReminderBucket)}
+          />
+          <Typography.Text type="secondary">{formatReminderRefreshTime(reminderRefreshedAt)}</Typography.Text>
+          {visibleReminders.length === 0 ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理跟进提醒" />
+          ) : (
+            <List
+              loading={reminderLoading}
+              dataSource={visibleReminders}
+              renderItem={(item) => {
+                const due = getReminderDueMeta(item);
+                return (
+                  <List.Item
+                    actions={[
+                      <Button
+                        key="complete"
+                        size="small"
+                        type="link"
+                        loading={reminderActionKey === `complete-${item.id}`}
+                        onClick={() => handleCompleteReminder(item)}
+                      >
+                        完成
+                      </Button>,
+                      <Button
+                        key="postpone"
+                        size="small"
+                        type="link"
+                        loading={reminderActionKey === `postpone-${item.id}`}
+                        onClick={() => handlePostponeReminder(item)}
+                      >
+                        延期1天
+                      </Button>,
+                      <Button
+                        key="customer"
+                        size="small"
+                        type="link"
+                        onClick={() => navigate(`/customers/${item.customer_id}`)}
+                      >
+                        查看客户
+                      </Button>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={(
+                        <Space size={6} wrap>
+                          <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                            {item.customer_name}
+                          </Typography.Link>
+                          <Tag color={due.color}>{due.text}</Tag>
+                          {item.priority && <Tag>{item.priority}</Tag>}
+                          {item.owner && <Typography.Text type="secondary">{item.owner}</Typography.Text>}
+                        </Space>
+                      )}
+                      description={`${item.method || "跟进"} | 计划 ${formatDateTime(item.planned_at)}${item.content ? ` | ${item.content}` : ""}`}
+                    />
+                  </List.Item>
+                );
+              }}
+            />
+          )}
+        </Space>
+      </Drawer>
 
       <Modal title="选择标签" open={tagModalOpen} onCancel={() => setTagModalOpen(false)} onOk={handleBatchTag}>
         <Select
