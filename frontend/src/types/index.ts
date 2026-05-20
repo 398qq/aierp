@@ -176,6 +176,15 @@ export interface CustomerRecognition {
     text_length: number;
   }> | null;
   recognition_warnings?: string[] | null;
+  image_quality?: {
+    width: number;
+    height: number;
+    megapixels: number;
+    brightness: number;
+    contrast: number;
+    sharpness: number;
+    warnings?: string[];
+  } | null;
 }
 
 export interface TimelineEvent {

@@ -165,7 +165,11 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
                 message="名片识别预览"
                 description={`OCR引擎: ${pendingRecognition.ocr_engine || "unknown"}；置信度: ${
                   pendingRecognition.ocr_confidence != null ? Math.round(pendingRecognition.ocr_confidence * 100) + "%" : "未知"
-                }；候选: ${pendingRecognition.ocr_candidates?.length || 1}；评分: ${pendingRecognition.ocr_score != null ? pendingRecognition.ocr_score.toFixed(2) : "未知"}`}
+                }；候选: ${pendingRecognition.ocr_candidates?.length || 1}；评分: ${pendingRecognition.ocr_score != null ? pendingRecognition.ocr_score.toFixed(2) : "未知"}${
+                  pendingRecognition.image_quality
+                    ? `；图片: ${pendingRecognition.image_quality.width}x${pendingRecognition.image_quality.height}，清晰度 ${pendingRecognition.image_quality.sharpness}`
+                    : ""
+                }`}
               />
               {!!pendingRecognition.recognition_warnings?.length && (
                 <Alert showIcon type="warning" message="请重点核对" description={pendingRecognition.recognition_warnings.join("；")} />

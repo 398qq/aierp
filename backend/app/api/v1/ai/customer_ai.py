@@ -84,6 +84,45 @@ def _clean_confidence(value: Any) -> float:
     return max(0.0, min(1.0, confidence))
 
 
+def _round_metric(value: float) -> float:
+    return round(float(value), 2)
+
+
+def _analyze_business_card_image_quality(image: Any) -> dict[str, Any]:
+    from PIL import ImageFilter, ImageStat
+
+    width, height = image.size
+    gray = image.convert("L")
+    stat = ImageStat.Stat(gray)
+    brightness = float(stat.mean[0])
+    contrast = float(stat.stddev[0])
+    edge_stat = ImageStat.Stat(gray.filter(ImageFilter.FIND_EDGES))
+    sharpness = float(edge_stat.stddev[0])
+    megapixels = (width * height) / 1_000_000
+
+    warnings = []
+    if min(width, height) < 600 or megapixels < 0.5:
+        warnings.append("名片图片分辨率偏低，建议使用更清晰的原图")
+    if brightness < 45:
+        warnings.append("图片偏暗，建议补光或提高曝光后重拍")
+    elif brightness > 220:
+        warnings.append("图片过亮，文字可能被过曝影响")
+    if contrast < 25:
+        warnings.append("图片对比度偏低，建议使用背景更干净的照片")
+    if sharpness < 12:
+        warnings.append("文字边缘偏弱，可能存在虚焦、抖动或压缩过度")
+
+    return {
+        "width": width,
+        "height": height,
+        "megapixels": _round_metric(megapixels),
+        "brightness": _round_metric(brightness),
+        "contrast": _round_metric(contrast),
+        "sharpness": _round_metric(sharpness),
+        "warnings": warnings,
+    }
+
+
 def _normalize_ocr_text(text: str) -> str:
     normalized = unicodedata.normalize("NFKC", text or "")
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
@@ -258,6 +297,11 @@ def _customer_recognition_warnings(payload: dict[str, Any], *, is_card: bool = F
         warnings.append("未识别到邮箱")
     if is_card and float(payload.get("ocr_score") or 0) < 1.2:
         warnings.append("OCR评分较低，建议上传更清晰、无遮挡的名片图片")
+    if is_card:
+        image_quality = payload.get("image_quality") or {}
+        for warning in image_quality.get("warnings") or []:
+            if warning not in warnings:
+                warnings.append(warning)
     return warnings
 
 
@@ -360,6 +404,7 @@ def _extract_business_card_ocr(content: bytes) -> dict[str, Any]:
         image = ImageOps.exif_transpose(image)
         if image.mode not in ("RGB", "L"):
             image = image.convert("RGB")
+        image_quality = _analyze_business_card_image_quality(image)
 
         candidates: list[dict[str, Any]] = []
         for variant_name, variant in _business_card_image_variants(image):
@@ -380,9 +425,11 @@ def _extract_business_card_ocr(content: bytes) -> dict[str, Any]:
             logger.warning("Tesseract OCR failed: %s", exc)
 
         if not candidates:
-            return {"text": "", "engine": "none", "confidence": 0.0}
+            return {"text": "", "engine": "none", "confidence": 0.0, "image_quality": image_quality}
 
-        return _merge_card_ocr_results(candidates)
+        result = _merge_card_ocr_results(candidates)
+        result["image_quality"] = image_quality
+        return result
     except Exception as exc:
         raise RuntimeError("图片文字提取失败，请确认图片清晰且OCR依赖已安装") from exc
 
@@ -659,6 +706,7 @@ async def recognize_customer_card(
     payload["ocr_confidence"] = _clean_confidence(ocr_result.get("confidence"))
     payload["ocr_score"] = float(ocr_result.get("score") or 0)
     payload["ocr_candidates"] = ocr_result.get("candidates") or []
+    payload["image_quality"] = ocr_result.get("image_quality") or {}
     payload["recognition_warnings"] = _customer_recognition_warnings(payload, is_card=True)
     return ok(payload)
 

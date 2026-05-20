@@ -190,6 +190,15 @@ class TestCustomers:
                 "engine": "rapidocr",
                 "confidence": 0.91,
                 "score": 3.2,
+                "image_quality": {
+                    "width": 1280,
+                    "height": 720,
+                    "megapixels": 0.92,
+                    "brightness": 128,
+                    "contrast": 52,
+                    "sharpness": 24,
+                    "warnings": [],
+                },
                 "candidates": [{"engine": "rapidocr", "confidence": 0.91, "score": 3.2, "text_length": 55}],
                 "candidate_texts": [
                     {
@@ -260,6 +269,7 @@ class TestCustomers:
         assert data["ocr_confidence"] == 0.91
         assert data["ocr_score"] == 3.2
         assert data["ocr_candidates"][0]["engine"] == "rapidocr"
+        assert data["image_quality"]["width"] == 1280
         assert data["recognition_warnings"] == []
 
     async def test_ai_recognize_business_card_accepts_body_file(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
@@ -323,6 +333,15 @@ class TestCustomers:
                 "engine": "rapidocr:original",
                 "confidence": 0.42,
                 "score": 0.8,
+                "image_quality": {
+                    "width": 420,
+                    "height": 260,
+                    "megapixels": 0.11,
+                    "brightness": 30,
+                    "contrast": 12,
+                    "sharpness": 8,
+                    "warnings": ["名片图片分辨率偏低，建议使用更清晰的原图"],
+                },
                 "candidates": [{"engine": "rapidocr:original", "confidence": 0.42, "score": 0.8, "text_length": 14}],
             }
 
@@ -367,6 +386,20 @@ class TestCustomers:
         assert "未识别到客户名称" in data["recognition_warnings"]
         assert "未识别到邮箱" in data["recognition_warnings"]
         assert "OCR评分较低，建议上传更清晰、无遮挡的名片图片" in data["recognition_warnings"]
+        assert "名片图片分辨率偏低，建议使用更清晰的原图" in data["recognition_warnings"]
+
+    def test_business_card_image_quality_flags_low_quality_image(self):
+        from PIL import Image
+
+        from app.api.v1.ai.customer_ai import _analyze_business_card_image_quality
+
+        image = Image.new("RGB", (360, 220), (20, 20, 20))
+        quality = _analyze_business_card_image_quality(image)
+
+        assert quality["width"] == 360
+        assert quality["height"] == 220
+        assert "名片图片分辨率偏低，建议使用更清晰的原图" in quality["warnings"]
+        assert "图片偏暗，建议补光或提高曝光后重拍" in quality["warnings"]
 
     def test_business_card_ocr_scoring_prefers_field_rich_text(self):
         from app.api.v1.ai.customer_ai import _merge_card_ocr_results
