@@ -140,7 +140,7 @@ class TestCustomers:
         assert resp.status_code == 401
 
     async def test_ai_recognize_customer(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
-        async def fake_recognize_customer(text: str):
+        async def fake_recognize_customer(text: str, ocr_candidates=None):
             assert "深圳市星河电子有限公司" in text
             return {
                 "name": "深圳市星河电子有限公司",
@@ -191,10 +191,31 @@ class TestCustomers:
                 "confidence": 0.91,
                 "score": 3.2,
                 "candidates": [{"engine": "rapidocr", "confidence": 0.91, "score": 3.2, "text_length": 55}],
+                "candidate_texts": [
+                    {
+                        "engine": "rapidocr:original",
+                        "confidence": 0.91,
+                        "score": 3.2,
+                        "text_length": 55,
+                        "key_hits": ["phone", "email", "company"],
+                        "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                    },
+                    {
+                        "engine": "rapidocr:gray_autocontrast",
+                        "confidence": 0.86,
+                        "score": 2.8,
+                        "text_length": 34,
+                        "key_hits": ["address"],
+                        "text": "地址: 深圳市南山区科技园",
+                    },
+                ],
             }
 
-        async def fake_recognize_customer(text: str):
+        async def fake_recognize_customer(text: str, ocr_candidates=None):
             assert "张工" in text
+            assert ocr_candidates
+            assert ocr_candidates[0]["engine"] == "rapidocr:original"
+            assert "深圳市南山区科技园" in ocr_candidates[1]["text"]
             return {
                 "name": "深圳市星河电子有限公司",
                 "short_name": "星河电子",
@@ -250,7 +271,7 @@ class TestCustomers:
                 "confidence": 0,
             }
 
-        async def fake_recognize_customer(text: str):
+        async def fake_recognize_customer(text: str, ocr_candidates=None):
             return {
                 "name": "深圳市星河电子有限公司",
                 "short_name": "星河电子",
@@ -305,7 +326,7 @@ class TestCustomers:
                 "candidates": [{"engine": "rapidocr:original", "confidence": 0.42, "score": 0.8, "text_length": 14}],
             }
 
-        async def fake_recognize_customer(text: str):
+        async def fake_recognize_customer(text: str, ocr_candidates=None):
             return {
                 "name": "",
                 "short_name": "",
@@ -388,6 +409,36 @@ class TestCustomers:
         assert "13800001111" in result["text"]
         assert "zhang@example.com" in result["text"]
         assert "深圳市南山区科技园" in result["text"]
+        assert result["candidate_texts"][0]["engine"] == "rapidocr:original"
+        assert "text" in result["candidate_texts"][0]
+
+    def test_customer_recognition_prompt_includes_ocr_candidates(self):
+        from app.services.ai.prompts.customer_prompts import customer_recognition_from_ocr_candidates_prompt
+
+        prompt = customer_recognition_from_ocr_candidates_prompt(
+            "深圳市星河电子有限公司\n张工",
+            [
+                {
+                    "engine": "rapidocr:original",
+                    "confidence": 0.9,
+                    "score": 3.1,
+                    "key_hits": ["phone", "email"],
+                    "text": "张工 13800001111 zhang@example.com",
+                },
+                {
+                    "engine": "rapidocr:threshold_190",
+                    "confidence": 0.8,
+                    "score": 2.4,
+                    "key_hits": ["address"],
+                    "text": "地址: 深圳市南山区科技园",
+                },
+            ],
+        )
+
+        assert "OCR 多候选文本" in prompt
+        assert "rapidocr:original" in prompt
+        assert "13800001111" in prompt
+        assert "深圳市南山区科技园" in prompt
 
     async def test_ai_recognize_customer_fallback_extracts_key_fields(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
         async def fake_chat_structured(*_args, **_kwargs):

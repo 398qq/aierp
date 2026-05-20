@@ -30,6 +30,7 @@ CUSTOMER_LEVELS = {"A", "B", "C", "D"}
 CUSTOMER_REGIONS = {"华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"}
 CUSTOMER_SOURCES = {"展会", "转介绍", "线上推广", "电话开发", "公司资源"}
 MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_OCR_CANDIDATE_TEXT_CHARS = 1200
 _rapidocr_engine: Any | None = None
 
 CARD_OCR_FIELD_PATTERNS = (
@@ -164,6 +165,19 @@ def _merge_high_signal_ocr_lines(best_text: str, candidates: list[dict[str, Any]
     return "\n".join(merged_lines).strip()
 
 
+def _card_ocr_candidate_for_ai(item: dict[str, Any]) -> dict[str, Any]:
+    text = _normalize_ocr_text(str(item.get("text") or ""))
+    hits = _card_ocr_key_hits(text)
+    return {
+        "engine": item.get("engine") or "unknown",
+        "confidence": _clean_confidence(item.get("confidence")),
+        "score": float(item.get("score") or 0),
+        "text_length": len(text),
+        "key_hits": [key for key, matched in hits.items() if matched],
+        "text": text[:MAX_OCR_CANDIDATE_TEXT_CHARS],
+    }
+
+
 def _merge_card_ocr_results(candidates: list[dict[str, Any]]) -> dict[str, Any]:
     usable = [item for item in candidates if _normalize_ocr_text(str(item.get("text") or ""))]
     if not usable:
@@ -180,9 +194,11 @@ def _merge_card_ocr_results(candidates: list[dict[str, Any]]) -> dict[str, Any]:
             "score": _score_card_ocr_text(text, confidence),
         })
 
+    sorted_candidates = sorted(normalized_candidates, key=_card_ocr_selection_rank, reverse=True)
     best = max(normalized_candidates, key=_card_ocr_selection_rank)
     best["text"] = _merge_high_signal_ocr_lines(str(best.get("text") or ""), normalized_candidates)
     best["score"] = _score_card_ocr_text(str(best.get("text") or ""), best.get("confidence"))
+    best["candidate_texts"] = [_card_ocr_candidate_for_ai(item) for item in sorted_candidates[:6]]
     best["candidates"] = [
         {
             "engine": item.get("engine") or "unknown",
@@ -190,7 +206,7 @@ def _merge_card_ocr_results(candidates: list[dict[str, Any]]) -> dict[str, Any]:
             "score": item.get("score") or 0,
             "text_length": len(str(item.get("text") or "")),
         }
-        for item in sorted(normalized_candidates, key=_card_ocr_selection_rank, reverse=True)
+        for item in sorted_candidates
     ]
     return best
 
@@ -636,7 +652,7 @@ async def recognize_customer_card(
     if not raw_text:
         return fail("未识别到名片文字，请换一张更清晰的图片或改用文本识别")
 
-    recognized = await CustomerAgent.recognize_customer(raw_text)
+    recognized = await CustomerAgent.recognize_customer(raw_text, ocr_candidates=ocr_result.get("candidate_texts") or [])
     payload = _normalize_customer_recognition(recognized, raw_text)
     payload["raw_text"] = raw_text
     payload["ocr_engine"] = ocr_result.get("engine") or "unknown"

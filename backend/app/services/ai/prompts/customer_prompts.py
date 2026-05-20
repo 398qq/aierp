@@ -152,6 +152,54 @@ def customer_recognition_prompt(text: str) -> str:
 """
 
 
+def customer_recognition_from_ocr_candidates_prompt(text: str, ocr_candidates: list[dict]) -> str:
+    candidate_blocks = []
+    for index, candidate in enumerate(ocr_candidates[:6], start=1):
+        key_hits = "、".join(candidate.get("key_hits") or []) or "无"
+        candidate_blocks.append(
+            "\n".join([
+                f"候选 {index}",
+                f"- engine: {candidate.get('engine') or 'unknown'}",
+                f"- confidence: {candidate.get('confidence', 0)}",
+                f"- score: {candidate.get('score', 0)}",
+                f"- key_hits: {key_hits}",
+                f"- text:\n{candidate.get('text') or ''}",
+            ])
+        )
+
+    candidates_text = "\n\n".join(candidate_blocks) or "无"
+    return f"""请把名片 OCR 结果识别成 ERP 客户主数据表单字段。
+
+最佳合并文本：
+{text}
+
+OCR 多候选文本：
+{candidates_text}
+
+处理原则：
+- 不要只依赖最佳合并文本；同一个字段在多个候选里出现时，优先选择更像真实名片字段的值。
+- 电话、邮箱、公司名、联系人、地址是关键字段；如果最佳文本缺失，但其他候选明确出现，可以从其他候选补充。
+- OCR 可能把空格、短横线、大小写、中文英文标签识别不一致；需要做合理归一化。
+- 不要编造任何候选文本里没有依据的电话、邮箱、负责人、授信额度。
+
+字段规范：
+- name：客户公司全称或主要组织名称，必须尽量提取。
+- short_name：客户简称；如果文本没有明确简称，可以基于公司名称去掉“有限公司/股份有限公司/公司/集团”等后缀生成。
+- customer_type 只能是 终端/贸易商/方案商/OEM，无法判断则空字符串。
+- industry 只能是 汽车电子/消费电子/工业控制/通信设备/医疗器械/安防监控/其他，无法判断则空字符串。
+- level 只能是 A/B/C/D，文本明确重点客户、战略客户、大客户可判断为 A；无法判断则空字符串。
+- region 只能是 华东/华南/华北/华中/西南/西北/东北/海外，可根据省市粗略推断，无法判断则空字符串。
+- source 只能是 展会/转介绍/线上推广/电话开发/公司资源，无法判断则空字符串。
+- contact_person、phone、email、owner、address、notes 按 OCR 候选提取。
+- credit_limit 是数字，金额单位统一为元；无法判断则 null。
+- credit_level 只能是 A/B/C/D，无法判断则空字符串。
+- confidence 是 0-1。
+- summary 用一句话说明识别结果，并说明是否使用了多个 OCR 候选交叉补全。
+
+只提取有依据的信息，不要编造电话、邮箱、负责人、授信额度。
+"""
+
+
 def alert_enrichment_prompt(alert: dict) -> str:
     return f"""你是一个电子元器件分销行业的客户管理专家。以下是一个客户预警，请给出专业的处理建议。
 

@@ -12,6 +12,7 @@ from app.services.ai.prompts.customer_prompts import (
     followup_analysis_prompt,
     followup_recognition_prompt,
     customer_recognition_prompt,
+    customer_recognition_from_ocr_candidates_prompt,
     alert_enrichment_prompt,
 )
 
@@ -146,6 +147,7 @@ __all__ = [
     "followup_analysis_prompt",
     "followup_recognition_prompt",
     "customer_recognition_prompt",
+    "customer_recognition_from_ocr_candidates_prompt",
     "alert_enrichment_prompt",
     "product_parse_prompt",
     "bom_parse_prompt",

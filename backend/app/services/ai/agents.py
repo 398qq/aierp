@@ -15,6 +15,7 @@ from app.services.ai.prompts import (
     alert_enrichment_prompt,
     bom_parse_prompt,
     churn_risk_prompt,
+    customer_recognition_from_ocr_candidates_prompt,
     customer_recognition_prompt,
     followup_analysis_prompt,
     followup_recognition_prompt,
@@ -84,6 +85,18 @@ def _extract_contact_person(text: str) -> str:
         if not any(title.lower() in line.lower() for title in BUSINESS_CARD_TITLES):
             continue
         zh_match = re.match(r"([\u4e00-\u9fa5·]{2,4})\s*(?:/|-|,|，|\s)*", line)
+        if zh_match:
+            return zh_match.group(1)
+        en_match = re.match(r"([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})", line)
+        if en_match:
+            return en_match.group(1)
+
+    for line in _text_lines(text):
+        if any(token in line for token in ("有限公司", "股份", "集团", "地址", "邮箱", "Email", "@")):
+            continue
+        if not re.search(r"(?<!\d)(?:1[3-9]\d{9}|0\d{2,3}-?\d{7,8})(?!\d)", line):
+            continue
+        zh_match = re.match(r"([\u4e00-\u9fa5·]{2,4})\b", line)
         if zh_match:
             return zh_match.group(1)
         en_match = re.match(r"([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})", line)
@@ -326,7 +339,7 @@ class CustomerAgent:
             return {"topic": "", "recommended_products": [], "risk_points": []}
 
     @staticmethod
-    async def recognize_customer(text: str) -> dict:
+    async def recognize_customer(text: str, ocr_candidates: list[dict] | None = None) -> dict:
         schema = {
             "name": "string",
             "short_name": "string",
@@ -347,10 +360,15 @@ class CustomerAgent:
             "summary": "string",
         }
         try:
+            user_prompt = (
+                customer_recognition_from_ocr_candidates_prompt(text, ocr_candidates)
+                if ocr_candidates
+                else customer_recognition_prompt(text)
+            )
             result = await ai_client.chat_structured(
                 [
                     {"role": "system", "content": CUSTOMER_AGENT_SYSTEM},
-                    {"role": "user", "content": customer_recognition_prompt(text)},
+                    {"role": "user", "content": user_prompt},
                 ],
                 schema,
                 temperature=0.1,
