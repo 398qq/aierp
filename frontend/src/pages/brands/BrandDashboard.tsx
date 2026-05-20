@@ -83,6 +83,13 @@ export default function BrandDashboard() {
   const highRiskRate = s.total > 0 ? Math.round((s.high_risk_count / s.total) * 100) : 0;
   const eolRate = s.total > 0 ? Math.round((s.eol_nrnd_count / s.total) * 100) : 0;
   const automotiveRate = s.total > 0 ? Math.round((s.automotive_count / s.total) * 100) : 0;
+  const authorizedRate = s.total > 0 ? Math.round((authorizedCount / s.total) * 100) : 0;
+  const operationQueue = [
+    { key: "high_risk", label: "高风险复核", count: s.high_risk_count, color: "red", path: "/brands?scene=high_risk" },
+    { key: "eol", label: "生命周期处理", count: s.eol_nrnd_count, color: "orange", path: "/brands?scene=eol_nrnd" },
+    { key: "alerts", label: "EOL 预警跟进", count: eolAlerts.length, color: "gold", path: "/brands?scene=eol_nrnd" },
+    { key: "new", label: "新增品牌审核", count: s.recent_30d, color: "blue", path: "/brands?sort=created_at_desc" },
+  ];
 
   const riskColumns = [
     { title: "排名", key: "rank", width: 60, render: (_: unknown, __: unknown, i: number) => i + 1 },
@@ -112,22 +119,29 @@ export default function BrandDashboard() {
   ];
 
   return (
-    <div>
+    <div className="brand-dashboard-page">
       <style>{`
+        .brand-dashboard-page {
+          color: #1f1f1f;
+        }
         .brand-dashboard-head {
-          margin-bottom: 16px;
+          margin-bottom: 12px;
+          padding: 12px;
           display: flex;
           flex-wrap: wrap;
           gap: 12px;
           align-items: flex-start;
           justify-content: space-between;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
         }
         .brand-dashboard-title {
           min-width: 260px;
           flex: 1 1 360px;
         }
         .brand-dashboard-title h4 {
-          margin-bottom: 4px;
+          margin: 0 0 4px;
         }
         .brand-dashboard-actions {
           display: flex;
@@ -136,28 +150,94 @@ export default function BrandDashboard() {
           justify-content: flex-end;
         }
         .brand-health-strip {
-          margin-bottom: 16px;
+          margin-bottom: 12px;
           padding: 12px;
-          background: #fafafa;
+          display: grid;
+          grid-template-columns: minmax(0, 1.4fr) minmax(320px, .9fr);
+          gap: 12px;
+          background: #fff;
           border: 1px solid #f0f0f0;
           border-radius: 8px;
         }
         .brand-health-strip .ant-tag {
           margin-inline-end: 4px;
         }
+        .brand-health-main,
+        .brand-operation-queue {
+          min-width: 0;
+        }
+        .brand-health-title,
+        .brand-queue-title {
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .brand-health-metrics {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .brand-health-metric {
+          padding: 8px 10px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 6px;
+        }
+        .brand-health-metric-label {
+          display: block;
+          margin-bottom: 4px;
+          font-size: 12px;
+        }
+        .brand-health-metric-value {
+          font-size: 18px;
+          font-weight: 600;
+          line-height: 1.2;
+        }
+        .brand-queue-list {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .brand-queue-item {
+          padding: 8px 10px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .brand-queue-item:hover {
+          border-color: #91caff;
+          background: #f5faff;
+        }
         .brand-kpi-card {
           height: 100%;
           cursor: pointer;
-          transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+          border-radius: 6px;
+          transition: border-color .16s ease, background .16s ease;
         }
         .brand-kpi-card:hover {
           border-color: #91caff;
-          box-shadow: 0 2px 8px rgba(22, 119, 255, .12);
-          transform: translateY(-1px);
+          background: #f5faff;
+        }
+        .brand-kpi-card .ant-card-body {
+          padding: 12px;
+        }
+        .brand-kpi-card .ant-statistic-title {
+          margin-bottom: 4px;
+          font-size: 12px;
         }
         .brand-chart-card,
         .brand-table-card {
           height: 100%;
+          border-radius: 6px;
+        }
+        .brand-chart-card .ant-card-head,
+        .brand-table-card .ant-card-head {
+          min-height: 40px;
         }
         .brand-chart-card .ant-card-head-title,
         .brand-table-card .ant-card-head-title {
@@ -167,10 +247,27 @@ export default function BrandDashboard() {
           padding: 20px 8px;
           text-align: center;
         }
+        .brand-dashboard-page .ant-table-small .ant-table-thead > tr > th,
+        .brand-dashboard-page .ant-table-small .ant-table-tbody > tr > td {
+          padding: 6px 8px;
+        }
         @media (max-width: 768px) {
           .brand-dashboard-actions {
             width: 100%;
             justify-content: flex-start;
+          }
+          .brand-health-strip {
+            grid-template-columns: 1fr;
+          }
+          .brand-health-metrics,
+          .brand-queue-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 520px) {
+          .brand-health-metrics,
+          .brand-queue-list {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -192,13 +289,44 @@ export default function BrandDashboard() {
       </div>
 
       <div className="brand-health-strip">
-        <Space wrap size={8}>
-          <Text strong>当前品牌健康</Text>
-          <Tag color={highRiskRate > 20 ? "red" : highRiskRate > 10 ? "orange" : "green"}>高风险占比 {highRiskRate}%</Tag>
-          <Tag color={eolRate > 10 ? "red" : eolRate > 0 ? "orange" : "green"}>EOL/NRND {eolRate}%</Tag>
-          <Tag color="blue">车规覆盖 {automotiveRate}%</Tag>
-          <Tag color="geekblue">已授权 {authorizedCount}</Tag>
-        </Space>
+        <div className="brand-health-main">
+          <div className="brand-health-title">
+            <Text strong>运营摘要</Text>
+            <Text type="secondary">品牌主数据口径</Text>
+          </div>
+          <div className="brand-health-metrics">
+            <div className="brand-health-metric">
+              <Text type="secondary" className="brand-health-metric-label">高风险占比</Text>
+              <span className="brand-health-metric-value">{highRiskRate}%</span>
+            </div>
+            <div className="brand-health-metric">
+              <Text type="secondary" className="brand-health-metric-label">EOL/NRND</Text>
+              <span className="brand-health-metric-value">{eolRate}%</span>
+            </div>
+            <div className="brand-health-metric">
+              <Text type="secondary" className="brand-health-metric-label">车规覆盖</Text>
+              <span className="brand-health-metric-value">{automotiveRate}%</span>
+            </div>
+            <div className="brand-health-metric">
+              <Text type="secondary" className="brand-health-metric-label">授权覆盖</Text>
+              <span className="brand-health-metric-value">{authorizedRate}%</span>
+            </div>
+          </div>
+        </div>
+        <div className="brand-operation-queue">
+          <div className="brand-queue-title">
+            <Text strong>待办队列</Text>
+            <Tag color={s.high_risk_count + s.eol_nrnd_count > 0 ? "orange" : "green"}>{s.high_risk_count + s.eol_nrnd_count} 待处理</Tag>
+          </div>
+          <div className="brand-queue-list">
+            {operationQueue.map((item) => (
+              <div key={item.key} className="brand-queue-item" onClick={() => navigate(item.path)}>
+                <Text>{item.label}</Text>
+                <Tag color={item.color}>{item.count}</Tag>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* EOL Alerts Banner */}
