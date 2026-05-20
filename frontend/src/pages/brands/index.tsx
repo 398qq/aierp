@@ -386,14 +386,17 @@ export default function BrandList() {
   };
 
   const activeFilterTags = [
-    search ? `搜索: ${search}` : "",
-    filterStatus ? `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}` : "",
-    filterLevel ? `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}` : "",
-    filterType ? `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}` : "",
-    filterLifecycle ? `生命周期: ${filterLifecycle.toUpperCase()}` : "",
-    filterRisk ? `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}` : "",
-    scene !== "all" ? `场景: ${SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}` : "",
-  ].filter(Boolean);
+    search ? { key: "search", label: `搜索: ${search}`, onClose: () => { setSearch(""); setPage(1); } } : null,
+    filterStatus ? { key: "status", label: `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}`, onClose: () => { setFilterStatus(undefined); setPage(1); } } : null,
+    filterLevel ? { key: "level", label: `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}`, onClose: () => { setFilterLevel(undefined); setPage(1); } } : null,
+    filterType ? { key: "type", label: `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}`, onClose: () => { setFilterType(undefined); setPage(1); } } : null,
+    filterLifecycle ? { key: "lifecycle", label: `生命周期: ${filterLifecycle.toUpperCase()}`, onClose: () => { setFilterLifecycle(undefined); setPage(1); } } : null,
+    filterRisk ? { key: "risk", label: `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}`, onClose: () => { setFilterRisk(undefined); setPage(1); } } : null,
+    scene !== "all" ? { key: "scene", label: `场景: ${SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}`, onClose: () => applyScene("all") } : null,
+  ].filter((item): item is { key: string; label: string; onClose: () => void } => Boolean(item));
+  const hasCustomView = activeFilterTags.length > 0 || sort !== "created_at_desc";
+  const startIndex = total > 0 ? (page - 1) * pageSize + 1 : 0;
+  const endIndex = Math.min(page * pageSize, total);
 
   return (
     <div>
@@ -415,6 +418,13 @@ export default function BrandList() {
           border-color: #1677ff;
           background: #f0f7ff;
         }
+        .brand-list-card .ant-card-head {
+          align-items: flex-start;
+          gap: 8px;
+        }
+        .brand-list-card .ant-card-extra {
+          margin-inline-start: 0;
+        }
         .brand-toolbar {
           margin-bottom: 12px;
           padding: 12px;
@@ -429,6 +439,10 @@ export default function BrandList() {
           align-items: center;
           justify-content: space-between;
         }
+        .brand-scene-switch {
+          max-width: 100%;
+          overflow-x: auto;
+        }
         .brand-filter-row {
           margin-top: 10px;
           display: flex;
@@ -436,9 +450,48 @@ export default function BrandList() {
           gap: 8px;
           align-items: center;
         }
+        .brand-filter-search {
+          flex: 1 1 280px;
+          max-width: 360px;
+          min-width: 220px;
+        }
+        .brand-filter-select {
+          flex: 0 1 120px;
+          min-width: 104px;
+        }
         .brand-filter-tags {
           margin-top: 10px;
           min-height: 22px;
+        }
+        .brand-table-meta {
+          margin-bottom: 10px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .brand-empty {
+          padding: 28px 8px;
+        }
+        @media (max-width: 768px) {
+          .brand-list-card .ant-card-head {
+            display: block;
+          }
+          .brand-list-card .ant-card-extra {
+            margin-top: 10px;
+          }
+          .brand-toolbar-row {
+            align-items: stretch;
+          }
+          .brand-toolbar-row > * {
+            width: 100%;
+          }
+          .brand-filter-search,
+          .brand-filter-select {
+            flex-basis: 100%;
+            max-width: none;
+          }
         }
       `}</style>
       {/* Stats bar */}
@@ -502,6 +555,7 @@ export default function BrandList() {
       )}
 
       <Card
+        className="brand-list-card"
         title={
           <Space>
             品牌列表
@@ -531,6 +585,7 @@ export default function BrandList() {
         <div className="brand-toolbar">
           <div className="brand-toolbar-row">
             <Segmented
+              className="brand-scene-switch"
               options={SCENE_OPTIONS}
               value={scene}
               onChange={(v) => applyScene(v as BrandScene)}
@@ -551,23 +606,36 @@ export default function BrandList() {
                 if (page !== 1) setPage(1);
                 else fetch(1, pageSize, v);
               }}
-              style={{ width: 280 }}
+              className="brand-filter-search"
             />
-            <Select placeholder="状态" allowClear style={{ width: 100 }} value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
-            <Select placeholder="等级" allowClear style={{ width: 100 }} value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
-            <Select placeholder="类型" allowClear style={{ width: 120 }} value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
-            <Select placeholder="生命周期" allowClear style={{ width: 120 }} value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
-            <Select placeholder="风险" allowClear style={{ width: 100 }} value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
+            <Select className="brand-filter-select" placeholder="状态" allowClear value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
+            <Select className="brand-filter-select" placeholder="等级" allowClear value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
+            <Select className="brand-filter-select" placeholder="类型" allowClear value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
+            <Select className="brand-filter-select" placeholder="生命周期" allowClear value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
+            <Select className="brand-filter-select" placeholder="风险" allowClear value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
           </div>
           <div className="brand-filter-tags">
             {activeFilterTags.length > 0 ? (
               <Space wrap>
-                {activeFilterTags.map((label) => <Tag key={label} color="blue">{label}</Tag>)}
+                {activeFilterTags.map((item) => (
+                  <Tag key={item.key} color="blue" closable onClose={item.onClose}>
+                    {item.label}
+                  </Tag>
+                ))}
               </Space>
             ) : (
               <Text type="secondary">当前显示全部品牌</Text>
             )}
           </div>
+        </div>
+        <div className="brand-table-meta">
+          <Text type="secondary">
+            {total > 0 ? `显示 ${startIndex}-${endIndex} / 共 ${total} 个品牌` : "暂无品牌数据"}
+          </Text>
+          <Space wrap size={6}>
+            {sort !== "created_at_desc" && <Tag color="geekblue">排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}</Tag>}
+            {hasCustomView && <Button size="small" onClick={resetFilters}>清空视图</Button>}
+          </Space>
         </div>
         <Table
           rowKey="id" columns={columns} dataSource={data}
@@ -582,6 +650,15 @@ export default function BrandList() {
             pageSizeOptions: ["10", "20", "50", "100"],
             showSizeChanger: true, showTotal: (t) => `共 ${t} 条`,
             onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+          }}
+          locale={{
+            emptyText: (
+              <div className="brand-empty">
+                <Text strong>{hasCustomView ? "没有匹配的品牌" : "还没有品牌"}</Text>
+                <br />
+                <Text type="secondary">{hasCustomView ? "调整筛选条件后再查看" : "点击右上角新增或使用 AI 导入创建品牌"}</Text>
+              </div>
+            ),
           }}
           scroll={{ x: 1300 }}
         />
