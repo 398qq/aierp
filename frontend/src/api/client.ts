@@ -9,6 +9,7 @@ type APIErrorPayload = {
 };
 
 type APIError = Error & {
+  code?: string;
   config?: {
     url?: string;
   };
@@ -79,6 +80,7 @@ client.interceptors.response.use(
     if (!normalizedMsg) {
       if (status === 403) normalizedMsg = "无权限访问";
       else if (status && status >= 500) normalizedMsg = "服务器错误";
+      else if (error.code === "ECONNABORTED" || /timeout/i.test(error.message || "")) normalizedMsg = "请求超时，请稍后重试";
       else if (!status) normalizedMsg = "网络连接失败";
       else normalizedMsg = "请求失败";
     }

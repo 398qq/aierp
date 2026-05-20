@@ -529,7 +529,7 @@ export const recognizeCustomer = (text: string) =>
 export const recognizeBusinessCard = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
-  return client.post<APIResponse<CustomerRecognition>>("/ai/customer/card-recognition", formData);
+  return client.post<APIResponse<CustomerRecognition>>("/ai/customer/card-recognition", formData, { timeout: 120000 });
 };
 
 export const getFollowUpSuggestion = (customerId: number) =>
