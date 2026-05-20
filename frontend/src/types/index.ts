@@ -187,6 +187,81 @@ export interface CustomerRecognition {
   } | null;
 }
 
+export interface CustomerAIWorkQueueSnapshot {
+  health_score: number | null;
+  churn_risk_score: number | null;
+  value_score: number | null;
+  urgency_score: number | null;
+  recency_days: number | null;
+  frequency_90d: number | null;
+  monetary_180d: number | null;
+  overdue_followups: number | null;
+  open_opportunities: number | null;
+  outstanding_amount: number | null;
+}
+
+export interface CustomerAIWorkQueueItem {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  customer_level: string | null;
+  customer_industry: string | null;
+  customer_owner: string | null;
+  action_type: string;
+  title: string;
+  reason: string;
+  confidence: number;
+  priority_score: number;
+  expected_impact: number | null;
+  due_at: string | null;
+  status: "open" | "in_progress" | "done" | "dismissed" | "superseded";
+  owner: string | null;
+  model_version: string;
+  snapshot: CustomerAIWorkQueueSnapshot;
+  feedback_count: number;
+  created_at: string | null;
+}
+
+export interface CustomerAIWorkQueuePage {
+  list: CustomerAIWorkQueueItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  status_stats: Record<string, number>;
+}
+
+export interface CustomerAIRecommendationSummary {
+  customer: {
+    id: number;
+    name: string;
+    level: string | null;
+    industry: string | null;
+    owner: string | null;
+    health_score: number | null;
+    health_label: string | null;
+    last_contacted_at: string | null;
+  };
+  snapshot: {
+    snapshot_date: string | null;
+    health_score: number | null;
+    churn_risk_score: number | null;
+    value_score: number | null;
+    urgency_score: number | null;
+    overdue_followups: number | null;
+    open_opportunities: number | null;
+    outstanding_amount: number | null;
+  };
+  next_actions: Array<{
+    id: number;
+    action_type: string;
+    title: string;
+    reason: string;
+    priority_score: number;
+    status: string;
+    due_at: string | null;
+  }>;
+}
+
 export interface TimelineEvent {
   type: "contact" | "followup" | "order";
   title: string;
