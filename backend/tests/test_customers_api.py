@@ -401,6 +401,31 @@ class TestCustomers:
         assert "名片图片分辨率偏低，建议使用更清晰的原图" in quality["warnings"]
         assert "图片偏暗，建议补光或提高曝光后重拍" in quality["warnings"]
 
+    def test_opencv_business_card_region_variant_crops_rotated_card(self):
+        import pytest
+        from PIL import Image, ImageDraw
+
+        pytest.importorskip("cv2")
+
+        from app.api.v1.ai.customer_ai import _opencv_business_card_region_variants
+
+        background = Image.new("RGB", (1200, 800), (80, 80, 80))
+        card = Image.new("RGB", (760, 430), "white")
+        draw = ImageDraw.Draw(card)
+        draw.rectangle((0, 0, 759, 429), outline="black", width=8)
+        draw.text((60, 80), "Shenzhen Xinghe Electronics Co., Ltd.", fill="black")
+        draw.text((60, 160), "Zhang 13800001111", fill="black")
+        rotated = card.rotate(8, expand=True, fillcolor=(80, 80, 80))
+        background.paste(rotated, (220, 170))
+
+        variants = _opencv_business_card_region_variants(background)
+
+        assert variants
+        name, cropped = variants[0]
+        assert name.startswith("opencv_card_")
+        assert 650 <= cropped.width <= 850
+        assert 360 <= cropped.height <= 500
+
     def test_business_card_ocr_scoring_prefers_field_rich_text(self):
         from app.api.v1.ai.customer_ai import _merge_card_ocr_results
 
@@ -444,6 +469,92 @@ class TestCustomers:
         assert "深圳市南山区科技园" in result["text"]
         assert result["candidate_texts"][0]["engine"] == "rapidocr:original"
         assert "text" in result["candidate_texts"][0]
+
+    def test_easyocr_result_is_normalized_as_ocr_candidate(self, monkeypatch):
+        from PIL import Image
+
+        from app.api.v1.ai import customer_ai
+
+        class FakeEasyOCRReader:
+            def readtext(self, image, detail=1, paragraph=False):
+                assert detail == 1
+                assert paragraph is False
+                assert image.shape[:2] == (120, 240)
+                return [
+                    ([[0, 0], [10, 0], [10, 10], [0, 10]], "深圳市星河电子有限公司", 0.92),
+                    ([[0, 20], [10, 20], [10, 30], [0, 30]], "张工 13800001111", 0.86),
+                    ([[0, 40], [10, 40], [10, 50], [0, 50]], "zhang@example.com", 0.88),
+                ]
+
+        monkeypatch.setattr(customer_ai, "_get_easyocr_reader", lambda: FakeEasyOCRReader())
+
+        result = customer_ai._ocr_with_easyocr(Image.new("RGB", (240, 120), "white"))
+
+        assert result["engine"] == "easyocr"
+        assert result["confidence"] == 0.8867
+        assert "深圳市星河电子有限公司" in result["text"]
+        assert "13800001111" in result["text"]
+        assert "zhang@example.com" in result["text"]
+
+    def test_business_card_ocr_selection_prefers_easyocr_when_key_fields_match(self):
+        from app.api.v1.ai.customer_ai import _merge_card_ocr_results
+
+        result = _merge_card_ocr_results([
+            {
+                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                "engine": "rapidocr:original",
+                "confidence": 0.96,
+            },
+            {
+                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                "engine": "easyocr:opencv_card_wide_closed_50_150",
+                "confidence": 0.72,
+            },
+        ])
+
+        assert result["engine"] == "easyocr:opencv_card_wide_closed_50_150"
+        assert result["candidate_texts"][0]["engine"] == "easyocr:opencv_card_wide_closed_50_150"
+
+    def test_extract_business_card_ocr_runs_easyocr_before_rapidocr(self, monkeypatch):
+        import io
+
+        from PIL import Image
+
+        from app.api.v1.ai import customer_ai
+
+        calls = []
+
+        monkeypatch.setattr(customer_ai, "_opencv_business_card_region_variants", lambda image: [])
+
+        def fake_easyocr(image):
+            calls.append("easyocr")
+            return {
+                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                "engine": "easyocr",
+                "confidence": 0.8,
+            }
+
+        def fake_rapidocr(image):
+            calls.append("rapidocr")
+            return {
+                "text": "深圳市星河电子有限公司\n张工 13800001111",
+                "engine": "rapidocr",
+                "confidence": 0.9,
+            }
+
+        monkeypatch.setattr(customer_ai, "_ocr_with_easyocr", fake_easyocr)
+        monkeypatch.setattr(customer_ai, "_ocr_with_rapidocr", fake_rapidocr)
+        monkeypatch.setattr(customer_ai, "_ocr_with_tesseract", lambda image: {"text": "", "engine": "tesseract", "confidence": 0})
+
+        image = Image.new("RGB", (900, 500), "white")
+        content = io.BytesIO()
+        image.save(content, format="PNG")
+
+        result = customer_ai._extract_business_card_ocr(content.getvalue())
+
+        assert calls[0] == "easyocr"
+        assert "rapidocr" in calls
+        assert result["engine"].startswith("easyocr:")
 
     def test_customer_recognition_prompt_includes_ocr_candidates(self):
         from app.services.ai.prompts.customer_prompts import customer_recognition_from_ocr_candidates_prompt

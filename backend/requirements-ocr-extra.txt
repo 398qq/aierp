@@ -1,0 +1,6 @@
+# Optional OCR engines for business-card recognition.
+# Install CPU PyTorch first to avoid pulling large CUDA wheels:
+#   python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# Then install this file:
+#   python -m pip install -r requirements-ocr-extra.txt
+easyocr==1.7.2
