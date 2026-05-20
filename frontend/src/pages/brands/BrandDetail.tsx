@@ -209,26 +209,158 @@ export default function BrandDetail() {
     { title: "单位", dataIndex: "unit", width: 60 },
   ];
 
+  const productCount = brand.product_count ?? products.length;
+  const completionScore = Math.round(brand.completion_score ?? 0);
+  const riskScore = Math.round(brand.risk_score ?? 0);
+  const missingFields = brand.missing_fields || [];
+  const statusLabel = brand.status === "active" ? "启用" : brand.status === "inactive" ? "停用" : brand.status === "frozen" ? "冻结" : brand.status;
+  const statusColor = brand.status === "active" ? "green" : brand.status === "inactive" ? "orange" : "red";
+  const typeLabel = brand.brand_type === "own_brand" ? "自有品牌" : brand.brand_type === "agency" ? "代理品牌" : brand.brand_type === "oem" ? "OEM" : brand.brand_type || "未分类";
+  const lifecycleColor = brand.lifecycle_stage === "active" ? "green" : brand.lifecycle_stage === "nrnd" ? "orange" : brand.lifecycle_stage === "eol" ? "red" : "default";
+  const riskLabel = brand.risk_level === "low" ? "低" : brand.risk_level === "medium" ? "中" : brand.risk_level === "high" ? "高" : brand.risk_level === "critical" ? "严重" : "未评估";
+  const riskColor = brand.risk_level === "low" ? "green" : brand.risk_level === "medium" ? "orange" : brand.risk_level === "high" ? "red" : brand.risk_level === "critical" ? "purple" : "default";
+  const nextAction = !productCount ? "补充产品" : completionScore < 70 ? "完善资料" : brand.lifecycle_stage === "eol" || brand.lifecycle_stage === "nrnd" ? "替代评估" : brand.authorization_status === "unauthorized" ? "授权核验" : riskScore >= 70 ? "风险复核" : "正常维护";
+
   return (
     <div>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/brands")}>返回列表</Button>
-        <Button icon={<EditOutlined />} onClick={() => navigate(`/brands/${id}/edit`)}>编辑</Button>
-        <Button icon={<ThunderboltOutlined />} loading={profileLoading} onClick={loadProfile}>AI 品牌画像</Button>
-        <Button icon={<PieChartOutlined />} loading={portfolioLoading} onClick={loadPortfolio}>AI 产品线分析</Button>
-        <Button icon={<NodeIndexOutlined />} loading={similarLoading} onClick={loadSimilar}>相似品牌</Button>
-        <Button icon={<SwapOutlined />} onClick={openCompare}>品牌对比</Button>
-        <Button icon={<DashboardOutlined />} loading={healthLoading} onClick={loadHealth}>健康看板</Button>
-        <Button icon={<AlertOutlined />} loading={riskLoading} onClick={loadRisk}>风险评估</Button>
-        <Button icon={<ApartmentOutlined />} loading={matrixLoading} onClick={loadSupplierMatrix}>供应商矩阵</Button>
-        <Button icon={<BulbOutlined />} loading={recLoading} onClick={loadRecommendations}>品牌推荐</Button>
-        <Button icon={<TrophyOutlined />} loading={perfLoading} onClick={loadPerformance}>产品绩效</Button>
-        <Button icon={<TeamOutlined />} loading={penetrationLoading} onClick={loadPenetration}>客户渗透</Button>
-        <Button icon={<RocketOutlined />} loading={lifecycleLoading} onClick={loadLifecycle}>生命周期</Button>
-        <Button icon={<LineChartOutlined />} loading={priceTrendsLoading} onClick={loadPriceTrends}>价格走势</Button>
-        <Button icon={<RobotOutlined />} loading={autoCompleteLoading} onClick={handleAutoComplete}>AI 补全</Button>
-        <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>AI 导入</Button>
-      </Space>
+      <style>{`
+        .brand-detail-hero {
+          margin-bottom: 12px;
+        }
+        .brand-detail-hero .ant-card-body {
+          padding: 16px;
+        }
+        .brand-detail-head {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: flex-start;
+          justify-content: space-between;
+        }
+        .brand-detail-title {
+          min-width: 260px;
+          flex: 1 1 360px;
+        }
+        .brand-detail-title h3 {
+          margin: 0 0 6px;
+        }
+        .brand-detail-actions {
+          display: flex;
+          flex: 1 1 420px;
+          flex-direction: column;
+          gap: 8px;
+          align-items: flex-end;
+        }
+        .brand-detail-ai-actions {
+          justify-content: flex-end;
+        }
+        .brand-detail-summary {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid #f0f0f0;
+        }
+        .brand-detail-metric {
+          height: 100%;
+          padding: 10px 12px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .brand-detail-metric-label {
+          display: block;
+          margin-bottom: 8px;
+          font-size: 12px;
+        }
+        @media (max-width: 768px) {
+          .brand-detail-title {
+            min-width: 0;
+          }
+          .brand-detail-actions {
+            align-items: stretch;
+            flex-basis: 100%;
+          }
+          .brand-detail-actions .ant-space {
+            width: 100%;
+          }
+        }
+      `}</style>
+
+      <Card className="brand-detail-hero">
+        <div className="brand-detail-head">
+          <div className="brand-detail-title">
+            <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => navigate("/brands")}>返回列表</Button>
+            <Title level={3}>{brand.name}</Title>
+            <Space wrap size={6}>
+              {brand.name_cn && <Text type="secondary">{brand.name_cn}</Text>}
+              {brand.code && <Tag>{brand.code}</Tag>}
+              <Tag color={statusColor}>{statusLabel}</Tag>
+              <Tag color="blue">{typeLabel}</Tag>
+              {brand.level && <Tag color={brand.level === "A" ? "red" : brand.level === "B" ? "blue" : "default"}>{brand.level}级</Tag>}
+              {brand.lifecycle_stage && <Tag color={lifecycleColor}>{brand.lifecycle_stage.toUpperCase()}</Tag>}
+              {brand.is_automotive && <Tag color="geekblue">车规</Tag>}
+            </Space>
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary">{brand.description || brand.product_lines || "暂无品牌介绍"}</Text>
+            </div>
+          </div>
+          <div className="brand-detail-actions">
+            <Space wrap>
+              <Button icon={<EditOutlined />} onClick={() => navigate(`/brands/${id}/edit`)}>编辑</Button>
+              <Button icon={<RobotOutlined />} loading={autoCompleteLoading} onClick={handleAutoComplete}>AI 补全</Button>
+              <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>AI 导入</Button>
+            </Space>
+            <Space wrap className="brand-detail-ai-actions">
+              <Button size="small" icon={<ThunderboltOutlined />} loading={profileLoading} onClick={loadProfile}>画像</Button>
+              <Button size="small" icon={<PieChartOutlined />} loading={portfolioLoading} onClick={loadPortfolio}>产品线</Button>
+              <Button size="small" icon={<NodeIndexOutlined />} loading={similarLoading} onClick={loadSimilar}>相似</Button>
+              <Button size="small" icon={<SwapOutlined />} onClick={openCompare}>对比</Button>
+              <Button size="small" icon={<DashboardOutlined />} loading={healthLoading} onClick={loadHealth}>健康</Button>
+              <Button size="small" icon={<AlertOutlined />} loading={riskLoading} onClick={loadRisk}>风险</Button>
+              <Button size="small" icon={<ApartmentOutlined />} loading={matrixLoading} onClick={loadSupplierMatrix}>供应商</Button>
+              <Button size="small" icon={<BulbOutlined />} loading={recLoading} onClick={loadRecommendations}>推荐</Button>
+              <Button size="small" icon={<TrophyOutlined />} loading={perfLoading} onClick={loadPerformance}>绩效</Button>
+              <Button size="small" icon={<TeamOutlined />} loading={penetrationLoading} onClick={loadPenetration}>客户</Button>
+              <Button size="small" icon={<RocketOutlined />} loading={lifecycleLoading} onClick={loadLifecycle}>周期</Button>
+              <Button size="small" icon={<LineChartOutlined />} loading={priceTrendsLoading} onClick={loadPriceTrends}>价格</Button>
+            </Space>
+          </div>
+        </div>
+        <Row gutter={[12, 12]} className="brand-detail-summary">
+          <Col xs={24} sm={12} lg={6}>
+            <div className="brand-detail-metric">
+              <Text type="secondary" className="brand-detail-metric-label">建议动作</Text>
+              <Tag color={nextAction === "正常维护" ? "green" : "orange"}>{nextAction}</Tag>
+            </div>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <div className="brand-detail-metric">
+              <Text type="secondary" className="brand-detail-metric-label">风险评分</Text>
+              <Space>
+                <Tag color={riskColor}>{riskLabel}</Tag>
+                <Progress percent={riskScore} size="small" style={{ width: 96 }} status={riskScore >= 70 ? "exception" : "normal"} />
+              </Space>
+            </div>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <div className="brand-detail-metric">
+              <Text type="secondary" className="brand-detail-metric-label">资料完整度</Text>
+              <Space>
+                <Progress percent={completionScore} size="small" style={{ width: 96 }} status={completionScore < 50 ? "exception" : completionScore < 80 ? "normal" : "success"} />
+                {missingFields.length > 0 && <Tag color="gold">缺 {missingFields.length} 项</Tag>}
+              </Space>
+            </div>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <div className="brand-detail-metric">
+              <Text type="secondary" className="brand-detail-metric-label">产品覆盖</Text>
+              <Space>
+                <Tag color={productCount > 0 ? "blue" : "orange"}>{productCount} 个产品</Tag>
+                {brand.authorization_status === "unauthorized" && <Tag color="red">未授权</Tag>}
+              </Space>
+            </div>
+          </Col>
+        </Row>
+      </Card>
 
       {/* Brand Info */}
       <Card title="品牌信息" style={{ marginBottom: 16 }}>
