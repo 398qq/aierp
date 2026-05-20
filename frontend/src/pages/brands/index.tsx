@@ -380,17 +380,72 @@ export default function BrandList() {
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
   };
 
+  const applyScene = (nextScene: BrandScene) => {
+    setScene(nextScene);
+    setPage(1);
+  };
+
+  const activeFilterTags = [
+    search ? `搜索: ${search}` : "",
+    filterStatus ? `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}` : "",
+    filterLevel ? `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}` : "",
+    filterType ? `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}` : "",
+    filterLifecycle ? `生命周期: ${filterLifecycle.toUpperCase()}` : "",
+    filterRisk ? `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}` : "",
+    scene !== "all" ? `场景: ${SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}` : "",
+  ].filter(Boolean);
+
   return (
     <div>
       <style>{`
         .brand-row-critical td { background: #fff2f0 !important; }
         .brand-row-eol td { background: #fff7e6 !important; }
+        .brand-stat-card {
+          text-align: center;
+          cursor: pointer;
+          border-color: #f0f0f0;
+          transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+        }
+        .brand-stat-card:hover {
+          border-color: #91caff;
+          box-shadow: 0 2px 8px rgba(22, 119, 255, .12);
+          transform: translateY(-1px);
+        }
+        .brand-stat-card-active {
+          border-color: #1677ff;
+          background: #f0f7ff;
+        }
+        .brand-toolbar {
+          margin-bottom: 12px;
+          padding: 12px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .brand-toolbar-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .brand-filter-row {
+          margin-top: 10px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+        }
+        .brand-filter-tags {
+          margin-top: 10px;
+          min-height: 22px;
+        }
       `}</style>
       {/* Stats bar */}
       {stats && (
         <Row gutter={12} style={{ marginBottom: 12 }}>
-          <Col span={4}>
-            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setScene("all")}>
+          <Col xs={24} sm={12} md={8} xl={4}>
+            <Card size="small" className={`brand-stat-card ${scene === "all" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("all")}>
               <Statistic
                 title={<Text type="secondary" style={{ fontSize: 12 }}>品牌总数</Text>}
                 value={stats.total} prefix={<BankOutlined />}
@@ -398,8 +453,8 @@ export default function BrandList() {
               />
             </Card>
           </Col>
-          <Col span={4}>
-            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setSort("created_at_desc"); setScene("all"); }}>
+          <Col xs={24} sm={12} md={8} xl={4}>
+            <Card size="small" className="brand-stat-card" onClick={() => { setSort("created_at_desc"); applyScene("all"); }}>
               <Statistic
                 title={<Text type="secondary" style={{ fontSize: 12 }}>近30天新增</Text>}
                 value={stats.recent_30d} prefix={<RiseOutlined />}
@@ -407,8 +462,8 @@ export default function BrandList() {
               />
             </Card>
           </Col>
-          <Col span={4}>
-            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("eol_nrnd"); setPage(1); }}>
+          <Col xs={24} sm={12} md={8} xl={4}>
+            <Card size="small" className={`brand-stat-card ${scene === "eol_nrnd" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("eol_nrnd")}>
               <Statistic
                 title={<Text type="secondary" style={{ fontSize: 12 }}>EOL/NRND</Text>}
                 value={stats.eol_nrnd_count} prefix={<AlertOutlined />}
@@ -416,8 +471,8 @@ export default function BrandList() {
               />
             </Card>
           </Col>
-          <Col span={4}>
-            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("pending_completion"); setPage(1); }}>
+          <Col xs={24} sm={12} md={8} xl={4}>
+            <Card size="small" className={`brand-stat-card ${scene === "pending_completion" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("pending_completion")}>
               <Statistic
                 title={<Text type="secondary" style={{ fontSize: 12 }}>待完善</Text>}
                 value={stats.pending_completion_count ?? 0} prefix={<AlertOutlined />}
@@ -425,8 +480,8 @@ export default function BrandList() {
               />
             </Card>
           </Col>
-          <Col span={4}>
-            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("high_risk"); setPage(1); }}>
+          <Col xs={24} sm={12} md={8} xl={4}>
+            <Card size="small" className={`brand-stat-card ${scene === "high_risk" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("high_risk")}>
               <Statistic
                 title={<Text type="secondary" style={{ fontSize: 12 }}>高风险(&gt;70分)</Text>}
                 value={stats.high_risk_count} prefix={<WarningOutlined />}
@@ -434,8 +489,8 @@ export default function BrandList() {
               />
             </Card>
           </Col>
-          <Col span={4}>
-            <Card size="small" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => { setScene("no_products"); setPage(1); }}>
+          <Col xs={24} sm={12} md={8} xl={4}>
+            <Card size="small" className={`brand-stat-card ${scene === "no_products" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("no_products")}>
               <Statistic
                 title={<Text type="secondary" style={{ fontSize: 12 }}>未铺货</Text>}
                 value={stats.no_product_count ?? 0} prefix={<CarOutlined />}
@@ -458,23 +513,7 @@ export default function BrandList() {
         extra={
           <Space wrap>
             <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>看板</Button>
-            <Input.Search
-              placeholder="搜索品牌/产品线/关键词" allowClear
-              value={search} onChange={(e) => setSearch(e.target.value)}
-              onSearch={(v) => {
-                setSearch(v);
-                if (page !== 1) setPage(1);
-                else fetch(1, pageSize, v);
-              }} style={{ width: 220 }}
-            />
-            <Select placeholder="状态" allowClear style={{ width: 80 }} value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
-            <Select placeholder="等级" allowClear style={{ width: 80 }} value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
-            <Select placeholder="类型" allowClear style={{ width: 100 }} value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
-            <Select placeholder="生命周期" allowClear style={{ width: 100 }} value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
-            <Select placeholder="风险" allowClear style={{ width: 80 }} value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
-            <Select value={sort} style={{ width: 110 }} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} />
             <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>导出</Button>
-            <Button onClick={resetFilters}>重置</Button>
             <Button icon={<ReloadOutlined />} onClick={() => { fetch(); fetchStats(); }}>刷新</Button>
             <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
             {selectedRowKeys.length > 0 && (
@@ -489,16 +528,47 @@ export default function BrandList() {
           </Space>
         }
       >
-        <Space wrap style={{ marginBottom: 12 }}>
-          <Segmented
-            options={SCENE_OPTIONS}
-            value={scene}
-            onChange={(v) => {
-              setScene(v as BrandScene);
-              setPage(1);
-            }}
-          />
-        </Space>
+        <div className="brand-toolbar">
+          <div className="brand-toolbar-row">
+            <Segmented
+              options={SCENE_OPTIONS}
+              value={scene}
+              onChange={(v) => applyScene(v as BrandScene)}
+            />
+            <Space wrap>
+              <Select value={sort} style={{ width: 120 }} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} />
+              <Button onClick={resetFilters}>重置</Button>
+            </Space>
+          </div>
+          <div className="brand-filter-row">
+            <Input.Search
+              placeholder="搜索品牌、产品线、关键词"
+              allowClear
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onSearch={(v) => {
+                setSearch(v);
+                if (page !== 1) setPage(1);
+                else fetch(1, pageSize, v);
+              }}
+              style={{ width: 280 }}
+            />
+            <Select placeholder="状态" allowClear style={{ width: 100 }} value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
+            <Select placeholder="等级" allowClear style={{ width: 100 }} value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
+            <Select placeholder="类型" allowClear style={{ width: 120 }} value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
+            <Select placeholder="生命周期" allowClear style={{ width: 120 }} value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
+            <Select placeholder="风险" allowClear style={{ width: 100 }} value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
+          </div>
+          <div className="brand-filter-tags">
+            {activeFilterTags.length > 0 ? (
+              <Space wrap>
+                {activeFilterTags.map((label) => <Tag key={label} color="blue">{label}</Tag>)}
+              </Space>
+            ) : (
+              <Text type="secondary">当前显示全部品牌</Text>
+            )}
+          </div>
+        </div>
         <Table
           rowKey="id" columns={columns} dataSource={data}
           rowSelection={rowSelection}
