@@ -272,6 +272,15 @@ def _merge_customer_recognition(ai_result: dict, text: str) -> dict:
     return merged
 
 
+def _compose_customer_recognition_context(text: str, ocr_candidates: list[dict] | None = None) -> str:
+    parts = [(text or "").strip()]
+    for candidate in (ocr_candidates or [])[:6]:
+        candidate_text = str(candidate.get("text") or "").strip()
+        if candidate_text and candidate_text not in parts:
+            parts.append(candidate_text)
+    return "\n".join(part for part in parts if part)
+
+
 class CustomerAgent:
     """Analyzes customer data and provides insights."""
 
@@ -340,6 +349,7 @@ class CustomerAgent:
 
     @staticmethod
     async def recognize_customer(text: str, ocr_candidates: list[dict] | None = None) -> dict:
+        recognition_context = _compose_customer_recognition_context(text, ocr_candidates)
         schema = {
             "name": "string",
             "short_name": "string",
@@ -373,10 +383,10 @@ class CustomerAgent:
                 schema,
                 temperature=0.1,
             )
-            return _merge_customer_recognition(result, text)
+            return _merge_customer_recognition(result, recognition_context)
         except Exception as e:
             logger.error(f"Customer recognition failed: {e}")
-            return _heuristic_customer_recognition(text)
+            return _heuristic_customer_recognition(recognition_context)
 
     @staticmethod
     async def recognize_followup(text: str, customer_data: dict, now_text: str) -> dict:

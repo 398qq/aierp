@@ -440,6 +440,73 @@ class TestCustomers:
         assert "13800001111" in prompt
         assert "深圳市南山区科技园" in prompt
 
+    async def test_customer_recognition_fallback_uses_ocr_candidates(self, monkeypatch):
+        from app.services.ai.agents import CustomerAgent
+
+        async def fake_chat_structured(*_args, **_kwargs):
+            raise RuntimeError("AI down")
+
+        monkeypatch.setattr(
+            "app.services.ai.agents.ai_client.chat_structured",
+            fake_chat_structured,
+        )
+
+        result = await CustomerAgent.recognize_customer(
+            "深圳市星河电子有限公司\n张工 13800001111",
+            ocr_candidates=[
+                {"text": "zhang@example.com"},
+                {"text": "地址: 深圳市南山区科技园"},
+            ],
+        )
+
+        assert result["name"] == "深圳市星河电子有限公司"
+        assert result["phone"] == "13800001111"
+        assert result["email"] == "zhang@example.com"
+        assert result["address"] == "深圳市南山区科技园"
+
+    async def test_customer_recognition_ai_result_is_completed_from_ocr_candidates(self, monkeypatch):
+        from app.services.ai.agents import CustomerAgent
+
+        async def fake_chat_structured(*_args, **_kwargs):
+            return {
+                "name": "深圳市星河电子有限公司",
+                "short_name": "星河电子",
+                "customer_type": "",
+                "industry": "",
+                "level": "",
+                "region": "",
+                "source": "",
+                "contact_person": "张工",
+                "phone": "",
+                "email": "",
+                "owner": "",
+                "credit_limit": None,
+                "credit_level": "",
+                "address": "",
+                "notes": "",
+                "confidence": 0.8,
+                "summary": "AI识别部分字段",
+            }
+
+        monkeypatch.setattr(
+            "app.services.ai.agents.ai_client.chat_structured",
+            fake_chat_structured,
+        )
+
+        result = await CustomerAgent.recognize_customer(
+            "深圳市星河电子有限公司\n张工",
+            ocr_candidates=[
+                {"text": "电话: 13800001111"},
+                {"text": "Email: zhang@example.com"},
+                {"text": "地址: 深圳市南山区科技园"},
+            ],
+        )
+
+        assert result["phone"] == "13800001111"
+        assert result["email"] == "zhang@example.com"
+        assert result["address"] == "深圳市南山区科技园"
+        assert result["confidence"] == 0.8
+
     async def test_ai_recognize_customer_fallback_extracts_key_fields(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
         async def fake_chat_structured(*_args, **_kwargs):
             raise RuntimeError("AI down")
