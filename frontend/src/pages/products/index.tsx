@@ -68,6 +68,7 @@ import type { Brand, InventoryItem, Product } from "../../types";
 
 type SceneValue = "all" | "in_stock" | "low_stock" | "out_of_stock" | "pending_completion" | "stale_30d";
 type BatchTaskType = "update" | "delete" | "export";
+type ProductTaskKey = "replenish" | "out" | "complete" | "stale" | "no_supplier" | "ai_search" | "all";
 
 type ProductStats = {
   total: number;
@@ -116,6 +117,16 @@ const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "30天无动销", value: "stale_30d" },
 ];
 
+const PRODUCT_TASK_LABELS: Record<ProductTaskKey, string> = {
+  replenish: "补货预警",
+  out: "缺货处理",
+  complete: "资料完善",
+  stale: "无动销复盘",
+  no_supplier: "供应商缺口",
+  ai_search: "AI选型搜索",
+  all: "全部产品",
+};
+
 const COL_LABEL_MAP: Record<string, string> = {
   sku: "SKU",
   name: "产品名称",
@@ -151,6 +162,39 @@ const getStockState = (p: Product): "in" | "low" | "out" => {
   if (available <= 0) return "out";
   if (available <= safety) return "low";
   return "in";
+};
+
+const getDaysSince = (value?: string | null) => {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return null;
+  return Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
+};
+
+const getProductPriorityScore = (product: Product) => {
+  let score = 35;
+  const stockState = getStockState(product);
+  if (stockState === "out") score += 32;
+  if (stockState === "low") score += 24;
+  if ((product.completion_score ?? 100) < 60) score += 18;
+  if ((product.supplier_count ?? 0) <= 0) score += 12;
+  if ((product.inventory_location_count ?? 0) <= 0) score += 8;
+  const staleDays = getDaysSince(product.last_sale_at);
+  if (staleDays == null) score += 8;
+  else if (staleDays > 90) score += 16;
+  else if (staleDays > 30) score += 8;
+  return Math.min(100, score);
+};
+
+const getProductSuggestedAction = (product: Product) => {
+  const stockState = getStockState(product);
+  if (stockState === "out") return "优先确认可替代库存或发起采购补货";
+  if (stockState === "low") return "检查安全库存并补充采购计划";
+  if ((product.completion_score ?? 100) < 60) return "补齐品牌、封装、规格和资料字段";
+  if ((product.supplier_count ?? 0) <= 0) return "补充可供货供应商并维护采购关系";
+  const staleDays = getDaysSince(product.last_sale_at);
+  if (staleDays == null || staleDays > 30) return "复盘动销，生成客户推荐或清理策略";
+  return "维护价格与库存，保持可销售状态";
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -241,6 +285,8 @@ export default function ProductList() {
   const [quickInventoryOptions, setQuickInventoryOptions] = useState<InventoryItem[]>([]);
   const [quickInventoryId, setQuickInventoryId] = useState<number | undefined>();
   const [quickValue, setQuickValue] = useState<number | null>(null);
+  const [productTask, setProductTask] = useState<ProductTaskKey>("replenish");
+  const [contextProductId, setContextProductId] = useState<number | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [stats, setStats] = useState<ProductStats>({
     total: 0,
@@ -290,6 +336,48 @@ export default function ProductList() {
     });
     return result;
   }, [selectedProducts]);
+
+  const productMatchesTask = (product: Product, task: ProductTaskKey) => {
+    const stockState = getStockState(product);
+    const staleDays = getDaysSince(product.last_sale_at);
+    if (task === "all") return true;
+    if (task === "replenish") return stockState === "low";
+    if (task === "out") return stockState === "out";
+    if (task === "complete") return (product.completion_score ?? 100) < 80 || Boolean(product.missing_fields?.length);
+    if (task === "stale") return staleDays == null || staleDays > 30;
+    if (task === "no_supplier") return (product.supplier_count ?? 0) <= 0;
+    if (task === "ai_search") return getProductPriorityScore(product) >= 65;
+    return true;
+  };
+
+  const filteredProducts = useMemo(
+    () => data
+      .filter((item) => productMatchesTask(item, productTask))
+      .sort((a, b) => getProductPriorityScore(b) - getProductPriorityScore(a)),
+    [data, productTask],
+  );
+
+  const productTaskItems = useMemo(() => [
+    { key: "replenish" as ProductTaskKey, label: PRODUCT_TASK_LABELS.replenish, count: data.filter((item) => productMatchesTask(item, "replenish")).length, color: "orange", note: "可用库存低于安全线" },
+    { key: "out" as ProductTaskKey, label: PRODUCT_TASK_LABELS.out, count: data.filter((item) => productMatchesTask(item, "out")).length, color: "red", note: "当前无可用库存" },
+    { key: "complete" as ProductTaskKey, label: PRODUCT_TASK_LABELS.complete, count: data.filter((item) => productMatchesTask(item, "complete")).length, color: "gold", note: "资料字段不完整" },
+    { key: "stale" as ProductTaskKey, label: PRODUCT_TASK_LABELS.stale, count: data.filter((item) => productMatchesTask(item, "stale")).length, color: "blue", note: "超过30天无销售" },
+    { key: "no_supplier" as ProductTaskKey, label: PRODUCT_TASK_LABELS.no_supplier, count: data.filter((item) => productMatchesTask(item, "no_supplier")).length, color: "purple", note: "未维护供应商" },
+    { key: "ai_search" as ProductTaskKey, label: PRODUCT_TASK_LABELS.ai_search, count: data.filter((item) => productMatchesTask(item, "ai_search")).length, color: "cyan", note: "综合优先级较高" },
+    { key: "all" as ProductTaskKey, label: PRODUCT_TASK_LABELS.all, count: data.length, color: "default", note: "回到普通清单" },
+  ], [data]);
+
+  const tableProducts = useMemo(
+    () => aiSearchMode ? ((aiSearchResults ?? []) as unknown as Product[]) : filteredProducts,
+    [aiSearchMode, aiSearchResults, filteredProducts],
+  );
+  const contextProduct = useMemo(
+    () => data.find((item) => item.id === contextProductId) || tableProducts[0] || null,
+    [contextProductId, data, tableProducts],
+  );
+  const contextStockState = contextProduct ? getStockState(contextProduct) : "in";
+  const contextPriorityScore = contextProduct ? getProductPriorityScore(contextProduct) : 0;
+  const contextSuggestedAction = contextProduct ? getProductSuggestedAction(contextProduct) : "";
 
   const loadSavedViews = () => {
     try {
@@ -858,6 +946,94 @@ export default function ProductList() {
   return (
     <div>
       <style>{`
+        .product-command-layout {
+          display: grid;
+          grid-template-columns: 220px minmax(0, 1fr) 280px;
+          gap: 12px;
+          align-items: start;
+        }
+        .product-command-sidebar,
+        .product-command-context {
+          position: sticky;
+          top: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .product-command-main {
+          min-width: 0;
+        }
+        .product-command-panel {
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .product-command-panel-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 10px 12px;
+          border-bottom: 1px solid #f0f0f0;
+        }
+        .product-command-body {
+          padding: 12px;
+        }
+        .product-task-button {
+          display: block;
+          width: 100%;
+          padding: 9px 12px;
+          text-align: left;
+          background: transparent;
+          border: 0;
+          border-bottom: 1px solid #f5f5f5;
+          cursor: pointer;
+        }
+        .product-task-button:hover,
+        .product-task-button.is-active {
+          background: #f0f5ff;
+        }
+        .product-task-main,
+        .product-context-score {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .product-task-note,
+        .product-context-note {
+          margin-top: 4px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .product-context-score {
+          margin: 10px 0;
+          padding: 10px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .product-context-score-value {
+          color: #1677ff;
+          font-size: 26px;
+          font-weight: 650;
+          line-height: 1;
+        }
+        .product-context-action {
+          margin-top: 10px;
+          padding: 10px;
+          background: #fffbe6;
+          border: 1px solid #ffe58f;
+          border-radius: 8px;
+        }
+        .product-context-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 10px;
+        }
         .product-batch-bar {
           position: sticky;
           top: 8px;
@@ -868,8 +1044,26 @@ export default function ProductList() {
           border: 1px solid #adc6ff;
           border-radius: 8px;
         }
+        .product-row-selected td { background: #f0f5ff !important; }
         .product-row-low td { background: #fffbe6 !important; }
         .product-row-out td { background: #fff2f0 !important; }
+        @media (max-width: 1180px) {
+          .product-command-layout {
+            grid-template-columns: 1fr;
+          }
+          .product-command-sidebar,
+          .product-command-context {
+            position: static;
+          }
+          .product-context-actions {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 768px) {
+          .product-context-actions {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
       `}</style>
 
       <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
@@ -905,6 +1099,57 @@ export default function ProductList() {
         </Col>
       </Row>
 
+      <div className="product-command-layout">
+        <aside className="product-command-sidebar">
+          <div className="product-command-panel">
+            <div className="product-command-panel-head">
+              <Space size={6}>
+                <ThunderboltOutlined />
+                <span style={{ fontWeight: 600 }}>产品任务</span>
+              </Space>
+              <Button size="small" type="link" onClick={() => setAiSearchMode(true)}>AI搜索</Button>
+            </div>
+            {productTaskItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`product-task-button${productTask === item.key ? " is-active" : ""}`}
+                onClick={() => {
+                  setProductTask(item.key);
+                  setContextProductId(null);
+                  setPage(1);
+                  if (item.key === "ai_search") setAiSearchMode(true);
+                  if (item.key !== "ai_search" && aiSearchMode) {
+                    setAiSearchMode(false);
+                    setAiSearchResults(null);
+                  }
+                }}
+              >
+                <span className="product-task-main">
+                  <span style={{ fontWeight: productTask === item.key ? 600 : 400 }}>{item.label}</span>
+                  <Tag color={item.color}>{item.count}</Tag>
+                </span>
+                <span className="product-task-note">{item.note}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="product-command-panel">
+            <div className="product-command-panel-head">
+              <span style={{ fontWeight: 600 }}>库存快照</span>
+            </div>
+            <div className="product-command-body">
+              <Space size={[4, 6]} wrap>
+                <Tag color="green">在库 {stats.in_stock_count}</Tag>
+                <Tag color="orange">低库存 {stats.low_stock_count}</Tag>
+                <Tag color="red">缺货 {stats.out_of_stock_count}</Tag>
+                <Tag>待完善 {stats.pending_completion_count}</Tag>
+              </Space>
+            </div>
+          </div>
+        </aside>
+
+        <main className="product-command-main">
       <Card size="small" style={{ marginBottom: 12 }}>
         <Row gutter={[10, 10]} align="middle">
           <Col flex="420px">
@@ -1066,7 +1311,7 @@ export default function ProductList() {
         <Table
           rowKey="id"
           columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
-          dataSource={aiSearchMode ? (aiSearchResults ?? []) as unknown as Product[] : data}
+          dataSource={tableProducts}
           loading={aiSearchMode ? aiSearching : loading}
           size="middle"
           tableLayout="auto"
@@ -1080,11 +1325,15 @@ export default function ProductList() {
                 }
           }
           rowClassName={(record) => {
+            if (contextProduct?.id === record.id) return "product-row-selected";
             const state = getStockState(record);
             if (state === "low") return "product-row-low";
             if (state === "out") return "product-row-out";
             return "";
           }}
+          onRow={(record) => ({
+            onClick: () => setContextProductId(record.id),
+          })}
           locale={{
             emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={aiSearchMode ? "未命中语义搜索结果" : "暂无产品数据"} />,
           }}
@@ -1095,7 +1344,7 @@ export default function ProductList() {
               : {
                   current: page,
                   pageSize: PAGE_SIZE,
-                  total,
+                  total: productTask !== "all" ? filteredProducts.length : total,
                   showTotal: (count) => `共 ${count} 条`,
                   showSizeChanger: false,
                 }
@@ -1135,6 +1384,84 @@ export default function ProductList() {
           />
         </Card>
       )}
+        </main>
+
+        <aside className="product-command-context">
+          <div className="product-command-panel">
+            <div className="product-command-panel-head">
+              <Space size={6}>
+                <InboxOutlined />
+                <span style={{ fontWeight: 600 }}>产品上下文</span>
+              </Space>
+              {contextProduct && (
+                <Tag color={contextStockState === "out" ? "red" : contextStockState === "low" ? "orange" : "green"}>
+                  {contextStockState === "out" ? "缺货" : contextStockState === "low" ? "低库存" : "在库"}
+                </Tag>
+              )}
+            </div>
+            {!contextProduct ? (
+              <div className="product-command-body">
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择产品查看上下文" />
+              </div>
+            ) : (
+              <div className="product-command-body">
+                <a style={{ fontWeight: 600 }} onClick={() => openDetail(contextProduct)}>{contextProduct.name}</a>
+                <div className="product-context-note">
+                  {[contextProduct.sku, contextProduct.brand_name, contextProduct.category, contextProduct.package_type].filter(Boolean).join(" / ") || "暂无基础信息"}
+                </div>
+                <div className="product-context-score">
+                  <div>
+                    <span style={{ color: "#8c8c8c" }}>AI优先级</span>
+                    <div className="product-context-note">按库存、资料、供应商、动销计算</div>
+                  </div>
+                  <div className="product-context-score-value">{contextPriorityScore}</div>
+                </div>
+                <Space size={[4, 6]} wrap>
+                  <Tag color={contextStockState === "out" ? "red" : contextStockState === "low" ? "orange" : "green"}>
+                    可用 {getAvailableQty(contextProduct)}
+                  </Tag>
+                  <Tag>安全库存 {contextProduct.safety_stock ?? "-"}</Tag>
+                  <Tag>供应商 {contextProduct.supplier_count ?? 0}</Tag>
+                  <Tag>完整度 {contextProduct.completion_score ?? 0}%</Tag>
+                </Space>
+                <div className="product-context-action">
+                  <span style={{ fontWeight: 600 }}>推荐动作</span>
+                  <div className="product-context-note">{contextSuggestedAction}</div>
+                </div>
+                <Descriptions column={1} size="small" style={{ marginTop: 10 }}>
+                  <Descriptions.Item label="规格">{contextProduct.specs || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="最近销售">{formatDateTime(contextProduct.last_sale_at)}</Descriptions.Item>
+                  <Descriptions.Item label="分仓">{contextProduct.inventory_location_count ?? 0}</Descriptions.Item>
+                  <Descriptions.Item label="单价">{contextProduct.unit_price != null ? `¥${contextProduct.unit_price.toFixed(2)}` : "-"}</Descriptions.Item>
+                </Descriptions>
+                {contextProduct.missing_fields?.length ? (
+                  <div className="product-context-note">缺少：{contextProduct.missing_fields.join("、")}</div>
+                ) : null}
+                <div className="product-context-actions">
+                  <Button size="small" type="primary" icon={<EyeOutlined />} onClick={() => openDetail(contextProduct)}>详情</Button>
+                  <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(contextProduct)}>编辑</Button>
+                  <Button size="small" onClick={() => openQuickAction(contextProduct, "price")}>改价</Button>
+                  <Button size="small" onClick={() => openQuickAction(contextProduct, "safety")}>安库</Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="product-command-panel">
+            <div className="product-command-panel-head">
+              <span style={{ fontWeight: 600 }}>智能工具</span>
+            </div>
+            <div className="product-command-body">
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Button block size="small" icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>AI解析产品</Button>
+                <Button block size="small" icon={<FileTextOutlined />} onClick={() => setBomModalOpen(true)}>BOM导入</Button>
+                <Button block size="small" icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>批量导入</Button>
+                <Button block size="small" icon={<DownloadOutlined />} onClick={handleExportAll}>导出当前页</Button>
+              </Space>
+            </div>
+          </div>
+        </aside>
+      </div>
 
       <Modal
         title={editing ? "编辑产品" : "新建产品"}
