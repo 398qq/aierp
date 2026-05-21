@@ -12,6 +12,8 @@ const CustomerList = lazy(() => import("./pages/customers/index"));
 const CustomerDetail = lazy(() => import("./pages/customers/CustomerDetail"));
 const CustomerNew = lazy(() => import("./pages/customers/CustomerNew"));
 const CustomerDashboard = lazy(() => import("./pages/customers/CustomerDashboard"));
+const CustomerIntelligenceDashboard = lazy(() => import("./pages/customers/CustomerIntelligenceDashboard"));
+const CustomerAIWorkbench = lazy(() => import("./pages/customers/CustomerAIWorkbench"));
 const CustomerInsight = lazy(() => import("./pages/customers/CustomerInsight"));
 const Customer360 = lazy(() => import("./pages/customers/Customer360"));
 const CustomerSegments = lazy(() => import("./pages/customers/CustomerSegments"));
@@ -123,6 +125,8 @@ export default function App() {
               <Route path="/dashboard/global360" element={<Suspense fallback={<PageLoader />}><Global360 /></Suspense>} />
               <Route path="/customers" element={<Suspense fallback={<PageLoader />}><CustomerList /></Suspense>} />
               <Route path="/customers/stats" element={<Suspense fallback={<PageLoader />}><CustomerDashboard /></Suspense>} />
+              <Route path="/customers/intelligence" element={<Suspense fallback={<PageLoader />}><CustomerIntelligenceDashboard /></Suspense>} />
+              <Route path="/customers/workbench" element={<Suspense fallback={<PageLoader />}><CustomerAIWorkbench /></Suspense>} />
               <Route path="/customers/new" element={<Suspense fallback={<PageLoader />}><CustomerNew /></Suspense>} />
               <Route path="/customers/:id" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
               <Route path="/customers/:id/insight" element={<Suspense fallback={<PageLoader />}><CustomerInsight /></Suspense>} />

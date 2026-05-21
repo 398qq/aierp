@@ -1,7 +1,7 @@
 import client from "./client";
 import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
-  ChurnRisk, Contract, Customer, Customer360, CustomerAIStats, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
+  ChurnRisk, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
   DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
   FollowUp, FollowUpRecognition, FollowUpReminder,
   Global360, GroupStats,
@@ -988,6 +988,49 @@ export const getSimilarCustomers = (customerId: number, topK = 10) =>
 
 export const searchSimilarCustomers = (q: string, topK = 10) =>
   client.get<APIResponse<import("../types").SimilarCustomer[]>>(`/ai/customer/similar/search?q=${encodeURIComponent(q)}&top_k=${topK}`);
+
+export const generateCustomerWorkQueue = (
+  payload?: { customer_ids?: number[]; replace_open?: boolean; dry_run?: boolean },
+) => client.post<APIResponse<{
+  generated: number;
+  replaced: number;
+  items: Array<{
+    id?: number;
+    customer_id: number;
+    customer_name: string;
+    action_type: string;
+    title: string;
+    priority_score: number;
+    due_at: string | null;
+    status: string;
+  }>;
+}>>(
+  "/ai/customer/work-queue/generate",
+  payload || {},
+);
+
+export const getCustomerWorkQueue = (params: Record<string, unknown>) =>
+  client.get<APIResponse<CustomerAIWorkQueuePage>>("/ai/customer/work-queue", { params });
+
+export const getCustomerAIRecommendationSummary = (customerId: number) =>
+  client.get<APIResponse<CustomerAIRecommendationSummary>>(`/ai/customer/${customerId}/summary`);
+
+export const updateCustomerRecommendationStatus = (
+  recommendationId: number,
+  data: { status: "open" | "in_progress" | "done" | "dismissed" | "superseded"; owner?: string },
+) => client.post<APIResponse>(`/ai/customer/recommendation/${recommendationId}/status`, data);
+
+export const submitCustomerRecommendationFeedback = (
+  recommendationId: number,
+  data: {
+    verdict: "adopted" | "rejected" | "partial";
+    usefulness?: number;
+    outcome?: string;
+    revenue_impact?: number;
+    cost_impact?: number;
+    comment?: string;
+  },
+) => client.post<APIResponse>(`/ai/customer/recommendation/${recommendationId}/feedback`, data);
 
 // ============================================================
 // Inquiry Auto-Reply
