@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
+import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber, Divider } from "antd";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
 import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
@@ -25,6 +25,18 @@ import {
 
 const formatShortDateTime = (value?: string | null) => value ? value.slice(0, 16).replace("T", " ") : "-";
 const isOpenFollowUp = (item: FollowUp) => item.status !== "completed" && item.status !== "cancelled";
+const getFollowUpDueMeta = (item?: FollowUp | null) => {
+  if (!item) return { text: "无计划", color: "default" };
+  if (item.status === "completed") return { text: "已完成", color: "green" };
+  if (item.status === "cancelled") return { text: "已取消", color: "default" };
+  if (!item.planned_at) return { text: "未排期", color: "default" };
+  const due = dayjs(item.planned_at);
+  const today = dayjs().startOf("day");
+  const diff = due.startOf("day").diff(today, "day");
+  if (diff < 0) return { text: `逾期 ${Math.abs(diff)} 天`, color: "red" };
+  if (diff === 0) return { text: "今日待跟进", color: "orange" };
+  return { text: `${diff} 天后`, color: "blue" };
+};
 const TAG_COLOR_OPTIONS = [
   { value: "blue", label: "蓝色" },
   { value: "green", label: "绿色" },
@@ -130,54 +142,196 @@ export default function CustomerDetail() {
       {!loading && !error && !customer && <Empty description="未找到客户" />}
       {!loading && !error && customer && (
           <>
+            <style>{`
+              .customer-detail-hero .ant-card-body {
+                padding: 14px;
+              }
+              .customer-detail-title {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+              }
+              .customer-detail-layout {
+                display: grid;
+                grid-template-columns: minmax(240px, 0.86fr) minmax(360px, 1.34fr) minmax(220px, 0.8fr);
+                gap: 12px;
+                align-items: stretch;
+              }
+              .customer-detail-panel {
+                padding: 12px;
+                background: #fafafa;
+                border: 1px solid #f0f0f0;
+                border-radius: 8px;
+              }
+              .customer-detail-panel.is-action {
+                background: #fff;
+              }
+              .customer-detail-panel-title {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                margin-bottom: 10px;
+              }
+              .customer-detail-tag-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-top: 8px;
+              }
+              .customer-detail-tag-row .ant-tag {
+                margin-inline-end: 0;
+              }
+              .customer-detail-next {
+                padding: 10px;
+                background: #fff;
+                border: 1px solid #f0f0f0;
+                border-radius: 8px;
+                margin-bottom: 10px;
+              }
+              .customer-detail-follow-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+              }
+              .customer-detail-follow-item {
+                padding: 8px 10px;
+                background: #fff;
+                border: 1px solid #f0f0f0;
+                border-radius: 8px;
+              }
+              .customer-detail-action-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+              }
+              .customer-detail-action-grid .ant-btn {
+                justify-content: flex-start;
+              }
+              @media (max-width: 1180px) {
+                .customer-detail-layout {
+                  grid-template-columns: 1fr 1fr;
+                }
+                .customer-detail-panel.is-action {
+                  grid-column: 1 / -1;
+                }
+                .customer-detail-action-grid {
+                  grid-template-columns: repeat(3, minmax(0, 1fr));
+                }
+              }
+              @media (max-width: 768px) {
+                .customer-detail-layout,
+                .customer-detail-action-grid {
+                  grid-template-columns: 1fr;
+                }
+              }
+            `}</style>
             <Card
+              className="customer-detail-hero"
               style={{ marginBottom: 16 }}
               title={(
-                <Space wrap>
+                <div className="customer-detail-title">
                   <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")}>返回列表</Button>
                   <Typography.Title level={4} style={{ margin: 0 }}>{customer.name}</Typography.Title>
                   <Tag color={getLevelColor(customer.level)}>等级 {customer.level || "-"}</Tag>
                   <CustomerHealthBadge value={customer.health_score} />
-                </Space>
+                </div>
               )}
               extra={(
                 <Space wrap>
-                  {customerTags.map((t) => (
-                    <Tag key={t.id} color={t.color || "blue"} closable onClose={() => handleUnlinkTag(t.id)}>{t.name}</Tag>
-                  ))}
-                  <Button size="small" icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>标签</Button>
                   <Button icon={<EditOutlined />} onClick={() => setEditModalOpen(true)}>编辑</Button>
-                  <Button type="primary" icon={<PhoneOutlined />} onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}>建跟进</Button>
-                  <Button icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${customerId}`)}>建订单</Button>
-                  <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs}>AI 产品推荐</Button>
-                  <Button icon={<PieChartOutlined />} onClick={() => navigate(`/customers/${customerId}/360`)}>AI 360</Button>
-                  <Button icon={<SwapOutlined />} onClick={() => setVendModalOpen(true)}>转为供应商</Button>
+                  <Button type="primary" icon={<PhoneOutlined />} onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}>新增跟进</Button>
                 </Space>
               )}
             >
-              <Descriptions column={4} size="small">
-                <Descriptions.Item label="编码">{customer.code || "-"}</Descriptions.Item>
-                <Descriptions.Item label="行业">{customer.industry || "-"}</Descriptions.Item>
-                <Descriptions.Item label="区域">{customer.region || "-"}</Descriptions.Item>
-                <Descriptions.Item label="负责人">{customer.owner || "-"}</Descriptions.Item>
-                <Descriptions.Item label="来源">{customer.source || "-"}</Descriptions.Item>
-                <Descriptions.Item label="类型">{customer.customer_type || "-"}</Descriptions.Item>
-                <Descriptions.Item label="联系人">{customer.contact_person || "-"}</Descriptions.Item>
-                <Descriptions.Item label="电话">{customer.phone || "-"}</Descriptions.Item>
-                <Descriptions.Item label="邮箱">{customer.email || "-"}</Descriptions.Item>
-                <Descriptions.Item label="信用等级">{customer.credit_level || "-"}</Descriptions.Item>
-                <Descriptions.Item label="最近联系">{formatShortDateTime(customer.last_contacted_at)}</Descriptions.Item>
-                <Descriptions.Item label="下一次跟进">
-                  {nextOpenFollowUp ? (
-                    <Space size={4}>
-                      <FollowUpStatusTag status={nextOpenFollowUp.status} />
-                      <span>{formatShortDateTime(nextOpenFollowUp.planned_at)}</span>
-                    </Space>
-                  ) : "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="地址" span={4}>{customer.address || "-"}</Descriptions.Item>
-                <Descriptions.Item label="备注" span={4}>{customer.notes || "-"}</Descriptions.Item>
-              </Descriptions>
+              <div className="customer-detail-layout">
+                <section className="customer-detail-panel">
+                  <div className="customer-detail-panel-title">
+                    <Typography.Text strong>客户信息</Typography.Text>
+                    <Button size="small" icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>标签</Button>
+                  </div>
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="编码">{customer.code || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="简称">{customer.short_name || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="行业">{customer.industry || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="区域">{customer.region || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="负责人">{customer.owner || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="来源">{customer.source || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="信用">{customer.credit_level || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="最近联系">{formatShortDateTime(customer.last_contacted_at)}</Descriptions.Item>
+                  </Descriptions>
+                  <div className="customer-detail-tag-row">
+                    {customerTags.length === 0 ? (
+                      <Typography.Text type="secondary">暂无标签</Typography.Text>
+                    ) : customerTags.map((t) => (
+                      <Tag key={t.id} color={t.color || "blue"} closable onClose={() => handleUnlinkTag(t.id)}>{t.name}</Tag>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="customer-detail-panel">
+                  <div className="customer-detail-panel-title">
+                    <Typography.Text strong>推进状态</Typography.Text>
+                    <Button size="small" onClick={() => navigate(`/customers/${customerId}/follow-ups`)}>全部跟进</Button>
+                  </div>
+                  <div className="customer-detail-next">
+                    {nextOpenFollowUp ? (
+                      <Space direction="vertical" size={5} style={{ width: "100%" }}>
+                        <Space wrap>
+                          <Tag color={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</Tag>
+                          <FollowUpStatusTag status={nextOpenFollowUp.status} />
+                          <FollowUpMethodTag method={nextOpenFollowUp.method} />
+                          <FollowUpPriorityTag priority={nextOpenFollowUp.priority} />
+                        </Space>
+                        <Typography.Text strong>{formatShortDateTime(nextOpenFollowUp.planned_at)}</Typography.Text>
+                        <Typography.Text type="secondary">{nextOpenFollowUp.content || "暂无跟进内容"}</Typography.Text>
+                      </Space>
+                    ) : (
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理跟进" />
+                    )}
+                  </div>
+                  <div className="customer-detail-follow-list">
+                    {followUps.slice(0, 3).map((item) => {
+                      const due = getFollowUpDueMeta(item);
+                      return (
+                        <div className="customer-detail-follow-item" key={item.id}>
+                          <Space wrap size={6}>
+                            <Tag color={due.color}>{due.text}</Tag>
+                            <FollowUpMethodTag method={item.method} />
+                            <Typography.Text type="secondary">{formatShortDateTime(item.planned_at)}</Typography.Text>
+                          </Space>
+                          <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0" }} ellipsis={{ rows: 2 }}>
+                            {item.content || item.result || "-"}
+                          </Typography.Paragraph>
+                        </div>
+                      );
+                    })}
+                    {followUps.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" />}
+                  </div>
+                </section>
+
+                <aside className="customer-detail-panel is-action">
+                  <div className="customer-detail-panel-title">
+                    <Typography.Text strong>行动区</Typography.Text>
+                    <Tag color={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</Tag>
+                  </div>
+                  <div className="customer-detail-action-grid">
+                    <Button type="primary" icon={<PhoneOutlined />} onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}>新增跟进</Button>
+                    <Button icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${customerId}`)}>创建订单</Button>
+                    <Button icon={<BulbOutlined />} loading={recLoading} onClick={handleProductRecs}>AI 产品推荐</Button>
+                    <Button icon={<PieChartOutlined />} onClick={() => navigate(`/customers/${customerId}/360`)}>AI 360 洞察</Button>
+                    <Button icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>管理标签</Button>
+                    <Button icon={<SwapOutlined />} onClick={() => setVendModalOpen(true)}>转为供应商</Button>
+                  </div>
+                  <Divider style={{ margin: "12px 0" }} />
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="联系人">{customer.contact_person || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="电话">{customer.phone || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="邮箱">{customer.email || "-"}</Descriptions.Item>
+                  </Descriptions>
+                </aside>
+              </div>
             </Card>
 
             <Tabs
@@ -267,6 +421,9 @@ export default function CustomerDetail() {
                           ]}
                         >
                           <Descriptions column={3} size="small">
+                            <Descriptions.Item label="提醒状态">
+                              <Tag color={getFollowUpDueMeta(f).color}>{getFollowUpDueMeta(f).text}</Tag>
+                            </Descriptions.Item>
                             <Descriptions.Item label="方式"><FollowUpMethodTag method={f.method} /></Descriptions.Item>
                             <Descriptions.Item label="状态"><FollowUpStatusTag status={f.status} /></Descriptions.Item>
                             <Descriptions.Item label="优先级"><FollowUpPriorityTag priority={f.priority} /></Descriptions.Item>
@@ -392,6 +549,7 @@ function CustomerOverview({
               <div style={{ border: "1px solid #f0f0f0", borderRadius: 6, padding: 10 }}>
                 <Space direction="vertical" size={4}>
                   <Space wrap>
+                    <Tag color={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</Tag>
                     <FollowUpStatusTag status={nextOpenFollowUp.status} />
                     <FollowUpMethodTag method={nextOpenFollowUp.method} />
                     <FollowUpPriorityTag priority={nextOpenFollowUp.priority} />
@@ -435,6 +593,7 @@ function CustomerOverview({
                   <List.Item.Meta
                     title={(
                       <Space wrap>
+                        <Tag color={getFollowUpDueMeta(item).color}>{getFollowUpDueMeta(item).text}</Tag>
                         <FollowUpStatusTag status={item.status} />
                         <FollowUpMethodTag method={item.method} />
                         <span>{formatShortDateTime(item.planned_at)}</span>

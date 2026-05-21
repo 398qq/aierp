@@ -6,6 +6,7 @@ import { createCustomer } from "../../api";
 import { useAuthStore } from "../../store/auth";
 import CustomerAIRecognizer from "./CustomerAIRecognizer";
 import CustomerFormFields from "./CustomerForm";
+import CustomerModuleShell from "./CustomerModuleShell";
 
 export function getDefaultCustomerOwner(username?: string | null) {
   return username?.trim() || "";
@@ -41,11 +42,12 @@ export default function CustomerNew() {
   };
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")}>返回列表</Button>
-      </Space>
-      <Card title="新建客户" extra={<CustomerAIRecognizer form={form} />} style={{ maxWidth: 800 }}>
+    <CustomerModuleShell
+      title="新建客户"
+      subtitle="客户主数据录入"
+      extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")}>返回列表</Button>}
+    >
+      <Card title="客户资料" extra={<CustomerAIRecognizer form={form} />} style={{ maxWidth: 920 }}>
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <CustomerFormFields />
           <Form.Item style={{ marginTop: 24, textAlign: "right" }}>
@@ -56,6 +58,6 @@ export default function CustomerNew() {
           </Form.Item>
         </Form>
       </Card>
-    </div>
+    </CustomerModuleShell>
   );
 }

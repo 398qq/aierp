@@ -31,6 +31,7 @@ import {
 } from "antd";
 import {
   BellOutlined,
+  BulbOutlined,
   DeleteOutlined,
   DownOutlined,
   DownloadOutlined,
@@ -40,6 +41,7 @@ import {
   MoreOutlined,
   PhoneOutlined,
   ReloadOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
   SendOutlined,
@@ -1043,8 +1045,63 @@ export default function CustomerList() {
   );
 
   return (
-    <CustomerModuleShell title="客户列表" subtitle="客户主数据、跟进风险与批量运营操作">
+    <CustomerModuleShell
+      title="客户工作台"
+      subtitle="筛选客户、处理跟进提醒并完成批量运营"
+      extra={(
+        <>
+          <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>AI队列</Button>
+          <Button icon={<BulbOutlined />} onClick={() => setSemanticOpen(true)}>AI搜索</Button>
+        </>
+      )}
+    >
       <style>{`
+        .customer-workbench-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        .customer-kpi-card {
+          min-height: 86px;
+          padding: 12px;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .customer-kpi-card.is-risk {
+          border-color: #ffccc7;
+          background: #fffafa;
+        }
+        .customer-kpi-card.is-warning {
+          border-color: #ffe58f;
+          background: #fffbe6;
+        }
+        .customer-kpi-title {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 20px;
+        }
+        .customer-kpi-value {
+          margin-top: 8px;
+          color: #262626;
+          font-size: 26px;
+          font-weight: 650;
+          line-height: 1;
+        }
+        .customer-kpi-note {
+          margin-top: 7px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         .customer-batch-bar {
           position: sticky;
           top: 8px;
@@ -1057,6 +1114,12 @@ export default function CustomerList() {
         }
         .customer-toolbar-card .ant-card-body {
           padding: 12px;
+        }
+        .customer-toolbar-main {
+          display: grid;
+          grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.1fr) auto;
+          gap: 10px;
+          align-items: center;
         }
         .customer-advanced-grid {
           margin-top: 10px;
@@ -1072,6 +1135,12 @@ export default function CustomerList() {
           margin-top: 10px;
           padding-top: 10px;
           border-top: 1px solid #f0f0f0;
+        }
+        .customer-table-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
         }
         .customer-stat-grid {
           display: flex;
@@ -1136,6 +1205,11 @@ export default function CustomerList() {
           border-left-color: #ff4d4f;
           background: #fffafa;
         }
+        .customer-reminder-title {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
         .customer-table-card .ant-card-body {
           padding: 0;
         }
@@ -1157,7 +1231,21 @@ export default function CustomerList() {
         }
         .customer-row-overdue td:first-child { border-left: 3px solid #ff4d4f; }
         .customer-row-key td:first-child { border-left: 3px solid #52c41a; }
+        @media (max-width: 1180px) {
+          .customer-workbench-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .customer-toolbar-main {
+            grid-template-columns: 1fr;
+          }
+          .customer-toolbar-actions {
+            justify-content: flex-start !important;
+          }
+        }
         @media (max-width: 768px) {
+          .customer-workbench-grid {
+            grid-template-columns: 1fr;
+          }
           .customer-stat-grid,
           .customer-active-filters,
           .customer-reminder-strip > .ant-space {
@@ -1170,9 +1258,46 @@ export default function CustomerList() {
         }
       `}</style>
 
+      <div className="customer-workbench-grid">
+        <div className="customer-kpi-card">
+          <div className="customer-kpi-title">
+            <span>客户总数</span>
+            <UserOutlined />
+          </div>
+          <div className="customer-kpi-value">{statsLoading ? "..." : stats.total}</div>
+          <div className="customer-kpi-note">当前筛选显示 {overdueOnly ? tableData.length : total} 条</div>
+        </div>
+        <div className={`customer-kpi-card${reminderCounts.today > 0 ? " is-warning" : ""}`}>
+          <div className="customer-kpi-title">
+            <span>今日待跟进</span>
+            <PhoneOutlined />
+          </div>
+          <div className="customer-kpi-value">{reminderCounts.today}</div>
+          <div className="customer-kpi-note">{formatReminderRefreshTime(reminderRefreshedAt)}</div>
+        </div>
+        <div className={`customer-kpi-card${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
+          <div className="customer-kpi-title">
+            <span>超期未跟进</span>
+            <BellOutlined />
+          </div>
+          <div className="customer-kpi-value">{reminderCounts.overdue}</div>
+          <div className="customer-kpi-note">可一键完成或延期处理</div>
+        </div>
+        <div className="customer-kpi-card">
+          <div className="customer-kpi-title">
+            <span>高价值客户</span>
+            <SafetyCertificateOutlined />
+          </div>
+          <div className="customer-kpi-value">{statsLoading ? "..." : levelACount}</div>
+          <div className="customer-kpi-note">
+            {topRegion ? `主力区域 ${topRegion.name} ${topRegion.value}` : `本月新增 ${monthlyNewCount}`}
+          </div>
+        </div>
+      </div>
+
       <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
-        <Row gutter={[10, 10]} align="middle">
-          <Col xs={24} lg={8} xl={7}>
+        <div className="customer-toolbar-main">
+          <div>
             <Input
               placeholder="搜索客户名称/编码/联系人/电话"
               prefix={<SearchOutlined />}
@@ -1180,8 +1305,8 @@ export default function CustomerList() {
               onChange={(e) => setQ(e.target.value)}
               allowClear
             />
-          </Col>
-          <Col xs={24} lg={9} xl={10}>
+          </div>
+          <div>
             <Segmented
               style={{ maxWidth: "100%" }}
               options={SCENE_OPTIONS}
@@ -1191,9 +1316,9 @@ export default function CustomerList() {
                 setPage(1);
               }}
             />
-          </Col>
-          <Col xs={24} lg={7} xl={7}>
-            <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
+          </div>
+          <div>
+            <Space wrap className="customer-toolbar-actions" style={{ width: "100%", justifyContent: "flex-end" }}>
               <Button
                 icon={<FilterOutlined />}
                 type={activeAdvancedFilterCount > 0 ? "primary" : "default"}
@@ -1207,8 +1332,8 @@ export default function CustomerList() {
                 <Button icon={<MoreOutlined />}>更多</Button>
               </Popover>
             </Space>
-          </Col>
-        </Row>
+          </div>
+        </div>
 
         {advancedOpen && (
           <Row gutter={[10, 10]} className="customer-advanced-grid">
@@ -1283,17 +1408,8 @@ export default function CustomerList() {
         <div className="customer-summary-strip">
           <div className="customer-stat-grid">
             <div className="customer-stat-pill">
-              <UserOutlined />
-              <span className="customer-stat-label">客户总数</span>
-              <span className="customer-stat-value">{statsLoading ? "..." : stats.total}</span>
-            </div>
-            <div className="customer-stat-pill">
               <span className="customer-stat-label">A级客户</span>
               <span className="customer-stat-value">{statsLoading ? "..." : levelACount}</span>
-            </div>
-            <div className={`customer-stat-pill${overdueList.length > 0 ? " is-risk" : ""}`}>
-              <span className="customer-stat-label">逾期跟进</span>
-              <span className="customer-stat-value">{overdueList.length}</span>
             </div>
             <div className={`customer-stat-pill${alertCount > 0 ? " is-warning" : ""}`}>
               <BellOutlined />
@@ -1304,12 +1420,6 @@ export default function CustomerList() {
               <span className="customer-stat-label">本月新增</span>
               <span className="customer-stat-value">{statsLoading ? "..." : monthlyNewCount}</span>
             </div>
-            {topRegion && (
-              <div className="customer-stat-pill">
-                <span className="customer-stat-label">主力区域</span>
-                <span className="customer-stat-value">{topRegion.name} {topRegion.value}</span>
-              </div>
-            )}
             {topIndustry && (
               <div className="customer-stat-pill">
                 <span className="customer-stat-label">主力行业</span>
@@ -1340,9 +1450,12 @@ export default function CustomerList() {
 
       <div className={`customer-reminder-strip${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
         <Space wrap>
-          <Typography.Text strong style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }}>
-            跟进提醒
-          </Typography.Text>
+          <span className="customer-reminder-title">
+            <BellOutlined style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : "#1677ff" }} />
+            <Typography.Text strong style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }}>
+              跟进任务
+            </Typography.Text>
+          </span>
           <Tag color={reminderCounts.overdue > 0 ? "red" : "default"}>逾期 {reminderCounts.overdue}</Tag>
           <Tag color={reminderCounts.today > 0 ? "orange" : "default"}>今日 {reminderCounts.today}</Tag>
           <Tag color={reminderCounts.upcoming > 0 ? "blue" : "default"}>未来 {reminderCounts.upcoming}</Tag>
@@ -1396,13 +1509,14 @@ export default function CustomerList() {
         className="customer-table-card"
         size="small"
         title={(
-          <Space size={8} wrap>
+          <div className="customer-table-title">
             <Typography.Text strong>客户清单</Typography.Text>
             <Typography.Text type="secondary">
               {overdueOnly ? tableData.length : total} 条
             </Typography.Text>
             {activeFilterItems.length > 0 && <Tag color="blue">已筛选</Tag>}
-          </Space>
+            {overdueOnly && <Tag color="red">仅逾期</Tag>}
+          </div>
         )}
         extra={(
           <Space size={8}>

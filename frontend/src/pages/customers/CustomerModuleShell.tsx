@@ -50,6 +50,7 @@ export default function CustomerModuleShell({ title, subtitle, extra, children }
   const navigate = useNavigate();
   const selectedKey = resolveNavKey(location.pathname);
   const selectedNavItem = NAV_ITEMS.find((item) => item.key === selectedKey) || NAV_ITEMS[0];
+  const isCreatePage = location.pathname === "/customers/new";
 
   return (
     <div className="customer-module-shell">
@@ -157,7 +158,9 @@ export default function CustomerModuleShell({ title, subtitle, extra, children }
               {selectedKey !== "workbench" && (
                 <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>AI工作队列</Button>
               )}
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/customers/new")}>新建客户</Button>
+              {!isCreatePage && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/customers/new")}>新建客户</Button>
+              )}
             </Space>
           </div>
         </div>
