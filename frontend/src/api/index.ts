@@ -25,6 +25,9 @@ export const login = (username: string, password: string) =>
 
 export const getMe = () => client.get<APIResponse>("/auth/me");
 
+export const changePassword = (current_password: string, new_password: string) =>
+  client.post<APIResponse>("/auth/change-password", { current_password, new_password });
+
 // Users
 export const getUsers = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<Record<string, unknown>>>>("/users", { params });

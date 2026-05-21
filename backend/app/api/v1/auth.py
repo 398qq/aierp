@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, hash_password, verify_password
 from app.database import get_db
 from app.schemas.common import ok
 
@@ -24,6 +24,11 @@ TOKEN_COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days in seconds
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 def _blocked_key(username: str) -> str:
@@ -113,3 +118,29 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def me(current_user: dict = Depends(get_current_user)):
     return ok(current_user)
+
+
+@router.post("/change-password")
+async def change_password(
+    req: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.user import User
+
+    result = await db.execute(
+        select(User).where(User.id == current_user["user_id"], User.deleted_at.is_(None))
+    )
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不可用")
+
+    if not verify_password(req.current_password, user.password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码错误")
+
+    if verify_password(req.new_password, user.password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与当前密码相同")
+
+    user.password = hash_password(req.new_password)
+    await db.commit()
+    return ok({"changed": True})

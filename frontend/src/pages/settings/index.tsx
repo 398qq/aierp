@@ -10,6 +10,7 @@ import {
   getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts,
   getLevelRules, createLevelRule, updateLevelRule, deleteLevelRule,
   autoLevel,
+  changePassword,
 } from "../../api";
 import type { AlertRule, AlertEvent, LevelRule } from "../../types";
 
@@ -28,6 +29,8 @@ const LEVEL_COLORS: Record<string, string> = { A: "red", B: "orange", C: "blue",
 export default function Settings() {
   const username = useAuthStore((s) => s.username);
   const [activeTab, setActiveTab] = useState("account");
+  const [passwordForm] = Form.useForm();
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   // Alert Rules
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
@@ -161,6 +164,19 @@ export default function Settings() {
     finally { setAutoLevelLoading(false); }
   };
 
+  const handleChangePassword = async (values: { current_password: string; new_password: string }) => {
+    setPasswordSaving(true);
+    try {
+      await changePassword(values.current_password, values.new_password);
+      message.success("密码已更新");
+      passwordForm.resetFields();
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || error?.response?.data?.msg || "修改密码失败");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   // ---- Column definitions ----
   const arColumns = [
     { title: "名称", dataIndex: "name", width: 160 },
@@ -250,18 +266,69 @@ export default function Settings() {
     {
       key: "account", label: "账户信息",
       children: (
-        <Card style={{ maxWidth: 600 }}>
-          <Descriptions title="账户信息" column={1}>
-            <Descriptions.Item label="用户名">{username}</Descriptions.Item>
-            <Descriptions.Item label="角色">管理员</Descriptions.Item>
-            <Descriptions.Item label="AI 分析模型">Qwen/Qwen2.5-7B-Instruct (RFM/流失/建议)</Descriptions.Item>
-            <Descriptions.Item label="AI 助手模型">Qwen/Qwen2.5-7B-Instruct (Chat)</Descriptions.Item>
-            <Descriptions.Item label="嵌入模型">BAAI/bge-large-zh-v1.5</Descriptions.Item>
-            <Descriptions.Item label="数据库">PostgreSQL 16 + pgvector</Descriptions.Item>
-            <Descriptions.Item label="后端框架">FastAPI + SQLAlchemy 2.0</Descriptions.Item>
-            <Descriptions.Item label="前端框架">React 19 + TypeScript + Ant Design</Descriptions.Item>
-          </Descriptions>
-        </Card>
+        <Space direction="vertical" size={16} style={{ width: "100%", maxWidth: 720 }}>
+          <Card>
+            <Descriptions title="账户信息" column={1}>
+              <Descriptions.Item label="用户名">{username}</Descriptions.Item>
+              <Descriptions.Item label="角色">管理员</Descriptions.Item>
+              <Descriptions.Item label="AI 分析模型">Qwen/Qwen2.5-7B-Instruct (RFM/流失/建议)</Descriptions.Item>
+              <Descriptions.Item label="AI 助手模型">Qwen/Qwen2.5-7B-Instruct (Chat)</Descriptions.Item>
+              <Descriptions.Item label="嵌入模型">BAAI/bge-large-zh-v1.5</Descriptions.Item>
+              <Descriptions.Item label="数据库">PostgreSQL 16 + pgvector</Descriptions.Item>
+              <Descriptions.Item label="后端框架">FastAPI + SQLAlchemy 2.0</Descriptions.Item>
+              <Descriptions.Item label="前端框架">React 19 + TypeScript + Ant Design</Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          <Card title="修改当前密码">
+            <Form
+              form={passwordForm}
+              layout="vertical"
+              onFinish={handleChangePassword}
+              autoComplete="off"
+              style={{ maxWidth: 420 }}
+            >
+              <Form.Item
+                label="当前密码"
+                name="current_password"
+                rules={[{ required: true, message: "请输入当前密码" }]}
+              >
+                <Input.Password autoComplete="current-password" />
+              </Form.Item>
+              <Form.Item
+                label="新密码"
+                name="new_password"
+                rules={[
+                  { required: true, message: "请输入新密码" },
+                  { min: 8, message: "新密码至少 8 位" },
+                ]}
+              >
+                <Input.Password autoComplete="new-password" />
+              </Form.Item>
+              <Form.Item
+                label="确认新密码"
+                name="confirm_password"
+                dependencies={["new_password"]}
+                rules={[
+                  { required: true, message: "请再次输入新密码" },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue("new_password") === value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error("两次输入的新密码不一致"));
+                    },
+                  }),
+                ]}
+              >
+                <Input.Password autoComplete="new-password" />
+              </Form.Item>
+              <Button type="primary" htmlType="submit" loading={passwordSaving}>
+                更新密码
+              </Button>
+            </Form>
+          </Card>
+        </Space>
       ),
     },
     {
