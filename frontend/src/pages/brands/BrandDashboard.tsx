@@ -6,6 +6,7 @@ import {
   PieChartOutlined, RightOutlined, ReloadOutlined, CarOutlined, WarningOutlined,
 } from "@ant-design/icons";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { getBrandOperationTasks } from "./brandAiOrchestration";
 
 const { Title, Text } = Typography;
 
@@ -84,12 +85,8 @@ export default function BrandDashboard() {
   const eolRate = s.total > 0 ? Math.round((s.eol_nrnd_count / s.total) * 100) : 0;
   const automotiveRate = s.total > 0 ? Math.round((s.automotive_count / s.total) * 100) : 0;
   const authorizedRate = s.total > 0 ? Math.round((authorizedCount / s.total) * 100) : 0;
-  const operationQueue = [
-    { key: "high_risk", label: "高风险复核", count: s.high_risk_count, color: "red", path: "/brands?scene=high_risk" },
-    { key: "eol", label: "生命周期处理", count: s.eol_nrnd_count, color: "orange", path: "/brands?scene=eol_nrnd" },
-    { key: "alerts", label: "EOL 预警跟进", count: eolAlerts.length, color: "gold", path: "/brands?scene=eol_nrnd" },
-    { key: "new", label: "新增品牌审核", count: s.recent_30d, color: "blue", path: "/brands?sort=created_at_desc" },
-  ];
+  const operationQueue = getBrandOperationTasks(s, eolAlerts.length);
+  const urgentCount = operationQueue.filter((item) => item.key !== "alerts").reduce((sum, item) => sum + item.count, 0);
 
   const riskColumns = [
     { title: "排名", key: "rank", width: 60, render: (_: unknown, __: unknown, i: number) => i + 1 },
@@ -316,12 +313,12 @@ export default function BrandDashboard() {
         <div className="brand-operation-queue">
           <div className="brand-queue-title">
             <Text strong>待办队列</Text>
-            <Tag color={s.high_risk_count + s.eol_nrnd_count > 0 ? "orange" : "green"}>{s.high_risk_count + s.eol_nrnd_count} 待处理</Tag>
+            <Tag color={urgentCount > 0 ? "orange" : "green"}>{urgentCount} 待处理</Tag>
           </div>
           <div className="brand-queue-list">
             {operationQueue.map((item) => (
               <div key={item.key} className="brand-queue-item" onClick={() => navigate(item.path)}>
-                <Text>{item.label}</Text>
+                <Text title={item.reason}>{item.label}</Text>
                 <Tag color={item.color}>{item.count}</Tag>
               </div>
             ))}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Statistic, Progress, Tooltip, Segmented } from "antd";
-import { BankOutlined, AlertOutlined, RiseOutlined, CarOutlined, WarningOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined } from "@ant-design/icons";
+import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Statistic, Progress, Tooltip, Segmented, Alert } from "antd";
+import { BankOutlined, AlertOutlined, RiseOutlined, CarOutlined, WarningOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats } from "../../api";
 import type { Brand } from "../../types";
+import { getBatchAiSummary, getBrandNextAction } from "./brandAiOrchestration";
 
 const { Text } = Typography;
 
@@ -108,6 +109,7 @@ export default function BrandList() {
   const [batchField, setBatchField] = useState<string>("");
   const [batchValue, setBatchValue] = useState<string>("");
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [aiPlanOpen, setAiPlanOpen] = useState(false);
   const [stats, setStats] = useState<BrandStats | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -293,12 +295,8 @@ export default function BrandList() {
   };
 
   const getBrandAction = (brand: Brand) => {
-    if (!brand.has_products) return <Tag color="orange">补产品</Tag>;
-    if ((brand.completion_score ?? 0) < 70) return <Tag color="gold">补资料</Tag>;
-    if (brand.lifecycle_stage === "eol" || brand.lifecycle_stage === "nrnd") return <Tag color="red">替代评估</Tag>;
-    if (brand.authorization_status === "unauthorized") return <Tag color="volcano">授权核验</Tag>;
-    if (brand.risk_level === "high" || brand.risk_level === "critical" || (brand.risk_score ?? 0) >= 70) return <Tag color="red">风险复核</Tag>;
-    return <Tag color="green">正常维护</Tag>;
+    const action = getBrandNextAction(brand);
+    return <Tag color={action.color}>{action.label}</Tag>;
   };
 
   const columns: ColumnsType<Brand> = [
@@ -397,6 +395,8 @@ export default function BrandList() {
   const hasCustomView = activeFilterTags.length > 0 || sort !== "created_at_desc";
   const startIndex = total > 0 ? (page - 1) * pageSize + 1 : 0;
   const endIndex = Math.min(page * pageSize, total);
+  const selectedBrands = data.filter((brand) => selectedRowKeys.includes(brand.id));
+  const batchAiSummary = getBatchAiSummary(selectedBrands);
 
   return (
     <div>
@@ -474,6 +474,22 @@ export default function BrandList() {
         .brand-empty {
           padding: 28px 8px;
         }
+        .brand-ai-plan-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .brand-ai-plan-item {
+          padding: 10px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .brand-ai-plan-label {
+          display: block;
+          margin-bottom: 4px;
+          font-size: 12px;
+        }
         @media (max-width: 768px) {
           .brand-list-card .ant-card-head {
             display: block;
@@ -491,6 +507,9 @@ export default function BrandList() {
           .brand-filter-select {
             flex-basis: 100%;
             max-width: none;
+          }
+          .brand-ai-plan-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -572,6 +591,7 @@ export default function BrandList() {
             <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
             {selectedRowKeys.length > 0 && (
               <>
+                <Button icon={<RobotOutlined />} onClick={() => setAiPlanOpen(true)}>AI 编排</Button>
                 <Button icon={<EditOutlined />} onClick={() => setBatchModalOpen(true)}>批量更新</Button>
                 <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个品牌？`} onConfirm={handleBatchDelete}>
                   <Button danger icon={<DeleteOutlined />}>批量删除</Button>
@@ -875,6 +895,53 @@ export default function BrandList() {
           {(batchField === "owner" || !["status", "level", "risk_level", "lifecycle_stage", "authorization_status", "rohs_status", "positioning"].includes(batchField)) && (
             <Input placeholder="输入值" value={batchValue} onChange={(e) => setBatchValue(e.target.value)} />
           )}
+        </Space>
+      </Modal>
+
+      <Modal
+        title={`AI 批量编排 ${selectedRowKeys.length} 个品牌`}
+        open={aiPlanOpen}
+        onCancel={() => setAiPlanOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setAiPlanOpen(false)}>关闭</Button>,
+          <Button key="risk" onClick={() => { setAiPlanOpen(false); applyScene("high_risk"); }}>查看高风险</Button>,
+          <Button key="eol" type="primary" onClick={() => { setAiPlanOpen(false); applyScene("eol_nrnd"); }}>处理生命周期</Button>,
+        ]}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={12}>
+          <Text type="secondary">基于当前选中品牌的风险、完整度、生命周期、授权和产品覆盖自动生成处理队列。</Text>
+          <div className="brand-ai-plan-grid">
+            <div className="brand-ai-plan-item">
+              <Text type="secondary" className="brand-ai-plan-label">选中品牌</Text>
+              <Text strong>{batchAiSummary.total}</Text>
+            </div>
+            <div className="brand-ai-plan-item">
+              <Text type="secondary" className="brand-ai-plan-label">风险复核</Text>
+              <Tag color={batchAiSummary.highRisk > 0 ? "red" : "green"}>{batchAiSummary.highRisk}</Tag>
+            </div>
+            <div className="brand-ai-plan-item">
+              <Text type="secondary" className="brand-ai-plan-label">生命周期处理</Text>
+              <Tag color={batchAiSummary.lifecycleRisk > 0 ? "orange" : "green"}>{batchAiSummary.lifecycleRisk}</Tag>
+            </div>
+            <div className="brand-ai-plan-item">
+              <Text type="secondary" className="brand-ai-plan-label">资料补全</Text>
+              <Tag color={batchAiSummary.missingData > 0 ? "gold" : "green"}>{batchAiSummary.missingData}</Tag>
+            </div>
+            <div className="brand-ai-plan-item">
+              <Text type="secondary" className="brand-ai-plan-label">铺货规划</Text>
+              <Tag color={batchAiSummary.noProducts > 0 ? "blue" : "green"}>{batchAiSummary.noProducts}</Tag>
+            </div>
+            <div className="brand-ai-plan-item">
+              <Text type="secondary" className="brand-ai-plan-label">授权核验</Text>
+              <Tag color={batchAiSummary.unauthorized > 0 ? "volcano" : "green"}>{batchAiSummary.unauthorized}</Tag>
+            </div>
+          </div>
+          <Alert
+            type="info"
+            showIcon
+            message="编排建议"
+            description="优先处理高风险和 EOL/NRND 品牌；资料补全和铺货规划适合批量分派，授权核验需要人工确认渠道来源。"
+          />
         </Space>
       </Modal>
     </div>

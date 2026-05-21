@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input } from "antd";
-import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, SwapOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand } from "../../api";
 import type { Brand, Product, BrandProfile, BrandPortfolio, SimilarBrand, BrandComparison, BrandHealth, BrandRisk, BrandSupplierMatrix, BrandRecommendation, BrandProductPerformance, BrandCustomerPenetration, BrandLifecycle, BrandPriceTrends } from "../../types";
+import { getBrandAiTasks, getBrandNextAction } from "./brandAiOrchestration";
 
 const { Text, Title } = Typography;
 
@@ -219,7 +220,38 @@ export default function BrandDetail() {
   const lifecycleColor = brand.lifecycle_stage === "active" ? "green" : brand.lifecycle_stage === "nrnd" ? "orange" : brand.lifecycle_stage === "eol" ? "red" : "default";
   const riskLabel = brand.risk_level === "low" ? "低" : brand.risk_level === "medium" ? "中" : brand.risk_level === "high" ? "高" : brand.risk_level === "critical" ? "严重" : "未评估";
   const riskColor = brand.risk_level === "low" ? "green" : brand.risk_level === "medium" ? "orange" : brand.risk_level === "high" ? "red" : brand.risk_level === "critical" ? "purple" : "default";
-  const nextAction = !productCount ? "补充产品" : completionScore < 70 ? "完善资料" : brand.lifecycle_stage === "eol" || brand.lifecycle_stage === "nrnd" ? "替代评估" : brand.authorization_status === "unauthorized" ? "授权核验" : riskScore >= 70 ? "风险复核" : "正常维护";
+  const nextAction = getBrandNextAction(brand);
+  const aiTasks = getBrandAiTasks(brand);
+  const taskActions: Record<string, () => void | Promise<void>> = {
+    auto_complete: handleAutoComplete,
+    risk: loadRisk,
+    lifecycle: loadLifecycle,
+    recommendations: loadRecommendations,
+    supplier: loadSupplierMatrix,
+    portfolio: loadPortfolio,
+    profile: loadProfile,
+    performance: loadPerformance,
+    penetration: loadPenetration,
+    similar: loadSimilar,
+    compare: openCompare,
+    health: loadHealth,
+    price: loadPriceTrends,
+  };
+  const taskLoading: Record<string, boolean> = {
+    auto_complete: autoCompleteLoading,
+    risk: riskLoading,
+    lifecycle: lifecycleLoading,
+    recommendations: recLoading,
+    supplier: matrixLoading,
+    portfolio: portfolioLoading,
+    profile: profileLoading,
+    performance: perfLoading,
+    penetration: penetrationLoading,
+    similar: similarLoading,
+    compare: compareLoading,
+    health: healthLoading,
+    price: priceTrendsLoading,
+  };
 
   return (
     <div>
@@ -254,6 +286,49 @@ export default function BrandDetail() {
         .brand-detail-ai-actions {
           justify-content: flex-end;
         }
+        .brand-ai-workflow {
+          margin-bottom: 12px;
+        }
+        .brand-ai-workflow .ant-card-body {
+          padding: 12px;
+        }
+        .brand-ai-task-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .brand-ai-task {
+          padding: 10px;
+          display: flex;
+          min-height: 112px;
+          flex-direction: column;
+          justify-content: space-between;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .brand-ai-task-head {
+          display: flex;
+          gap: 8px;
+          align-items: flex-start;
+          justify-content: space-between;
+        }
+        .brand-ai-task-title {
+          display: block;
+          margin-bottom: 4px;
+        }
+        .brand-ai-task-reason {
+          display: block;
+          min-height: 36px;
+          font-size: 12px;
+        }
+        .brand-ai-task-foot {
+          margin-top: 8px;
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          justify-content: space-between;
+        }
         .brand-detail-summary {
           margin-top: 12px;
           padding-top: 12px;
@@ -282,6 +357,9 @@ export default function BrandDetail() {
           .brand-detail-actions .ant-space {
             width: 100%;
           }
+          .brand-ai-task-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
@@ -309,27 +387,13 @@ export default function BrandDetail() {
               <Button icon={<RobotOutlined />} loading={autoCompleteLoading} onClick={handleAutoComplete}>AI 补全</Button>
               <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>AI 导入</Button>
             </Space>
-            <Space wrap className="brand-detail-ai-actions">
-              <Button size="small" icon={<ThunderboltOutlined />} loading={profileLoading} onClick={loadProfile}>画像</Button>
-              <Button size="small" icon={<PieChartOutlined />} loading={portfolioLoading} onClick={loadPortfolio}>产品线</Button>
-              <Button size="small" icon={<NodeIndexOutlined />} loading={similarLoading} onClick={loadSimilar}>相似</Button>
-              <Button size="small" icon={<SwapOutlined />} onClick={openCompare}>对比</Button>
-              <Button size="small" icon={<DashboardOutlined />} loading={healthLoading} onClick={loadHealth}>健康</Button>
-              <Button size="small" icon={<AlertOutlined />} loading={riskLoading} onClick={loadRisk}>风险</Button>
-              <Button size="small" icon={<ApartmentOutlined />} loading={matrixLoading} onClick={loadSupplierMatrix}>供应商</Button>
-              <Button size="small" icon={<BulbOutlined />} loading={recLoading} onClick={loadRecommendations}>推荐</Button>
-              <Button size="small" icon={<TrophyOutlined />} loading={perfLoading} onClick={loadPerformance}>绩效</Button>
-              <Button size="small" icon={<TeamOutlined />} loading={penetrationLoading} onClick={loadPenetration}>客户</Button>
-              <Button size="small" icon={<RocketOutlined />} loading={lifecycleLoading} onClick={loadLifecycle}>周期</Button>
-              <Button size="small" icon={<LineChartOutlined />} loading={priceTrendsLoading} onClick={loadPriceTrends}>价格</Button>
-            </Space>
           </div>
         </div>
         <Row gutter={[12, 12]} className="brand-detail-summary">
           <Col xs={24} sm={12} lg={6}>
             <div className="brand-detail-metric">
               <Text type="secondary" className="brand-detail-metric-label">建议动作</Text>
-              <Tag color={nextAction === "正常维护" ? "green" : "orange"}>{nextAction}</Tag>
+              <Tag color={nextAction.color}>{nextAction.label}</Tag>
             </div>
           </Col>
           <Col xs={24} sm={12} lg={6}>
@@ -360,6 +424,37 @@ export default function BrandDetail() {
             </div>
           </Col>
         </Row>
+      </Card>
+
+      <Card
+        className="brand-ai-workflow"
+        title={<Space><RobotOutlined />AI 推荐工作流</Space>}
+        extra={<Text type="secondary">按风险、完整度、生命周期自动编排</Text>}
+      >
+        <div className="brand-ai-task-grid">
+          {aiTasks.slice(0, 6).map((task) => (
+            <div key={task.key} className="brand-ai-task">
+              <div>
+                <div className="brand-ai-task-head">
+                  <Text strong className="brand-ai-task-title">{task.title}</Text>
+                  <Tag color={task.priority === "high" ? "red" : task.priority === "medium" ? "orange" : "blue"}>{task.priority === "high" ? "高" : task.priority === "medium" ? "中" : "低"}</Tag>
+                </div>
+                <Text type="secondary" className="brand-ai-task-reason">{task.reason}</Text>
+              </div>
+              <div className="brand-ai-task-foot">
+                <Tag>{task.statusText}</Tag>
+                <Button
+                  size="small"
+                  type={task.priority === "high" ? "primary" : "default"}
+                  loading={taskLoading[task.key]}
+                  onClick={() => { void taskActions[task.key]?.(); }}
+                >
+                  {task.actionLabel}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
       </Card>
 
       {/* Brand Info */}
