@@ -73,11 +73,13 @@ import {
   importCustomers,
   markAllAlertsRead,
   mergeCustomers,
+  recommendProductsForCustomer,
   searchSimilarCustomers,
   updateFollowUp,
 } from "../../api";
 import type {
   Customer,
+  CustomerProductMatch,
   CustomerStats,
   DashboardStats,
   DuplicatePair,
@@ -113,6 +115,7 @@ const TAG_COLOR_OPTIONS = [
 ];
 
 type SceneValue = "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
+type SmartTaskKey = "today" | "overdue" | "high_risk" | "key_stale" | "new_customers" | "ai_suggested" | "all";
 
 const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "全部客户", value: "all" },
@@ -157,6 +160,16 @@ const REMINDER_BUCKETS: { key: ReminderBucket; label: string }[] = [
   { key: "today", label: "今日" },
   { key: "upcoming", label: "未来" },
 ];
+
+const SMART_TASK_LABELS: Record<SmartTaskKey, string> = {
+  today: "今日必做",
+  overdue: "逾期跟进",
+  high_risk: "高风险客户",
+  key_stale: "A类长期未联系",
+  new_customers: "新客户首联",
+  ai_suggested: "AI推荐动作",
+  all: "全部客户",
+};
 
 const DEFAULT_STATS: DashboardStats = {
   total: 0,
@@ -218,6 +231,66 @@ const getReminderDueMeta = (item: FollowUpReminder) => {
   return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
 };
 
+const getDaysSince = (value?: string | null) => {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return null;
+  return Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
+};
+
+const getCustomerPriorityScore = (customer: Customer, next?: FollowUpReminder) => {
+  let score = 35;
+  if (customer.level === "A") score += 18;
+  if (customer.level === "B") score += 10;
+  if (next?.due_bucket === "overdue") score += 28;
+  if (next?.due_bucket === "today") score += 20;
+  if (customer.health_score != null && customer.health_score < 60) score += 18;
+  const contactAge = getDaysSince(customer.last_contacted_at);
+  if (contactAge == null) score += 10;
+  else if (contactAge > 60) score += 16;
+  else if (contactAge > 30) score += 8;
+  return Math.min(100, score);
+};
+
+const getCustomerSuggestedAction = (customer: Customer, next?: FollowUpReminder) => {
+  if (next?.due_bucket === "overdue") return "立即补跟进并更新结果";
+  if (next?.due_bucket === "today") return "按计划完成今日跟进";
+  if (customer.health_score != null && customer.health_score < 60) return "查看风险原因并安排挽回";
+  if (customer.level === "A" && getDaysSince(customer.last_contacted_at) != null && getDaysSince(customer.last_contacted_at)! > 30) {
+    return "联系关键客户并确认近期需求";
+  }
+  if (getDaysSince(customer.created_at) != null && getDaysSince(customer.created_at)! <= 14) return "完成新客户首联";
+  return "补充客户画像并规划下一步";
+};
+
+const buildFollowUpTalkTrack = (customer: Customer, next?: FollowUpReminder) => {
+  const name = customer.contact_person || "客户";
+  const action = getCustomerSuggestedAction(customer, next);
+  const lines = [
+    `${name}您好，我这边想同步一下${customer.name}近期项目和物料需求，看看有没有需要我们提前配合的地方。`,
+    `我注意到当前建议动作是「${action}」，所以这次主要想确认需求进度、交付时间和后续采购计划。`,
+    "如果方便，我可以先整理一版适配产品/报价建议，您确认方向后我们再推进下一步。",
+  ];
+  if (next?.due_bucket === "overdue") {
+    lines[0] = `${name}您好，之前计划的跟进已逾期，我先补充确认一下当前项目状态和需要我们处理的事项。`;
+  }
+  if (customer.health_score != null && customer.health_score < 60) {
+    lines[1] = "近期客户健康度偏低，我想重点确认是否存在交付、价格、响应或备货方面的问题，我们这边及时调整。";
+  }
+  return lines;
+};
+
+const buildFollowUpPlanContent = (customer: Customer, next?: FollowUpReminder) => {
+  const talkTrack = buildFollowUpTalkTrack(customer, next);
+  return [
+    `AI建议动作：${getCustomerSuggestedAction(customer, next)}`,
+    `客户优先级：${getCustomerPriorityScore(customer, next)}`,
+    "",
+    "建议沟通话术：",
+    ...talkTrack.map((line, index) => `${index + 1}. ${line}`),
+  ].join("\n");
+};
+
 export default function CustomerList() {
   const { message, modal } = App.useApp();
   const [quickFollowUpForm] = Form.useForm();
@@ -273,6 +346,11 @@ export default function CustomerList() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
   const [detailStats, setDetailStats] = useState<CustomerStats | null>(null);
+  const [smartTask, setSmartTask] = useState<SmartTaskKey>("today");
+  const [contextCustomerId, setContextCustomerId] = useState<number | null>(null);
+  const [productRecLoading, setProductRecLoading] = useState(false);
+  const [productRecCustomerId, setProductRecCustomerId] = useState<number | null>(null);
+  const [productRecResult, setProductRecResult] = useState<CustomerProductMatch | null>(null);
 
   const allColKeys = [
     "code",
@@ -368,9 +446,55 @@ export default function CustomerList() {
     }
     return map;
   }, [followUpReminders]);
-  const tableData = useMemo(
+  const baseTableData = useMemo(
     () => overdueOnly ? data.filter((item) => overdueCustomerIds.has(item.id)) : data,
     [data, overdueOnly, overdueCustomerIds],
+  );
+  const customerMatchesSmartTask = (customer: Customer, task: SmartTaskKey) => {
+    const next = nextFollowUpByCustomer.get(customer.id);
+    const lastContactAge = getDaysSince(customer.last_contacted_at);
+    const createdAge = getDaysSince(customer.created_at);
+    if (task === "all") return true;
+    if (task === "today") return next?.due_bucket === "today";
+    if (task === "overdue") return overdueCustomerIds.has(customer.id);
+    if (task === "high_risk") return overdueCustomerIds.has(customer.id) || (customer.health_score != null && customer.health_score < 60);
+    if (task === "key_stale") return customer.level === "A" && (lastContactAge == null || lastContactAge > 30);
+    if (task === "new_customers") return createdAge != null && createdAge <= 14;
+    if (task === "ai_suggested") return getCustomerPriorityScore(customer, next) >= 65;
+    return true;
+  };
+  const tableData = useMemo(
+    () => baseTableData
+      .filter((item) => customerMatchesSmartTask(item, smartTask))
+      .sort((a, b) => {
+        const scoreA = getCustomerPriorityScore(a, nextFollowUpByCustomer.get(a.id));
+        const scoreB = getCustomerPriorityScore(b, nextFollowUpByCustomer.get(b.id));
+        return scoreB - scoreA;
+      }),
+    [baseTableData, nextFollowUpByCustomer, overdueCustomerIds, smartTask],
+  );
+  const smartTaskItems = useMemo(() => {
+    const items: Array<{ key: SmartTaskKey; label: string; count: number; color: string; note: string }> = [
+      { key: "today", label: SMART_TASK_LABELS.today, count: data.filter((item) => customerMatchesSmartTask(item, "today")).length, color: "orange", note: "今天需要推进" },
+      { key: "overdue", label: SMART_TASK_LABELS.overdue, count: data.filter((item) => customerMatchesSmartTask(item, "overdue")).length, color: "red", note: "已超过计划时间" },
+      { key: "high_risk", label: SMART_TASK_LABELS.high_risk, count: data.filter((item) => customerMatchesSmartTask(item, "high_risk")).length, color: "red", note: "健康度低或逾期" },
+      { key: "key_stale", label: SMART_TASK_LABELS.key_stale, count: data.filter((item) => customerMatchesSmartTask(item, "key_stale")).length, color: "gold", note: "重点客户需唤醒" },
+      { key: "new_customers", label: SMART_TASK_LABELS.new_customers, count: data.filter((item) => customerMatchesSmartTask(item, "new_customers")).length, color: "blue", note: "14天内新建" },
+      { key: "ai_suggested", label: SMART_TASK_LABELS.ai_suggested, count: data.filter((item) => customerMatchesSmartTask(item, "ai_suggested")).length, color: "purple", note: "综合优先级较高" },
+      { key: "all", label: SMART_TASK_LABELS.all, count: data.length, color: "default", note: "回到普通列表" },
+    ];
+    return items;
+  }, [data, nextFollowUpByCustomer, overdueCustomerIds]);
+  const contextCustomer = useMemo(
+    () => data.find((item) => item.id === contextCustomerId) || tableData[0] || null,
+    [contextCustomerId, data, tableData],
+  );
+  const contextNextFollowUp = contextCustomer ? nextFollowUpByCustomer.get(contextCustomer.id) : undefined;
+  const contextPriorityScore = contextCustomer ? getCustomerPriorityScore(contextCustomer, contextNextFollowUp) : 0;
+  const contextSuggestedAction = contextCustomer ? getCustomerSuggestedAction(contextCustomer, contextNextFollowUp) : "";
+  const contextTalkTrack = useMemo(
+    () => contextCustomer ? buildFollowUpTalkTrack(contextCustomer, contextNextFollowUp) : [],
+    [contextCustomer, contextNextFollowUp],
   );
 
   const loadStats = async () => {
@@ -789,6 +913,31 @@ export default function CustomerList() {
     });
   };
 
+  const openAIPlannedFollowUp = (customer: Customer, next?: FollowUpReminder) => {
+    setQuickFollowUpCustomer(customer);
+    quickFollowUpForm.setFieldsValue({
+      method: next?.method || "phone",
+      status: "planned",
+      priority: contextPriorityScore >= 75 ? "high" : "medium",
+      planned_at: dayjs().add(next?.due_bucket === "overdue" || next?.due_bucket === "today" ? 2 : 24, "hour"),
+      assigned_to: customer.owner || "",
+      content: buildFollowUpPlanContent(customer, next),
+    });
+  };
+
+  const handleLoadProductRecommendations = async (customer: Customer) => {
+    setProductRecLoading(true);
+    setProductRecCustomerId(customer.id);
+    try {
+      const resp = await recommendProductsForCustomer(customer.id);
+      setProductRecResult(resp.data.data as CustomerProductMatch);
+    } catch {
+      message.error("AI产品推荐失败");
+    } finally {
+      setProductRecLoading(false);
+    }
+  };
+
   const handleQuickFollowUpSubmit = async () => {
     if (!quickFollowUpCustomer) return;
     const values = await quickFollowUpForm.validateFields();
@@ -1112,6 +1261,134 @@ export default function CustomerList() {
           border: 1px solid #adc6ff;
           border-radius: 8px;
         }
+        .customer-ai-layout {
+          display: grid;
+          grid-template-columns: 220px minmax(0, 1fr) 280px;
+          gap: 12px;
+          align-items: start;
+        }
+        .customer-ai-sidebar,
+        .customer-ai-context {
+          position: sticky;
+          top: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .customer-ai-panel {
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .customer-ai-panel-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 10px 12px;
+          border-bottom: 1px solid #f0f0f0;
+        }
+        .customer-ai-task {
+          display: block;
+          width: 100%;
+          padding: 9px 12px;
+          text-align: left;
+          background: transparent;
+          border: 0;
+          border-bottom: 1px solid #f5f5f5;
+          cursor: pointer;
+        }
+        .customer-ai-task:hover,
+        .customer-ai-task.is-active {
+          background: #f0f5ff;
+        }
+        .customer-ai-task:last-child {
+          border-bottom: 0;
+        }
+        .customer-ai-task-main {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .customer-ai-task-note,
+        .customer-ai-context-note {
+          margin-top: 4px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .customer-ai-context-body {
+          padding: 12px;
+        }
+        .customer-ai-score {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin: 10px 0;
+          padding: 10px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .customer-ai-score-value {
+          color: #1677ff;
+          font-size: 26px;
+          font-weight: 650;
+          line-height: 1;
+        }
+        .customer-ai-action-box {
+          margin-top: 10px;
+          padding: 10px;
+          background: #fffbe6;
+          border: 1px solid #ffe58f;
+          border-radius: 8px;
+        }
+        .customer-ai-talk-track {
+          margin-top: 10px;
+          padding: 10px;
+          background: #f6ffed;
+          border: 1px solid #b7eb8f;
+          border-radius: 8px;
+        }
+        .customer-ai-talk-track ol {
+          margin: 8px 0 0;
+          padding-left: 18px;
+        }
+        .customer-ai-talk-track li {
+          margin-bottom: 6px;
+          color: #595959;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .customer-ai-products {
+          margin-top: 10px;
+          padding: 10px;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .customer-ai-product-item {
+          padding: 8px 0;
+          border-top: 1px solid #f5f5f5;
+        }
+        .customer-ai-product-item:first-of-type {
+          border-top: 0;
+          padding-top: 0;
+        }
+        .customer-ai-context-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 10px;
+        }
+        .customer-ai-context-actions .ant-btn {
+          min-width: 0;
+        }
+        .customer-ai-main {
+          min-width: 0;
+        }
         .customer-toolbar-card .ant-card-body {
           padding: 12px;
         }
@@ -1231,9 +1508,22 @@ export default function CustomerList() {
         }
         .customer-row-overdue td:first-child { border-left: 3px solid #ff4d4f; }
         .customer-row-key td:first-child { border-left: 3px solid #52c41a; }
+        .customer-row-selected td {
+          background: #f0f5ff !important;
+        }
         @media (max-width: 1180px) {
           .customer-workbench-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .customer-ai-layout {
+            grid-template-columns: 1fr;
+          }
+          .customer-ai-sidebar,
+          .customer-ai-context {
+            position: static;
+          }
+          .customer-ai-context-actions {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
           }
           .customer-toolbar-main {
             grid-template-columns: 1fr;
@@ -1245,6 +1535,9 @@ export default function CustomerList() {
         @media (max-width: 768px) {
           .customer-workbench-grid {
             grid-template-columns: 1fr;
+          }
+          .customer-ai-context-actions {
+            grid-template-columns: 1fr 1fr;
           }
           .customer-stat-grid,
           .customer-active-filters,
@@ -1295,6 +1588,59 @@ export default function CustomerList() {
         </div>
       </div>
 
+      <div className="customer-ai-layout">
+        <aside className="customer-ai-sidebar">
+          <div className="customer-ai-panel">
+            <div className="customer-ai-panel-head">
+              <Space size={6}>
+                <RobotOutlined />
+                <Typography.Text strong>AI任务队列</Typography.Text>
+              </Space>
+              <Button size="small" type="link" onClick={() => navigate("/customers/workbench")}>完整队列</Button>
+            </div>
+            {smartTaskItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`customer-ai-task${smartTask === item.key ? " is-active" : ""}`}
+                onClick={() => {
+                  setSmartTask(item.key);
+                  setPage(1);
+                  setContextCustomerId(null);
+                }}
+              >
+                <span className="customer-ai-task-main">
+                  <Typography.Text strong={smartTask === item.key}>{item.label}</Typography.Text>
+                  <Tag color={item.color}>{item.count}</Tag>
+                </span>
+                <span className="customer-ai-task-note">{item.note}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className={`customer-ai-panel${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
+            <div className="customer-ai-panel-head">
+              <Space size={6}>
+                <BellOutlined style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }} />
+                <Typography.Text strong>跟进提醒</Typography.Text>
+              </Space>
+              <Button size="small" type="link" onClick={() => setReminderDrawerOpen(true)}>明细</Button>
+            </div>
+            <div className="customer-ai-context-body">
+              <Space size={[4, 6]} wrap>
+                <Tag color={reminderCounts.overdue > 0 ? "red" : "default"}>逾期 {reminderCounts.overdue}</Tag>
+                <Tag color={reminderCounts.today > 0 ? "orange" : "default"}>今日 {reminderCounts.today}</Tag>
+                <Tag color={reminderCounts.upcoming > 0 ? "blue" : "default"}>未来 {reminderCounts.upcoming}</Tag>
+              </Space>
+              <div className="customer-ai-context-note">{formatReminderRefreshTime(reminderRefreshedAt)}</div>
+              <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue} style={{ marginTop: 8 }}>
+                刷新提醒
+              </Button>
+            </div>
+          </div>
+        </aside>
+
+        <main className="customer-ai-main">
       <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
         <div className="customer-toolbar-main">
           <div>
@@ -1448,48 +1794,6 @@ export default function CustomerList() {
         </div>
       </Card>
 
-      <div className={`customer-reminder-strip${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
-        <Space wrap>
-          <span className="customer-reminder-title">
-            <BellOutlined style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : "#1677ff" }} />
-            <Typography.Text strong style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }}>
-              跟进任务
-            </Typography.Text>
-          </span>
-          <Tag color={reminderCounts.overdue > 0 ? "red" : "default"}>逾期 {reminderCounts.overdue}</Tag>
-          <Tag color={reminderCounts.today > 0 ? "orange" : "default"}>今日 {reminderCounts.today}</Tag>
-          <Tag color={reminderCounts.upcoming > 0 ? "blue" : "default"}>未来 {reminderCounts.upcoming}</Tag>
-          <Typography.Text type="secondary">{formatReminderRefreshTime(reminderRefreshedAt)}</Typography.Text>
-        </Space>
-        <Space wrap>
-          <Segmented
-            size="small"
-            value={reminderBucket}
-            options={REMINDER_BUCKETS.map((item) => ({
-              value: item.key,
-              label: `${item.label} ${reminderCounts[item.key]}`,
-            }))}
-            onChange={(value) => {
-              setReminderBucket(value as ReminderBucket);
-              setReminderDrawerOpen(true);
-            }}
-          />
-          <Button
-            size="small"
-            type={overdueOnly ? "primary" : "default"}
-            onClick={() => setOverdueOnly((value) => !value)}
-          >
-            {overdueOnly ? "取消逾期筛选" : "只看逾期客户"}
-          </Button>
-          <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue}>
-            刷新
-          </Button>
-          <Button size="small" onClick={() => setReminderDrawerOpen(true)}>
-            明细
-          </Button>
-        </Space>
-      </div>
-
       {selectedRowKeys.length > 0 && (
         <div className="customer-batch-bar">
           <Space wrap>
@@ -1510,10 +1814,11 @@ export default function CustomerList() {
         size="small"
         title={(
           <div className="customer-table-title">
-            <Typography.Text strong>客户清单</Typography.Text>
+            <Typography.Text strong>智能客户列表</Typography.Text>
             <Typography.Text type="secondary">
               {overdueOnly ? tableData.length : total} 条
             </Typography.Text>
+            <Tag color="purple">{SMART_TASK_LABELS[smartTask]}</Tag>
             {activeFilterItems.length > 0 && <Tag color="blue">已筛选</Tag>}
             {overdueOnly && <Tag color="red">仅逾期</Tag>}
           </div>
@@ -1540,15 +1845,19 @@ export default function CustomerList() {
             onChange: (keys) => setSelectedRowKeys(keys as number[]),
           }}
           rowClassName={(record) => {
+            if (contextCustomer?.id === record.id) return "customer-row-selected";
             if (overdueCustomerIds.has(record.id)) return "customer-row-overdue";
             if (record.level === "A") return "customer-row-key";
             return "";
           }}
+          onRow={(record) => ({
+            onClick: () => setContextCustomerId(record.id),
+          })}
           scroll={{ x: "max-content" }}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
           pagination={{
             current: page,
-            total: overdueOnly ? tableData.length : total,
+            total: smartTask !== "all" || overdueOnly ? tableData.length : total,
             pageSize,
             pageSizeOptions: ["10", "20", "50", "100"],
             showSizeChanger: true,
@@ -1560,6 +1869,142 @@ export default function CustomerList() {
           }}
         />
       </Card>
+        </main>
+
+        <aside className="customer-ai-context">
+          <div className="customer-ai-panel">
+            <div className="customer-ai-panel-head">
+              <Space size={6}>
+                <BulbOutlined />
+                <Typography.Text strong>AI上下文</Typography.Text>
+              </Space>
+              {contextCustomer && <Tag color={getLevelColor(contextCustomer.level)}>{contextCustomer.level || "-"}</Tag>}
+            </div>
+            {!contextCustomer ? (
+              <div className="customer-ai-context-body">
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择客户查看AI上下文" />
+              </div>
+            ) : (
+              <div className="customer-ai-context-body">
+                <Typography.Link strong onClick={() => navigate(`/customers/${contextCustomer.id}`)}>
+                  {contextCustomer.name}
+                </Typography.Link>
+                <div className="customer-ai-context-note">
+                  {[contextCustomer.short_name, contextCustomer.industry, contextCustomer.region].filter(Boolean).join(" / ") || "暂无画像信息"}
+                </div>
+                <div className="customer-ai-score">
+                  <div>
+                    <Typography.Text type="secondary">AI优先级</Typography.Text>
+                    <div className="customer-ai-context-note">按跟进、等级、健康度计算</div>
+                  </div>
+                  <div className="customer-ai-score-value">{contextPriorityScore}</div>
+                </div>
+                <Space size={[4, 6]} wrap>
+                  {contextCustomer.health_score != null && <Tag color={getHealthColor(contextCustomer.health_score)}>健康 {contextCustomer.health_score}</Tag>}
+                  {contextNextFollowUp && <Tag color={getReminderDueMeta(contextNextFollowUp).color}>{getReminderDueMeta(contextNextFollowUp).text}</Tag>}
+                  {contextCustomer.owner && <Tag>负责人 {contextCustomer.owner}</Tag>}
+                </Space>
+                <div className="customer-ai-action-box">
+                  <Typography.Text strong>推荐下一步</Typography.Text>
+                  <div className="customer-ai-context-note">{contextSuggestedAction}</div>
+                </div>
+                <div className="customer-ai-talk-track">
+                  <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                    <Typography.Text strong>建议话术</Typography.Text>
+                    <Button
+                      size="small"
+                      type="link"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(contextTalkTrack.join("\n"));
+                        message.success("话术已复制");
+                      }}
+                    >
+                      复制
+                    </Button>
+                  </Space>
+                  <ol>
+                    {contextTalkTrack.map((line) => <li key={line}>{line}</li>)}
+                  </ol>
+                </div>
+                <Descriptions column={1} size="small" style={{ marginTop: 10 }}>
+                  <Descriptions.Item label="联系人">{contextCustomer.contact_person || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="电话">{contextCustomer.phone || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="最近联系">{formatDate(contextCustomer.last_contacted_at)}</Descriptions.Item>
+                  <Descriptions.Item label="计划跟进">{formatDateTime(contextNextFollowUp?.planned_at)}</Descriptions.Item>
+                </Descriptions>
+                <div className="customer-ai-context-actions">
+                  <Button size="small" type="primary" icon={<PhoneOutlined />} onClick={() => openAIPlannedFollowUp(contextCustomer, contextNextFollowUp)}>转跟进</Button>
+                  <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/customers/${contextCustomer.id}`)}>详情</Button>
+                  <Button size="small" icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${contextCustomer.id}`)}>订单</Button>
+                  <Button size="small" icon={<RobotOutlined />} onClick={() => navigate(`/customers/${contextCustomer.id}/360`)}>AI 360</Button>
+                </div>
+                {contextNextFollowUp && (
+                  <div className="customer-ai-context-actions">
+                    <Button
+                      size="small"
+                      loading={reminderActionKey === `complete-${contextNextFollowUp.id}`}
+                      onClick={() => handleCompleteReminder(contextNextFollowUp)}
+                    >
+                      完成提醒
+                    </Button>
+                    <Button
+                      size="small"
+                      loading={reminderActionKey === `postpone-${contextNextFollowUp.id}`}
+                      onClick={() => handlePostponeReminder(contextNextFollowUp)}
+                    >
+                      延期1天
+                    </Button>
+                  </div>
+                )}
+                <div className="customer-ai-products">
+                  <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                    <Typography.Text strong>推荐产品/机会</Typography.Text>
+                    <Button
+                      size="small"
+                      loading={productRecLoading && productRecCustomerId === contextCustomer.id}
+                      onClick={() => handleLoadProductRecommendations(contextCustomer)}
+                    >
+                      生成
+                    </Button>
+                  </Space>
+                  {productRecResult && productRecCustomerId === contextCustomer.id ? (
+                    <>
+                      {productRecResult.summary && (
+                        <div className="customer-ai-context-note">{productRecResult.summary}</div>
+                      )}
+                      {productRecResult.recommendations.slice(0, 3).map((item) => (
+                        <div className="customer-ai-product-item" key={`${item.product_name}-${item.brand}`}>
+                          <Space size={4} wrap>
+                            <Typography.Text strong>{item.product_name}</Typography.Text>
+                            {item.brand && <Tag>{item.brand}</Tag>}
+                            {item.priority && <Tag color={item.priority === "高" ? "red" : item.priority === "中" ? "orange" : "blue"}>{item.priority}</Tag>}
+                          </Space>
+                          <div className="customer-ai-context-note">{item.reason || item.estimated_potential || "-"}</div>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="customer-ai-context-note">基于客户画像生成交叉销售建议</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="customer-ai-panel">
+            <div className="customer-ai-panel-head">
+              <Typography.Text strong>辅助能力</Typography.Text>
+            </div>
+            <div className="customer-ai-context-body">
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Button block size="small" icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>AI语义搜索</Button>
+                <Button block size="small" icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>重复检测</Button>
+                <Button block size="small" icon={<TagsOutlined />} disabled={!selectedRowKeys.length} onClick={() => setTagModalOpen(true)}>批量标签</Button>
+              </Space>
+            </div>
+          </div>
+        </aside>
+      </div>
 
       <Drawer
         title="跟进提醒"
