@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber } from "antd";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
@@ -25,6 +25,15 @@ import {
 
 const formatShortDateTime = (value?: string | null) => value ? value.slice(0, 16).replace("T", " ") : "-";
 const isOpenFollowUp = (item: FollowUp) => item.status !== "completed" && item.status !== "cancelled";
+const TAG_COLOR_OPTIONS = [
+  { value: "blue", label: "蓝色" },
+  { value: "green", label: "绿色" },
+  { value: "orange", label: "橙色" },
+  { value: "red", label: "红色" },
+  { value: "purple", label: "紫色" },
+  { value: "cyan", label: "青色" },
+  { value: "default", label: "默认" },
+];
 
 export default function CustomerDetail() {
   const { message } = App.useApp();
@@ -94,6 +103,14 @@ export default function CustomerDetail() {
 
   const handleLinkTag = async (tagId: number) => {
     try { await linkTag(customerId, tagId); loadTags(); message.success("标签已添加"); } catch { message.error("添加标签失败"); }
+  };
+
+  const handleCreateAndLinkTag = async (name: string, color: string) => {
+    const resp = await createTag({ name, color });
+    const created = resp.data.data as TagType;
+    await linkTag(customerId, created.id);
+    await loadTags();
+    message.success("标签已创建并添加");
   };
 
   const handleProductRecs = async () => {
@@ -299,7 +316,14 @@ export default function CustomerDetail() {
             <EditCustomerModal open={editModalOpen} customer={customer} onClose={() => setEditModalOpen(false)} onUpdated={() => { setEditModalOpen(false); load(); }} />
             <ContactFormModal open={contactModalOpen} customerId={customerId} contact={editingContact} onClose={() => { setContactModalOpen(false); setEditingContact(null); }} onSaved={() => { setContactModalOpen(false); setEditingContact(null); load(); }} />
             <FollowUpFormModal open={followupModalOpen} customerId={customerId} followUp={editingFollowUp} onClose={() => { setFollowupModalOpen(false); setEditingFollowUp(null); }} onSaved={() => { setFollowupModalOpen(false); setEditingFollowUp(null); load(); }} />
-            <TagManageModal open={tagModalOpen} allTags={allTags} customerTags={customerTags} onLink={handleLinkTag} onClose={() => setTagModalOpen(false)} />
+            <TagManageModal
+              open={tagModalOpen}
+              allTags={allTags}
+              customerTags={customerTags}
+              onLink={handleLinkTag}
+              onCreate={handleCreateAndLinkTag}
+              onClose={() => setTagModalOpen(false)}
+            />
 
             {/* AI Product Recommendations Modal */}
             <Modal title={<><BulbOutlined /> AI 产品推荐</>} open={recModalOpen} onCancel={() => setRecModalOpen(false)} width={700}
@@ -716,29 +740,85 @@ function CustomerProfile({ customerId }: { customerId: number }) {
 
 // --- Tag Manage Modal ---
 
-function TagManageModal({ open, allTags, customerTags, onLink, onClose }: { open: boolean; allTags: TagType[]; customerTags: TagType[]; onLink: (id: number) => void; onClose: () => void }) {
+function TagManageModal({
+  open,
+  allTags,
+  customerTags,
+  onLink,
+  onCreate,
+  onClose,
+}: {
+  open: boolean;
+  allTags: TagType[];
+  customerTags: TagType[];
+  onLink: (id: number) => void;
+  onCreate: (name: string, color: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const { message } = App.useApp();
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("blue");
+  const [creating, setCreating] = useState(false);
   const linkedIds = new Set(customerTags.map((t) => t.id));
   const available = allTags.filter((t) => !linkedIds.has(t.id));
 
+  const handleCreate = async () => {
+    const name = newTagName.trim();
+    if (!name) {
+      message.warning("请输入标签名称");
+      return;
+    }
+    setCreating(true);
+    try {
+      await onCreate(name, newTagColor);
+      setNewTagName("");
+      setNewTagColor("blue");
+    } catch {
+      message.error("创建标签失败");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <Modal title="管理标签" open={open} onCancel={onClose} footer={null}>
-      {customerTags.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: 500 }}>当前标签</div>
-          {customerTags.map((t) => <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>)}
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        {customerTags.length > 0 && (
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>当前标签</div>
+            {customerTags.map((t) => <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>)}
+          </div>
+        )}
+        <div>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>添加已有标签</div>
+          {available.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有更多可用的标签" />}
+          <Space wrap>
+            {available.map((t) => (
+              <Tag key={t.id} color={t.color || "default"} style={{ cursor: "pointer" }} onClick={() => onLink(t.id)}>
+                + {t.name}
+              </Tag>
+            ))}
+          </Space>
         </div>
-      )}
-      <div>
-        <div style={{ marginBottom: 8, fontWeight: 500 }}>添加标签</div>
-        {available.length === 0 && <Empty description="没有更多可用的标签" />}
-        <Space wrap>
-          {available.map((t) => (
-            <Tag key={t.id} color={t.color || "default"} style={{ cursor: "pointer" }} onClick={() => onLink(t.id)}>
-              + {t.name}
-            </Tag>
-          ))}
-        </Space>
-      </div>
+        <div>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>新建并添加</div>
+          <Space.Compact style={{ width: "100%" }}>
+            <Input
+              placeholder="标签名称"
+              value={newTagName}
+              onChange={(event) => setNewTagName(event.target.value)}
+              onPressEnter={handleCreate}
+            />
+            <Select
+              style={{ width: 110 }}
+              value={newTagColor}
+              options={TAG_COLOR_OPTIONS}
+              onChange={setNewTagColor}
+            />
+            <Button loading={creating} onClick={handleCreate}>创建</Button>
+          </Space.Compact>
+        </div>
+      </Space>
     </Modal>
   );
 }

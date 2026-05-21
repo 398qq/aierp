@@ -55,6 +55,7 @@ import {
   batchDeleteCustomers,
   batchTagCustomers,
   checkAlerts,
+  createTag,
   createFollowUp,
   deleteCustomer,
   detectDuplicates,
@@ -99,6 +100,15 @@ const LEVELS = ["A", "B", "C", "D"];
 const REGIONS = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
 const SOURCES = ["展会", "转介绍", "线上推广", "陌生拜访", "公司资源"];
 const CREDIT_LEVELS = ["AAA", "AA", "A", "B", "C"];
+const TAG_COLOR_OPTIONS = [
+  { value: "blue", label: "蓝色" },
+  { value: "green", label: "绿色" },
+  { value: "orange", label: "橙色" },
+  { value: "red", label: "红色" },
+  { value: "purple", label: "紫色" },
+  { value: "cyan", label: "青色" },
+  { value: "default", label: "默认" },
+];
 
 type SceneValue = "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
 
@@ -230,6 +240,9 @@ export default function CustomerList() {
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [tags, setTags] = useState<TagType[]>([]);
   const [batchTagIds, setBatchTagIds] = useState<number[]>([]);
+  const [tagCreateName, setTagCreateName] = useState("");
+  const [tagCreateColor, setTagCreateColor] = useState("blue");
+  const [tagCreating, setTagCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [overdueList, setOverdueList] = useState<OverdueFollowUp[]>([]);
   const [followUpReminders, setFollowUpReminders] = useState<FollowUpReminder[]>([]);
@@ -585,6 +598,28 @@ export default function CustomerList() {
       fetch();
     } catch {
       message.error("批量打标签失败");
+    }
+  };
+
+  const handleCreateBatchTag = async () => {
+    const name = tagCreateName.trim();
+    if (!name) {
+      message.warning("请输入标签名称");
+      return;
+    }
+    setTagCreating(true);
+    try {
+      const resp = await createTag({ name, color: tagCreateColor });
+      const created = resp.data.data as TagType;
+      setTags((items) => [...items, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setBatchTagIds((ids) => Array.from(new Set([...ids, created.id])));
+      setTagCreateName("");
+      setTagCreateColor("blue");
+      message.success("标签已创建");
+    } catch {
+      message.error("创建标签失败");
+    } finally {
+      setTagCreating(false);
     }
   };
 
@@ -1502,15 +1537,41 @@ export default function CustomerList() {
         </Space>
       </Drawer>
 
-      <Modal title="选择标签" open={tagModalOpen} onCancel={() => setTagModalOpen(false)} onOk={handleBatchTag}>
-        <Select
-          mode="multiple"
-          style={{ width: "100%" }}
-          placeholder="选择要添加的标签"
-          value={batchTagIds}
-          onChange={(v) => setBatchTagIds(v)}
-          options={tags.map((t) => ({ value: t.id, label: t.name }))}
-        />
+      <Modal
+        title="添加标签"
+        open={tagModalOpen}
+        onCancel={() => setTagModalOpen(false)}
+        onOk={handleBatchTag}
+        okText="添加到已选客户"
+        okButtonProps={{ disabled: !batchTagIds.length || !selectedRowKeys.length }}
+      >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Select
+            mode="multiple"
+            style={{ width: "100%" }}
+            placeholder="选择要添加的标签"
+            value={batchTagIds}
+            onChange={(v) => setBatchTagIds(v)}
+            options={tags.map((t) => ({ value: t.id, label: t.name }))}
+          />
+          <Divider style={{ margin: 0 }} />
+          <Typography.Text type="secondary">新建标签</Typography.Text>
+          <Space.Compact style={{ width: "100%" }}>
+            <Input
+              placeholder="标签名称"
+              value={tagCreateName}
+              onChange={(event) => setTagCreateName(event.target.value)}
+              onPressEnter={handleCreateBatchTag}
+            />
+            <Select
+              style={{ width: 110 }}
+              value={tagCreateColor}
+              options={TAG_COLOR_OPTIONS}
+              onChange={setTagCreateColor}
+            />
+            <Button loading={tagCreating} onClick={handleCreateBatchTag}>创建</Button>
+          </Space.Compact>
+        </Space>
       </Modal>
 
       <Modal title="疑似重复客户" open={dupModalOpen} onCancel={() => setDupModalOpen(false)} footer={null} width={720}>
