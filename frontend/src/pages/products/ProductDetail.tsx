@@ -8,6 +8,8 @@ import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, Pric
 
 const { Text, Title } = Typography;
 
+const getBrandDisplayName = (brand: Brand) => brand.short_name || brand.name_cn || brand.name;
+
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -61,7 +63,7 @@ export default function ProductDetail() {
         if (!resolvedBrandName && brandsRes.status === "fulfilled") {
           const brands = (brandsRes.value.data.data || []) as Brand[];
           const b = brands.find((x) => x.id === (prodRes.status === "fulfilled" ? prodRes.value.data.data.brand_id : undefined));
-          if (b) resolvedBrandName = b.name_cn || b.name;
+          if (b) resolvedBrandName = getBrandDisplayName(b);
         }
         if (resolvedBrandName) setBrandName(resolvedBrandName);
         if (invRes.status === "fulfilled") {

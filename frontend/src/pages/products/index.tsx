@@ -155,6 +155,8 @@ const COL_LABEL_MAP: Record<string, string> = {
 const PAGE_SIZE = 20;
 const SAVED_VIEW_STORAGE_KEY = "aierp.products.saved_views.v1";
 
+const getBrandSelectLabel = (brand: Brand) => brand.short_name || brand.name_cn || brand.name;
+
 const getAvailableQty = (p: Product) => {
   if (typeof p.available === "number") return p.available;
   return (p.quantity ?? 0) - (p.locked_quantity ?? 0);
@@ -1328,7 +1330,7 @@ export default function ProductList() {
                 setBrandId(v);
                 setPage(1);
               }}
-              options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))}
+              options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
             />
           </Col>
           <Col>
@@ -1603,7 +1605,7 @@ export default function ProductList() {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="brand_id" label="品牌">
-                <Select allowClear placeholder="选择品牌" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
+                <Select allowClear placeholder="选择品牌" options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))} />
               </Form.Item>
             </Col>
             <Col span={12}><Form.Item name="image_url" label="图片URL"><Input /></Form.Item></Col>
@@ -1642,7 +1644,7 @@ export default function ProductList() {
               <Row gutter={12}>
                 <Col span={12}>
                   <Form.Item name="brand_id" label="品牌">
-                    <Select allowClear placeholder="保持不变" options={brands.map((b) => ({ value: b.id, label: b.name_cn || b.name }))} />
+                    <Select allowClear placeholder="保持不变" options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>

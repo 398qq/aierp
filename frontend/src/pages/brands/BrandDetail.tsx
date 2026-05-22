@@ -1057,7 +1057,7 @@ export default function BrandDetail() {
             showSearch style={{ width: 300 }}
             placeholder="选择要对比的品牌"
             filterOption={(input, option) => (option?.label as string || "").toLowerCase().includes(input.toLowerCase())}
-            options={allBrands.map((b) => ({ label: `${b.name}${b.name_cn ? ` (${b.name_cn})` : ""}`, value: b.id }))}
+            options={allBrands.map((b) => ({ label: b.short_name || b.name_cn || b.name, value: b.id }))}
             value={compareBrandId}
             onChange={(v) => setCompareBrandId(v)}
           />
