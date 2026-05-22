@@ -182,9 +182,12 @@ def _product_row(
     inventory_updated_at=None,
 ) -> dict:
     completion_score, missing_fields = _product_completion(p)
+    brand_name = None
+    if p.brand:
+        brand_name = p.brand.name or p.brand.short_name or p.brand.name_cn
     return {
         "id": p.id, "sku": p.sku, "name": p.name, "brand_id": p.brand_id,
-        "brand_name": p.brand.name_cn or p.brand.name if p.brand else None,
+        "brand_name": brand_name,
         "category": p.category, "package_type": p.package_type,
         "specs": p.specs, "unit": p.unit, "notes": p.notes,
         "image_url": p.image_url,

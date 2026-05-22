@@ -8,7 +8,7 @@ import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, Pric
 
 const { Text, Title } = Typography;
 
-const getBrandDisplayName = (brand: Brand) => brand.short_name || brand.name_cn || brand.name;
+const getBrandDisplayName = (brand: Brand) => brand.name || brand.short_name || brand.name_cn || "";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();

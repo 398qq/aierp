@@ -155,7 +155,7 @@ const COL_LABEL_MAP: Record<string, string> = {
 const PAGE_SIZE = 20;
 const SAVED_VIEW_STORAGE_KEY = "aierp.products.saved_views.v1";
 
-const getBrandSelectLabel = (brand: Brand) => brand.short_name || brand.name_cn || brand.name;
+const getBrandSelectLabel = (brand: Brand) => brand.name || brand.short_name || brand.name_cn;
 
 const getAvailableQty = (p: Product) => {
   if (typeof p.available === "number") return p.available;

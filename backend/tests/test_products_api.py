@@ -134,6 +134,25 @@ class TestProductsAPI:
             names = [p["name"] for p in resp.json()["data"]["list"]]
             assert "Generic Part" in names
 
+    async def test_product_row_prefers_brand_english_name(self, async_client: AsyncClient, auth_headers: dict):
+        brand_resp = await async_client.post(
+            "/api/v1/brands/",
+            headers=auth_headers,
+            json={"name": "Shanghai QST", "name_cn": "上海矽睿", "short_name": "QST", "status": "active"},
+        )
+        brand_id = brand_resp.json()["data"]["id"]
+        product_resp = await async_client.post("/api/v1/products", headers=auth_headers, json={
+            "name": "QMI8658",
+            "sku": "QMI8658",
+            "brand_id": brand_id,
+        })
+        product_id = product_resp.json()["data"]["id"]
+
+        list_resp = await async_client.get("/api/v1/products?q=QMI8658", headers=auth_headers)
+        products = list_resp.json()["data"]["list"]
+        row = next(p for p in products if p["id"] == product_id)
+        assert row["brand_name"] == "Shanghai QST"
+
     async def test_product_row_includes_management_metrics(self, async_client: AsyncClient, auth_headers: dict, db_session):
         from app.models.product import Inventory, Supplier, SupplierProduct, Warehouse
 
