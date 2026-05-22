@@ -20,14 +20,12 @@ import {
   Segmented,
   Select,
   Space,
-  Statistic,
   Table,
   Tag,
   Tooltip,
   message,
 } from "antd";
 import {
-  CheckCircleOutlined,
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
@@ -39,10 +37,8 @@ import {
   SaveOutlined,
   SearchOutlined,
   SettingOutlined,
-  StopOutlined,
   ThunderboltOutlined,
   UploadOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
@@ -116,6 +112,14 @@ const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "待完善", value: "pending_completion" },
   { label: "30天无动销", value: "stale_30d" },
 ];
+
+const TASK_SCENE_MAP: Partial<Record<ProductTaskKey, SceneValue>> = {
+  replenish: "low_stock",
+  out: "out_of_stock",
+  complete: "pending_completion",
+  stale: "stale_30d",
+  all: "all",
+};
 
 const PRODUCT_TASK_LABELS: Record<ProductTaskKey, string> = {
   replenish: "补货预警",
@@ -320,6 +324,8 @@ export default function ProductList() {
     "actions",
   ];
   const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
+  const searchText = q.trim();
+  const activeProductTask: ProductTaskKey = searchText || scene !== "all" ? "all" : productTask;
 
   const selectedProducts = useMemo(
     () => data.filter((item) => selectedRowKeys.includes(item.id)),
@@ -352,20 +358,20 @@ export default function ProductList() {
 
   const filteredProducts = useMemo(
     () => data
-      .filter((item) => productMatchesTask(item, productTask))
+      .filter((item) => productMatchesTask(item, activeProductTask))
       .sort((a, b) => getProductPriorityScore(b) - getProductPriorityScore(a)),
-    [data, productTask],
+    [activeProductTask, data],
   );
 
   const productTaskItems = useMemo(() => [
-    { key: "replenish" as ProductTaskKey, label: PRODUCT_TASK_LABELS.replenish, count: data.filter((item) => productMatchesTask(item, "replenish")).length, color: "orange", note: "可用库存低于安全线" },
-    { key: "out" as ProductTaskKey, label: PRODUCT_TASK_LABELS.out, count: data.filter((item) => productMatchesTask(item, "out")).length, color: "red", note: "当前无可用库存" },
-    { key: "complete" as ProductTaskKey, label: PRODUCT_TASK_LABELS.complete, count: data.filter((item) => productMatchesTask(item, "complete")).length, color: "gold", note: "资料字段不完整" },
-    { key: "stale" as ProductTaskKey, label: PRODUCT_TASK_LABELS.stale, count: data.filter((item) => productMatchesTask(item, "stale")).length, color: "blue", note: "超过30天无销售" },
+    { key: "replenish" as ProductTaskKey, label: PRODUCT_TASK_LABELS.replenish, count: stats.low_stock_count, color: "orange", note: "可用库存低于安全线" },
+    { key: "out" as ProductTaskKey, label: PRODUCT_TASK_LABELS.out, count: stats.out_of_stock_count, color: "red", note: "当前无可用库存" },
+    { key: "complete" as ProductTaskKey, label: PRODUCT_TASK_LABELS.complete, count: stats.pending_completion_count, color: "gold", note: "资料字段不完整" },
+    { key: "stale" as ProductTaskKey, label: PRODUCT_TASK_LABELS.stale, count: stats.stale_30d_count, color: "blue", note: "超过30天无销售" },
     { key: "no_supplier" as ProductTaskKey, label: PRODUCT_TASK_LABELS.no_supplier, count: data.filter((item) => productMatchesTask(item, "no_supplier")).length, color: "purple", note: "未维护供应商" },
     { key: "ai_search" as ProductTaskKey, label: PRODUCT_TASK_LABELS.ai_search, count: data.filter((item) => productMatchesTask(item, "ai_search")).length, color: "cyan", note: "综合优先级较高" },
-    { key: "all" as ProductTaskKey, label: PRODUCT_TASK_LABELS.all, count: data.length, color: "default", note: "回到普通清单" },
-  ], [data]);
+    { key: "all" as ProductTaskKey, label: PRODUCT_TASK_LABELS.all, count: stats.total, color: "default", note: "回到普通清单" },
+  ], [data, stats]);
 
   const tableProducts = useMemo(
     () => aiSearchMode ? ((aiSearchResults ?? []) as unknown as Product[]) : filteredProducts,
@@ -378,6 +384,16 @@ export default function ProductList() {
   const contextStockState = contextProduct ? getStockState(contextProduct) : "in";
   const contextPriorityScore = contextProduct ? getProductPriorityScore(contextProduct) : 0;
   const contextSuggestedAction = contextProduct ? getProductSuggestedAction(contextProduct) : "";
+  const healthMetrics = useMemo(() => {
+    const totalCount = stats.total || 0;
+    const pct = (value: number) => totalCount > 0 ? Math.round((value / totalCount) * 100) : 0;
+    return {
+      inStockRate: pct(stats.in_stock_count),
+      lowStockRate: pct(stats.low_stock_count),
+      outOfStockRate: pct(stats.out_of_stock_count),
+      completionGapRate: pct(stats.pending_completion_count),
+    };
+  }, [stats]);
 
   const loadSavedViews = () => {
     try {
@@ -464,6 +480,7 @@ export default function ProductList() {
   const resetAllFilters = () => {
     setQ("");
     setScene("all");
+    setProductTask("all");
     setCategory(undefined);
     setBrandId(undefined);
     setStockStatus(undefined);
@@ -944,8 +961,85 @@ export default function ProductList() {
   ];
 
   return (
-    <div>
+    <div className="product-workbench-page">
       <style>{`
+        .product-workbench-page {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .product-health-strip {
+          display: grid;
+          grid-template-columns: 1.45fr repeat(4, minmax(120px, .8fr));
+          gap: 10px;
+          align-items: stretch;
+        }
+        .product-health-main,
+        .product-health-metric {
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .product-health-main {
+          min-height: 118px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        .product-health-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 700;
+          font-size: 18px;
+        }
+        .product-health-note {
+          margin-top: 6px;
+          color: rgba(0,0,0,.45);
+          font-size: 13px;
+          line-height: 20px;
+        }
+        .product-health-actions {
+          margin-top: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .product-health-metric {
+          min-height: 118px;
+          padding: 14px;
+          cursor: pointer;
+          transition: border-color .16s ease, box-shadow .16s ease;
+        }
+        .product-health-metric:hover {
+          border-color: #91caff;
+          box-shadow: 0 2px 8px rgba(22, 119, 255, .1);
+        }
+        .product-health-label {
+          display: block;
+          margin-bottom: 10px;
+          color: rgba(0,0,0,.45);
+          font-size: 12px;
+        }
+        .product-health-value {
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+          font-size: 24px;
+          font-weight: 700;
+          line-height: 1;
+        }
+        .product-health-value small {
+          color: rgba(0,0,0,.45);
+          font-size: 12px;
+          font-weight: 400;
+        }
+        .product-health-sub {
+          margin-top: 10px;
+          color: rgba(0,0,0,.45);
+          font-size: 12px;
+        }
         .product-command-layout {
           display: grid;
           grid-template-columns: 220px minmax(0, 1fr) 280px;
@@ -1048,6 +1142,12 @@ export default function ProductList() {
         .product-row-low td { background: #fffbe6 !important; }
         .product-row-out td { background: #fff2f0 !important; }
         @media (max-width: 1180px) {
+          .product-health-strip {
+            grid-template-columns: 1fr 1fr;
+          }
+          .product-health-main {
+            grid-column: 1 / -1;
+          }
           .product-command-layout {
             grid-template-columns: 1fr;
           }
@@ -1060,44 +1160,55 @@ export default function ProductList() {
           }
         }
         @media (max-width: 768px) {
+          .product-health-strip {
+            grid-template-columns: 1fr;
+          }
           .product-context-actions {
             grid-template-columns: 1fr 1fr;
           }
         }
       `}</style>
 
-      <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
-        <Col xs={24} sm={12} xl={4}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="SKU 总数" value={stats.total} prefix={<InboxOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={4}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="在库" value={stats.in_stock_count} prefix={<CheckCircleOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={4}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="低库存" value={stats.low_stock_count} prefix={<WarningOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={4}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="缺货" value={stats.out_of_stock_count} prefix={<StopOutlined />} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={4}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="待完善" value={stats.pending_completion_count} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={4}>
-          <Card size="small" loading={statsLoading}>
-            <Statistic title="30天无动销" value={stats.stale_30d_count} />
-          </Card>
-        </Col>
-      </Row>
+      <div className="product-health-strip">
+        <div className="product-health-main">
+          <div>
+            <div className="product-health-title">
+              <InboxOutlined />
+              <span>产品管理工作台</span>
+              {statsLoading && <Tag>刷新中</Tag>}
+            </div>
+            <div className="product-health-note">
+              统一处理产品主数据、库存、供应商、价格和 AI 选型动作，优先消除缺货、低库存与资料缺口。
+            </div>
+          </div>
+          <div className="product-health-actions">
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建产品</Button>
+            <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>批量导入</Button>
+            <Button icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>AI 解析</Button>
+            <Button icon={<FileTextOutlined />} onClick={() => setBomModalOpen(true)}>BOM 导入</Button>
+          </div>
+        </div>
+        <div className="product-health-metric" onClick={resetAllFilters}>
+          <span className="product-health-label">SKU 总数</span>
+          <span className="product-health-value">{stats.total}<small>个</small></span>
+          <div className="product-health-sub">在库率 {healthMetrics.inStockRate}%</div>
+        </div>
+        <div className="product-health-metric" onClick={() => { setProductTask("replenish"); setScene("low_stock"); setPage(1); }}>
+          <span className="product-health-label">低库存</span>
+          <span className="product-health-value">{stats.low_stock_count}<small>个</small></span>
+          <div className="product-health-sub">占比 {healthMetrics.lowStockRate}%</div>
+        </div>
+        <div className="product-health-metric" onClick={() => { setProductTask("out"); setScene("out_of_stock"); setPage(1); }}>
+          <span className="product-health-label">缺货</span>
+          <span className="product-health-value">{stats.out_of_stock_count}<small>个</small></span>
+          <div className="product-health-sub">占比 {healthMetrics.outOfStockRate}%</div>
+        </div>
+        <div className="product-health-metric" onClick={() => { setProductTask("complete"); setScene("pending_completion"); setPage(1); }}>
+          <span className="product-health-label">待完善</span>
+          <span className="product-health-value">{stats.pending_completion_count}<small>个</small></span>
+          <div className="product-health-sub">缺口率 {healthMetrics.completionGapRate}%</div>
+        </div>
+      </div>
 
       <div className="product-command-layout">
         <aside className="product-command-sidebar">
@@ -1113,11 +1224,13 @@ export default function ProductList() {
               <button
                 key={item.key}
                 type="button"
-                className={`product-task-button${productTask === item.key ? " is-active" : ""}`}
+              className={`product-task-button${productTask === item.key ? " is-active" : ""}`}
                 onClick={() => {
                   setProductTask(item.key);
                   setContextProductId(null);
                   setPage(1);
+                  const nextScene = TASK_SCENE_MAP[item.key];
+                  if (nextScene) setScene(nextScene);
                   if (item.key === "ai_search") setAiSearchMode(true);
                   if (item.key !== "ai_search" && aiSearchMode) {
                     setAiSearchMode(false);
@@ -1157,7 +1270,12 @@ export default function ProductList() {
               placeholder={aiSearchMode ? "AI 语义搜索（如：高频放大器 贴片）" : "自然语言搜索（如：0402 10uF MLCC）"}
               prefix={<SearchOutlined />}
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setProductTask("all");
+                setScene("all");
+                setPage(1);
+              }}
               allowClear
               suffix={(
                 <Tooltip title={aiSearchMode ? "切换普通搜索" : "切换 AI 语义搜索"}>
@@ -1182,6 +1300,7 @@ export default function ProductList() {
               value={scene}
               onChange={(v) => {
                 setScene(v as SceneValue);
+                setProductTask("all");
                 setPage(1);
               }}
             />
@@ -1344,7 +1463,7 @@ export default function ProductList() {
               : {
                   current: page,
                   pageSize: PAGE_SIZE,
-                  total: productTask !== "all" ? filteredProducts.length : total,
+                  total: activeProductTask !== "all" ? filteredProducts.length : total,
                   showTotal: (count) => `共 ${count} 条`,
                   showSizeChanger: false,
                 }

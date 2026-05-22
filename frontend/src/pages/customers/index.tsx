@@ -373,6 +373,8 @@ export default function CustomerList() {
   const navigate = useNavigate();
   const location = useLocation();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const searchText = q.trim();
+  const activeSmartTask: SmartTaskKey = searchText ? "all" : smartTask;
 
   const overdueCustomerIds = useMemo(() => new Set(overdueList.map((item) => item.customer_id)), [overdueList]);
   const selectedIdSet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
@@ -401,7 +403,7 @@ export default function CustomerList() {
   const activeFilterItems = useMemo<Array<{ key: string; label: string; clear: () => void }>>(() => {
     const items: Array<{ key: string; label: string; clear: () => void }> = [];
     const selectedScene = SCENE_OPTIONS.find((item) => item.value === scene);
-    if (q.trim()) items.push({ key: "q", label: `搜索：${q.trim()}`, clear: () => setQ("") });
+    if (searchText) items.push({ key: "q", label: `搜索：${searchText}`, clear: () => setQ("") });
     if (selectedScene && scene !== "all") {
       items.push({ key: "scene", label: `场景：${selectedScene.label}`, clear: () => setScene("all") });
     }
@@ -420,7 +422,7 @@ export default function CustomerList() {
         setPage(1);
       },
     }));
-  }, [creditLevel, industry, level, overdueOnly, q, region, scene, source]);
+  }, [creditLevel, industry, level, overdueOnly, region, scene, searchText, source]);
   const reminderCounts = useMemo(
     () => ({
       all: followUpReminders.length,
@@ -465,13 +467,13 @@ export default function CustomerList() {
   };
   const tableData = useMemo(
     () => baseTableData
-      .filter((item) => customerMatchesSmartTask(item, smartTask))
+      .filter((item) => customerMatchesSmartTask(item, activeSmartTask))
       .sort((a, b) => {
         const scoreA = getCustomerPriorityScore(a, nextFollowUpByCustomer.get(a.id));
         const scoreB = getCustomerPriorityScore(b, nextFollowUpByCustomer.get(b.id));
         return scoreB - scoreA;
       }),
-    [baseTableData, nextFollowUpByCustomer, overdueCustomerIds, smartTask],
+    [activeSmartTask, baseTableData, nextFollowUpByCustomer, overdueCustomerIds],
   );
   const smartTaskItems = useMemo(() => {
     const items: Array<{ key: SmartTaskKey; label: string; count: number; color: string; note: string }> = [
@@ -1648,7 +1650,12 @@ export default function CustomerList() {
               placeholder="搜索客户名称/编码/联系人/电话"
               prefix={<SearchOutlined />}
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setSmartTask("all");
+                setOverdueOnly(false);
+                setPage(1);
+              }}
               allowClear
             />
           </div>
@@ -1818,7 +1825,7 @@ export default function CustomerList() {
             <Typography.Text type="secondary">
               {overdueOnly ? tableData.length : total} 条
             </Typography.Text>
-            <Tag color="purple">{SMART_TASK_LABELS[smartTask]}</Tag>
+            <Tag color="purple">{SMART_TASK_LABELS[activeSmartTask]}</Tag>
             {activeFilterItems.length > 0 && <Tag color="blue">已筛选</Tag>}
             {overdueOnly && <Tag color="red">仅逾期</Tag>}
           </div>
@@ -1857,7 +1864,7 @@ export default function CustomerList() {
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
           pagination={{
             current: page,
-            total: smartTask !== "all" || overdueOnly ? tableData.length : total,
+            total: activeSmartTask !== "all" || overdueOnly ? tableData.length : total,
             pageSize,
             pageSizeOptions: ["10", "20", "50", "100"],
             showSizeChanger: true,

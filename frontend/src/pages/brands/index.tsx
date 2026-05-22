@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Statistic, Progress, Tooltip, Segmented, Alert } from "antd";
-import { BankOutlined, AlertOutlined, RiseOutlined, CarOutlined, WarningOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
+import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
+import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats } from "../../api";
 import type { Brand } from "../../types";
 import { getBatchAiSummary, getBrandNextAction } from "./brandAiOrchestration";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const STATUS_OPTIONS = [
   { label: "启用", value: "active" },
@@ -111,6 +111,7 @@ export default function BrandList() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [aiPlanOpen, setAiPlanOpen] = useState(false);
   const [stats, setStats] = useState<BrandStats | null>(null);
+  const [activeBrandId, setActiveBrandId] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -397,10 +398,203 @@ export default function BrandList() {
   const endIndex = Math.min(page * pageSize, total);
   const selectedBrands = data.filter((brand) => selectedRowKeys.includes(brand.id));
   const batchAiSummary = getBatchAiSummary(selectedBrands);
+  const activeBrand = useMemo(
+    () => data.find((brand) => brand.id === activeBrandId) || data[0] || null,
+    [activeBrandId, data],
+  );
+  const activeBrandAction = activeBrand ? getBrandNextAction(activeBrand) : null;
+  const operationTasks = useMemo(() => {
+    if (!stats) return [];
+    return [
+      { key: "high_risk" as BrandScene, label: "高风险复核", count: stats.high_risk_count, color: "red", note: "风险评分或风险等级异常" },
+      { key: "eol_nrnd" as BrandScene, label: "生命周期处理", count: stats.eol_nrnd_count, color: "orange", note: "EOL/NRND 替代与库存影响" },
+      { key: "pending_completion" as BrandScene, label: "资料补全", count: stats.pending_completion_count ?? 0, color: "gold", note: "主数据字段仍不完整" },
+      { key: "no_products" as BrandScene, label: "铺货规划", count: stats.no_product_count ?? 0, color: "blue", note: "尚未关联产品" },
+      { key: "automotive" as BrandScene, label: "车规品牌", count: stats.automotive_count, color: "geekblue", note: "车规认证和交期跟踪" },
+    ];
+  }, [stats]);
+  const healthMetrics = useMemo(() => {
+    const totalCount = stats?.total || 0;
+    const pct = (value: number) => totalCount > 0 ? Math.round((value / totalCount) * 100) : 0;
+    return {
+      highRiskRate: pct(stats?.high_risk_count || 0),
+      lifecycleRate: pct(stats?.eol_nrnd_count || 0),
+      automotiveRate: pct(stats?.automotive_count || 0),
+      noProductRate: pct(stats?.no_product_count || 0),
+    };
+  }, [stats]);
 
   return (
-    <div>
+    <div className="brand-page">
       <style>{`
+        .brand-page {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .brand-command-strip {
+          display: grid;
+          grid-template-columns: 1.5fr repeat(4, minmax(120px, .75fr));
+          gap: 10px;
+          align-items: stretch;
+        }
+        .brand-command-main,
+        .brand-command-metric,
+        .brand-ops-panel,
+        .brand-context-panel {
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .brand-command-main {
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          min-height: 116px;
+        }
+        .brand-command-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+        }
+        .brand-command-title h4 {
+          margin: 0;
+        }
+        .brand-command-note {
+          max-width: 620px;
+        }
+        .brand-command-actions {
+          margin-top: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .brand-command-metric {
+          padding: 14px;
+          min-height: 116px;
+          cursor: pointer;
+          transition: border-color .16s ease, box-shadow .16s ease;
+        }
+        .brand-command-metric:hover {
+          border-color: #91caff;
+          box-shadow: 0 2px 8px rgba(22, 119, 255, .1);
+        }
+        .brand-metric-label {
+          display: block;
+          font-size: 12px;
+          margin-bottom: 10px;
+        }
+        .brand-metric-value {
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+          font-size: 24px;
+          font-weight: 700;
+          line-height: 1;
+        }
+        .brand-metric-value small {
+          font-size: 12px;
+          font-weight: 400;
+          color: rgba(0,0,0,.45);
+        }
+        .brand-workbench-grid {
+          display: grid;
+          grid-template-columns: 240px minmax(0, 1fr) 280px;
+          gap: 12px;
+          align-items: start;
+        }
+        .brand-ops-panel,
+        .brand-context-panel {
+          padding: 12px;
+          position: sticky;
+          top: 76px;
+        }
+        .brand-panel-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        .brand-task-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .brand-task-item {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          background: #fafafa;
+          cursor: pointer;
+          transition: border-color .16s ease, background .16s ease;
+        }
+        .brand-task-item:hover,
+        .brand-task-item-active {
+          border-color: #1677ff;
+          background: #f0f7ff;
+        }
+        .brand-task-main {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+        .brand-task-note,
+        .brand-context-note {
+          font-size: 12px;
+          color: rgba(0,0,0,.45);
+        }
+        .brand-table-zone {
+          min-width: 0;
+        }
+        .brand-context-body {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .brand-context-title {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          align-items: flex-start;
+        }
+        .brand-context-name {
+          min-width: 0;
+        }
+        .brand-context-name a {
+          font-weight: 600;
+        }
+        .brand-context-score {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .brand-context-score > div {
+          padding: 10px;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          background: #fafafa;
+        }
+        .brand-context-number {
+          display: block;
+          margin-top: 4px;
+          font-size: 20px;
+          font-weight: 700;
+        }
+        .brand-context-action {
+          padding: 10px;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          background: #fafafa;
+        }
+        .brand-row-active td {
+          background: #e6f4ff !important;
+        }
         .brand-row-critical td { background: #fff2f0 !important; }
         .brand-row-eol td { background: #fff7e6 !important; }
         .brand-stat-card {
@@ -491,6 +685,16 @@ export default function BrandList() {
           font-size: 12px;
         }
         @media (max-width: 768px) {
+          .brand-command-strip {
+            grid-template-columns: 1fr;
+          }
+          .brand-workbench-grid {
+            grid-template-columns: 1fr;
+          }
+          .brand-ops-panel,
+          .brand-context-panel {
+            position: static;
+          }
           .brand-list-card .ant-card-head {
             display: block;
           }
@@ -513,65 +717,65 @@ export default function BrandList() {
           }
         }
       `}</style>
-      {/* Stats bar */}
-      {stats && (
-        <Row gutter={12} style={{ marginBottom: 12 }}>
-          <Col xs={24} sm={12} md={8} xl={4}>
-            <Card size="small" className={`brand-stat-card ${scene === "all" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("all")}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>品牌总数</Text>}
-                value={stats.total} prefix={<BankOutlined />}
-                valueStyle={{ fontSize: 20 }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} xl={4}>
-            <Card size="small" className="brand-stat-card" onClick={() => { setSort("created_at_desc"); applyScene("all"); }}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>近30天新增</Text>}
-                value={stats.recent_30d} prefix={<RiseOutlined />}
-                valueStyle={{ fontSize: 20, color: "#52c41a" }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} xl={4}>
-            <Card size="small" className={`brand-stat-card ${scene === "eol_nrnd" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("eol_nrnd")}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>EOL/NRND</Text>}
-                value={stats.eol_nrnd_count} prefix={<AlertOutlined />}
-                valueStyle={{ fontSize: 20, color: stats.eol_nrnd_count > 0 ? "#f5222d" : undefined }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} xl={4}>
-            <Card size="small" className={`brand-stat-card ${scene === "pending_completion" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("pending_completion")}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>待完善</Text>}
-                value={stats.pending_completion_count ?? 0} prefix={<AlertOutlined />}
-                valueStyle={{ fontSize: 20 }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} xl={4}>
-            <Card size="small" className={`brand-stat-card ${scene === "high_risk" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("high_risk")}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>高风险(&gt;70分)</Text>}
-                value={stats.high_risk_count} prefix={<WarningOutlined />}
-                valueStyle={{ fontSize: 20, color: stats.high_risk_count > 0 ? "#f5222d" : undefined }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8} xl={4}>
-            <Card size="small" className={`brand-stat-card ${scene === "no_products" ? "brand-stat-card-active" : ""}`} onClick={() => applyScene("no_products")}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>未铺货</Text>}
-                value={stats.no_product_count ?? 0} prefix={<CarOutlined />}
-                valueStyle={{ fontSize: 20, color: (stats.no_product_count ?? 0) > 0 ? "#fa8c16" : undefined }}
-              />
-            </Card>
-          </Col>
-        </Row>
-      )}
+      <div className="brand-command-strip">
+        <div className="brand-command-main">
+          <div>
+            <div className="brand-command-title">
+              <BankOutlined />
+              <Title level={4}>品牌管理</Title>
+            </div>
+            <Text type="secondary" className="brand-command-note">
+              统一维护品牌主数据、风险、生命周期、授权和产品覆盖，优先处理高风险与资料缺口。
+            </Text>
+          </div>
+          <div className="brand-command-actions">
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增品牌</Button>
+            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
+            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>品牌看板</Button>
+          </div>
+        </div>
+        <div className="brand-command-metric" onClick={() => applyScene("all")}>
+          <Text type="secondary" className="brand-metric-label">品牌总数</Text>
+          <span className="brand-metric-value">{stats?.total ?? 0}<small>个</small></span>
+        </div>
+        <div className="brand-command-metric" onClick={() => applyScene("high_risk")}>
+          <Text type="secondary" className="brand-metric-label">高风险占比</Text>
+          <span className="brand-metric-value">{healthMetrics.highRiskRate}<small>%</small></span>
+        </div>
+        <div className="brand-command-metric" onClick={() => applyScene("eol_nrnd")}>
+          <Text type="secondary" className="brand-metric-label">生命周期风险</Text>
+          <span className="brand-metric-value">{healthMetrics.lifecycleRate}<small>%</small></span>
+        </div>
+        <div className="brand-command-metric" onClick={() => applyScene("no_products")}>
+          <Text type="secondary" className="brand-metric-label">未铺货占比</Text>
+          <span className="brand-metric-value">{healthMetrics.noProductRate}<small>%</small></span>
+        </div>
+      </div>
+
+      <div className="brand-workbench-grid">
+        <aside className="brand-ops-panel">
+          <div className="brand-panel-head">
+            <Text strong>运营队列</Text>
+            <Button size="small" type="link" onClick={() => navigate("/brands/stats")}>看板</Button>
+          </div>
+          <div className="brand-task-list">
+            {operationTasks.map((item) => (
+              <div
+                key={item.key}
+                className={`brand-task-item${scene === item.key ? " brand-task-item-active" : ""}`}
+                onClick={() => applyScene(item.key)}
+              >
+                <div className="brand-task-main">
+                  <Text strong>{item.label}</Text>
+                  <Tag color={item.color}>{item.count}</Tag>
+                </div>
+                <div className="brand-task-note">{item.note}</div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <main className="brand-table-zone">
 
       <Card
         className="brand-list-card"
@@ -661,10 +865,14 @@ export default function BrandList() {
           rowKey="id" columns={columns} dataSource={data}
           rowSelection={rowSelection}
           rowClassName={(record) => {
+            if (activeBrand?.id === record.id) return "brand-row-active";
             if (record.risk_level === "critical" || (record.risk_score ?? 0) >= 80) return "brand-row-critical";
             if (record.lifecycle_stage === "eol") return "brand-row-eol";
             return "";
           }}
+          onRow={(record) => ({
+            onClick: () => setActiveBrandId(record.id),
+          })}
           loading={loading} size="small" pagination={{
             current: page, total, pageSize: pageSize,
             pageSizeOptions: ["10", "20", "50", "100"],
@@ -683,6 +891,68 @@ export default function BrandList() {
           scroll={{ x: 1300 }}
         />
       </Card>
+        </main>
+
+        <aside className="brand-context-panel">
+          <div className="brand-panel-head">
+            <Text strong>品牌上下文</Text>
+            {activeBrand && <Tag color={activeBrandAction?.color}>{activeBrandAction?.label}</Tag>}
+          </div>
+          {activeBrand ? (
+            <div className="brand-context-body">
+              <div className="brand-context-title">
+                <div className="brand-context-name">
+                  <a onClick={() => navigate(`/brands/${activeBrand.id}`)}>{activeBrand.name}</a>
+                  <div className="brand-context-note">{activeBrand.name_cn || activeBrand.code || "未补充中文名/编码"}</div>
+                </div>
+                {activeBrand.level && <Tag color={levelColor[activeBrand.level]}>{activeBrand.level}级</Tag>}
+              </div>
+              <Space wrap size={6}>
+                {activeBrand.status && <Tag color={statusColor[activeBrand.status] || "default"}>{statusLabel[activeBrand.status] || activeBrand.status}</Tag>}
+                {activeBrand.brand_type && <Tag>{typeLabel[activeBrand.brand_type] || activeBrand.brand_type}</Tag>}
+                {activeBrand.lifecycle_stage && <Tag color={lcTagColor[activeBrand.lifecycle_stage] || "default"}>{activeBrand.lifecycle_stage.toUpperCase()}</Tag>}
+                {activeBrand.is_automotive && <Tag color="blue">车规</Tag>}
+              </Space>
+              <div className="brand-context-score">
+                <div>
+                  <Text type="secondary">风险分</Text>
+                  <span className="brand-context-number">{activeBrand.risk_score ?? "-"}</span>
+                </div>
+                <div>
+                  <Text type="secondary">完整度</Text>
+                  <span className="brand-context-number">{activeBrand.completion_score ?? 0}%</span>
+                </div>
+                <div>
+                  <Text type="secondary">产品数</Text>
+                  <span className="brand-context-number">{activeBrand.product_count ?? 0}</span>
+                </div>
+                <div>
+                  <Text type="secondary">交期</Text>
+                  <span className="brand-context-number">{activeBrand.lead_time_days ?? "-"}</span>
+                </div>
+              </div>
+              <div className="brand-context-action">
+                <Text strong>建议动作</Text>
+                <div style={{ marginTop: 6 }}>
+                  {activeBrandAction && <Tag color={activeBrandAction.color}>{activeBrandAction.label}</Tag>}
+                </div>
+                <div className="brand-context-note" style={{ marginTop: 6 }}>
+                  {activeBrand.missing_fields?.length
+                    ? `缺少 ${activeBrand.missing_fields.slice(0, 4).join("、")}`
+                    : activeBrand.product_lines || "资料完整后可进入常规维护"}
+                </div>
+              </div>
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Button block onClick={() => navigate(`/brands/${activeBrand.id}`)}>打开详情</Button>
+                <Button block onClick={() => openEdit(activeBrand)}>编辑主数据</Button>
+                <Button block onClick={() => { setSelectedRowKeys([activeBrand.id]); setAiPlanOpen(true); }}>AI 编排</Button>
+              </Space>
+            </div>
+          ) : (
+            <Text type="secondary">暂无品牌数据</Text>
+          )}
+        </aside>
+      </div>
 
       <Modal
         title={editing ? "编辑品牌" : "新增品牌"}
