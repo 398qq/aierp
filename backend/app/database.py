@@ -115,11 +115,11 @@ async def _ensure_brand_schema(eng):
         return
 
     async with eng.connect() as conn:
-        for stmt in (
-            "ALTER TABLE brands ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES users(id)",
-            "ALTER TABLE brands ADD COLUMN IF NOT EXISTS updated_by BIGINT REFERENCES users(id)",
-        ):
-            await conn.exec_driver_sql(stmt)
+        for table in ("brands", "suppliers", "warehouses", "inventories", "supplier_products"):
+            for column in ("created_by", "updated_by"):
+                await conn.exec_driver_sql(
+                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} BIGINT REFERENCES users(id)"
+                )
         await conn.commit()
 
 

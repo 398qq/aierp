@@ -429,18 +429,18 @@ export const adjustInventory = (product_id: number, warehouse_id: number, adjust
 export const batchAdjustInventory = (items: { product_id: number; warehouse_id: number; adjustment: number; reason: string }[]) =>
   client.post<APIResponse>("/inventory/batch-adjust", { items });
 
-// Products Inventory CRUD (under /products/inventories)
+// Product inventory CRUD
 export const getProductInventories = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<InventoryItem>>>("/products/inventories", { params });
+  client.get<APIResponse<PageData<InventoryItem>>>("/inventories/", { params });
 
 export const createProductInventory = (data: { product_id: number; warehouse_id: number; quantity: number; safety_stock?: number; unit_price?: number }) =>
-  client.post<APIResponse>("/products/inventories", data);
+  client.post<APIResponse>("/inventories/", data);
 
 export const updateProductInventory = (id: number, data: { quantity?: number; safety_stock?: number; unit_price?: number }) =>
-  client.put<APIResponse>(`/products/inventories/${id}`, data);
+  client.put<APIResponse>(`/inventories/${id}`, data);
 
 export const deleteProductInventory = (id: number) =>
-  client.delete<APIResponse>(`/products/inventories/${id}`);
+  client.delete<APIResponse>(`/inventories/${id}`);
 
 // Product AI
 export const aiParseProduct = (text: string) =>

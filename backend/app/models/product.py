@@ -45,6 +45,8 @@ class Brand(TimestampMixin, Base):
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     alternative_brands: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
     products = relationship("Product", back_populates="brand", lazy="selectin")
@@ -87,6 +89,8 @@ class Supplier(TimestampMixin, Base):
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     financial_rating: Mapped[str | None] = mapped_column(String(10), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     supplier_products = relationship("SupplierProduct", foreign_keys="SupplierProduct.supplier_id", lazy="selectin")
 
@@ -97,6 +101,8 @@ class Warehouse(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100))
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
 class Inventory(TimestampMixin, Base):
@@ -108,6 +114,8 @@ class Inventory(TimestampMixin, Base):
     safety_stock: Mapped[int] = mapped_column(default=0)
     locked_quantity: Mapped[int] = mapped_column(default=0)
     unit_price: Mapped[float | None] = mapped_column(default=None)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
 class InventoryTransaction(TimestampMixin, Base):
@@ -135,3 +143,5 @@ class SupplierProduct(TimestampMixin, Base):
     spq: Mapped[int | None] = mapped_column(nullable=True)  # standard package quantity
     is_preferred: Mapped[bool] = mapped_column(default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
