@@ -174,13 +174,37 @@ async def import_entity(
                 )
                 db.add(c)
             elif entity == "products":
+                # Brand name → brand_id mapping
+                brand_name_raw = (row_dict.get("brand") or row_dict.get("品牌") or "").strip()
+                brand_id_val: int | None = None
+                if brand_name_raw:
+                    # Load all brands once for this import batch
+                    if not hasattr(import_entity, "_brand_cache"):
+                        brands_result = await db.execute(
+                            select(Brand).where(Brand.deleted_at.is_(None))
+                        )
+                        import_entity._brand_cache = {
+                            (b.name or "").lower(): b.id
+                            for b in brands_result.scalars().all()
+                        }
+                        import_entity._brand_cn_cache = {
+                            (b.name_cn or "").lower(): b.id
+                            for b in brands_result.scalars().all()
+                        }
+                    cache = import_entity._brand_cache  # type: ignore
+                    cn_cache = import_entity._brand_cn_cache  # type: ignore
+                    brand_id_val = cache.get(brand_name_raw.lower()) or cn_cache.get(brand_name_raw.lower())
+
                 p = Product(
                     name=row_dict.get("name", row_dict.get("名称", "")),
                     sku=row_dict.get("sku", ""),
-                    category=row_dict.get("category", ""),
-                    cost_price=float(row_dict.get("cost_price", 0)),
-                    selling_price=float(row_dict.get("selling_price", 0)),
-                    unit=row_dict.get("unit", "pcs"),
+                    category=row_dict.get("category", row_dict.get("分类", "")),
+                    brand_id=brand_id_val,
+                    package_type=row_dict.get("package_type", row_dict.get("封装", "")),
+                    specs=row_dict.get("specs", row_dict.get("规格", "")),
+                    unit=row_dict.get("unit", row_dict.get("单位", "pcs")),
+                    notes=row_dict.get("notes", row_dict.get("备注", "")),
+                    image_url=row_dict.get("image_url", row_dict.get("图片", "")),
                 )
                 db.add(p)
             elif entity == "suppliers":

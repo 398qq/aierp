@@ -5,20 +5,19 @@ import io
 import os
 import re
 import unicodedata
-import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import Integer, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.customer import AlertEvent, AlertRule, Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog, CustomerTag, LevelRule, customer_tag_table
+from app.models.customer import Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog
 from app.schemas.common import fail, ok
-from app.services.customer_service import calc_health, calc_lifecycle, detect_duplicates as detect_dups
+from app.services.customer_service import calc_health, detect_duplicates as detect_dups
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)

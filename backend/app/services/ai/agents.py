@@ -87,6 +87,14 @@ def _extract_contact_person(text: str) -> str:
         zh_match = re.match(r"([\u4e00-\u9fa5·]{2,4})\s*(?:/|-|,|，|\s)*", line)
         if zh_match:
             return zh_match.group(1)
+        title_words = {title.lower() for title in BUSINESS_CARD_TITLES if re.fullmatch(r"[A-Za-z]+", title)}
+        name_words = []
+        for word in re.findall(r"[A-Z][A-Za-z]+", line):
+            if word.lower() in title_words:
+                break
+            name_words.append(word)
+        if name_words:
+            return " ".join(name_words[:3])
         en_match = re.match(r"([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})", line)
         if en_match:
             return en_match.group(1)

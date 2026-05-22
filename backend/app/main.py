@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from importlib import import_module
 import time
 
 from fastapi import FastAPI
@@ -17,17 +18,20 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.database import engine, init_db
 from app.services.cache_service import get_redis
 
-# Import all models so Base.metadata knows about every table
-import app.models.account  # noqa: F401
-import app.models.approval  # noqa: F401
-import app.models.customer  # noqa: F401
-import app.models.finance  # noqa: F401
-import app.models.product  # noqa: F401
-import app.models.rbac  # noqa: F401
-import app.models.report  # noqa: F401
-import app.models.sales  # noqa: F401
-import app.models.transaction  # noqa: F401
-import app.models.user  # noqa: F401
+# Import all models so Base.metadata knows about every table.
+for _model_module in (
+    "app.models.account",
+    "app.models.approval",
+    "app.models.customer",
+    "app.models.finance",
+    "app.models.product",
+    "app.models.rbac",
+    "app.models.report",
+    "app.models.sales",
+    "app.models.transaction",
+    "app.models.user",
+):
+    import_module(_model_module)
 
 
 @asynccontextmanager

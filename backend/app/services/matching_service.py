@@ -64,19 +64,6 @@ async def recommend_products_for_customer(db: AsyncSession, customer_id: int, to
             .limit(20)
         )).all()
 
-        sc_ids = [r[0] for r in sc_rows]
-        if sc_ids:
-            sc_names = dict((await db.execute(
-                select(Customer.id, Customer.name, Customer.industry)
-                .where(Customer.id.in_(sc_ids), Customer.deleted_at.is_(None))
-            )).all() or [])
-
-            [
-                {"id": r[0], "name": sc_names.get(r[0], {}).get("name", f"#{r[0]}") if isinstance(sc_names.get(r[0]), dict) else (sc_names.get(r[0], f"#{r[0]}") if sc_names else f"#{r[0]}"),
-                 "industry": "", "shared_products": r[1]}
-                for r in sc_rows[:10]
-            ]
-
     # Products bought by similar customers but not by this customer
     if bought_pids:
         sc_product_ids = set(
