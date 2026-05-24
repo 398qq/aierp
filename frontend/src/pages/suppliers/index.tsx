@@ -16,7 +16,7 @@ import {
   ToolOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { createSupplier, getSuppliers, updateSupplier } from "../../api";
+import { createSupplier, getSupplierStats, getSuppliers, updateSupplier } from "../../api";
 import client from "../../api/client";
 import type { Supplier } from "../../types";
 
@@ -26,6 +26,20 @@ const SUPPLIER_TYPES = ["原厂", "代理商", "贸易商", "OEM", "代工厂", 
 const PAGE_SIZE = 20;
 
 type SupplierTaskKey = "all" | "factory" | "agency" | "missing_contact" | "missing_profile" | "rated" | "overseas";
+
+interface SupplierStats {
+  total: number;
+  certified: number;
+  rated: number;
+  recent_30d: number;
+  missing_contact: number;
+  missing_profile: number;
+  overseas: number;
+  by_type: { type: string; count: number }[];
+  by_region: { region: string; count: number }[];
+  by_rating: { rating: string; count: number }[];
+  top_suppliers: { id: number; name: string; product_count: number }[];
+}
 
 const TASK_LABELS: Record<SupplierTaskKey, string> = {
   all: "全部供应商",
@@ -40,12 +54,25 @@ const TASK_LABELS: Record<SupplierTaskKey, string> = {
 const hasContact = (supplier: Supplier) => Boolean(supplier.contact_person || supplier.phone || supplier.email);
 const isOverseas = (supplier: Supplier) => /海外|香港|台湾|新加坡|美国|欧洲|日本|韩国/i.test(supplier.region || supplier.address || "");
 
+const normalizeSupplierType = (value?: string | null) => {
+  if (!value) return "";
+  const normalized: Record<string, string> = {
+    agency: "代理商",
+    agent: "代理商",
+    factory: "原厂",
+    manufacturer: "原厂",
+    trader: "贸易商",
+    trade: "贸易商",
+  };
+  return normalized[value.toLowerCase()] || value;
+};
+
 const getSupplierCompletion = (supplier: Supplier) => {
   const fields = [
     supplier.name,
     supplier.contact_person,
     supplier.phone || supplier.email,
-    supplier.supplier_type,
+    normalizeSupplierType(supplier.supplier_type),
     supplier.product_lines,
     supplier.region,
     supplier.payment_terms,
@@ -59,7 +86,7 @@ const getMissingFields = (supplier: Supplier) => {
   const missing: string[] = [];
   if (!supplier.contact_person) missing.push("联系人");
   if (!supplier.phone && !supplier.email) missing.push("联系方式");
-  if (!supplier.supplier_type) missing.push("类型");
+  if (!normalizeSupplierType(supplier.supplier_type)) missing.push("类型");
   if (!supplier.product_lines) missing.push("产品线");
   if (!supplier.region) missing.push("区域");
   if (!supplier.payment_terms) missing.push("付款条件");
@@ -80,6 +107,7 @@ const isFormValidationError = (error: unknown) => Boolean(error && typeof error 
 
 export default function SupplierList() {
   const [data, setData] = useState<Supplier[]>([]);
+  const [stats, setStats] = useState<SupplierStats | null>(null);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -102,6 +130,7 @@ export default function SupplierList() {
 
   const navigate = useNavigate();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const searchReadyRef = useRef(false);
 
   const fetch = async (p = page, q = search, st = supplierType) => {
     setLoading(true);
@@ -119,9 +148,24 @@ export default function SupplierList() {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const resp = await getSupplierStats();
+      setStats(resp.data.data as unknown as SupplierStats);
+    } catch {
+      setStats(null);
+    }
+  };
+
   useEffect(() => { fetch(); }, [page, supplierType]);
 
+  useEffect(() => { fetchStats(); }, []);
+
   useEffect(() => {
+    if (!searchReadyRef.current) {
+      searchReadyRef.current = true;
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setPage(1);
@@ -132,11 +176,16 @@ export default function SupplierList() {
     };
   }, [search]);
 
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [page, search, supplierType, task]);
+
   const supplierMatchesTask = (supplier: Supplier, key: SupplierTaskKey) => {
     const completion = getSupplierCompletion(supplier);
+    const normalizedType = normalizeSupplierType(supplier.supplier_type);
     if (key === "all") return true;
-    if (key === "factory") return supplier.supplier_type === "原厂";
-    if (key === "agency") return supplier.supplier_type === "代理商";
+    if (key === "factory") return normalizedType === "原厂";
+    if (key === "agency") return normalizedType === "代理商";
     if (key === "missing_contact") return !hasContact(supplier);
     if (key === "missing_profile") return completion < 80 || getMissingFields(supplier).length > 0;
     if (key === "rated") return Boolean(supplier.financial_rating);
@@ -161,7 +210,8 @@ export default function SupplierList() {
     let rated = 0;
     let overseas = 0;
     for (const item of data) {
-      if (item.supplier_type) typeCounts.set(item.supplier_type, (typeCounts.get(item.supplier_type) || 0) + 1);
+      const normalizedType = normalizeSupplierType(item.supplier_type);
+      if (normalizedType) typeCounts.set(normalizedType, (typeCounts.get(normalizedType) || 0) + 1);
       if (!hasContact(item)) missingContact += 1;
       if (getSupplierCompletion(item) < 80 || getMissingFields(item).length > 0) missingProfile += 1;
       if (item.financial_rating) rated += 1;
@@ -178,14 +228,26 @@ export default function SupplierList() {
   }, [data]);
 
   const taskItems = useMemo(() => [
-    { key: "all" as SupplierTaskKey, label: TASK_LABELS.all, count: total, color: "default", note: "完整供应商清单" },
+    { key: "all" as SupplierTaskKey, label: TASK_LABELS.all, count: data.length, color: "default", note: "当前页供应商" },
     { key: "factory" as SupplierTaskKey, label: TASK_LABELS.factory, count: summary.factory, color: "blue", note: "原厂与直接资源" },
     { key: "agency" as SupplierTaskKey, label: TASK_LABELS.agency, count: summary.agency, color: "cyan", note: "代理商渠道" },
     { key: "missing_contact" as SupplierTaskKey, label: TASK_LABELS.missing_contact, count: summary.missingContact, color: "red", note: "无法快速联系" },
     { key: "missing_profile" as SupplierTaskKey, label: TASK_LABELS.missing_profile, count: summary.missingProfile, color: "orange", note: "主数据缺字段" },
     { key: "rated" as SupplierTaskKey, label: TASK_LABELS.rated, count: summary.rated, color: "green", note: "已有财务评级" },
     { key: "overseas" as SupplierTaskKey, label: TASK_LABELS.overseas, count: summary.overseas, color: "purple", note: "海外与跨境资源" },
-  ], [summary, total]);
+  ], [data.length, summary]);
+
+  const globalSummary = useMemo(() => {
+    const factory = stats?.by_type.find((item) => item.type === "原厂")?.count ?? summary.factory;
+    return {
+      total: stats?.total ?? total,
+      factory,
+      missingContact: stats?.missing_contact ?? summary.missingContact,
+      missingProfile: stats?.missing_profile ?? summary.missingProfile,
+      certified: stats?.certified ?? 0,
+      rated: stats?.rated ?? summary.rated,
+    };
+  }, [stats, summary, total]);
 
   const resetFilters = () => {
     setSearch("");
@@ -211,6 +273,7 @@ export default function SupplierList() {
       createForm.resetFields();
       setPage(1);
       fetch(1);
+      fetchStats();
     } catch (error) {
       if (!isFormValidationError(error)) message.error("创建失败");
     } finally {
@@ -220,7 +283,7 @@ export default function SupplierList() {
 
   const openEdit = (record: Supplier) => {
     setEditRecord(record);
-    editForm.setFieldsValue(record);
+    editForm.setFieldsValue({ ...record, supplier_type: normalizeSupplierType(record.supplier_type) || undefined });
     setEditOpen(true);
   };
 
@@ -235,6 +298,7 @@ export default function SupplierList() {
       editForm.resetFields();
       setEditRecord(null);
       fetch();
+      fetchStats();
     } catch (error) {
       if (!isFormValidationError(error)) message.error("更新失败");
     } finally {
@@ -247,6 +311,7 @@ export default function SupplierList() {
       await client.delete(`/suppliers/${id}`);
       message.success("已删除");
       fetch();
+      fetchStats();
     } catch {
       message.error("删除失败");
     }
@@ -270,6 +335,7 @@ export default function SupplierList() {
     if (failed === 0) message.success(`已删除 ${success} 条`);
     else message.warning(`删除 ${success} 条，失败 ${failed} 条`);
     fetch();
+    fetchStats();
   };
 
   const handleExport = () => {
@@ -277,7 +343,7 @@ export default function SupplierList() {
     const rows = visibleData.map((s) => [
       s.id, s.name, s.contact_person || "", s.phone || "",
       s.email || "", s.address || "", s.product_lines || "",
-      s.supplier_type || "", s.financial_rating || "", s.region || "", s.notes || "", s.created_at?.slice(0, 10) || "",
+      normalizeSupplierType(s.supplier_type), s.financial_rating || "", s.region || "", s.notes || "", s.created_at?.slice(0, 10) || "",
     ]);
     const csv = [headers, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
@@ -300,12 +366,12 @@ export default function SupplierList() {
       fixed: "left",
       render: (v, r) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => navigate(`/suppliers/${r.id}`)}>{v}</a>
-          <Text type="secondary" style={{ fontSize: 12 }}>{r.region || r.supplier_type || "-"}</Text>
+          <a onClick={(event) => { event.stopPropagation(); navigate(`/suppliers/${r.id}`); }}>{v}</a>
+          <Text type="secondary" style={{ fontSize: 12 }}>{r.region || normalizeSupplierType(r.supplier_type) || "-"}</Text>
         </Space>
       ),
     },
-    { title: "类型", dataIndex: "supplier_type", width: 100, render: (v) => v ? <Tag>{v}</Tag> : "-" },
+    { title: "类型", dataIndex: "supplier_type", width: 100, render: (v) => normalizeSupplierType(v) ? <Tag>{normalizeSupplierType(v)}</Tag> : "-" },
     { title: "联系人", dataIndex: "contact_person", width: 100, render: (v) => v || "-" },
     { title: "电话", dataIndex: "phone", width: 130, render: (v) => v || "-" },
     { title: "邮箱", dataIndex: "email", width: 180, ellipsis: true, render: (v) => v || "-" },
@@ -337,7 +403,7 @@ export default function SupplierList() {
       width: 150,
       fixed: "right",
       render: (_: unknown, r: Supplier) => (
-        <Space size={4}>
+        <Space size={4} onClick={(event) => event.stopPropagation()}>
           <Tooltip title="详情">
             <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/suppliers/${r.id}`)} />
           </Tooltip>
@@ -550,7 +616,7 @@ export default function SupplierList() {
               <span>供应商管理工作台</span>
             </div>
             <div className="supplier-health-note">
-              统一维护供应商主数据、联系人、产品线、评级、认证和区域信息，优先补齐影响询价与采购决策的缺口。
+              统一维护供应商主数据、联系人、产品线、评级、认证和区域信息。顶部为全量概览，左侧队列聚焦当前页待办。
             </div>
           </div>
           <div className="supplier-health-actions">
@@ -560,20 +626,20 @@ export default function SupplierList() {
           </div>
         </div>
         <div className="supplier-health-metric" onClick={() => setTask("all")}>
-          <span className="supplier-health-label">供应商总数</span>
-          <span className="supplier-health-value">{total}<small>家</small></span>
+          <span className="supplier-health-label">全量供应商</span>
+          <span className="supplier-health-value">{globalSummary.total}<small>家</small></span>
         </div>
         <div className="supplier-health-metric" onClick={() => setTask("factory")}>
-          <span className="supplier-health-label">原厂资源</span>
-          <span className="supplier-health-value">{summary.factory}<small>家</small></span>
+          <span className="supplier-health-label">全量原厂资源</span>
+          <span className="supplier-health-value">{globalSummary.factory}<small>家</small></span>
         </div>
         <div className="supplier-health-metric" onClick={() => setTask("missing_contact")}>
-          <span className="supplier-health-label">缺联系人</span>
-          <span className="supplier-health-value">{summary.missingContact}<small>家</small></span>
+          <span className="supplier-health-label">全量缺联系人</span>
+          <span className="supplier-health-value">{globalSummary.missingContact}<small>家</small></span>
         </div>
         <div className="supplier-health-metric" onClick={() => setTask("missing_profile")}>
-          <span className="supplier-health-label">资料待完善</span>
-          <span className="supplier-health-value">{summary.missingProfile}<small>家</small></span>
+          <span className="supplier-health-label">全量资料待完善</span>
+          <span className="supplier-health-value">{globalSummary.missingProfile}<small>家</small></span>
         </div>
       </div>
 
@@ -583,7 +649,7 @@ export default function SupplierList() {
             <div className="supplier-panel-head">
               <Space size={6}>
                 <AuditOutlined />
-                <Text strong>运营队列</Text>
+                <Text strong>当前页队列</Text>
               </Space>
             </div>
             {taskItems.map((item) => (
@@ -707,7 +773,7 @@ export default function SupplierList() {
                 <div className="supplier-context-title">
                   <div>
                     <a style={{ fontWeight: 600 }} onClick={() => navigate(`/suppliers/${activeSupplier.id}`)}>{activeSupplier.name}</a>
-                    <div className="supplier-context-note">{activeSupplier.supplier_type || "未分类"} · {activeSupplier.region || "未维护区域"}</div>
+                    <div className="supplier-context-note">{normalizeSupplierType(activeSupplier.supplier_type) || "未分类"} · {activeSupplier.region || "未维护区域"}</div>
                   </div>
                   {activeSupplier.financial_rating && <Tag color="green">{activeSupplier.financial_rating}</Tag>}
                 </div>

@@ -1,9 +1,9 @@
 """Suppliers CRUD API."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -50,6 +50,7 @@ class SupplierUpdate(BaseModel):
 
 
 def _supplier_to_dict(s: Supplier) -> dict:
+    supplier_type = _normalize_supplier_type(s.supplier_type)
     return {
         "id": s.id,
         "name": s.name,
@@ -59,7 +60,7 @@ def _supplier_to_dict(s: Supplier) -> dict:
         "address": s.address,
         "product_lines": s.product_lines,
         "notes": s.notes,
-        "supplier_type": s.supplier_type,
+        "supplier_type": None if supplier_type == "未维护" else supplier_type,
         "certifications": s.certifications,
         "payment_terms": s.payment_terms,
         "region": s.region,
@@ -68,6 +69,63 @@ def _supplier_to_dict(s: Supplier) -> dict:
         "created_at": s.created_at,
         "updated_at": s.updated_at,
     }
+
+
+def _normalize_supplier_type(value: str | None) -> str:
+    if not value:
+        return "未维护"
+    value_map = {
+        "agency": "代理商",
+        "agent": "代理商",
+        "factory": "原厂",
+        "manufacturer": "原厂",
+        "trader": "贸易商",
+        "trade": "贸易商",
+    }
+    return value_map.get(value.lower(), value)
+
+
+def _supplier_type_filter_values(value: str) -> list[str]:
+    aliases = {
+        "代理商": ["代理商", "agency", "agent"],
+        "原厂": ["原厂", "factory", "manufacturer"],
+        "贸易商": ["贸易商", "trader", "trade"],
+    }
+    return aliases.get(value, [value])
+
+
+def _merge_supplier_type_counts(rows: list[dict]) -> list[dict]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        key = _normalize_supplier_type(row.get("type"))
+        counts[key] = counts.get(key, 0) + int(row["count"])
+    return [{"type": key, "count": count} for key, count in sorted(counts.items(), key=lambda item: item[1], reverse=True)]
+
+
+def _filled(column):
+    return and_(column.is_not(None), func.trim(column) != "")
+
+
+def _empty(column):
+    return or_(column.is_(None), func.trim(column) == "")
+
+
+async def _count_suppliers(db: AsyncSession, *conditions) -> int:
+    query = select(func.count()).select_from(Supplier).where(Supplier.deleted_at.is_(None), *conditions)
+    return (await db.execute(query)).scalar() or 0
+
+
+async def _count_by_supplier_field(db: AsyncSession, column, label: str) -> list[dict]:
+    grouped_value = func.coalesce(column, "未维护")
+    query = (
+        select(grouped_value.label(label), func.count().label("count"))
+        .select_from(Supplier)
+        .where(Supplier.deleted_at.is_(None))
+        .group_by(grouped_value)
+        .order_by(func.count().desc())
+    )
+    rows = (await db.execute(query)).all()
+    return [{label: value or "未维护", "count": count} for value, count in rows]
 
 
 # --- CRUD ---
@@ -96,7 +154,7 @@ async def list_suppliers(
     if region:
         query = query.where(Supplier.region == region)
     if supplier_type:
-        query = query.where(Supplier.supplier_type == supplier_type)
+        query = query.where(Supplier.supplier_type.in_(_supplier_type_filter_values(supplier_type)))
 
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -106,6 +164,77 @@ async def list_suppliers(
     rows = (await db.execute(query)).scalars().all()
 
     return ok({"list": [_supplier_to_dict(r) for r in rows], "total": total, "page": page, "page_size": page_size})
+
+
+@suppliers_router.get("/stats/summary")
+async def supplier_stats_summary(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    del current_user
+
+    total = await _count_suppliers(db)
+    certified = await _count_suppliers(db, _filled(Supplier.certifications))
+    rated = await _count_suppliers(db, _filled(Supplier.financial_rating))
+    recent_30d = await _count_suppliers(db, Supplier.created_at >= datetime.now(timezone.utc) - timedelta(days=30))
+    missing_contact = await _count_suppliers(
+        db,
+        _empty(Supplier.contact_person),
+        _empty(Supplier.phone),
+        _empty(Supplier.email),
+    )
+    missing_profile = await _count_suppliers(
+        db,
+        or_(
+            _empty(Supplier.contact_person),
+            and_(_empty(Supplier.phone), _empty(Supplier.email)),
+            _empty(Supplier.supplier_type),
+            _empty(Supplier.product_lines),
+            _empty(Supplier.region),
+            _empty(Supplier.payment_terms),
+            _empty(Supplier.financial_rating),
+            _empty(Supplier.certifications),
+        ),
+    )
+    overseas_terms = ["海外", "香港", "台湾", "新加坡", "美国", "欧洲", "日本", "韩国"]
+    overseas = await _count_suppliers(
+        db,
+        or_(*[
+            condition
+            for term in overseas_terms
+            for condition in (Supplier.region.ilike(f"%{term}%"), Supplier.address.ilike(f"%{term}%"))
+        ]),
+    )
+
+    top_query = (
+        select(Supplier.id, Supplier.name, func.count(SupplierProduct.id).label("product_count"))
+        .select_from(Supplier)
+        .outerjoin(SupplierProduct, SupplierProduct.supplier_id == Supplier.id)
+        .where(Supplier.deleted_at.is_(None))
+        .group_by(Supplier.id, Supplier.name)
+        .order_by(func.count(SupplierProduct.id).desc(), Supplier.created_at.desc())
+        .limit(10)
+    )
+    top_rows = (await db.execute(top_query)).all()
+
+    by_type = _merge_supplier_type_counts(await _count_by_supplier_field(db, Supplier.supplier_type, "type"))
+
+    return ok({
+        "total": total,
+        "certified": certified,
+        "rated": rated,
+        "recent_30d": recent_30d,
+        "missing_contact": missing_contact,
+        "missing_profile": missing_profile,
+        "overseas": overseas,
+        "by_type": by_type,
+        "by_region": await _count_by_supplier_field(db, Supplier.region, "region"),
+        "by_rating": await _count_by_supplier_field(db, Supplier.financial_rating, "rating"),
+        "top_suppliers": [
+            {"id": supplier_id, "name": name, "product_count": product_count}
+            for supplier_id, name, product_count in top_rows
+        ],
+    })
 
 
 @suppliers_router.get("/{supplier_id}")
