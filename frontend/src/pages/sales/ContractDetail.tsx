@@ -4,6 +4,7 @@ import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty } from "antd
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getContract } from "../../api";
 import type { Contract } from "../../types";
+import { CustomerLink } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, signed: { color: "blue", label: "已签署" },
@@ -37,7 +38,7 @@ export default function ContractDetail() {
         <Descriptions column={2} size="small">
           <Descriptions.Item label="标题">{ct.title}</Descriptions.Item>
           <Descriptions.Item label="金额">¥{ct.amount.toLocaleString()}</Descriptions.Item>
-          <Descriptions.Item label="客户ID">{ct.customer_id}</Descriptions.Item>
+          <Descriptions.Item label="客户"><CustomerLink id={ct.customer_id} /></Descriptions.Item>
           <Descriptions.Item label="关联订单">{ct.sales_order_id || "-"}</Descriptions.Item>
           <Descriptions.Item label="签署日期">{ct.signed_date?.slice(0, 10) || "-"}</Descriptions.Item>
           <Descriptions.Item label="到期日期">{ct.expire_date?.slice(0, 10) || "-"}</Descriptions.Item>

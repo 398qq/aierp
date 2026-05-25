@@ -1,21 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
-import { getInvoice, createInvoice, updateInvoice, getCustomers, getSalesOrders } from "../../api";
+import { getInvoice, createInvoice, updateInvoice, getSalesOrders } from "../../api";
 import dayjs from "dayjs";
-import type { Customer, SalesOrder } from "../../types";
+import type { SalesOrder } from "../../types";
+import { CustomerSelect, shortDate } from "./salesUi";
 
 export default function InvoiceForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const isEdit = !!id;
 
   useEffect(() => {
-    getCustomers({ page: 1, page_size: 200 }).then((r) => setCustomers(r.data.data.list || []));
     getSalesOrders({ page: 1, page_size: 100 }).then((r) => setOrders(r.data.data.list || []));
     if (isEdit) {
       getInvoice(Number(id)).then((r) => {
@@ -23,7 +22,18 @@ export default function InvoiceForm() {
         form.setFieldsValue({ ...inv, invoice_date: inv.invoice_date ? dayjs(inv.invoice_date) : null });
       });
     }
-  }, [id]);
+  }, [form, id, isEdit]);
+
+  const orderById = useMemo(() => new Map(orders.map((order) => [order.id, order])), [orders]);
+
+  const applyOrder = (orderId?: number) => {
+    const order = orderById.get(Number(orderId));
+    if (!order) return;
+    form.setFieldsValue({
+      customer_id: order.customer_id,
+      amount: form.getFieldValue("amount") ?? order.total_amount,
+    });
+  };
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
@@ -40,10 +50,19 @@ export default function InvoiceForm() {
     <Card title={isEdit ? "编辑发票" : "新增发票"}>
       <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft", invoice_type: "普通发票" }}>
         <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-          <Select showSearch placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+          <CustomerSelect />
         </Form.Item>
         <Form.Item name="sales_order_id" label="关联销售订单" rules={[{ required: true }]}>
-          <Select showSearch placeholder="选择订单" options={orders.map((o) => ({ value: o.id, label: o.order_no || `#${o.id}` }))} />
+          <Select
+            showSearch
+            placeholder="选择订单"
+            optionFilterProp="label"
+            onChange={applyOrder}
+            options={orders.map((order) => ({
+              value: order.id,
+              label: `${order.order_no || `#${order.id}`} / 客户 #${order.customer_id} / ${shortDate(order.delivery_date)}`,
+            }))}
+          />
         </Form.Item>
         <Form.Item name="invoice_no" label="发票号"><Input placeholder="留空自动生成" /></Form.Item>
         <Form.Item name="amount" label="金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>

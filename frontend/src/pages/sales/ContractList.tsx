@@ -6,6 +6,7 @@ import type { UploadFile } from "antd/es/upload/interface";
 import { getContracts, deleteContract, importContractPDF } from "../../api";
 import client from "../../api/client";
 import type { Contract } from "../../types";
+import { CustomerLink, CustomerSelect } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, signed: { color: "blue", label: "已签署" },
@@ -18,6 +19,7 @@ export default function ContractList() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>();
+  const [customerId, setCustomerId] = useState<number | undefined>();
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<UploadFile | null>(null);
   const [importing, setImporting] = useState(false);
@@ -33,6 +35,7 @@ export default function ContractList() {
     try {
       const params: Record<string, unknown> = { page, page_size: 20 };
       if (status) params.status = status;
+      if (customerId) params.customer_id = customerId;
       const resp = await getContracts(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
@@ -40,7 +43,7 @@ export default function ContractList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, status]);
+  useEffect(() => { load(); }, [page, status, customerId]);
 
   return (
     <div>
@@ -52,12 +55,16 @@ export default function ContractList() {
         <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
           { value: "draft", label: "草稿" }, { value: "signed", label: "已签署" }, { value: "active", label: "履行中" },
         ]} />
+        <div style={{ width: 280 }}>
+          <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+        </div>
       </Space>
       <Table
         rowKey="id" loading={loading} dataSource={data}
         columns={[
           { title: "合同号", dataIndex: "contract_no", width: 140, render: (v: string, r: Contract) => <a onClick={() => navigate(`/sales/contracts/${r.id}`)}>{v || `#${r.id}`}</a> },
           { title: "标题", dataIndex: "title", ellipsis: true },
+          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
           { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
           { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
           { title: "签署日期", dataIndex: "signed_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },

@@ -1,21 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
-import { getPayment, createPayment, updatePayment, getCustomers, getSalesOrders } from "../../api";
+import { getPayment, createPayment, updatePayment, getSalesOrders } from "../../api";
 import dayjs from "dayjs";
-import type { Customer, SalesOrder } from "../../types";
+import type { SalesOrder } from "../../types";
+import { CustomerSelect, shortDate } from "./salesUi";
 
 export default function PaymentForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const isEdit = !!id;
 
   useEffect(() => {
-    getCustomers({ page: 1, page_size: 200 }).then((r) => setCustomers(r.data.data.list || []));
     getSalesOrders({ page: 1, page_size: 100 }).then((r) => setOrders(r.data.data.list || []));
     if (isEdit) {
       getPayment(Number(id)).then((r) => {
@@ -23,7 +22,18 @@ export default function PaymentForm() {
         form.setFieldsValue({ ...p, payment_date: p.payment_date ? dayjs(p.payment_date) : null });
       });
     }
-  }, [id]);
+  }, [form, id, isEdit]);
+
+  const orderById = useMemo(() => new Map(orders.map((order) => [order.id, order])), [orders]);
+
+  const applyOrder = (orderId?: number) => {
+    const order = orderById.get(Number(orderId));
+    if (!order) return;
+    form.setFieldsValue({
+      customer_id: order.customer_id,
+      amount: form.getFieldValue("amount") ?? order.total_amount,
+    });
+  };
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
@@ -40,10 +50,19 @@ export default function PaymentForm() {
     <Card title={isEdit ? "编辑回款" : "新增回款"}>
       <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", payment_method: "bank" }}>
         <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-          <Select showSearch placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+          <CustomerSelect />
         </Form.Item>
         <Form.Item name="sales_order_id" label="关联销售订单" rules={[{ required: true }]}>
-          <Select showSearch placeholder="选择订单" options={orders.map((o) => ({ value: o.id, label: o.order_no || `#${o.id}` }))} />
+          <Select
+            showSearch
+            placeholder="选择订单"
+            optionFilterProp="label"
+            onChange={applyOrder}
+            options={orders.map((order) => ({
+              value: order.id,
+              label: `${order.order_no || `#${order.id}`} / 客户 #${order.customer_id} / ${shortDate(order.delivery_date)}`,
+            }))}
+          />
         </Form.Item>
         <Form.Item name="amount" label="金额" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
         <Form.Item name="payment_method" label="付款方式">

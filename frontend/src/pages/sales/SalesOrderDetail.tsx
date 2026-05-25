@@ -5,6 +5,7 @@ import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { SalesOrder } from "../../types";
+import { CustomerLink } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   pending: { color: "default", label: "待处理" }, confirmed: { color: "blue", label: "已确认" },
@@ -53,6 +54,7 @@ export default function SalesOrderDetail() {
 
       <Card title={order.order_no || `订单 #${order.id}`} extra={<Tag color={STATUS[order.status]?.color}>{STATUS[order.status]?.label || order.status}</Tag>}>
         <Descriptions column={2} size="small">
+          <Descriptions.Item label="客户"><CustomerLink id={order.customer_id} /></Descriptions.Item>
           <Descriptions.Item label="总金额">¥{order.total_amount.toLocaleString()}</Descriptions.Item>
           <Descriptions.Item label="下单日期">{order.order_date?.slice(0, 10) || "-"}</Descriptions.Item>
           <Descriptions.Item label="预计交货">{order.delivery_date?.slice(0, 10) || "-"}</Descriptions.Item>

@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Card, Form, Input, Select, Button, Space, Tag, Table, Typography,
+  Card, Form, Input, Button, Space, Tag, Table, Typography,
   message, Spin, Alert, Badge, Row, Col, Modal,
 } from "antd";
 import {
   SendOutlined, HistoryOutlined, CheckCircleOutlined,
   WarningOutlined, ExclamationCircleOutlined, RobotOutlined, FileTextOutlined,
 } from "@ant-design/icons";
-import { inquiryAutoReply, getInquiries, getCustomers, createQuotationFromInquiry, type InquiryAutoReplyResponse, type InquiryRecord, type InquiryMatchedProduct, type InquiryAlternative } from "../../api";
-import type { Customer } from "../../types";
+import { inquiryAutoReply, getInquiries, createQuotationFromInquiry, type InquiryAutoReplyResponse, type InquiryRecord, type InquiryMatchedProduct, type InquiryAlternative } from "../../api";
 import dayjs from "dayjs";
+import { CustomerSelect } from "./salesUi";
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -46,7 +46,6 @@ function StockStatusTag({ status }: { status: string }) {
 
 export default function InquiryAutoReply() {
   const [form] = Form.useForm();
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<InquiryAutoReplyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,9 +55,6 @@ export default function InquiryAutoReply() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    getCustomers({ page: 1, page_size: 200 })
-      .then((r) => setCustomers(r.data.data.list || []))
-      .catch(() => {/* ignore */});
     fetchHistory();
   }, []);
 
@@ -230,13 +226,7 @@ export default function InquiryAutoReply() {
             </Col>
             <Col span={8}>
               <Form.Item name="customer_id" label="客户（可选）">
-                <Select
-                  showSearch
-                  allowClear
-                  placeholder="选择已有客户"
-                  optionFilterProp="label"
-                  options={customers.map((c) => ({ value: c.id, label: c.name }))}
-                />
+                <CustomerSelect />
               </Form.Item>
               <Form.Item name="contact_name" label="联系人（可选）">
                 <Input placeholder="手动输入联系人姓名" />

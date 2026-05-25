@@ -5,7 +5,7 @@ import { CarOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-
 import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { SalesOrder } from "../../types";
-import { MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
 
 export default function SalesOrderList() {
   const [data, setData] = useState<SalesOrder[]>([]);
@@ -121,7 +121,10 @@ export default function SalesOrderList() {
               render: (value: string | null, record: SalesOrder) => (
                 <Space direction="vertical" size={0}>
                   <a onClick={() => navigate(`/sales/orders/${record.id}`)}>{value || `#${record.id}`}</a>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>客户 #{record.customer_id} / 产品行 {record.items?.length || 0}</Typography.Text>
+                  <Space size={8}>
+                    <CustomerLink id={record.customer_id} />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>产品行 {record.items?.length || 0}</Typography.Text>
+                  </Space>
                 </Space>
               ),
             },

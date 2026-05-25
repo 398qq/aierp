@@ -4,6 +4,7 @@ import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty } from "antd
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getInvoice } from "../../api";
 import type { Invoice } from "../../types";
+import { CustomerLink } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, issued: { color: "blue", label: "已开票" },
@@ -39,7 +40,7 @@ export default function InvoiceDetail() {
           <Descriptions.Item label="税额">¥{inv.tax_amount.toLocaleString()}</Descriptions.Item>
           <Descriptions.Item label="类型">{inv.invoice_type}</Descriptions.Item>
           <Descriptions.Item label="关联订单">{inv.sales_order_id}</Descriptions.Item>
-          <Descriptions.Item label="客户ID">{inv.customer_id}</Descriptions.Item>
+          <Descriptions.Item label="客户"><CustomerLink id={inv.customer_id} /></Descriptions.Item>
           <Descriptions.Item label="开票日期">{inv.invoice_date?.slice(0, 10) || "-"}</Descriptions.Item>
           <Descriptions.Item label="备注" span={2}>{inv.notes || "-"}</Descriptions.Item>
         </Descriptions>

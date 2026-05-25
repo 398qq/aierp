@@ -6,6 +6,7 @@ import { getQuotation, convertQuotationToOrder, downloadQuotationPDF, sendQuotat
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation } from "../../types";
+import { CustomerLink } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, sent: { color: "blue", label: "已发送" },
@@ -61,6 +62,7 @@ export default function QuotationDetail() {
       <Card title={quote.quotation_no || `报价单 #${quote.id}`} extra={<Tag color={STATUS[quote.status]?.color}>{STATUS[quote.status]?.label || quote.status}</Tag>}>
         <Descriptions column={2} size="small">
           <Descriptions.Item label="标题">{quote.title || "-"}</Descriptions.Item>
+          <Descriptions.Item label="客户"><CustomerLink id={quote.customer_id} /></Descriptions.Item>
           <Descriptions.Item label="总金额">¥{quote.total_amount.toLocaleString()}</Descriptions.Item>
           <Descriptions.Item label="有效期">{quote.valid_until?.slice(0, 10) || "-"}</Descriptions.Item>
           <Descriptions.Item label="备注" span={2}>{quote.notes || "-"}</Descriptions.Item>

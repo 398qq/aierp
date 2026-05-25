@@ -4,6 +4,7 @@ import { Table, Button, Space, Tag, Select, message, Popconfirm, Row, Col, Card,
 import { PlusOutlined, DollarOutlined } from "@ant-design/icons";
 import { getPayments, deletePayment, getPaymentStats } from "../../api";
 import type { PaymentRecord } from "../../types";
+import { CustomerLink, CustomerSelect } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   pending: { color: "orange", label: "待收款" }, completed: { color: "green", label: "已收款" },
@@ -16,6 +17,7 @@ export default function PaymentList() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>();
+  const [customerId, setCustomerId] = useState<number | undefined>();
   const [stats, setStats] = useState<{ total_received: number; total_pending: number; total_overdue: number }>({ total_received: 0, total_pending: 0, total_overdue: 0 });
   const navigate = useNavigate();
 
@@ -24,6 +26,7 @@ export default function PaymentList() {
     try {
       const params: Record<string, unknown> = { page, page_size: 20 };
       if (status) params.status = status;
+      if (customerId) params.customer_id = customerId;
       const [resp, s] = await Promise.all([getPayments(params), getPaymentStats()]);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
@@ -32,7 +35,7 @@ export default function PaymentList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, status]);
+  useEffect(() => { load(); }, [page, status, customerId]);
 
   return (
     <div>
@@ -47,6 +50,9 @@ export default function PaymentList() {
         <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
           { value: "pending", label: "待收款" }, { value: "completed", label: "已收款" },
         ]} />
+        <div style={{ width: 280 }}>
+          <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+        </div>
       </Space>
 
       <Table
@@ -54,7 +60,7 @@ export default function PaymentList() {
         columns={[
           { title: "ID", dataIndex: "id", width: 60 },
           { title: "订单ID", dataIndex: "sales_order_id", width: 80 },
-          { title: "客户ID", dataIndex: "customer_id", width: 80 },
+          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
           { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
           { title: "方式", dataIndex: "payment_method", width: 80 },
           { title: "付款日期", dataIndex: "payment_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },

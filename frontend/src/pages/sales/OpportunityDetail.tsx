@@ -5,6 +5,7 @@ import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined } from "@ant-desig
 import { getOpportunity } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Opportunity } from "../../types";
+import { CustomerLink } from "./salesUi";
 
 export default function OpportunityDetail() {
   const { id } = useParams<{ id: string }>();
@@ -40,6 +41,7 @@ export default function OpportunityDetail() {
 
       <Card title={opp.title} extra={<Tag color={opp.status === "active" ? "green" : opp.status === "won" ? "blue" : "red"}>{opp.status}</Tag>}>
         <Descriptions column={2} size="small">
+          <Descriptions.Item label="客户"><CustomerLink id={opp.customer_id} /></Descriptions.Item>
           <Descriptions.Item label="金额">{opp.amount ? `¥${opp.amount.toLocaleString()}` : "-"}</Descriptions.Item>
           <Descriptions.Item label="阶段">{opp.stage || "-"}</Descriptions.Item>
           <Descriptions.Item label="赢单率">{opp.win_probability !== null ? `${opp.win_probability}%` : "-"}</Descriptions.Item>

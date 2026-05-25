@@ -5,7 +5,7 @@ import { FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } f
 import { batchUpdateOpportunities, getOpportunities } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
-import { MetricBand, SalesModuleShell, SalesQuickActions, money, shortDate, stageLabel } from "./salesUi";
+import { CustomerLink, MetricBand, SalesModuleShell, SalesQuickActions, money, shortDate, stageLabel } from "./salesUi";
 
 const STAGE_OPTIONS = [
   { value: "lead", label: "线索" },
@@ -148,7 +148,7 @@ export default function OpportunityList() {
                 render: (value: string, record: Opportunity) => (
                   <Space direction="vertical" size={0}>
                     <a onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value}</a>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>客户 #{record.customer_id}</Typography.Text>
+                    <CustomerLink id={record.customer_id} />
                   </Space>
                 ),
               },

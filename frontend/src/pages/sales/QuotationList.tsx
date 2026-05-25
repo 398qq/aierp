@@ -5,7 +5,7 @@ import { DeleteOutlined, DownloadOutlined, PlusOutlined, ReloadOutlined, Shoppin
 import { batchDeleteQuotations, convertQuotationToOrder, deleteQuotation, downloadQuotationPDF, getQuotations } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { Quotation } from "../../types";
-import { MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
 
 export default function QuotationList() {
   const [data, setData] = useState<Quotation[]>([]);
@@ -121,7 +121,10 @@ export default function QuotationList() {
               render: (value: string | null, record: Quotation) => (
                 <Space direction="vertical" size={0}>
                   <a onClick={() => navigate(`/sales/quotations/${record.id}`)}>{value || record.title || `#${record.id}`}</a>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>客户 #{record.customer_id} / 产品行 {record.items?.length || 0}</Typography.Text>
+                  <Space size={8}>
+                    <CustomerLink id={record.customer_id} />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>产品行 {record.items?.length || 0}</Typography.Text>
+                  </Space>
                 </Space>
               ),
             },

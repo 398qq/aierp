@@ -6,7 +6,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.finance import Contract, Invoice, PaymentRecord, SalesTarget
+from app.models.sales import SalesOrder
 from app.services.docno import generate_doc_no
+
+
+async def _apply_sales_order_customer(db: AsyncSession, data: dict) -> None:
+    sales_order_id = data.get("sales_order_id")
+    if not sales_order_id:
+        return
+
+    result = await db.execute(
+        select(SalesOrder.customer_id).where(SalesOrder.id == sales_order_id, SalesOrder.deleted_at.is_(None))
+    )
+    customer_id = result.scalar_one_or_none()
+    if customer_id:
+        data["customer_id"] = customer_id
 
 
 # ============================================================
@@ -41,6 +55,7 @@ async def get_invoice(db: AsyncSession, inv_id: int) -> Invoice | None:
 
 
 async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
+    await _apply_sales_order_customer(db, data)
     if not data.get("invoice_no"):
         data["invoice_no"] = await generate_doc_no(db, "INV", Invoice, "invoice_no")
     inv = Invoice(**data)
@@ -51,6 +66,7 @@ async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
 
 
 async def update_invoice(db: AsyncSession, inv: Invoice, data: dict) -> Invoice:
+    await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
             setattr(inv, k, v)
@@ -96,6 +112,7 @@ async def get_payment(db: AsyncSession, pay_id: int) -> PaymentRecord | None:
 
 
 async def create_payment(db: AsyncSession, data: dict) -> PaymentRecord:
+    await _apply_sales_order_customer(db, data)
     pay = PaymentRecord(**data)
     db.add(pay)
     await db.commit()
@@ -104,6 +121,7 @@ async def create_payment(db: AsyncSession, data: dict) -> PaymentRecord:
 
 
 async def update_payment(db: AsyncSession, pay: PaymentRecord, data: dict) -> PaymentRecord:
+    await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
             setattr(pay, k, v)
@@ -168,6 +186,7 @@ async def get_contract(db: AsyncSession, contract_id: int) -> Contract | None:
 
 
 async def create_contract(db: AsyncSession, data: dict) -> Contract:
+    await _apply_sales_order_customer(db, data)
     if not data.get("contract_no"):
         data["contract_no"] = await generate_doc_no(db, "CTR", Contract, "contract_no")
     contract = Contract(**data)
@@ -178,6 +197,7 @@ async def create_contract(db: AsyncSession, data: dict) -> Contract:
 
 
 async def update_contract(db: AsyncSession, contract: Contract, data: dict) -> Contract:
+    await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
             setattr(contract, k, v)
