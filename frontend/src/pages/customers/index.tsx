@@ -754,7 +754,7 @@ export default function CustomerList() {
   const handleDetectDups = async () => {
     setDupLoading(true);
     try {
-      const resp = await detectDuplicates(0.7);
+      const resp = await detectDuplicates();
       const pairs = (resp.data.data?.pairs || []) as DuplicatePair[];
       setDuplicatePairs(pairs);
       setDupModalOpen(true);
@@ -2161,7 +2161,10 @@ export default function CustomerList() {
                     </Space>
                   )}
                   description={(
-                    <Space size={16}>
+                    <Space size={16} wrap>
+                      {pair.reasons?.length ? (
+                        <span>依据: {pair.reasons.join("、")}</span>
+                      ) : null}
                       <span>电话A: {pair.customer_a.phone || "-"}</span>
                       <span>电话B: {pair.customer_b.phone || "-"}</span>
                       <span>负责人A: {pair.customer_a.owner || "-"}</span>

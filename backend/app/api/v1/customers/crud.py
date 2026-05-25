@@ -545,7 +545,7 @@ async def merge_customers(body: MergeRequest, db: AsyncSession = Depends(get_db)
 
 @router.get("/duplicates")
 async def detect_duplicates(
-    threshold: float = Query(0.7, ge=0.5, le=1.0),
+    threshold: float = Query(0.9, ge=0.5, le=1.0),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):

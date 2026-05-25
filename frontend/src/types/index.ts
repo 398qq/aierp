@@ -462,6 +462,7 @@ export interface CustomerLog {
 
 export interface DuplicatePair {
   similarity: number;
+  reasons?: string[];
   customer_a: { id: number; name: string; phone: string | null; owner: string | null };
   customer_b: { id: number; name: string; phone: string | null; owner: string | null };
 }

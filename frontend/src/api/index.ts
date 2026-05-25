@@ -553,7 +553,7 @@ export const mergeCustomers = (source_id: number, target_id: number) =>
   client.post<APIResponse<MergeResult>>("/customers/merge", { source_id, target_id });
 
 // Duplicate Detection
-export const detectDuplicates = (threshold = 0.7) =>
+export const detectDuplicates = (threshold = 0.9) =>
   client.get<APIResponse<{ total: number; pairs: DuplicatePair[] }>>("/customers/duplicates", { params: { threshold } });
 
 // Group Relationships

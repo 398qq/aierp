@@ -135,6 +135,69 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] == 2
 
+    async def test_duplicate_detection_ignores_weak_name_overlap(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "上海星辰科技有限公司", "phone": "13800000001"},
+        )
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "上海星河科技有限公司", "phone": "13800000002"},
+        )
+
+        resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["pairs"] == []
+
+    async def test_duplicate_detection_matches_normalized_legal_name(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "深圳市华芯科技有限公司"},
+        )
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "深圳华芯科技"},
+        )
+
+        resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
+
+        assert resp.status_code == 200
+        pairs = resp.json()["data"]["pairs"]
+        assert len(pairs) == 1
+        assert pairs[0]["similarity"] == 1
+        assert "名称完全一致" in pairs[0]["reasons"]
+
+    async def test_duplicate_detection_requires_related_name_for_same_email(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "杭州明芯电子有限公司", "email": "sales@example.com"},
+        )
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "杭州明芯电子科技有限公司", "email": "sales@example.com"},
+        )
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "北京远航贸易有限公司", "email": "sales@example.com"},
+        )
+
+        resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
+
+        assert resp.status_code == 200
+        pairs = resp.json()["data"]["pairs"]
+        assert len(pairs) == 1
+        names = {pairs[0]["customer_a"]["name"], pairs[0]["customer_b"]["name"]}
+        assert names == {"杭州明芯电子有限公司", "杭州明芯电子科技有限公司"}
+        assert "邮箱一致" in pairs[0]["reasons"]
+
     async def test_unauthorized(self, async_client: AsyncClient):
         resp = await async_client.get("/api/v1/customers")
         assert resp.status_code == 401

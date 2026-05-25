@@ -1,6 +1,8 @@
 import datetime as dt
 import re
+import unicodedata
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,32 @@ SORTABLE_COLUMNS: dict[str, any] = {
     "created_at": Customer.created_at,
     "last_contacted_at": Customer.last_contacted_at,
 }
+
+COMPANY_SUFFIXES = (
+    "limitedliabilitycompany",
+    "jointstocklimitedcompany",
+    "股份有限公司",
+    "有限责任公司",
+    "集团有限公司",
+    "控股有限公司",
+    "有限公司",
+    "责任公司",
+    "股份公司",
+    "控股集团",
+    "companylimited",
+    "companyltd",
+    "colimited",
+    "corporation",
+    "limited",
+    "集团",
+    "公司",
+    "coltd",
+    "ltd",
+    "inc",
+    "llc",
+)
+NAME_PUNCT_RE = re.compile(r"[\s\-_\.,，、。·•/\\|:：;；'\"“”‘’&＋+（）()\[\]【】{}<>《》]")
+LEADING_CITY_SUFFIX_RE = re.compile(r"^([\u4e00-\u9fff]{2,6})市(?=[\u4e00-\u9fff])")
 
 
 async def list_customers_query(
@@ -182,36 +210,117 @@ def calc_health(
     return score, label
 
 
-def normalize_name(name: str) -> str:
-    return re.sub(r'[（）\(\)\s\-_\.\,，、。有限公司有限责任控股集团分公司]', '', name or '').lower()
+def normalize_name(name: str | None) -> str:
+    value = unicodedata.normalize("NFKC", (name or "").strip()).lower()
+    value = re.sub(r"（[^）]*）|\([^)]*\)", "", value)
+    value = NAME_PUNCT_RE.sub("", value)
+    value = LEADING_CITY_SUFFIX_RE.sub(r"\1", value)
+    for suffix in sorted(COMPANY_SUFFIXES, key=len, reverse=True):
+        while value.endswith(suffix) and len(value) > len(suffix):
+            value = value[: -len(suffix)]
+    return value
 
 
-def detect_duplicates(rows: list[Customer], threshold: float = 0.7) -> list[dict]:
-    """Find potential duplicate customers by name trigram overlap."""
+def _normalize_contact_value(value: str | None) -> str:
+    return unicodedata.normalize("NFKC", (value or "").strip()).lower()
+
+
+def _normalize_email(value: str | None) -> str:
+    return _normalize_contact_value(value)
+
+
+def _normalize_phone(value: str | None) -> str:
+    digits = re.sub(r"\D", "", value or "")
+    return digits if len(digits) >= 7 else ""
+
+
+def _name_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0
+    if a == b:
+        return 1
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def _same_non_empty(a: str | None, b: str | None) -> bool:
+    return bool(a and b and a == b)
+
+
+def _names_are_related(name_a: str, name_b: str, similarity: float) -> bool:
+    if similarity >= 0.72:
+        return True
+    shorter, longer = sorted((name_a, name_b), key=len)
+    return len(shorter) >= 4 and shorter in longer
+
+
+def _duplicate_reasons(a: Customer, b: Customer, name_a: str, name_b: str, threshold: float) -> tuple[float, list[str]]:
+    similarity = _name_similarity(name_a, name_b)
+    reasons: list[str] = []
+
+    code_match = _same_non_empty(_normalize_contact_value(a.code), _normalize_contact_value(b.code))
+    email_match = _same_non_empty(_normalize_email(a.email), _normalize_email(b.email))
+    phone_match = _same_non_empty(_normalize_phone(a.phone), _normalize_phone(b.phone))
+    short_name_match = _same_non_empty(normalize_name(a.short_name), normalize_name(b.short_name))
+    contact_match = _same_non_empty(_normalize_contact_value(a.contact_person), _normalize_contact_value(b.contact_person))
+    names_related = _names_are_related(name_a, name_b, similarity)
+
+    if name_a and name_a == name_b and len(name_a) >= 3:
+        reasons.append("名称完全一致")
+        similarity = 1
+    elif similarity >= max(threshold, 0.96):
+        reasons.append("名称高度相似")
+
+    if code_match:
+        reasons.append("客户编码一致")
+        similarity = max(similarity, 0.98)
+
+    unique_reasons = []
+    if email_match:
+        unique_reasons.append("邮箱一致")
+    if phone_match:
+        unique_reasons.append("电话一致")
+    if unique_reasons and names_related:
+        reasons.extend(unique_reasons)
+        similarity = max(similarity, 0.93)
+
+    if similarity >= threshold:
+        if short_name_match:
+            reasons.append("简称一致")
+        if contact_match:
+            reasons.append("联系人一致")
+
+    if not reasons:
+        return similarity, []
+    if reasons == ["名称高度相似"] and similarity < max(threshold, 0.96):
+        return similarity, []
+    return round(similarity, 3), list(dict.fromkeys(reasons))
+
+
+def detect_duplicates(rows: list[Customer], threshold: float = 0.9) -> list[dict]:
+    """Find duplicate customers using strict name matching plus identity evidence."""
     pairs = []
+    threshold = max(0.9, min(threshold, 1.0))
     norm_map = {c.id: normalize_name(c.name) for c in rows}
 
     for i, a in enumerate(rows):
         na = norm_map[a.id]
-        if len(na) < 2:
+        if len(na) < 3:
             continue
         for j in range(i + 1, len(rows)):
             nb = norm_map[rows[j].id]
-            if len(nb) < 2:
+            if len(nb) < 3:
                 continue
-            common = len(set(na) & set(nb))
-            longer = max(len(na), len(nb))
-            if longer == 0:
+            sim, reasons = _duplicate_reasons(a, rows[j], na, nb, threshold)
+            if not reasons:
                 continue
-            sim = common / longer
-            if sim >= threshold:
-                pairs.append({
-                    "similarity": round(sim, 3),
-                    "customer_a": {"id": a.id, "name": a.name, "phone": a.phone, "owner": a.owner},
-                    "customer_b": {"id": rows[j].id, "name": rows[j].name, "phone": rows[j].phone, "owner": rows[j].owner},
-                })
+            pairs.append({
+                "similarity": sim,
+                "reasons": reasons,
+                "customer_a": {"id": a.id, "name": a.name, "phone": a.phone, "owner": a.owner},
+                "customer_b": {"id": rows[j].id, "name": rows[j].name, "phone": rows[j].phone, "owner": rows[j].owner},
+            })
 
-    pairs.sort(key=lambda x: -x["similarity"])
+    pairs.sort(key=lambda x: (-x["similarity"], -len(x["reasons"])))
     return pairs[:30]
 
 
