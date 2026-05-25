@@ -15,9 +15,10 @@ router = APIRouter(prefix="/sales/targets", tags=["targets"])
 @router.get("")
 async def list_targets(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
-    result = await svc.list_targets(db, page=page, page_size=page_size)
+    result = await svc.list_targets(db, page=page, page_size=page_size, status=status)
     return ok(result)
 
 
@@ -26,6 +27,13 @@ async def summary(
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     return ok(await svc.get_target_summary(db))
+
+
+@router.get("/stats")
+async def stats(
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    return ok(await svc.get_target_stats(db))
 
 
 @router.get("/{target_id}")

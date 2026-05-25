@@ -417,6 +417,7 @@ export interface Invoice {
 
 export interface SalesTarget {
   id: number; user_id: number; target_amount: number;
+  period: string | null; target_orders: number | null;
   target_type: string; period_start: string | null; period_end: string | null;
   actual_amount: number; status: string;
   created_at: string; updated_at: string | null;

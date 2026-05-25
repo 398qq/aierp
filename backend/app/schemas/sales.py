@@ -360,9 +360,14 @@ class ConvertResponse(BaseModel):
 
 class TargetCreate(BaseModel):
     user_id: int
-    period: str
+    period: str | None = None
     target_amount: float | None = None
     target_orders: int | None = None
+    target_type: str | None = None
+    period_start: datetime | None = None
+    period_end: datetime | None = None
+    actual_amount: float | None = None
+    status: str | None = None
 
 
 class TargetUpdate(BaseModel):
@@ -370,6 +375,11 @@ class TargetUpdate(BaseModel):
     period: str | None = None
     target_amount: float | None = None
     target_orders: int | None = None
+    target_type: str | None = None
+    period_start: datetime | None = None
+    period_end: datetime | None = None
+    actual_amount: float | None = None
+    status: str | None = None
 
 
 # ============================================================

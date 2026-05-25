@@ -60,6 +60,34 @@ class TestTargets:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
+    async def test_stats_and_frontend_payload(self, async_client: AsyncClient, auth_headers: dict):
+        resp = await async_client.post(
+            "/api/v1/sales/targets",
+            headers=auth_headers,
+            json={
+                "user_id": 1,
+                "target_amount": 100000,
+                "actual_amount": 25000,
+                "target_type": "monthly",
+                "period_start": "2026-05-01T00:00:00Z",
+                "period_end": "2026-05-31T00:00:00Z",
+                "status": "active",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["data"]["target_type"] == "monthly"
+
+        stats = await async_client.get("/api/v1/sales/targets/stats", headers=auth_headers)
+        assert stats.status_code == 200
+        data = stats.json()["data"]
+        assert data["total_target"] == 100000
+        assert data["total_actual"] == 25000
+        assert data["achievement_pct"] == 25
+
+        filtered = await async_client.get("/api/v1/sales/targets?status=active", headers=auth_headers)
+        assert filtered.status_code == 200
+        assert filtered.json()["data"]["total"] == 1
+
     async def test_unauthorized(self, async_client: AsyncClient):
         resp = await async_client.get("/api/v1/sales/targets")
         assert resp.status_code == 401

@@ -3,6 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
 import { getTarget, createTarget, updateTarget } from "../../api";
 import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
+
+const toIso = (value: unknown) => value && dayjs.isDayjs(value) ? (value as Dayjs).toISOString() : null;
 
 export default function TargetForm() {
   const { id } = useParams<{ id: string }>();
@@ -23,7 +26,7 @@ export default function TargetForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
-      const payload = { ...values, period_start: values.period_start ? (values.period_start as string) : null, period_end: values.period_end ? (values.period_end as string) : null };
+      const payload = { ...values, period_start: toIso(values.period_start), period_end: toIso(values.period_end) };
       if (isEdit) { await updateTarget(Number(id), payload); message.success("目标已更新"); }
       else { await createTarget(payload); message.success("目标已创建"); }
       navigate("/sales/targets");
