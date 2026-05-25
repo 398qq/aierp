@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.product import Product, Warehouse
@@ -411,7 +412,39 @@ async def get_delivery_note(db: AsyncSession, note_id: int) -> DeliveryNote | No
     return result.scalar_one_or_none()
 
 
+async def _apply_sales_order_to_delivery_data(
+    db: AsyncSession,
+    data: dict,
+    items_data: list[dict] | None = None,
+) -> list[dict] | None:
+    sales_order_id = data.get("sales_order_id")
+    if not sales_order_id:
+        return items_data
+
+    result = await db.execute(
+        select(SalesOrder)
+        .where(SalesOrder.id == sales_order_id, SalesOrder.deleted_at.is_(None))
+        .options(selectinload(SalesOrder.items))
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        return items_data
+
+    data["customer_id"] = order.customer_id
+    if not items_data:
+        return [
+            {
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "quantity": item.quantity,
+            }
+            for item in order.items
+        ]
+    return items_data
+
+
 async def create_delivery_note(db: AsyncSession, data: dict, items_data: list[dict] | None = None) -> DeliveryNote:
+    items_data = await _apply_sales_order_to_delivery_data(db, data, items_data)
     if not data.get("delivery_no"):
         data["delivery_no"] = await generate_doc_no(db, "DN", DeliveryNote, "delivery_no")
     note = DeliveryNote(**{k: v for k, v in data.items() if k != "items"})
@@ -430,6 +463,7 @@ async def create_delivery_note(db: AsyncSession, data: dict, items_data: list[di
 
 async def update_delivery_note(db: AsyncSession, note: DeliveryNote, data: dict) -> DeliveryNote:
     old_status = note.status
+    await _apply_sales_order_to_delivery_data(db, data)
     for k, v in data.items():
         if v is not None and k != "items":
             setattr(note, k, v)

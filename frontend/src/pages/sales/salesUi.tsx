@@ -3,6 +3,7 @@ import { Button, Card, Col, Empty, Input, Row, Select, Space, Statistic, Tag, Ty
 import {
   AppstoreOutlined,
   BarChartOutlined,
+  CarOutlined,
   FileTextOutlined,
   PhoneOutlined,
   PlusOutlined,
@@ -10,7 +11,7 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getCustomers, getProducts } from "../../api";
+import { getCustomer, getCustomers, getProducts } from "../../api";
 import type { Customer, Product } from "../../types";
 
 export const money = (value?: number | null) => `¥${Number(value || 0).toLocaleString()}`;
@@ -36,7 +37,8 @@ export const salesStatus: Record<string, { color: string; label: string }> = {
   pending: { color: "default", label: "待确认" },
   confirmed: { color: "blue", label: "已确认" },
   shipped: { color: "orange", label: "已发货" },
-  delivered: { color: "green", label: "已完成" },
+  delivered: { color: "green", label: "已签收" },
+  returned: { color: "red", label: "已退回" },
   cancelled: { color: "red", label: "已取消" },
 };
 
@@ -64,6 +66,7 @@ export function SalesModuleShell({
     { key: "opportunities", label: "商机", path: "/sales/opportunities", icon: <ThunderboltOutlined /> },
     { key: "quotations", label: "报价", path: "/sales/quotations", icon: <FileTextOutlined /> },
     { key: "orders", label: "订单", path: "/sales/orders", icon: <ShoppingCartOutlined /> },
+    { key: "delivery", label: "发货", path: "/sales/delivery-notes", icon: <CarOutlined /> },
     { key: "analysis", label: "分析", path: "/reports/sales", icon: <BarChartOutlined /> },
   ];
 
@@ -130,6 +133,13 @@ export function CustomerSelect({ value, onChange }: { value?: number; onChange?:
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    if (!value || items.some((item) => item.id === value)) return;
+    getCustomer(value)
+      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .catch(() => {});
+  }, [items, value]);
+
   return (
     <Select
       showSearch
@@ -152,6 +162,24 @@ export function CustomerSelect({ value, onChange }: { value?: number; onChange?:
         ),
       }))}
     />
+  );
+}
+
+export function CustomerLink({ id }: { id?: number | null }) {
+  const navigate = useNavigate();
+  const [name, setName] = useState<string>("");
+
+  useEffect(() => {
+    if (!id) return;
+    getCustomer(id).then((r) => setName(r.data.data.name)).catch(() => setName(""));
+  }, [id]);
+
+  if (!id) return <Typography.Text type="secondary">未关联客户</Typography.Text>;
+
+  return (
+    <Typography.Link onClick={() => navigate(`/customers/${id}`)}>
+      {name || `客户 #${id}`}
+    </Typography.Link>
   );
 }
 

@@ -385,6 +385,47 @@ class TestDeliveryNotes:
         assert resp.json()["code"] == 0
         assert "delivery_no" in resp.json()["data"]
 
+    async def test_create_delivery_note_uses_sales_order_customer(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_customer: dict,
+        db_session,
+    ):
+        from app.models.customer import Customer
+
+        other_customer = Customer(name="不应关联客户", industry="电子", level="B")
+        db_session.add(other_customer)
+        await db_session.flush()
+
+        order = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "pending",
+                "total_amount": 50000,
+                "items": [{"product_name": "SO Item", "quantity": 3, "unit_price": 10, "total_price": 30}],
+            },
+        )
+        order_id = order.json()["data"]["id"]
+
+        resp = await async_client.post(
+            "/api/v1/delivery-notes",
+            headers=auth_headers,
+            json={
+                "customer_id": other_customer.id,
+                "sales_order_id": order_id,
+                "status": "pending",
+            },
+        )
+
+        assert resp.status_code == 201
+        payload = resp.json()["data"]
+        assert payload["customer_id"] == test_customer["id"]
+        assert payload["items"][0]["product_name"] == "SO Item"
+        assert payload["items"][0]["quantity"] == 3
+
     async def test_get_delivery_note(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(
             "/api/v1/delivery-notes", headers=auth_headers,

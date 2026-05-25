@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch, message } from "antd";
+import { Alert, Button, Card, Descriptions, Empty, message, Space, Spin, Switch, Table } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getDeliveryNote, updateDeliveryNote } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { DeliveryNote } from "../../types";
-
-const STATUS: Record<string, { color: string; label: string }> = {
-  pending: { color: "default", label: "待发货" }, shipped: { color: "blue", label: "已发货" },
-  delivered: { color: "green", label: "已签收" }, returned: { color: "red", label: "已退回" },
-};
+import { CustomerLink, SalesModuleShell, SalesStatusTag, shortDate } from "./salesUi";
 
 export default function DeliveryNoteDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,7 +20,7 @@ export default function DeliveryNoteDetail() {
     setError(null);
     getDeliveryNote(Number(id), includeAi)
       .then((r) => setNote(r.data.data))
-      .catch((e) => setError(e.message || "加载失败"))
+      .catch((err) => setError(err.message || "加载失败"))
       .finally(() => setLoading(false));
   }, [id, includeAi]);
 
@@ -33,27 +29,38 @@ export default function DeliveryNoteDetail() {
   if (!note) return <Empty description="发货单不存在" />;
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/delivery-notes")}>返回</Button>
-        <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/delivery-notes/${note.id}/edit`)}>编辑</Button>
-        {note.status === "pending" && (
-          <Button type="primary" style={{ background: "#52c41a", borderColor: "#52c41a" }} onClick={async () => {
-            try { await updateDeliveryNote(note.id, { status: "shipped" }); message.success("已发货，库存已自动扣减"); setNote({ ...note, status: "shipped" }); } catch { message.error("操作失败"); }
-          }}>标记发货 (扣减库存)</Button>
-        )}
-        <Space>
-          <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
-          <span style={{ fontSize: 13 }}>AI</span>
-        </Space>
-      </Space>
-
-      <Card title={note.delivery_no || `发货单 #${note.id}`} extra={<Tag color={STATUS[note.status]?.color}>{STATUS[note.status]?.label || note.status}</Tag>}>
+    <SalesModuleShell
+      title={note.delivery_no || `发货单 #${note.id}`}
+      subtitle="发货单客户来自关联销售订单，发货后会触发库存扣减"
+      activeKey="delivery"
+      extra={
+        <>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/delivery-notes")}>返回</Button>
+          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/delivery-notes/${note.id}/edit`)}>编辑</Button>
+          {note.status === "pending" && (
+            <Button type="primary" onClick={async () => {
+              try {
+                await updateDeliveryNote(note.id, { status: "shipped" });
+                message.success("已发货，库存已自动扣减");
+                setNote({ ...note, status: "shipped" });
+              } catch {
+                message.error("操作失败");
+              }
+            }}>标记发货</Button>
+          )}
+          <Space>
+            <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
+            <span style={{ fontSize: 13 }}>AI</span>
+          </Space>
+        </>
+      }
+    >
+      <Card title="发货信息" extra={<SalesStatusTag value={note.status} />}>
         <Descriptions column={2} size="small">
-          <Descriptions.Item label="关联订单">{note.sales_order_id}</Descriptions.Item>
-          <Descriptions.Item label="客户ID">{note.customer_id}</Descriptions.Item>
-          <Descriptions.Item label="发货日期">{note.delivery_date?.slice(0, 10) || "-"}</Descriptions.Item>
-          <Descriptions.Item label="签收日期">{note.received_date?.slice(0, 10) || "-"}</Descriptions.Item>
+          <Descriptions.Item label="关联订单">#{note.sales_order_id}</Descriptions.Item>
+          <Descriptions.Item label="客户"><CustomerLink id={note.customer_id} /></Descriptions.Item>
+          <Descriptions.Item label="发货日期">{shortDate(note.delivery_date)}</Descriptions.Item>
+          <Descriptions.Item label="签收日期">{shortDate(note.received_date)}</Descriptions.Item>
           <Descriptions.Item label="备注" span={2}>{note.notes || "-"}</Descriptions.Item>
         </Descriptions>
       </Card>
@@ -67,7 +74,7 @@ export default function DeliveryNoteDetail() {
             pagination={false}
             columns={[
               { title: "产品", dataIndex: "product_name", ellipsis: true },
-              { title: "数量", dataIndex: "quantity", width: 80 },
+              { title: "数量", dataIndex: "quantity", width: 90 },
               { title: "备注", dataIndex: "notes", ellipsis: true },
             ]}
           />
@@ -75,6 +82,6 @@ export default function DeliveryNoteDetail() {
       )}
 
       {includeAi && <SalesAIInsight aiData={note.ai} />}
-    </div>
+    </SalesModuleShell>
   );
 }
