@@ -4,8 +4,8 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker } from "antd";
-import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select } from "antd";
+import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { TablePaginationConfig } from "antd/es/table/interface";
 import dayjs from "dayjs";
@@ -26,6 +26,13 @@ export default function FollowUpList() {
   const [rescheduleRecord, setRescheduleRecord] = useState<FollowUp | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState<Dayjs | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [updateRecord, setUpdateRecord] = useState<FollowUp | null>(null);
+  const [updateContent, setUpdateContent] = useState("");
+  const [updateResult, setUpdateResult] = useState("");
+  const [updateStatus, setUpdateStatus] = useState("in_progress");
+  const [updateNextAt, setUpdateNextAt] = useState<Dayjs | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   const custId = Number(customerId);
 
@@ -115,6 +122,61 @@ export default function FollowUpList() {
     }
   };
 
+  const openUpdate = (record: FollowUp) => {
+    setUpdateRecord(record);
+    setUpdateContent("");
+    setUpdateResult("");
+    setUpdateStatus(record.status || "in_progress");
+    setUpdateNextAt(record.planned_at ? dayjs(record.planned_at) : null);
+    setUpdateOpen(true);
+  };
+
+  const closeUpdate = () => {
+    setUpdateOpen(false);
+    setUpdateRecord(null);
+    setUpdateContent("");
+    setUpdateResult("");
+    setUpdateStatus("in_progress");
+    setUpdateNextAt(null);
+  };
+
+  const appendUpdateText = (current: string | null, label: string, next: string) => {
+    const text = next.trim();
+    if (!text) return current || "";
+    const stamp = dayjs().format("YYYY-MM-DD HH:mm");
+    return [current, `[${stamp} ${label}]\n${text}`].filter(Boolean).join("\n\n");
+  };
+
+  const handleUpdateProgress = async () => {
+    if (!updateRecord) return;
+    if (!updateContent.trim() && !updateResult.trim() && updateStatus === updateRecord.status && !updateNextAt) {
+      message.warning("请填写本次更新内容、结果或下一次跟进时间");
+      return;
+    }
+    setUpdating(true);
+    try {
+      const payload: Record<string, unknown> = {
+        status: updateStatus,
+        content: appendUpdateText(updateRecord.content, "更新", updateContent),
+        result: appendUpdateText(updateRecord.result, "结果", updateResult),
+      };
+      if (updateNextAt && updateStatus !== "completed") {
+        payload.planned_at = updateNextAt.format("YYYY-MM-DD HH:mm:ss");
+      }
+      if (updateStatus === "completed") {
+        payload.completed_at = dayjs().format("YYYY-MM-DD HH:mm:ss");
+      }
+      await updateFollowUp(custId, updateRecord.id, payload);
+      message.success("跟进已更新");
+      closeUpdate();
+      load();
+    } catch {
+      message.error("更新跟进失败");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // 跳转到编辑页面
   const handleEdit = (followupId: number) => {
     navigate(`/customers/${custId}/follow-ups/${followupId}/edit`);
@@ -186,10 +248,15 @@ export default function FollowUpList() {
     {
       title: "操作",
       key: "actions",
-      width: 180,
+      width: 260,
       fixed: "right",
       render: (_, record) => (
         <Space size="small">
+          {record.status === "in_progress" && (
+            <Button type="link" size="small" icon={<SyncOutlined />} onClick={() => openUpdate(record)}>
+              更新跟进
+            </Button>
+          )}
           {record.status !== "completed" && (
             <>
               <Button type="link" size="small" icon={<CalendarOutlined />} onClick={() => openReschedule(record)}>
@@ -288,6 +355,53 @@ export default function FollowUpList() {
             onChange={setRescheduleAt}
             style={{ width: "100%" }}
           />
+        </Space>
+      </Modal>
+
+      <Modal
+        title="更新进行中的跟进"
+        open={updateOpen}
+        okText="保存更新"
+        cancelText="取消"
+        confirmLoading={updating}
+        onOk={handleUpdateProgress}
+        onCancel={closeUpdate}
+        width={640}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={12}>
+          <Input.TextArea
+            rows={3}
+            value={updateContent}
+            onChange={(event) => setUpdateContent(event.target.value)}
+            placeholder="记录本次新增跟进内容，例如：已电话沟通客户，确认需求型号和数量"
+          />
+          <Input.TextArea
+            rows={3}
+            value={updateResult}
+            onChange={(event) => setUpdateResult(event.target.value)}
+            placeholder="记录本次跟进结果，例如：客户要求明天补发报价，预计本周确认"
+          />
+          <Select
+            value={updateStatus}
+            onChange={setUpdateStatus}
+            style={{ width: "100%" }}
+            options={[
+              { value: "in_progress", label: "仍在进行中" },
+              { value: "planned", label: "转为计划中" },
+              { value: "completed", label: "已完成" },
+              { value: "cancelled", label: "已取消" },
+            ]}
+          />
+          {updateStatus !== "completed" && (
+            <DatePicker
+              showTime
+              format="YYYY-MM-DD HH:mm"
+              value={updateNextAt}
+              onChange={setUpdateNextAt}
+              style={{ width: "100%" }}
+              placeholder="下一次跟进时间"
+            />
+          )}
         </Space>
       </Modal>
     </div>
