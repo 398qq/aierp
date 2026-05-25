@@ -4,10 +4,12 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty } from "antd";
-import { ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker } from "antd";
+import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { TablePaginationConfig } from "antd/es/table/interface";
+import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
 import { getFollowUps, deleteFollowUp, updateFollowUp } from "../../api";
 import type { FollowUp } from "../../types";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
@@ -20,6 +22,10 @@ export default function FollowUpList() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleRecord, setRescheduleRecord] = useState<FollowUp | null>(null);
+  const [rescheduleAt, setRescheduleAt] = useState<Dayjs | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
 
   const custId = Number(customerId);
 
@@ -77,6 +83,35 @@ export default function FollowUpList() {
       load();
     } catch {
       message.error("操作失败");
+    }
+  };
+
+  const openReschedule = (record: FollowUp) => {
+    setRescheduleRecord(record);
+    setRescheduleAt(record.planned_at ? dayjs(record.planned_at) : dayjs().add(1, "day").hour(9).minute(0).second(0));
+    setRescheduleOpen(true);
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleRecord || !rescheduleAt) {
+      message.warning("请选择新的跟进时间");
+      return;
+    }
+    setRescheduling(true);
+    try {
+      await updateFollowUp(custId, rescheduleRecord.id, {
+        status: "planned",
+        planned_at: rescheduleAt.format("YYYY-MM-DD HH:mm:ss"),
+      });
+      message.success("跟进时间已更新");
+      setRescheduleOpen(false);
+      setRescheduleRecord(null);
+      setRescheduleAt(null);
+      load();
+    } catch {
+      message.error("更新跟进时间失败");
+    } finally {
+      setRescheduling(false);
     }
   };
 
@@ -151,14 +186,19 @@ export default function FollowUpList() {
     {
       title: "操作",
       key: "actions",
-      width: 120,
+      width: 180,
       fixed: "right",
       render: (_, record) => (
         <Space size="small">
           {record.status !== "completed" && (
-            <Button type="link" size="small" icon={<CheckCircleOutlined />} onClick={() => handleComplete(record.id)}>
-              完成
-            </Button>
+            <>
+              <Button type="link" size="small" icon={<CalendarOutlined />} onClick={() => openReschedule(record)}>
+                改期
+              </Button>
+              <Button type="link" size="small" icon={<CheckCircleOutlined />} onClick={() => handleComplete(record.id)}>
+                完成
+              </Button>
+            </>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record.id)}>
             编辑
@@ -225,6 +265,31 @@ export default function FollowUpList() {
           scroll={{ x: 1000 }}
         />
       )}
+
+      <Modal
+        title="更新跟进时间"
+        open={rescheduleOpen}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={rescheduling}
+        onOk={handleReschedule}
+        onCancel={() => {
+          setRescheduleOpen(false);
+          setRescheduleRecord(null);
+          setRescheduleAt(null);
+        }}
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div>{rescheduleRecord?.content || "选择新的计划跟进时间"}</div>
+          <DatePicker
+            showTime
+            format="YYYY-MM-DD HH:mm"
+            value={rescheduleAt}
+            onChange={setRescheduleAt}
+            style={{ width: "100%" }}
+          />
+        </Space>
+      </Modal>
     </div>
   );
 }

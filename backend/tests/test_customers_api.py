@@ -855,6 +855,31 @@ class TestCustomerFollowups:
         )
         assert resp.status_code == 200
 
+    async def test_update_followup_planned_time(self, async_client: AsyncClient, auth_headers: dict):
+        cust = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "改期跟进", "type": "终端客户"},
+        )
+        cid = cust.json()["data"]["id"]
+        fup = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={"content": "确认样品进度", "status": "planned", "planned_at": "2026-05-25 09:00:00"},
+        )
+        fup_id = fup.json()["data"]["id"]
+
+        resp = await async_client.put(
+            f"/api/v1/customers/{cid}/follow-ups/{fup_id}",
+            headers=auth_headers,
+            json={"status": "planned", "planned_at": "2026-05-27 15:30:00"},
+        )
+        assert resp.status_code == 200
+
+        listed = await async_client.get(f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers)
+        updated = next(item for item in listed.json()["data"] if item["id"] == fup_id)
+        assert updated["planned_at"].startswith("2026-05-27 15:30:00")
+
     async def test_ai_recognize_followup(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
         cust = await async_client.post(
             "/api/v1/customers",
