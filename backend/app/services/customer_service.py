@@ -221,6 +221,26 @@ def normalize_name(name: str | None) -> str:
     return value
 
 
+def customer_name_conflict_message(name: str, conflict_name: str | None) -> str:
+    return f"客户名称已存在：{name} 与 {conflict_name or '-'} 归一后相同，请变更后再添加"
+
+
+async def find_name_conflict(
+    db: AsyncSession,
+    name: str | None,
+    exclude_id: int | None = None,
+) -> Customer | None:
+    normalized = normalize_name(name)
+    if not normalized:
+        return None
+
+    stmt = select(Customer).where(Customer.deleted_at.is_(None), Customer.name.isnot(None))
+    if exclude_id is not None:
+        stmt = stmt.where(Customer.id != exclude_id)
+    rows = (await db.execute(stmt)).scalars().all()
+    return next((row for row in rows if normalize_name(row.name) == normalized), None)
+
+
 def _normalize_contact_value(value: str | None) -> str:
     return unicodedata.normalize("NFKC", (value or "").strip()).lower()
 

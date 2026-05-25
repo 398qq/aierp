@@ -9,7 +9,7 @@ class ApprovalRule(TimestampMixin, Base):
     __tablename__ = "approval_rules"
 
     doc_type: Mapped[str] = mapped_column(String(50))  # quotation, purchase_order
-    min_amount: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
+    min_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     customer_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     flow_config: Mapped[dict] = mapped_column(JSON, default=list)  # [{level:1, approver_role:"sales_manager", approver_id:null}]
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

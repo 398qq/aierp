@@ -95,6 +95,26 @@ class TestImportExport:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
+    async def test_generic_import_customers_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "上海市星河电子有限公司"},
+        )
+        csv_data = "name,phone,email,industry,level\n上海星河电子,13800138000,test@test.com,电子,A"
+
+        resp = await async_client.post(
+            "/api/v1/import/customers",
+            headers=auth_headers,
+            files={"file": ("customers.csv", csv_data.encode("utf-8-sig"), "text/csv")},
+        )
+
+        assert resp.status_code == 400
+        assert "客户名称已存在" in resp.json()["msg"]
+
+        listed = await async_client.get("/api/v1/customers?q=星河电子", headers=auth_headers)
+        assert listed.json()["data"]["total"] == 1
+
     async def test_import_products_csv(self, async_client: AsyncClient, auth_headers: dict):
         csv_data = "name,sku,category,cost_price,selling_price,unit\n测试产品,SKU001,电子,10,20,pcs"
         resp = await async_client.post(

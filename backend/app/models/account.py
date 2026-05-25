@@ -40,8 +40,8 @@ class JournalEntryLine(TimestampMixin, Base):
     entry_id: Mapped[int] = mapped_column(ForeignKey("journal_entries.id"))
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    debit: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
-    credit: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
+    debit: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    credit: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
 
     entry = relationship("JournalEntry", back_populates="lines")
     account = relationship("Account")
@@ -53,10 +53,10 @@ class BankReconciliation(TimestampMixin, Base):
     payment_id: Mapped[int | None] = mapped_column(ForeignKey("payment_records.id"), nullable=True)
     bank_txn_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     bank_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
-    bank_amount: Mapped[float | None] = mapped_column(DECIMAL(15, 2), nullable=True)
+    bank_amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     bank_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     match_type: Mapped[str] = mapped_column(String(20), default="auto")  # auto/manual/unmatched
-    difference: Mapped[float] = mapped_column(DECIMAL(15, 2), default=0)
+    difference: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     reconciled_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     reconciled_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

@@ -17,7 +17,12 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.customer import Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog
 from app.schemas.common import fail, ok
-from app.services.customer_service import calc_health, detect_duplicates as detect_dups
+from app.services.customer_service import (
+    calc_health,
+    customer_name_conflict_message,
+    detect_duplicates as detect_dups,
+    find_name_conflict,
+)
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -433,6 +438,12 @@ async def import_customers(
                 existing = await db.execute(stmt)
                 cust = existing.scalar_one_or_none()
                 if cust:
+                    conflict = await find_name_conflict(db, name, exclude_id=cust.id)
+                    if conflict:
+                        conflict_name = conflict.name
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        await db.rollback()
+                        return fail(customer_name_conflict_message(name, conflict_name))
                     if raw_short_name:
                         next_short_name = raw_short_name
                     elif cust.short_name:
@@ -461,6 +472,12 @@ async def import_customers(
                     response.status_code = status.HTTP_400_BAD_REQUEST
                     await db.rollback()
                     return fail(_code_number_conflict_message(code, conflict_code))
+            conflict = await find_name_conflict(db, name)
+            if conflict:
+                conflict_name = conflict.name
+                response.status_code = status.HTTP_400_BAD_REQUEST
+                await db.rollback()
+                return fail(customer_name_conflict_message(name, conflict_name))
             customer = Customer(
                 name=name, code=code, short_name=short_name, industry=industry,
                 level=level, region=region, source=source, customer_type=customer_type,
@@ -663,6 +680,10 @@ async def create_customer(
     _user: dict = Depends(get_current_user),
 ):
     data = body.model_dump()
+    name_conflict = await find_name_conflict(db, data.get("name"))
+    if name_conflict:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return fail(customer_name_conflict_message(data["name"], name_conflict.name))
     if data.get("code"):
         conflict = await _find_code_number_conflict(db, data["code"])
         if conflict:
@@ -713,6 +734,11 @@ async def update_customer(
     if customer is None:
         return fail("Customer not found", 404)
     data = body.model_dump(exclude_unset=True)
+    if data.get("name"):
+        name_conflict = await find_name_conflict(db, data["name"], exclude_id=customer_id)
+        if name_conflict:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return fail(customer_name_conflict_message(data["name"], name_conflict.name))
     if data.get("code"):
         conflict = await _find_code_number_conflict(db, data["code"], exclude_id=customer_id)
         if conflict:

@@ -364,6 +364,27 @@ class TestIntegrations:
         )
         assert resp.status_code == 403
 
+    async def test_order_import_reuses_normalized_existing_customer(self, async_client: AsyncClient, admin_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=admin_headers,
+            json={"name": "深圳市华芯科技有限公司", "phone": "13800001111"},
+        )
+        csv_data = "buyer_name,buyer_phone,quantity,price\n深圳华芯科技,13900002222,1,10"
+
+        resp = await async_client.post(
+            "/api/v1/integrations/orders/import",
+            headers=admin_headers,
+            files={"file": ("orders.csv", csv_data.encode("utf-8-sig"), "text/csv")},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["created_orders"] == 1
+        assert resp.json()["data"]["created_customers"] == 0
+
+        listed = await async_client.get("/api/v1/customers?q=华芯科技", headers=admin_headers)
+        assert listed.json()["data"]["total"] == 1
+
     async def test_logistics_tracking(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get(
             "/api/v1/integrations/logistics/TRACK123", headers=auth_headers

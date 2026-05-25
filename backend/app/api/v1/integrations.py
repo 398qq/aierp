@@ -16,6 +16,7 @@ from app.models.customer import Customer
 from app.models.product import Product
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.schemas.common import fail, ok
+from app.services.customer_service import find_name_conflict
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -127,9 +128,11 @@ async def import_orders(
             price = float(row.get("price", row.get("单价", 0)))
 
             # Find or create customer
-            customer = (await db.execute(
-                select(Customer).where(Customer.name == buyer_name, Customer.deleted_at.is_(None))
-            )).scalars().first()
+            customer = await find_name_conflict(db, buyer_name)
+            if not customer:
+                customer = (await db.execute(
+                    select(Customer).where(Customer.name == buyer_name, Customer.deleted_at.is_(None))
+                )).scalars().first()
             if not customer:
                 customer = Customer(name=buyer_name, phone=buyer_phone)
                 db.add(customer)

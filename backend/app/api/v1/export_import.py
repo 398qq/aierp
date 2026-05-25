@@ -4,7 +4,7 @@ import csv
 import io
 import datetime
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from app.models.product import Brand, Product, Supplier
 from app.models.sales import Quotation, SalesOrder
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import fail, ok
+from app.services.customer_service import customer_name_conflict_message, find_name_conflict
 
 router = APIRouter(tags=["import-export"])
 
@@ -133,6 +134,7 @@ IMPORT_ENTITIES = ["customers", "products", "suppliers", "contracts"]
 @router.post("/import/{entity}")
 async def import_entity(
     entity: str,
+    response: Response,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
@@ -164,8 +166,15 @@ async def import_entity(
             row_dict = {str(headers[j]): str(row[j]) if j < len(row) else "" for j in range(len(headers))}
 
             if entity == "customers":
+                name = row_dict.get("name", row_dict.get("名称", ""))
+                conflict = await find_name_conflict(db, name)
+                if conflict:
+                    conflict_name = conflict.name
+                    response.status_code = status.HTTP_400_BAD_REQUEST
+                    await db.rollback()
+                    return fail(customer_name_conflict_message(name, conflict_name))
                 c = Customer(
-                    name=row_dict.get("name", row_dict.get("名称", "")),
+                    name=name,
                     phone=row_dict.get("phone", row_dict.get("电话", "")),
                     email=row_dict.get("email", ""),
                     industry=row_dict.get("industry", row_dict.get("行业", "")),

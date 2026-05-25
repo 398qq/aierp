@@ -57,28 +57,72 @@ class TestCustomers:
         assert detail.status_code == 200
         assert detail.json()["data"]["short_name"] == "星河"
 
-    async def test_create_customer_dedupes_auto_short_name_conflicts(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_create_customer_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
         first = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
-            json={"name": "冲突简称电子有限公司", "type": "终端客户"},
+            json={"name": "深圳市华芯科技有限公司", "type": "终端客户"},
         )
         second = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
-            json={"name": "冲突简称电子有限公司", "type": "终端客户"},
+            json={"name": "深圳华芯科技", "type": "终端客户"},
         )
+
+        assert first.status_code == 201
+        assert second.status_code == 400
+        assert second.json()["code"] == 400
+        assert "客户名称已存在" in second.json()["msg"]
+
+        listed = await async_client.get("/api/v1/customers?q=华芯科技", headers=auth_headers)
+        assert listed.json()["data"]["total"] == 1
+
+    async def test_update_customer_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+        first = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "上海市星河电子有限公司"},
+        )
+        second = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "北京远航贸易有限公司"},
+        )
+        second_id = second.json()["data"]["id"]
+
+        resp = await async_client.put(
+            f"/api/v1/customers/{second_id}",
+            headers=auth_headers,
+            json={"name": "上海星河电子"},
+        )
+
         assert first.status_code == 201
         assert second.status_code == 201
+        assert resp.status_code == 400
+        assert "客户名称已存在" in resp.json()["msg"]
 
-        first_detail = await async_client.get(f"/api/v1/customers/{first.json()['data']['id']}", headers=auth_headers)
-        second_detail = await async_client.get(f"/api/v1/customers/{second.json()['data']['id']}", headers=auth_headers)
-        first_short_name = first_detail.json()["data"]["short_name"]
-        second_short_name = second_detail.json()["data"]["short_name"]
+        detail = await async_client.get(f"/api/v1/customers/{second_id}", headers=auth_headers)
+        assert detail.json()["data"]["name"] == "北京远航贸易有限公司"
 
-        assert first_short_name == "冲突简称电子"
-        assert second_short_name.startswith("冲突简称电子-")
-        assert second_short_name != first_short_name
+    async def test_import_customers_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "广州市明芯半导体有限公司"},
+        )
+        csv_data = "名称,编码\n广州明芯半导体,CUST-HN-990001\n".encode()
+
+        resp = await async_client.post(
+            "/api/v1/customers/import",
+            headers=auth_headers,
+            files={"file": ("customers.csv", csv_data, "text/csv")},
+        )
+
+        assert resp.status_code == 400
+        assert "客户名称已存在" in resp.json()["msg"]
+
+        listed = await async_client.get("/api/v1/customers?q=明芯半导体", headers=auth_headers)
+        assert listed.json()["data"]["total"] == 1
 
     async def test_create_customer_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
         first = await async_client.post(
@@ -219,17 +263,14 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["data"]["pairs"] == []
 
-    async def test_duplicate_detection_matches_normalized_legal_name(self, async_client: AsyncClient, auth_headers: dict):
-        await async_client.post(
-            "/api/v1/customers",
-            headers=auth_headers,
-            json={"name": "深圳市华芯科技有限公司"},
-        )
-        await async_client.post(
-            "/api/v1/customers",
-            headers=auth_headers,
-            json={"name": "深圳华芯科技"},
-        )
+    async def test_duplicate_detection_matches_normalized_legal_name(self, async_client: AsyncClient, auth_headers: dict, db_session):
+        from app.models.customer import Customer
+
+        db_session.add_all([
+            Customer(name="深圳市华芯科技有限公司"),
+            Customer(name="深圳华芯科技"),
+        ])
+        await db_session.flush()
 
         resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
 

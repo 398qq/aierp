@@ -113,7 +113,7 @@ class Inventory(TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(default=0)
     safety_stock: Mapped[int] = mapped_column(default=0)
     locked_quantity: Mapped[int] = mapped_column(default=0)
-    unit_price: Mapped[float | None] = mapped_column(default=None)
+    unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True, default=None)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
@@ -137,7 +137,7 @@ class SupplierProduct(TimestampMixin, Base):
 
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    cost_price: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
+    cost_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     lead_time_days: Mapped[int | None] = mapped_column(nullable=True)
     moq: Mapped[int | None] = mapped_column(nullable=True)  # minimum order quantity
     spq: Mapped[int | None] = mapped_column(nullable=True)  # standard package quantity
