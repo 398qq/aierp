@@ -148,7 +148,7 @@ async def import_orders(
 
             # Create sales order
             order = SalesOrder(
-                customer_id=customer.id, document_no=f"IMP-{i+1:04d}",
+                customer_id=customer.id, order_no=f"IMP-{i+1:04d}",
                 total_amount=qty * price, status="draft",
             )
             db.add(order)
