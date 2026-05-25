@@ -171,6 +171,7 @@ export default function App() {
               <Route path="/finance/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
               <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
               <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
+              <Route path="/sales" element={<Navigate to="/sales/dashboard" replace />} />
               <Route path="/sales/opportunities" element={<Suspense fallback={<PageLoader />}><OpportunityList /></Suspense>} />
               <Route path="/sales/opportunities/new" element={<Suspense fallback={<PageLoader />}><OpportunityForm /></Suspense>} />
               <Route path="/sales/opportunities/:id" element={<Suspense fallback={<PageLoader />}><OpportunityDetail /></Suspense>} />

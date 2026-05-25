@@ -133,7 +133,7 @@ export default function MainLayout() {
     {
       key: "/sales", icon: <ThunderboltOutlined />, label: "销售管理",
       children: [
-        { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "销售看板" },
+        { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "销售工作台" },
         { key: "/sales/opportunities", icon: <ThunderboltOutlined />, label: "商机管理" },
         { key: "/sales/quotations", icon: <FileTextOutlined />, label: "报价管理" },
         { key: "/sales/orders", icon: <ShoppingCartOutlined />, label: "销售订单" },

@@ -1,37 +1,32 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message, Space } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getSalesOrder, createSalesOrder, updateSalesOrder, getCustomers, getProducts } from "../../api";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, message } from "antd";
+import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
 import dayjs from "dayjs";
-import type { Customer, Product } from "../../types";
+import { CustomerSelect, ProductSelect, SalesModuleShell } from "./salesUi";
 
 export default function SalesOrderForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [productOptions, setProductOptions] = useState<Product[]>([]);
   const isEdit = !!id;
 
   useEffect(() => {
-    getCustomers({ page: 1, page_size: 200 }).then((r) => setCustomers(r.data.data.list || []));
     if (isEdit) {
       getSalesOrder(Number(id)).then((r) => {
         const o = r.data.data;
         form.setFieldsValue({ ...o, order_date: o.order_date ? dayjs(o.order_date) : null, delivery_date: o.delivery_date ? dayjs(o.delivery_date) : null });
       });
+    } else {
+      const customerId = Number(searchParams.get("customer_id"));
+      const quotationId = Number(searchParams.get("quotation_id"));
+      if (customerId) form.setFieldValue("customer_id", customerId);
+      if (quotationId) form.setFieldValue("quotation_id", quotationId);
     }
-  }, [id]);
-
-  const handleProductSearch = async (v: string) => {
-    if (v.length < 1) { setProductOptions([]); return; }
-    try {
-      const resp = await getProducts({ q: v, page_size: 20 });
-      setProductOptions((resp.data.data.list || []) as Product[]);
-    } catch { /* */ }
-  };
+  }, [id, isEdit, searchParams, form]);
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
@@ -55,50 +50,67 @@ export default function SalesOrderForm() {
   };
 
   return (
-    <Card title={isEdit ? "编辑销售订单" : "新增销售订单"}>
-      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", items: [{}] }}>
-        <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-          <Select showSearch placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
-        </Form.Item>
-        <Form.Item name="order_no" label="订单号"><Input placeholder="留空自动生成" /></Form.Item>
-        <Form.Item name="total_amount" label="总金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
-        <Form.Item name="status" label="状态">
-          <Select options={[
-            { value: "pending", label: "待处理" }, { value: "confirmed", label: "已确认" }, { value: "shipped", label: "已发货" },
-          ]} />
-        </Form.Item>
-        <Form.Item name="order_date" label="下单日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
-        <Form.Item name="delivery_date" label="预计交货"><DatePicker style={{ width: "100%" }} /></Form.Item>
-        <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
+    <SalesModuleShell
+      title={isEdit ? "编辑销售订单" : "新增销售订单"}
+      subtitle="确认客户订单、产品明细、交付日期和执行状态"
+      activeKey="orders"
+      extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/orders")}>返回</Button>}
+    >
+      <Card>
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", items: [{}] }}>
+          <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
+            <CustomerSelect />
+          </Form.Item>
+          <Form.Item name="quotation_id" label="来源报价"><InputNumber style={{ width: "100%" }} placeholder="可由报价转订单带入" /></Form.Item>
+          <Form.Item name="order_no" label="订单号"><Input placeholder="留空自动生成" /></Form.Item>
+          <Form.Item name="total_amount" label="总金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
+          <Form.Item name="status" label="状态">
+            <Select options={[
+              { value: "pending", label: "待确认" }, { value: "confirmed", label: "已确认" }, { value: "shipped", label: "已发货" },
+            ]} />
+          </Form.Item>
+          <Form.Item name="order_date" label="下单日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="delivery_date" label="预计交货"><DatePicker style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
 
-        <Form.List name="items">
-          {(fields, { add, remove }) => (
-            <>
-              {fields.map(({ key, name, ...rest }) => (
-                <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
-                  <Form.Item {...rest} name={[name, "product_name"]} hidden />
-                  <Form.Item {...rest} name={[name, "product_id"]} label="产品" rules={[{ required: true, message: "请选择产品" }]}>
-                    <Select
-                      showSearch placeholder="搜索并选择产品" filterOption={false} onSearch={handleProductSearch}
-                      options={productOptions.map((p) => ({ value: p.id, label: `[${p.sku || "?"}] ${p.name}` }))}
-                    />
-                  </Form.Item>
-                  <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
-                  <Form.Item {...rest} name={[name, "unit_price"]} label="单价"><InputNumber prefix="¥" /></Form.Item>
-                  <Form.Item {...rest} name={[name, "total_price"]} label="小计"><InputNumber prefix="¥" /></Form.Item>
-                  <Button icon={<DeleteOutlined />} onClick={() => remove(name)} />
-                </Space>
-              ))}
-              <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>添加品项</Button>
-            </>
-          )}
-        </Form.List>
+          <Form.List name="items">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...rest }) => (
+                  <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline" wrap>
+                    <Form.Item {...rest} name={[name, "product_name"]} hidden />
+                    <Form.Item {...rest} name={[name, "product_id"]} label="产品" rules={[{ required: true, message: "请选择产品" }]} style={{ minWidth: 280 }}>
+                      <ProductSelect
+                        onProductPicked={(product) => {
+                          const items = [...(form.getFieldValue("items") || [])];
+                          items[name] = {
+                            ...items[name],
+                            product_name: product.name,
+                            unit_price: items[name]?.unit_price ?? product.unit_price,
+                          };
+                          form.setFieldValue("items", items);
+                        }}
+                      />
+                    </Form.Item>
+                    <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
+                    <Form.Item {...rest} name={[name, "unit_price"]} label="单价"><InputNumber prefix="¥" /></Form.Item>
+                    <Form.Item {...rest} name={[name, "total_price"]} label="小计"><InputNumber prefix="¥" /></Form.Item>
+                    <Button icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                  </Space>
+                ))}
+                <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>添加产品行</Button>
+              </>
+            )}
+          </Form.List>
 
-        <Form.Item style={{ marginTop: 16 }}>
-          <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
-          <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/orders")}>取消</Button>
-        </Form.Item>
-      </Form>
-    </Card>
+          <Form.Item style={{ marginTop: 16 }}>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
+              <Button onClick={() => navigate("/sales/orders")}>取消</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Card>
+    </SalesModuleShell>
   );
 }
