@@ -48,7 +48,7 @@ class OpportunityResponse(BaseModel):
     stage: str | None = None
     amount: float | None = None
     win_probability: int | None = None
-    expected_close_date: str | None = None
+    expected_close_date: datetime | None = None
     assigned_to: str | None = None
     source: str | None = None
     notes: str | None = None
@@ -133,7 +133,7 @@ class QuotationResponse(BaseModel):
     title: str | None = None
     total_amount: float
     status: str
-    valid_until: str | None = None
+    valid_until: datetime | None = None
     notes: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
@@ -206,8 +206,8 @@ class SalesOrderResponse(BaseModel):
     quotation_id: int | None = None
     total_amount: float
     status: str
-    order_date: str | None = None
-    delivery_date: str | None = None
+    order_date: datetime | None = None
+    delivery_date: datetime | None = None
     notes: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
@@ -271,8 +271,8 @@ class DeliveryNoteResponse(BaseModel):
     sales_order_id: int
     customer_id: int
     status: str
-    delivery_date: str | None = None
-    received_date: str | None = None
+    delivery_date: datetime | None = None
+    received_date: datetime | None = None
     notes: str | None = None
     created_at: datetime
     updated_at: datetime | None = None

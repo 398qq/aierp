@@ -45,6 +45,41 @@ class TestOpportunities:
         assert resp.status_code == 200
         assert resp.json()["data"]["title"] == "查单条"
 
+    async def test_get_opportunity_with_ai_serializes_expected_close_date(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_customer: dict,
+        monkeypatch,
+    ):
+        from app.services import sales_ai_service
+
+        async def fake_enrich_opportunity(db, opp):
+            return {"risk_level": "low", "win_probability": 60, "next_best_action": None, "key_concerns": []}
+
+        monkeypatch.setattr(sales_ai_service, "enrich_opportunity", fake_enrich_opportunity)
+
+        create = await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={
+                "title": "带预计关闭日期",
+                "customer_id": test_customer["id"],
+                "amount": 10000,
+                "stage": "lead",
+                "win_probability": 10,
+                "expected_close_date": "2026-05-30T10:00:00Z",
+            },
+        )
+        opp_id = create.json()["data"]["id"]
+
+        resp = await async_client.get(f"/api/v1/opportunities/{opp_id}?include_ai=true", headers=auth_headers)
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["code"] == 0
+        assert payload["data"]["expected_close_date"].startswith("2026-05-30T10:00:00")
+
     async def test_get_opportunity_not_found(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get("/api/v1/opportunities/99999", headers=auth_headers)
         assert resp.status_code == 200
