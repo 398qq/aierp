@@ -7,7 +7,7 @@ import re
 import unicodedata
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
@@ -23,6 +23,7 @@ UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 _FORBIDDEN_FILENAME_CHARS = re.compile(r"[/\\\x00\r\n]")
+_CODE_NUMBER_RE = re.compile(r"\d+")
 COMPANY_SUFFIXES = (
     "有限责任公司",
     "股份有限公司",
@@ -91,6 +92,45 @@ async def _dedupe_auto_short_name(
     while await _short_name_exists(db, _short_name_with_suffix(short_name, f"{customer_id:06d}-{suffix}"), exclude_id=exclude_id):
         suffix += 1
     return _short_name_with_suffix(short_name, f"{customer_id:06d}-{suffix}")
+
+
+def _extract_code_number(code: str | None) -> str | None:
+    if not code:
+        return None
+    matches = _CODE_NUMBER_RE.findall(unicodedata.normalize("NFKC", code))
+    if not matches:
+        return None
+    value = matches[-1].lstrip("0")
+    return value or "0"
+
+
+def _code_number_conflict_message(code: str, conflict_code: str | None) -> str:
+    return f"客户编码数字部分已存在：{code} 与 {conflict_code or '-'} 数字部分相同，请变更后再添加"
+
+
+async def _find_code_number_conflict(
+    db: AsyncSession,
+    code: str | None,
+    exclude_id: int | None = None,
+) -> Customer | None:
+    code_number = _extract_code_number(code)
+    if code_number is None:
+        return None
+
+    stmt = select(Customer).where(Customer.deleted_at.is_(None), Customer.code.isnot(None))
+    if exclude_id is not None:
+        stmt = stmt.where(Customer.id != exclude_id)
+    rows = (await db.execute(stmt)).scalars().all()
+    return next((row for row in rows if _extract_code_number(row.code) == code_number), None)
+
+
+async def _generate_unique_code(db: AsyncSession, start_number: int, region: str | None, exclude_id: int | None = None) -> str:
+    number = max(1, start_number)
+    while True:
+        code = _generate_code(number, region)
+        if await _find_code_number_conflict(db, code, exclude_id=exclude_id) is None:
+            return code
+        number += 1
 
 
 async def _log(db: AsyncSession, customer_id: int, action: str, field_name: str | None = None,
@@ -351,15 +391,18 @@ async def import_template(
 
 @router.post("/import")
 async def import_customers(
+    response: Response,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     if not file.filename or not file.filename.endswith(".csv"):
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return fail("Only CSV files are supported")
     try:
         content = await file.read()
         if len(content) == 0:
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return fail("Empty file uploaded")
         text = content.decode("utf-8-sig")
         reader = csv.DictReader(io.StringIO(text))
@@ -412,6 +455,12 @@ async def import_customers(
                             setattr(cust, attr, val)
                     updated += 1
                     continue
+                conflict = await _find_code_number_conflict(db, code)
+                if conflict:
+                    conflict_code = conflict.code
+                    response.status_code = status.HTTP_400_BAD_REQUEST
+                    await db.rollback()
+                    return fail(_code_number_conflict_message(code, conflict_code))
             customer = Customer(
                 name=name, code=code, short_name=short_name, industry=industry,
                 level=level, region=region, source=source, customer_type=customer_type,
@@ -424,6 +473,7 @@ async def import_customers(
         await db.commit()
         return ok({"imported": imported, "updated": updated})
     except Exception as e:
+        response.status_code = status.HTTP_400_BAD_REQUEST
         await db.rollback()
         return fail(f"Import failed: {str(e)}")
 
@@ -608,10 +658,16 @@ async def get_customer(
 @router.post("", status_code=201)
 async def create_customer(
     body: CustomerCreate,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
     data = body.model_dump()
+    if data.get("code"):
+        conflict = await _find_code_number_conflict(db, data["code"])
+        if conflict:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return fail(_code_number_conflict_message(data["code"], conflict.code))
     auto_short_name = not data.get("short_name")
     if not data.get("short_name"):
         data["short_name"] = _generate_short_name(data.get("name"))
@@ -620,7 +676,7 @@ async def create_customer(
     db.add(customer)
     await db.flush()
     if auto_code:
-        customer.code = _generate_code(customer.id, customer.region)
+        customer.code = await _generate_unique_code(db, customer.id, customer.region, exclude_id=customer.id)
         await db.flush()
     if auto_short_name:
         customer.short_name = await _dedupe_auto_short_name(
@@ -646,6 +702,7 @@ async def create_customer(
 async def update_customer(
     customer_id: int,
     body: CustomerUpdate,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -656,6 +713,11 @@ async def update_customer(
     if customer is None:
         return fail("Customer not found", 404)
     data = body.model_dump(exclude_unset=True)
+    if data.get("code"):
+        conflict = await _find_code_number_conflict(db, data["code"], exclude_id=customer_id)
+        if conflict:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return fail(_code_number_conflict_message(data["code"], conflict.code))
     next_name = data.get("name", customer.name)
     auto_short_name = False
     if "short_name" in data:

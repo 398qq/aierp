@@ -696,8 +696,8 @@ export default function CustomerList() {
       const updated = result.updated ?? 0;
       message.success(`导入成功：新建 ${created} 条，更新 ${updated} 条，跳过 ${skipped} 条`);
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch {
-      message.error("导入失败，请检查文件格式");
+    } catch (err: any) {
+      message.error(err?.response?.data?.msg || err?.response?.data?.detail || "导入失败，请检查文件格式");
     } finally {
       setImporting(false);
     }

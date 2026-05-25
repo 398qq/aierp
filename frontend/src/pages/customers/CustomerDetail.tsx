@@ -659,7 +659,15 @@ function EditCustomerModal({ open, customer, onClose, onUpdated }: { open: boole
 
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
-    try { await updateCustomer(customer.id, values); message.success("客户信息更新成功"); onUpdated(); } catch { message.error("更新失败"); } finally { setLoading(false); }
+    try {
+      await updateCustomer(customer.id, values);
+      message.success("客户信息更新成功");
+      onUpdated();
+    } catch (err: any) {
+      message.error(err?.response?.data?.msg || err?.response?.data?.detail || "更新失败");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

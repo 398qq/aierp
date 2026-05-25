@@ -34,8 +34,8 @@ export default function CustomerNew() {
       const newId = (resp.data.data as { id: number }).id;
       message.success("客户创建成功");
       navigate(`/customers/${newId}`);
-    } catch {
-      message.error("创建失败，请检查字段");
+    } catch (err: any) {
+      message.error(err?.response?.data?.msg || err?.response?.data?.detail || "创建失败，请检查字段");
     } finally {
       setLoading(false);
     }

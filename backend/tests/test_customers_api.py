@@ -80,6 +80,73 @@ class TestCustomers:
         assert second_short_name.startswith("冲突简称电子-")
         assert second_short_name != first_short_name
 
+    async def test_create_customer_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
+        first = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "编码数字客户A", "code": "CUST-HD-000123"},
+        )
+        second = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "编码数字客户B", "code": "CUST-HN-123"},
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 400
+        assert second.json()["code"] == 400
+        assert "数字部分已存在" in second.json()["msg"]
+
+        listed = await async_client.get("/api/v1/customers?q=编码数字客户", headers=auth_headers)
+        assert listed.json()["data"]["total"] == 1
+
+    async def test_update_customer_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
+        first = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "编码更新客户A", "code": "CUST-HD-000456"},
+        )
+        second = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "编码更新客户B", "code": "CUST-HN-000457"},
+        )
+        second_id = second.json()["data"]["id"]
+
+        resp = await async_client.put(
+            f"/api/v1/customers/{second_id}",
+            headers=auth_headers,
+            json={"code": "CUST-XN-456"},
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert resp.status_code == 400
+        assert "数字部分已存在" in resp.json()["msg"]
+
+        detail = await async_client.get(f"/api/v1/customers/{second_id}", headers=auth_headers)
+        assert detail.json()["data"]["code"] == "CUST-HN-000457"
+
+    async def test_import_customers_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "编码导入客户A", "code": "CUST-HD-000789"},
+        )
+        csv_data = "名称,编码\n编码导入客户B,CUST-HN-789\n".encode()
+
+        resp = await async_client.post(
+            "/api/v1/customers/import",
+            headers=auth_headers,
+            files={"file": ("customers.csv", csv_data, "text/csv")},
+        )
+
+        assert resp.status_code == 400
+        assert "数字部分已存在" in resp.json()["msg"]
+
+        listed = await async_client.get("/api/v1/customers?q=编码导入客户", headers=auth_headers)
+        assert listed.json()["data"]["total"] == 1
+
     async def test_get_customer(self, async_client: AsyncClient, auth_headers: dict):
         c = await async_client.post(
             "/api/v1/customers",
