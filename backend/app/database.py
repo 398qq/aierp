@@ -104,6 +104,7 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _ensure_brand_schema(engine)
+    await _ensure_phase6_schema(engine)
     await _ensure_pgvector(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
@@ -120,6 +121,18 @@ async def _ensure_brand_schema(eng):
                 await conn.exec_driver_sql(
                     f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} BIGINT REFERENCES users(id)"
                 )
+        await conn.commit()
+
+
+async def _ensure_phase6_schema(eng):
+    """Backfill Phase 6 columns that may be missing in long-lived local DBs."""
+    if eng.dialect.name != "postgresql":
+        return
+
+    async with eng.connect() as conn:
+        await conn.exec_driver_sql("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS channel VARCHAR(30) DEFAULT 'in_app'")
+        await conn.exec_driver_sql("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_code VARCHAR(50)")
+        await conn.exec_driver_sql("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS external_id VARCHAR(100)")
         await conn.commit()
 
 

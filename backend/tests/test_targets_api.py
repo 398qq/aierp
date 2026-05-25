@@ -91,3 +91,17 @@ class TestTargets:
     async def test_unauthorized(self, async_client: AsyncClient):
         resp = await async_client.get("/api/v1/sales/targets")
         assert resp.status_code == 401
+
+
+class TestSalesDashboard:
+    async def test_dashboard_alerts(self, async_client: AsyncClient, auth_headers: dict, db_session):
+        from app.models.finance import Notification
+
+        db_session.add(Notification(user_id=1, type="risk_alert", title="风险提醒", content="测试告警"))
+        await db_session.flush()
+
+        resp = await async_client.get("/api/v1/sales/dashboard/alerts", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["alerts"][0]["title"] == "风险提醒"
