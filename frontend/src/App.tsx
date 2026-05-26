@@ -23,6 +23,7 @@ const SupplierList = lazy(() => import("./pages/suppliers/index"));
 const SupplierDashboard = lazy(() => import("./pages/suppliers/SupplierDashboard"));
 const SupplierDetail = lazy(() => import("./pages/suppliers/SupplierDetail"));
 const BrandList = lazy(() => import("./pages/brands/index"));
+const BrandDashboard = lazy(() => import("./pages/brands/BrandDashboard"));
 const BrandDetail = lazy(() => import("./pages/brands/BrandDetail"));
 const InventoryList = lazy(() => import("./pages/inventory/index"));
 const Settings = lazy(() => import("./pages/settings/index"));
@@ -146,6 +147,7 @@ export default function App() {
               <Route path="/suppliers/:id/360" element={<Suspense fallback={<PageLoader />}><Supplier360 /></Suspense>} />
               <Route path="/suppliers/compare" element={<Suspense fallback={<PageLoader />}><SupplierCompare /></Suspense>} />
               <Route path="/brands" element={<Suspense fallback={<PageLoader />}><BrandList /></Suspense>} />
+              <Route path="/brands/stats" element={<Suspense fallback={<PageLoader />}><BrandDashboard /></Suspense>} />
               <Route path="/brands/:id" element={<Suspense fallback={<PageLoader />}><BrandDetail /></Suspense>} />
               <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryList /></Suspense>} />
               <Route path="/warehouse" element={<Suspense fallback={<PageLoader />}><WarehouseIndex /></Suspense>} />
