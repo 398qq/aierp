@@ -91,7 +91,9 @@ export default function BrandDetail() {
 
   const openCompare = async () => {
     const resp = await getBrands();
-    setAllBrands((resp.data.data as Brand[]).filter((b) => b.id !== Number(id)));
+    const payload = resp.data.data as Brand[] | { list?: Brand[] };
+    const brands = Array.isArray(payload) ? payload : (payload.list || []);
+    setAllBrands(brands.filter((b) => b.id !== Number(id)));
     setCompareModalOpen(true);
   };
 

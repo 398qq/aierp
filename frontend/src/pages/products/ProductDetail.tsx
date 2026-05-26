@@ -61,7 +61,8 @@ export default function ProductDetail() {
           }
         }
         if (!resolvedBrandName && brandsRes.status === "fulfilled") {
-          const brands = (brandsRes.value.data.data || []) as Brand[];
+          const payload = brandsRes.value.data.data as Brand[] | { list?: Brand[] };
+          const brands = Array.isArray(payload) ? payload : (payload.list || []);
           const b = brands.find((x) => x.id === (prodRes.status === "fulfilled" ? prodRes.value.data.data.brand_id : undefined));
           if (b) resolvedBrandName = getBrandDisplayName(b);
         }
