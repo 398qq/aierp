@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Popconfirm, Select, Space, Switch, Table, Typography, message } from "antd";
+import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Typography, message } from "antd";
 import { CarOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { SalesOrder } from "../../types";
-import { CustomerLink, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
 
 export default function SalesOrderList() {
   const [data, setData] = useState<SalesOrder[]>([]);
@@ -13,6 +13,9 @@ export default function SalesOrderList() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>();
+  const [customerId, setCustomerId] = useState<number | undefined>();
+  const [searchText, setSearchText] = useState("");
+  const [q, setQ] = useState("");
   const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { delivery_risk?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
@@ -23,6 +26,8 @@ export default function SalesOrderList() {
     try {
       const params: Record<string, unknown> = { page, page_size: 20 };
       if (status) params.status = status;
+      if (customerId) params.customer_id = customerId;
+      if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
       const resp = await getSalesOrders(params);
       setData(resp.data.data.list || []);
@@ -37,7 +42,7 @@ export default function SalesOrderList() {
 
   useEffect(() => {
     load();
-  }, [page, status, includeAi]);
+  }, [page, status, customerId, q, includeAi]);
 
   const stats = useMemo(() => {
     const amount = data.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
@@ -79,6 +84,26 @@ export default function SalesOrderList() {
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/orders/new")}>新建订单</Button>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <Input.Search
+            allowClear
+            placeholder="搜索客户 / 订单号 / 产品"
+            value={searchText}
+            onChange={(event) => {
+              setSearchText(event.target.value);
+              if (!event.target.value) {
+                setPage(1);
+                setQ("");
+              }
+            }}
+            onSearch={(value) => {
+              setPage(1);
+              setQ(value);
+            }}
+            style={{ width: 260 }}
+          />
+          <div style={{ width: 260 }}>
+            <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+          </div>
           {selected.length > 0 ? (
             <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}>
               <Button danger icon={<DeleteOutlined />}>删除 {selected.length}</Button>

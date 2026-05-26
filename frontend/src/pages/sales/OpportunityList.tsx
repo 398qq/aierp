@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
+import { Button, Card, Col, Input, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
 import { FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, getOpportunities } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
-import { CustomerLink, MetricBand, SalesModuleShell, SalesQuickActions, money, shortDate, stageLabel } from "./salesUi";
+import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, money, shortDate, stageLabel } from "./salesUi";
 
 const STAGE_OPTIONS = [
   { value: "lead", label: "线索" },
@@ -19,6 +19,9 @@ export default function OpportunityList() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | undefined>();
   const [stage, setStage] = useState<string | undefined>();
+  const [customerId, setCustomerId] = useState<number | undefined>();
+  const [searchText, setSearchText] = useState("");
+  const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">("board");
   const [includeAi, setIncludeAi] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
@@ -31,6 +34,8 @@ export default function OpportunityList() {
       const params: Record<string, unknown> = { page_size: 100 };
       if (status) params.status = status;
       if (stage) params.stage = stage;
+      if (customerId) params.customer_id = customerId;
+      if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
       const resp = await getOpportunities(params);
       setData(resp.data.data.list || []);
@@ -44,7 +49,7 @@ export default function OpportunityList() {
 
   useEffect(() => {
     load();
-  }, [status, stage, includeAi]);
+  }, [status, stage, customerId, q, includeAi]);
 
   const stats = useMemo(() => {
     const amount = data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -85,6 +90,20 @@ export default function OpportunityList() {
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/opportunities/new")}>新建商机</Button>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <Input.Search
+            allowClear
+            placeholder="搜索客户 / 商机 / 负责人 / 来源"
+            value={searchText}
+            onChange={(event) => {
+              setSearchText(event.target.value);
+              if (!event.target.value) setQ("");
+            }}
+            onSearch={(value) => setQ(value)}
+            style={{ width: 260 }}
+          />
+          <div style={{ width: 260 }}>
+            <CustomerSelect value={customerId} onChange={setCustomerId} />
+          </div>
           <Segmented
             value={view}
             onChange={(v) => setView(v as "board" | "list")}

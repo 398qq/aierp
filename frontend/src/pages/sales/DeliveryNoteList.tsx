@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Popconfirm, Select, Space, Switch, Table, Typography, message } from "antd";
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Typography, message } from "antd";
+import { DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { DeliveryNote } from "../../types";
@@ -14,6 +14,8 @@ export default function DeliveryNoteList() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
+  const [searchText, setSearchText] = useState("");
+  const [q, setQ] = useState("");
   const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { completion_risk?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
@@ -25,6 +27,7 @@ export default function DeliveryNoteList() {
       const params: Record<string, unknown> = { page, page_size: 20 };
       if (status) params.status = status;
       if (customerId) params.customer_id = customerId;
+      if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
       const resp = await getDeliveryNotes(params);
       setData(resp.data.data.list || []);
@@ -37,7 +40,7 @@ export default function DeliveryNoteList() {
     }
   };
 
-  useEffect(() => { load(); }, [page, status, customerId, includeAi]);
+  useEffect(() => { load(); }, [page, status, customerId, q, includeAi]);
 
   const stats = useMemo(() => {
     const pending = data.filter((item) => item.status === "pending").length;
@@ -75,6 +78,24 @@ export default function DeliveryNoteList() {
 
       <Card>
         <Space style={{ marginBottom: 16 }} wrap>
+          <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <Input.Search
+            allowClear
+            placeholder="搜索客户 / 发货单 / 订单 / 产品"
+            value={searchText}
+            onChange={(event) => {
+              setSearchText(event.target.value);
+              if (!event.target.value) {
+                setPage(1);
+                setQ("");
+              }
+            }}
+            onSearch={(value) => {
+              setPage(1);
+              setQ(value);
+            }}
+            style={{ width: 280 }}
+          />
           <Select
             placeholder="状态筛选"
             allowClear

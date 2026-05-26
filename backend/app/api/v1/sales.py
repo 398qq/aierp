@@ -32,13 +32,14 @@ async def list_opportunities(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
     customer_id: int | None = None, status: str | None = None,
     stage: str | None = None, assigned_to: str | None = None,
+    q: str | None = Query(None, description="Search customer, title, owner, source, notes"),
     include_ai: bool = Query(False),
     sort_by: str = "id", sort_order: str = "desc",
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     result = await svc.list_opportunities(
         db, page=page, page_size=page_size, customer_id=customer_id,
-        status=status, stage=stage, assigned_to=assigned_to,
+        status=status, stage=stage, assigned_to=assigned_to, q=q,
         sort_by=sort_by, sort_order=sort_order,
     )
     if include_ai and result["list"]:
@@ -144,13 +145,14 @@ async def batch_update_opportunities(
 async def list_quotations(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
     customer_id: int | None = None, status: str | None = None,
+    q: str | None = Query(None, description="Search customer, quotation no, title, notes, product line"),
     include_ai: bool = Query(False),
     sort_by: str = "id", sort_order: str = "desc",
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     result = await svc.list_quotations(
         db, page=page, page_size=page_size, customer_id=customer_id,
-        status=status, sort_by=sort_by, sort_order=sort_order,
+        status=status, q=q, sort_by=sort_by, sort_order=sort_order,
     )
     if include_ai and result["list"]:
         from app.services.sales_ai_service import enrich_quotation_list
@@ -321,13 +323,14 @@ async def create_quotation_from_inquiry(
 async def list_sales_orders(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
     customer_id: int | None = None, status: str | None = None,
+    q: str | None = Query(None, description="Search customer, order no, notes, product line"),
     include_ai: bool = Query(False),
     sort_by: str = "id", sort_order: str = "desc",
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     result = await svc.list_sales_orders(
         db, page=page, page_size=page_size, customer_id=customer_id,
-        status=status, sort_by=sort_by, sort_order=sort_order,
+        status=status, q=q, sort_by=sort_by, sort_order=sort_order,
     )
     if include_ai and result["list"]:
         from app.services.sales_ai_service import enrich_order_list
@@ -412,13 +415,14 @@ async def list_delivery_notes(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
     customer_id: int | None = None, status: str | None = None,
     sales_order_id: int | None = None,
+    q: str | None = Query(None, description="Search customer, delivery no, order no, notes, product line"),
     include_ai: bool = Query(False),
     sort_by: str = "id", sort_order: str = "desc",
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     result = await svc.list_delivery_notes(
         db, page=page, page_size=page_size, customer_id=customer_id,
-        status=status, sales_order_id=sales_order_id,
+        status=status, sales_order_id=sales_order_id, q=q,
         sort_by=sort_by, sort_order=sort_order,
     )
     if include_ai and result["list"]:

@@ -5,11 +5,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.models.customer import Customer
 from app.models.product import Product, Warehouse
 from app.models.sales import (
     DeliveryNote,
@@ -28,6 +29,28 @@ from app.services.inventory_service import deduct_for_delivery, lock_for_sales_o
 logger = logging.getLogger(__name__)
 
 
+def _customer_search_ids(q: str):
+    pattern = f"%{q}%"
+    return select(Customer.id).where(
+        Customer.deleted_at.is_(None),
+        or_(
+            Customer.name.ilike(pattern),
+            Customer.short_name.ilike(pattern),
+            Customer.code.ilike(pattern),
+            Customer.contact_person.ilike(pattern),
+            Customer.phone.ilike(pattern),
+        ),
+    )
+
+
+def _sales_item_ids(item_model, parent_col, text_col, q: str):
+    pattern = f"%{q}%"
+    return select(parent_col).where(
+        item_model.deleted_at.is_(None),
+        text_col.ilike(pattern),
+    )
+
+
 # ============================================================
 # Opportunity CRUD
 # ============================================================
@@ -36,6 +59,7 @@ async def list_opportunities(
     db: AsyncSession, *, page: int = 1, page_size: int = 20,
     customer_id: int | None = None, status: str | None = None,
     stage: str | None = None, assigned_to: str | None = None,
+    q: str | None = None,
     sort_by: str = "id", sort_order: str = "desc",
 ) -> dict:
     base = select(Opportunity).where(Opportunity.deleted_at.is_(None))
@@ -53,6 +77,18 @@ async def list_opportunities(
     if assigned_to:
         base = base.where(Opportunity.assigned_to == assigned_to)
         cnt = cnt.where(Opportunity.assigned_to == assigned_to)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        search_filter = or_(
+            Opportunity.title.ilike(pattern),
+            Opportunity.description.ilike(pattern),
+            Opportunity.notes.ilike(pattern),
+            Opportunity.source.ilike(pattern),
+            Opportunity.assigned_to.ilike(pattern),
+            Opportunity.customer_id.in_(_customer_search_ids(q.strip())),
+        )
+        base = base.where(search_filter)
+        cnt = cnt.where(search_filter)
 
     total = (await db.execute(cnt)).scalar() or 0
 
@@ -101,6 +137,7 @@ async def delete_opportunity(db: AsyncSession, opp: Opportunity) -> None:
 async def list_quotations(
     db: AsyncSession, *, page: int = 1, page_size: int = 20,
     customer_id: int | None = None, status: str | None = None,
+    q: str | None = None,
     sort_by: str = "id", sort_order: str = "desc",
 ) -> dict:
     base = select(Quotation).where(Quotation.deleted_at.is_(None))
@@ -112,6 +149,19 @@ async def list_quotations(
     if status:
         base = base.where(Quotation.status == status)
         cnt = cnt.where(Quotation.status == status)
+    if q and q.strip():
+        q = q.strip()
+        pattern = f"%{q}%"
+        item_ids = _sales_item_ids(QuotationItem, QuotationItem.quotation_id, QuotationItem.product_name, q)
+        search_filter = or_(
+            Quotation.quotation_no.ilike(pattern),
+            Quotation.title.ilike(pattern),
+            Quotation.notes.ilike(pattern),
+            Quotation.customer_id.in_(_customer_search_ids(q)),
+            Quotation.id.in_(item_ids),
+        )
+        base = base.where(search_filter)
+        cnt = cnt.where(search_filter)
 
     total = (await db.execute(cnt)).scalar() or 0
 
@@ -302,6 +352,7 @@ async def create_quotation_from_inquiry(
 async def list_sales_orders(
     db: AsyncSession, *, page: int = 1, page_size: int = 20,
     customer_id: int | None = None, status: str | None = None,
+    q: str | None = None,
     sort_by: str = "id", sort_order: str = "desc",
 ) -> dict:
     base = select(SalesOrder).where(SalesOrder.deleted_at.is_(None))
@@ -313,6 +364,18 @@ async def list_sales_orders(
     if status:
         base = base.where(SalesOrder.status == status)
         cnt = cnt.where(SalesOrder.status == status)
+    if q and q.strip():
+        q = q.strip()
+        pattern = f"%{q}%"
+        item_ids = _sales_item_ids(SalesOrderItem, SalesOrderItem.order_id, SalesOrderItem.product_name, q)
+        search_filter = or_(
+            SalesOrder.order_no.ilike(pattern),
+            SalesOrder.notes.ilike(pattern),
+            SalesOrder.customer_id.in_(_customer_search_ids(q)),
+            SalesOrder.id.in_(item_ids),
+        )
+        base = base.where(search_filter)
+        cnt = cnt.where(search_filter)
 
     total = (await db.execute(cnt)).scalar() or 0
 
@@ -379,6 +442,7 @@ async def list_delivery_notes(
     db: AsyncSession, *, page: int = 1, page_size: int = 20,
     customer_id: int | None = None, status: str | None = None,
     sales_order_id: int | None = None,
+    q: str | None = None,
     sort_by: str = "id", sort_order: str = "desc",
 ) -> dict:
     base = select(DeliveryNote).where(DeliveryNote.deleted_at.is_(None))
@@ -393,6 +457,23 @@ async def list_delivery_notes(
     if sales_order_id:
         base = base.where(DeliveryNote.sales_order_id == sales_order_id)
         cnt = cnt.where(DeliveryNote.sales_order_id == sales_order_id)
+    if q and q.strip():
+        q = q.strip()
+        pattern = f"%{q}%"
+        item_ids = _sales_item_ids(DeliveryNoteItem, DeliveryNoteItem.delivery_note_id, DeliveryNoteItem.product_name, q)
+        order_ids = select(SalesOrder.id).where(
+            SalesOrder.deleted_at.is_(None),
+            SalesOrder.order_no.ilike(pattern),
+        )
+        search_filter = or_(
+            DeliveryNote.delivery_no.ilike(pattern),
+            DeliveryNote.notes.ilike(pattern),
+            DeliveryNote.customer_id.in_(_customer_search_ids(q)),
+            DeliveryNote.sales_order_id.in_(order_ids),
+            DeliveryNote.id.in_(item_ids),
+        )
+        base = base.where(search_filter)
+        cnt = cnt.where(search_filter)
 
     total = (await db.execute(cnt)).scalar() or 0
 

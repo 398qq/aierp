@@ -18,6 +18,25 @@ class TestOpportunities:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
+    async def test_list_searches_all_opportunities(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
+        target = await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={"title": "全局搜索商机-磁传感器", "customer_id": test_customer["id"], "amount": 10000, "stage": "lead", "win_probability": 10},
+        )
+        await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={"title": "普通商机", "customer_id": test_customer["id"], "amount": 10000, "stage": "lead", "win_probability": 10},
+        )
+
+        resp = await async_client.get("/api/v1/opportunities?q=磁传感器&page_size=1", headers=auth_headers)
+
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] == 1
+        assert payload["list"][0]["id"] == target.json()["data"]["id"]
+
     async def test_create_opportunity(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         resp = await async_client.post(
             "/api/v1/opportunities",
@@ -173,6 +192,31 @@ class TestQuotations:
         assert resp.json()["code"] == 0
         assert "quotation_no" in resp.json()["data"]
 
+    async def test_list_searches_quotation_product_lines(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
+        target = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "draft", "total_amount": 1200,
+                "items": [{"product_name": "QST-QMI8658X", "quantity": 10, "unit_price": 120, "total_price": 1200}],
+            },
+        )
+        await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "draft", "total_amount": 100,
+                "items": [{"product_name": "NOHIT-QUOTE", "quantity": 1, "unit_price": 100, "total_price": 100}],
+            },
+        )
+
+        resp = await async_client.get("/api/v1/quotations?q=QMI8658X&page_size=1", headers=auth_headers)
+
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] == 1
+        assert payload["list"][0]["id"] == target.json()["data"]["id"]
+
     async def test_get_quotation(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(
             "/api/v1/quotations", headers=auth_headers,
@@ -268,6 +312,31 @@ class TestSalesOrders:
         assert resp.status_code == 201
         assert resp.json()["code"] == 0
         assert "order_no" in resp.json()["data"]
+
+    async def test_list_searches_sales_order_product_lines(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
+        target = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "pending", "total_amount": 600,
+                "items": [{"product_name": "WK2212-SALES-SEARCH", "quantity": 3, "unit_price": 200, "total_price": 600}],
+            },
+        )
+        await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "pending", "total_amount": 200,
+                "items": [{"product_name": "NOHIT-ORDER", "quantity": 1, "unit_price": 200, "total_price": 200}],
+            },
+        )
+
+        resp = await async_client.get("/api/v1/sales-orders?q=WK2212-SALES&page_size=1", headers=auth_headers)
+
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] == 1
+        assert payload["list"][0]["id"] == target.json()["data"]["id"]
 
     async def test_get_sales_order(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(
@@ -384,6 +453,31 @@ class TestDeliveryNotes:
         assert resp.status_code == 201
         assert resp.json()["code"] == 0
         assert "delivery_no" in resp.json()["data"]
+
+    async def test_list_searches_delivery_product_lines(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
+        target = await async_client.post(
+            "/api/v1/delivery-notes",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "sales_order_id": 1, "status": "pending",
+                "items": [{"product_name": "SCT-DELIVERY-SEARCH", "quantity": 20}],
+            },
+        )
+        await async_client.post(
+            "/api/v1/delivery-notes",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "sales_order_id": 2, "status": "pending",
+                "items": [{"product_name": "NOHIT-DELIVERY", "quantity": 20}],
+            },
+        )
+
+        resp = await async_client.get("/api/v1/delivery-notes?q=SCT-DELIVERY&page_size=1", headers=auth_headers)
+
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] == 1
+        assert payload["list"][0]["id"] == target.json()["data"]["id"]
 
     async def test_create_delivery_note_uses_sales_order_customer(
         self,
