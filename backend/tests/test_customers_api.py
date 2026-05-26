@@ -1259,3 +1259,22 @@ class TestCustomerLevelRules:
         resp = await async_client.get("/api/v1/customers/level-rules", headers=auth_headers)
         assert resp.status_code == 200
         assert isinstance(resp.json()["data"], list)
+
+
+class TestCustomerTags:
+    async def test_generate_default_customer_tags_is_idempotent(self, async_client: AsyncClient, auth_headers: dict):
+        first = await async_client.post("/api/v1/customers/tags/defaults", headers=auth_headers)
+        assert first.status_code == 201
+        first_data = first.json()["data"]
+        assert first_data["created"] == 5
+        assert [tag["name"] for tag in first_data["tags"]] == ["重点客户", "潜在客户", "样品跟进", "价格敏感", "风险预警"]
+
+        second = await async_client.post("/api/v1/customers/tags/defaults", headers=auth_headers)
+        assert second.status_code == 201
+        second_data = second.json()["data"]
+        assert second_data["created"] == 0
+        assert second_data["existing"] == 5
+
+        listed = await async_client.get("/api/v1/customers/tags", headers=auth_headers)
+        assert listed.status_code == 200
+        assert {tag["name"] for tag in listed.json()["data"]} == {"重点客户", "潜在客户", "样品跟进", "价格敏感", "风险预警"}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber, Divider } from "antd";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, generateDefaultCustomerTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
@@ -123,6 +123,14 @@ export default function CustomerDetail() {
     await linkTag(customerId, created.id);
     await loadTags();
     message.success("标签已创建并添加");
+  };
+
+  const handleGenerateDefaultTags = async () => {
+    const resp = await generateDefaultCustomerTags();
+    const data = resp.data.data;
+    const tagsResp = await getTags();
+    setAllTags(((tagsResp.data.data as TagType[]) || []).sort((a, b) => a.name.localeCompare(b.name)));
+    message.success(data?.created ? `已生成 ${data.created} 个客户标签` : "默认客户标签已存在");
   };
 
   const handleProductRecs = async () => {
@@ -479,6 +487,7 @@ export default function CustomerDetail() {
               customerTags={customerTags}
               onLink={handleLinkTag}
               onCreate={handleCreateAndLinkTag}
+              onGenerateDefaults={handleGenerateDefaultTags}
               onClose={() => setTagModalOpen(false)}
             />
 
@@ -913,6 +922,7 @@ function TagManageModal({
   customerTags,
   onLink,
   onCreate,
+  onGenerateDefaults,
   onClose,
 }: {
   open: boolean;
@@ -920,12 +930,14 @@ function TagManageModal({
   customerTags: TagType[];
   onLink: (id: number) => void;
   onCreate: (name: string, color: string) => Promise<void>;
+  onGenerateDefaults: () => Promise<void>;
   onClose: () => void;
 }) {
   const { message } = App.useApp();
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("blue");
   const [creating, setCreating] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const linkedIds = new Set(customerTags.map((t) => t.id));
   const available = allTags.filter((t) => !linkedIds.has(t.id));
 
@@ -947,6 +959,17 @@ function TagManageModal({
     }
   };
 
+  const handleGenerateDefaults = async () => {
+    setGenerating(true);
+    try {
+      await onGenerateDefaults();
+    } catch {
+      message.error("生成默认标签失败");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <Modal title="管理标签" open={open} onCancel={onClose} footer={null}>
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -957,7 +980,12 @@ function TagManageModal({
           </div>
         )}
         <div>
-          <div style={{ marginBottom: 8, fontWeight: 500 }}>添加已有标签</div>
+          <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontWeight: 500 }}>添加已有标签</div>
+            <Button size="small" icon={<TagsOutlined />} loading={generating} onClick={handleGenerateDefaults}>
+              生成5个默认标签
+            </Button>
+          </Space>
           {available.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有更多可用的标签" />}
           <Space wrap>
             {available.map((t) => (

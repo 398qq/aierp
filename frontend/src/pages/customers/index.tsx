@@ -63,6 +63,7 @@ import {
   detectDuplicates,
   downloadImportTemplate,
   exportCustomers,
+  generateDefaultCustomerTags,
   getAlertEvents,
   getCustomer,
   getCustomers,
@@ -318,6 +319,7 @@ export default function CustomerList() {
   const [tagCreateName, setTagCreateName] = useState("");
   const [tagCreateColor, setTagCreateColor] = useState("blue");
   const [tagCreating, setTagCreating] = useState(false);
+  const [tagGenerating, setTagGenerating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [overdueList, setOverdueList] = useState<OverdueFollowUp[]>([]);
   const [followUpReminders, setFollowUpReminders] = useState<FollowUpReminder[]>([]);
@@ -748,6 +750,21 @@ export default function CustomerList() {
       message.error("创建标签失败");
     } finally {
       setTagCreating(false);
+    }
+  };
+
+  const handleGenerateDefaultTags = async () => {
+    setTagGenerating(true);
+    try {
+      const resp = await generateDefaultCustomerTags();
+      const data = resp.data.data;
+      const tagsResp = await getTags();
+      setTags((tagsResp.data.data || []).sort((a, b) => a.name.localeCompare(b.name)));
+      message.success(data?.created ? `已生成 ${data.created} 个客户标签` : "默认客户标签已存在");
+    } catch {
+      message.error("生成默认标签失败");
+    } finally {
+      setTagGenerating(false);
     }
   };
 
@@ -2112,6 +2129,12 @@ export default function CustomerList() {
         okButtonProps={{ disabled: !batchTagIds.length || !selectedRowKeys.length }}
       >
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Space style={{ width: "100%", justifyContent: "space-between" }}>
+            <Typography.Text type="secondary">可用标签</Typography.Text>
+            <Button size="small" icon={<TagsOutlined />} loading={tagGenerating} onClick={handleGenerateDefaultTags}>
+              生成5个默认标签
+            </Button>
+          </Space>
           <Select
             mode="multiple"
             style={{ width: "100%" }}

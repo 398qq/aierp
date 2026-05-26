@@ -127,16 +127,19 @@ export const batchTagCustomers = (ids: number[], tag_ids: number[]) =>
 
 // Tags
 export const getTags = () =>
-  client.get<APIResponse<Tag[]>>("/tags");
+  client.get<APIResponse<Tag[]>>("/customers/tags");
 
 export const createTag = (data: Record<string, unknown>) =>
-  client.post<APIResponse<Tag>>("/tags", data);
+  client.post<APIResponse<Tag>>("/customers/tags", data);
+
+export const generateDefaultCustomerTags = () =>
+  client.post<APIResponse<{ created: number; existing: number; tags: Tag[] }>>("/customers/tags/defaults");
 
 export const updateTag = (id: number, data: Record<string, unknown>) =>
-  client.put<APIResponse<Tag>>(`/tags/${id}`, data);
+  client.put<APIResponse<Tag>>(`/customers/tags/${id}`, data);
 
 export const deleteTag = (id: number) =>
-  client.delete<APIResponse>(`/tags/${id}`);
+  client.delete<APIResponse>(`/customers/tags/${id}`);
 
 export const getCustomerTags = (customerId: number) =>
   client.get<APIResponse<Tag[]>>(`/customers/${customerId}/tags`);
