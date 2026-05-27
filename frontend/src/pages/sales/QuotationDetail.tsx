@@ -36,7 +36,7 @@ export default function QuotationDetail() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [includeAi, setIncludeAi] = useState(true);
+  const [includeAi, setIncludeAi] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -172,7 +172,7 @@ export default function QuotationDetail() {
             </Button>
           )}
           <Button icon={<DownloadOutlined />} onClick={() => downloadQuotationPDF(quote.id, `quotation_${quote.quotation_no || quote.id}.pdf`).catch(() => message.error("下载失败"))}>
-            下载PDF
+            智能PDF
           </Button>
           <Button icon={<FileProtectOutlined />} onClick={async () => {
             try {

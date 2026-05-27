@@ -155,21 +155,14 @@ export function CustomerSelect({ value, onChange }: { value?: number; onChange?:
       showSearch
       allowClear
       value={value}
-      placeholder="搜索客户名称 / 编码 / 联系人"
+      placeholder="搜索客户名称"
       filterOption={false}
       onSearch={setSearch}
       onChange={onChange}
       notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无匹配客户" />}
       options={items.map((c) => ({
         value: c.id,
-        label: (
-          <Space direction="vertical" size={0}>
-            <Typography.Text>{c.name}</Typography.Text>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {[c.code, c.level, c.region, c.owner].filter(Boolean).join(" / ") || "客户资料"}
-            </Typography.Text>
-          </Space>
-        ),
+        label: c.name,
       }))}
     />
   );
@@ -219,7 +212,7 @@ export function ProductSelect({
       showSearch
       allowClear
       value={value}
-      placeholder="搜索型号 / 品牌 / 产品名称"
+      placeholder="搜索产品名称"
       filterOption={false}
       onSearch={setSearch}
       onChange={(next) => {
@@ -230,14 +223,7 @@ export function ProductSelect({
       notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无匹配产品" />}
       options={items.map((p) => ({
         value: p.id,
-        label: (
-          <Space direction="vertical" size={0}>
-            <Typography.Text>{[p.sku, p.name].filter(Boolean).join(" / ")}</Typography.Text>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {[p.brand_name, p.package_type, `可用 ${p.available ?? p.quantity ?? "-"}`].filter(Boolean).join(" / ")}
-            </Typography.Text>
-          </Space>
-        ),
+        label: p.name,
       }))}
     />
   );

@@ -60,7 +60,7 @@ export default function QuotationList() {
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
   const [q, setQ] = useState("");
-  const [includeAi, setIncludeAi] = useState(true);
+  const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { pricing_health?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
   const navigate = useNavigate();
@@ -338,7 +338,7 @@ export default function QuotationList() {
                       <Button size="small" icon={<SendOutlined />} onClick={() => handleSend(record)}>发送</Button>
                     </Tooltip>
                   )}
-                  <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadQuotationPDF(record.id, `quotation_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败"))}>PDF</Button>
+                  <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadQuotationPDF(record.id, `quotation_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败"))}>智能PDF</Button>
                   <Button size="small" icon={<CopyOutlined />} onClick={() => handleDuplicate(record)}>复制</Button>
                   {record.status !== "won" ? (
                     <Popconfirm title="转为销售订单?" onConfirm={() => handleConvert(record)}>

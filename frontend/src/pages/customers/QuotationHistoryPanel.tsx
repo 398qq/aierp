@@ -115,7 +115,7 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
               );
             }}
           >
-            PDF
+            智能PDF
           </Button>
         </Space>
       ),
