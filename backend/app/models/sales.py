@@ -48,7 +48,13 @@ class Quotation(TimestampMixin, Base):
 
     customer = relationship("Customer", back_populates="quotations")
     opportunity = relationship("Opportunity", back_populates="quotations")
-    items = relationship("QuotationItem", back_populates="quotation", lazy="selectin", cascade="all, delete-orphan")
+    items = relationship(
+        "QuotationItem",
+        primaryjoin="and_(Quotation.id == QuotationItem.quotation_id, QuotationItem.deleted_at.is_(None))",
+        back_populates="quotation",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class QuotationItem(TimestampMixin, Base):
@@ -60,6 +66,10 @@ class QuotationItem(TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(default=1)
     unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    cost_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    untaxed_cost: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    taxed_cost: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    sales_profit: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     quotation = relationship("Quotation", back_populates="items")
@@ -142,5 +152,3 @@ class Inquiry(TimestampMixin, Base):
     ai_confidence: Mapped[float | None] = mapped_column(nullable=True)  # 0.0-1.0
 
     customer = relationship("Customer", backref="inquiries")
-
-

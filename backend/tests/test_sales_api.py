@@ -185,13 +185,18 @@ class TestQuotations:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"], "status": "draft", "total_amount": 30000,
-                "items": [{"product_name": "Test", "quantity": 10, "unit_price": 5}],
+                "items": [{"product_name": "Test", "quantity": 10, "unit_price": 5, "cost_price": 3}],
             },
         )
         assert resp.status_code == 201
         assert resp.json()["code"] == 0
         assert "quotation_no" in resp.json()["data"]
         assert resp.json()["data"]["total_amount"] == 50
+        item = resp.json()["data"]["items"][0]
+        assert item["cost_price"] == 3
+        assert item["untaxed_cost"] == 30
+        assert round(item["taxed_cost"], 2) == 33.90
+        assert round(item["sales_profit"], 2) == 16.10
 
     async def test_list_searches_quotation_product_lines(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         target = await async_client.post(
@@ -246,6 +251,45 @@ class TestQuotations:
             json={"status": "sent"},
         )
         assert resp.status_code == 200
+
+    async def test_update_quotation_replaces_items_without_returning_deleted_rows(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_customer: dict,
+    ):
+        created = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "draft",
+                "items": [{"product_name": "Old Item", "quantity": 1, "unit_price": 10}],
+            },
+        )
+        quote_id = created.json()["data"]["id"]
+
+        first = await async_client.put(
+            f"/api/v1/quotations/{quote_id}",
+            headers=auth_headers,
+            json={
+                "items": [{"product_name": "New Item", "quantity": 2, "unit_price": 20, "cost_price": 5}],
+            },
+        )
+        assert first.status_code == 200
+
+        second = await async_client.put(
+            f"/api/v1/quotations/{quote_id}",
+            headers=auth_headers,
+            json={
+                "items": [{"product_name": "Final Item", "quantity": 3, "unit_price": 30, "cost_price": 10}],
+            },
+        )
+        assert second.status_code == 200
+        items = second.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["product_name"] == "Final Item"
+        assert items[0]["total_price"] == 90
 
     async def test_delete_quotation(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(

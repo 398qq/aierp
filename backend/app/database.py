@@ -105,6 +105,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
     await _ensure_brand_schema(engine)
     await _ensure_phase6_schema(engine)
+    await _ensure_quotation_item_cost_schema(engine)
     await _ensure_pgvector(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
@@ -133,6 +134,19 @@ async def _ensure_phase6_schema(eng):
         await conn.exec_driver_sql("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS channel VARCHAR(30) DEFAULT 'in_app'")
         await conn.exec_driver_sql("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_code VARCHAR(50)")
         await conn.exec_driver_sql("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS external_id VARCHAR(100)")
+        await conn.commit()
+
+
+async def _ensure_quotation_item_cost_schema(eng):
+    """Backfill quotation item cost columns for long-lived local databases."""
+    if eng.dialect.name != "postgresql":
+        return
+
+    async with eng.connect() as conn:
+        await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,6)")
+        await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS untaxed_cost DECIMAL(20,6)")
+        await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS taxed_cost DECIMAL(20,6)")
+        await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS sales_profit DECIMAL(20,6)")
         await conn.commit()
 
 

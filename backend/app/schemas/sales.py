@@ -68,6 +68,10 @@ class QuotationItemCreate(BaseModel):
     quantity: int = 1
     unit_price: float | None = None
     total_price: float | None = None
+    cost_price: float | None = None
+    untaxed_cost: float | None = None
+    taxed_cost: float | None = None
+    sales_profit: float | None = None
     notes: str | None = None
 
 
@@ -77,6 +81,10 @@ class QuotationItemUpdate(BaseModel):
     quantity: int | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    cost_price: float | None = None
+    untaxed_cost: float | None = None
+    taxed_cost: float | None = None
+    sales_profit: float | None = None
     notes: str | None = None
 
 
@@ -88,6 +96,10 @@ class QuotationItemResponse(BaseModel):
     quantity: int
     unit_price: float | None = None
     total_price: float | None = None
+    cost_price: float | None = None
+    untaxed_cost: float | None = None
+    taxed_cost: float | None = None
+    sales_profit: float | None = None
     notes: str | None = None
     model_config = {"from_attributes": True}
 

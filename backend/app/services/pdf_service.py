@@ -6,17 +6,32 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import mm
-from reportlab.platypus import (
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    REPORTLAB_AVAILABLE = True
+except ModuleNotFoundError:
+    colors = None
+    A4 = None
+    ParagraphStyle = None
+    getSampleStyleSheet = None
+    mm = 1
+    Paragraph = None
+    SimpleDocTemplate = None
+    Spacer = None
+    Table = None
+    TableStyle = None
+    REPORTLAB_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +56,9 @@ FALLBACK_FONT = "Helvetica"
 
 def _get_chinese_font() -> str:
     """Find an available Chinese font, falling back to Helvetica if none found."""
+    if not REPORTLAB_AVAILABLE:
+        return FALLBACK_FONT
+
     import os
 
     font_dirs = [
@@ -48,21 +66,6 @@ def _get_chinese_font() -> str:
         "/usr/local/share/fonts",
     ]
 
-    # First check system fonts directory
-    for font_dir in font_dirs:
-        if not os.path.exists(font_dir):
-            continue
-        for root, dirs, files in os.walk(font_dir):
-            for f in files:
-                if f.endswith((".ttf", ".otf", ".ttc")):
-                    name_lower = f.lower()
-                    # Check if it's a CJK font
-                    for cjk_name in CHINESE_FONTS:
-                        if cjk_name.lower().replace(" ", "_") in name_lower or cjk_name.lower() in name_lower:
-                            # Found a matching font, try to use it
-                            return cjk_name
-
-    # Try to register fonts from reportlab's standard paths
     try:
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
@@ -74,16 +77,15 @@ def _get_chinese_font() -> str:
                 for f in files:
                     if f.endswith((".ttf", ".otf")):
                         font_path = os.path.join(root, f)
+                        font_name = os.path.splitext(f)[0].replace("_", " ").replace("-", " ")
+                        if not any(cjk.lower() in font_name.lower() for cjk in CHINESE_FONTS):
+                            continue
                         try:
-                            # Try to register with a simple name
-                            font_name = os.path.splitext(f)[0].replace("_", " ").replace("-", " ")
-                            pdfmetrics.registerFont(TTFont(font_name, font_path))
-                            # Check if it's likely a CJK font
-                            for cjk in CHINESE_FONTS:
-                                if cjk.lower() in font_name.lower():
-                                    return font_name
-                        except Exception:
-                            pass
+                            registered_name = "AIERP_CJK"
+                            pdfmetrics.registerFont(TTFont(registered_name, font_path))
+                            return registered_name
+                        except Exception as e:
+                            logger.debug("Could not register CJK font %s: %s", font_path, e)
     except Exception as e:
         logger.warning(f"Could not register custom fonts: {e}")
 
@@ -177,6 +179,83 @@ def _line_hint(item: Any) -> str:
     return "价格有效，建议确认库存与交期"
 
 
+def _pdf_text(value: Any) -> str:
+    text = str(value)
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def _pdf_escape(value: Any) -> str:
+    text = _pdf_text(value)
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _generate_basic_pdf(quotation: Any) -> bytes:
+    """Generate a dependency-free fallback PDF when ReportLab is unavailable."""
+    customer = getattr(quotation, "customer", None)
+    items = getattr(quotation, "items", None) or []
+    subtotal = sum(_as_decimal(getattr(item, "total_price", None)) for item in items)
+    risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
+    quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
+
+    lines = [
+        "AIERP SMART QUOTATION",
+        f"Quotation No: {getattr(quotation, 'quotation_no', None) or getattr(quotation, 'id', '-')}",
+        f"Title: {getattr(quotation, 'title', None) or '-'}",
+        f"Customer: {getattr(customer, 'name', None) or '-'}",
+        f"Status: {_status_label(getattr(quotation, 'status', None))}",
+        f"Valid Until: {_date_text(getattr(quotation, 'valid_until', None))}",
+        "",
+        "Items:",
+    ]
+    for index, item in enumerate(items, start=1):
+        lines.append(
+            f"{index}. {getattr(item, 'product_name', None) or '-'} "
+            f"qty {getattr(item, 'quantity', 0) or 0} "
+            f"unit {_money(getattr(item, 'unit_price', None))} "
+            f"subtotal {_money(getattr(item, 'total_price', None))}"
+        )
+    lines.extend([
+        "",
+        f"Subtotal: {_money(subtotal)}",
+        f"Quotation Total: {_money(quote_total)}",
+        f"Smart Status: {risk_label}",
+        f"Next Action: {next_action}",
+        "",
+        "Terms: Inventory, lead time, tax and payment terms are subject to final order confirmation.",
+    ])
+
+    content_lines = ["BT", "/F1 10 Tf", "50 790 Td", "14 TL"]
+    for line in lines[:52]:
+        content_lines.append(f"({_pdf_escape(line)}) Tj")
+        content_lines.append("T*")
+    content_lines.append("ET")
+    stream = "\n".join(content_lines).encode("latin-1", "replace")
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+    ]
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{index} 0 obj\n".encode("ascii"))
+        pdf.extend(obj)
+        pdf.extend(b"\nendobj\n")
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode("ascii")
+    )
+    return bytes(pdf)
+
+
 def generate_quotation_pdf(quotation: Any) -> bytes:
     """
     Generate a PDF for a quotation.
@@ -194,6 +273,10 @@ def generate_quotation_pdf(quotation: Any) -> bytes:
     Returns:
         PDF bytes
     """
+    if not REPORTLAB_AVAILABLE:
+        logger.warning("ReportLab is not installed; using basic PDF fallback")
+        return _generate_basic_pdf(quotation)
+
     buffer = io.BytesIO()
 
     # Create document

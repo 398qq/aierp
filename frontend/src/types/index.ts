@@ -1158,6 +1158,10 @@ export interface QuotationItem {
   quantity: number;
   unit_price: number | null;
   total_price: number | null;
+  cost_price: number | null;
+  untaxed_cost: number | null;
+  taxed_cost: number | null;
+  sales_profit: number | null;
   notes: string | null;
 }
 

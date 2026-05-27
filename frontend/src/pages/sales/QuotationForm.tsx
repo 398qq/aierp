@@ -14,10 +14,15 @@ type QuoteItemForm = {
   quantity?: number;
   unit_price?: number;
   total_price?: number;
+  cost_price?: number;
+  untaxed_cost?: number;
+  taxed_cost?: number;
+  sales_profit?: number;
   notes?: string;
 };
 
 const toNumber = (value: unknown) => Number(value || 0);
+const COST_TAX_RATE = 0.13;
 
 export default function QuotationForm() {
   const { id } = useParams<{ id: string }>();
@@ -34,8 +39,11 @@ export default function QuotationForm() {
     const items = watchedItems || [];
     const validItems = items.filter((item) => item?.product_id || item?.product_name);
     const amount = items.reduce((sum, item) => sum + toNumber(item?.total_price), 0);
+    const untaxedCost = items.reduce((sum, item) => sum + toNumber(item?.untaxed_cost), 0);
+    const taxedCost = items.reduce((sum, item) => sum + toNumber(item?.taxed_cost), 0);
+    const profit = items.reduce((sum, item) => sum + toNumber(item?.sales_profit), 0);
     const quantity = items.reduce((sum, item) => sum + toNumber(item?.quantity), 0);
-    return { itemCount: validItems.length, amount, quantity };
+    return { itemCount: validItems.length, amount, untaxedCost, taxedCost, profit, quantity };
   }, [watchedItems]);
 
   useEffect(() => {
@@ -70,8 +78,27 @@ export default function QuotationForm() {
       const quantity = toNumber(item?.quantity || 1);
       const unitPrice = toNumber(item?.unit_price);
       const totalPrice = quantity * unitPrice;
-      if (item?.total_price !== totalPrice) changed = true;
-      return { ...item, quantity, total_price: totalPrice };
+      const costPrice = toNumber(item?.cost_price);
+      const untaxedCost = quantity * costPrice;
+      const taxedCost = untaxedCost * (1 + COST_TAX_RATE);
+      const salesProfit = totalPrice - taxedCost;
+      if (
+        item?.total_price !== totalPrice
+        || item?.untaxed_cost !== untaxedCost
+        || item?.taxed_cost !== taxedCost
+        || item?.sales_profit !== salesProfit
+      ) {
+        changed = true;
+      }
+      return {
+        ...item,
+        quantity,
+        total_price: totalPrice,
+        cost_price: costPrice,
+        untaxed_cost: untaxedCost,
+        taxed_cost: taxedCost,
+        sales_profit: salesProfit,
+      };
     });
     if (changed) form.setFieldValue("items", next);
   };
@@ -238,6 +265,42 @@ export default function QuotationForm() {
                           ),
                         },
                         {
+                          title: "成本",
+                          width: 130,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "cost_price"]} style={{ marginBottom: 0 }}>
+                              <InputNumber min={0} precision={4} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "未税成本",
+                          width: 140,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "untaxed_cost"]} style={{ marginBottom: 0 }}>
+                              <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "含税成本",
+                          width: 140,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "taxed_cost"]} style={{ marginBottom: 0 }}>
+                              <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "销售利润",
+                          width: 140,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "sales_profit"]} style={{ marginBottom: 0 }}>
+                              <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
                           title: "备注",
                           width: 220,
                           render: (_: unknown, field) => (
@@ -255,7 +318,21 @@ export default function QuotationForm() {
                         },
                       ]}
                     />
-                    <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ quantity: 1, unit_price: 0, total_price: 0 })} block style={{ marginTop: 12 }}>
+                    <Button
+                      type="dashed"
+                      icon={<PlusOutlined />}
+                      onClick={() => add({
+                        quantity: 1,
+                        unit_price: 0,
+                        total_price: 0,
+                        cost_price: 0,
+                        untaxed_cost: 0,
+                        taxed_cost: 0,
+                        sales_profit: 0,
+                      })}
+                      block
+                      style={{ marginTop: 12 }}
+                    >
                       添加产品行
                     </Button>
                   </>
@@ -272,6 +349,8 @@ export default function QuotationForm() {
                   <Tag color="blue">产品行 {summary.itemCount}</Tag>
                   <Tag>总数量 {summary.quantity}</Tag>
                   <Tag color="green">{money(summary.amount)}</Tag>
+                  <Tag color="orange">含税成本 {money(summary.taxedCost)}</Tag>
+                  <Tag color={summary.profit >= 0 ? "green" : "red"}>利润 {money(summary.profit)}</Tag>
                 </Space>
                 <Form.Item name="total_amount" hidden>
                   <InputNumber />

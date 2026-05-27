@@ -1,13 +1,7 @@
 """PDF service tests."""
 
-import importlib.util
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-
-import pytest
-
-
-REPORTLAB_AVAILABLE = importlib.util.find_spec("reportlab") is not None
 
 
 def test_reportlab_dependency_declared():
@@ -15,7 +9,6 @@ def test_reportlab_dependency_declared():
         assert "reportlab" in req.read()
 
 
-@pytest.mark.skipif(not REPORTLAB_AVAILABLE, reason="reportlab is not installed in this environment")
 def test_generate_quotation_pdf_with_smart_sections():
     from app.services.pdf_service import generate_quotation_pdf
 

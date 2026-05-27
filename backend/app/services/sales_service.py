@@ -51,6 +51,9 @@ def _sales_item_ids(item_model, parent_col, text_col, q: str):
     )
 
 
+QUOTE_COST_TAX_RATE = 0.13
+
+
 def _normalize_quotation_items(items_data: list[dict] | None) -> tuple[list[dict], float]:
     items: list[dict] = []
     total = 0.0
@@ -60,9 +63,17 @@ def _normalize_quotation_items(items_data: list[dict] | None) -> tuple[list[dict
         unit_price = float(item.get("unit_price") or 0)
         total_price = item.get("total_price")
         line_total = float(total_price) if total_price is not None else qty * unit_price
+        cost_price = float(item.get("cost_price") or 0)
+        untaxed_cost = qty * cost_price
+        taxed_cost = untaxed_cost * (1 + QUOTE_COST_TAX_RATE)
+        sales_profit = line_total - taxed_cost
         item["quantity"] = qty
         item["unit_price"] = unit_price
         item["total_price"] = line_total
+        item["cost_price"] = cost_price
+        item["untaxed_cost"] = untaxed_cost
+        item["taxed_cost"] = taxed_cost
+        item["sales_profit"] = sales_profit
         total += line_total
         items.append(item)
     return items, total
@@ -320,6 +331,10 @@ async def duplicate_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
             quantity=item.quantity,
             unit_price=item.unit_price,
             total_price=item.total_price,
+            cost_price=item.cost_price,
+            untaxed_cost=item.untaxed_cost,
+            taxed_cost=item.taxed_cost,
+            sales_profit=item.sales_profit,
             notes=item.notes,
         ))
     await db.commit()

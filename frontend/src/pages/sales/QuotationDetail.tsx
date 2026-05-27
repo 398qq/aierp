@@ -61,6 +61,9 @@ export default function QuotationDetail() {
       count: items.length,
       quantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       amount: items.reduce((sum, item) => sum + Number(item.total_price || 0), 0),
+      untaxedCost: items.reduce((sum, item) => sum + Number(item.untaxed_cost || 0), 0),
+      taxedCost: items.reduce((sum, item) => sum + Number(item.taxed_cost || 0), 0),
+      profit: items.reduce((sum, item) => sum + Number(item.sales_profit || 0), 0),
     };
   }, [quote]);
 
@@ -129,6 +132,8 @@ export default function QuotationDetail() {
           { title: "产品行", value: itemSummary.count, suffix: "项" },
           { title: "总数量", value: itemSummary.quantity },
           { title: "明细合计", value: itemSummary.amount, prefix: "¥", precision: 2 },
+          { title: "含税成本", value: itemSummary.taxedCost, prefix: "¥", precision: 2 },
+          { title: "销售利润", value: itemSummary.profit, prefix: "¥", precision: 2 },
           { title: "状态", value: quote.status },
           { title: "有效期", value: due.text },
         ]}
@@ -239,6 +244,17 @@ export default function QuotationDetail() {
                 { title: "数量", dataIndex: "quantity", width: 90 },
                 { title: "单价", dataIndex: "unit_price", width: 120, render: (value: number | null) => value != null ? money(value) : "-" },
                 { title: "小计", dataIndex: "total_price", width: 130, render: (value: number | null) => value != null ? money(value) : "-" },
+                { title: "成本", dataIndex: "cost_price", width: 120, render: (value: number | null) => value != null ? money(value) : "-" },
+                { title: "未税成本", dataIndex: "untaxed_cost", width: 130, render: (value: number | null) => value != null ? money(value) : "-" },
+                { title: "含税成本", dataIndex: "taxed_cost", width: 130, render: (value: number | null) => value != null ? money(value) : "-" },
+                {
+                  title: "销售利润",
+                  dataIndex: "sales_profit",
+                  width: 130,
+                  render: (value: number | null) => (
+                    value != null ? <Typography.Text type={value < 0 ? "danger" : undefined}>{money(value)}</Typography.Text> : "-"
+                  ),
+                },
                 { title: "备注", dataIndex: "notes", width: 180, ellipsis: true, render: (value: string | null) => value || "-" },
               ]}
               summary={() => (
@@ -248,8 +264,17 @@ export default function QuotationDetail() {
                   <Table.Summary.Cell index={2}>-</Table.Summary.Cell>
                   <Table.Summary.Cell index={3}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={4}>-</Table.Summary.Cell>
+                  <Table.Summary.Cell index={5}>{money(itemSummary.untaxedCost)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={6}>{money(itemSummary.taxedCost)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={7}>
+                    <Typography.Text strong type={itemSummary.profit < 0 ? "danger" : undefined}>
+                      {money(itemSummary.profit)}
+                    </Typography.Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={8}>-</Table.Summary.Cell>
                 </Table.Summary.Row>
               )}
+              scroll={{ x: "max-content" }}
             />
           </Card>
 
