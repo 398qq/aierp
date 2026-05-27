@@ -4,7 +4,7 @@ import { Table, Button, Space, Tag, Select, message, Popconfirm, Row, Col, Card,
 import { PlusOutlined, DollarOutlined } from "@ant-design/icons";
 import { getPayments, deletePayment, getPaymentStats } from "../../api";
 import type { PaymentRecord } from "../../types";
-import { CustomerLink, CustomerSelect } from "./salesUi";
+import { CustomerLink, CustomerSelect, SalesModuleShell } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   pending: { color: "orange", label: "待收款" }, completed: { color: "green", label: "已收款" },
@@ -38,7 +38,11 @@ export default function PaymentList() {
   useEffect(() => { load(); }, [page, status, customerId]);
 
   return (
-    <div>
+    <SalesModuleShell
+      title="回款管理"
+      subtitle="按客户和订单跟踪待收、已收、逾期回款"
+      activeKey="payments"
+    >
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}><Card size="small"><Statistic title="已收款" value={stats.total_received} prefix="¥" valueStyle={{ color: "#52c41a" }} /></Card></Col>
         <Col span={6}><Card size="small"><Statistic title="待收款" value={stats.total_pending} prefix="¥" valueStyle={{ color: "#faad14" }} /></Card></Col>
@@ -79,6 +83,6 @@ export default function PaymentList() {
         ]}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
       />
-    </div>
+    </SalesModuleShell>
   );
 }

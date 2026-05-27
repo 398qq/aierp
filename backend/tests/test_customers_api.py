@@ -202,6 +202,91 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["data"]["name"] == "单个客户"
 
+    async def test_get_customer_quotation_history(self, async_client: AsyncClient, auth_headers: dict):
+        customer = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "报价历史客户", "type": "终端客户"},
+        )
+        other = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "其他报价客户", "type": "终端客户"},
+        )
+        customer_id = customer.json()["data"]["id"]
+        other_id = other.json()["data"]["id"]
+
+        won = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "status": "won",
+                "total_amount": 1200,
+                "items": [{"product_name": "QMI8658", "quantity": 10, "unit_price": 120, "total_price": 1200}],
+            },
+        )
+        sent = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "status": "sent",
+                "total_amount": 600,
+                "items": [{"product_name": "WK2212", "quantity": 3, "unit_price": 200, "total_price": 600}],
+            },
+        )
+        await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": other_id,
+                "status": "won",
+                "total_amount": 9999,
+                "items": [{"product_name": "OTHER", "quantity": 1, "unit_price": 9999, "total_price": 9999}],
+            },
+        )
+
+        resp = await async_client.get(f"/api/v1/customers/{customer_id}/quotation-history", headers=auth_headers)
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["code"] == 0
+        assert payload["data"]["total"] == 2
+        assert payload["data"]["stats"]["won"] == 1
+        assert payload["data"]["stats"]["pending"] == 1
+        assert payload["data"]["stats"]["total_won_amount"] == 1200
+        ids = {item["id"] for item in payload["data"]["quotations"]}
+        assert ids == {won.json()["data"]["id"], sent.json()["data"]["id"]}
+
+    async def test_get_customer_quotation_history_status_filter(self, async_client: AsyncClient, auth_headers: dict):
+        customer = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "报价状态筛选客户", "type": "终端客户"},
+        )
+        customer_id = customer.json()["data"]["id"]
+        await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={"customer_id": customer_id, "status": "won", "total_amount": 1200},
+        )
+        await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={"customer_id": customer_id, "status": "sent", "total_amount": 600},
+        )
+
+        resp = await async_client.get(
+            f"/api/v1/customers/{customer_id}/quotation-history?status=sent",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] == 1
+        assert payload["quotations"][0]["status"] == "sent"
+
     async def test_update_customer(self, async_client: AsyncClient, auth_headers: dict):
         c = await async_client.post(
             "/api/v1/customers",
@@ -1195,6 +1280,53 @@ class TestCustomerStats:
         assert items_by_id[past.json()["data"]["id"]]["due_bucket"] == "overdue"
         assert items_by_id[today.json()["data"]["id"]]["due_bucket"] == "today"
         assert items_by_id[upcoming.json()["data"]["id"]]["due_bucket"] == "upcoming"
+
+    async def test_global_follow_ups_collection(self, async_client: AsyncClient, auth_headers: dict):
+        target = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "全局跟进客户", "type": "终端客户"},
+        )
+        other = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "其他全局客户", "type": "终端客户"},
+        )
+        target_id = target.json()["data"]["id"]
+        other_id = other.json()["data"]["id"]
+        now = datetime.now(timezone.utc)
+
+        target_follow = await async_client.post(
+            f"/api/v1/customers/{target_id}/follow-ups",
+            headers=auth_headers,
+            json={
+                "method": "phone",
+                "status": "planned",
+                "priority": "high",
+                "planned_at": (now - timedelta(days=1)).isoformat(),
+                "content": "全局集合关键字",
+            },
+        )
+        await async_client.post(
+            f"/api/v1/customers/{other_id}/follow-ups",
+            headers=auth_headers,
+            json={"method": "email", "status": "completed", "content": "其他记录"},
+        )
+
+        resp = await async_client.get(
+            "/api/v1/customers/follow-ups-global?q=全局集合关键字&due_bucket=overdue",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["total"] == 1
+        item = data["list"][0]
+        assert item["id"] == target_follow.json()["data"]["id"]
+        assert item["customer_id"] == target_id
+        assert item["customer_name"] == "全局跟进客户"
+        assert item["due_bucket"] == "overdue"
+        assert item["priority"] == "high"
 
     async def test_customer_alerts(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get("/api/v1/customers/alerts", headers=auth_headers)

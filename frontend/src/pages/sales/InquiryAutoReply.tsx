@@ -6,14 +6,14 @@ import {
 } from "antd";
 import {
   SendOutlined, HistoryOutlined, CheckCircleOutlined,
-  WarningOutlined, ExclamationCircleOutlined, RobotOutlined, FileTextOutlined,
+  WarningOutlined, ExclamationCircleOutlined, FileTextOutlined,
 } from "@ant-design/icons";
 import { inquiryAutoReply, getInquiries, createQuotationFromInquiry, type InquiryAutoReplyResponse, type InquiryRecord, type InquiryMatchedProduct, type InquiryAlternative } from "../../api";
 import dayjs from "dayjs";
-import { CustomerSelect } from "./salesUi";
+import { CustomerSelect, SalesModuleShell } from "./salesUi";
 
 const { TextArea } = Input;
-const { Text, Paragraph } = Typography;
+const { Paragraph } = Typography;
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   const pct = (confidence * 100).toFixed(0);
@@ -200,13 +200,12 @@ export default function InquiryAutoReply() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <RobotOutlined style={{ fontSize: 20, color: "#1677ff" }} />
-        <Text strong style={{ fontSize: 16 }}>询价自动回复</Text>
-      </div>
-
+    <SalesModuleShell
+      title="询价自动回复"
+      subtitle="识别客户询价文本，匹配产品库存并生成报价动作"
+      activeKey="inquiry"
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Input Form */}
       <Card title="询价输入" size="small">
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ channel: "wechat" }}>
@@ -337,6 +336,7 @@ export default function InquiryAutoReply() {
           scroll={{ x: 700 }}
         />
       </Card>
-    </div>
+      </div>
+    </SalesModuleShell>
   );
 }

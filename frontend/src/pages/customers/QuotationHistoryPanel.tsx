@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Table, Card, Statistic, Row, Col, Tag, Button, Spin, message, Select } from "antd";
-import { DownloadOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import { Table, Card, Statistic, Row, Col, Tag, Button, Spin, message, Select, Space } from "antd";
+import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { getCustomerQuotationHistory, downloadQuotationPDF } from "../../api";
@@ -11,6 +12,7 @@ interface Props {
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  draft: { label: "草稿", color: "default" },
   pending: { label: "待处理", color: "default" },
   sent: { label: "已发送", color: "processing" },
   won: { label: "已成交", color: "green" },
@@ -19,6 +21,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function QuotationHistoryPanel({ customerId }: Props) {
+  const navigate = useNavigate();
   const [data, setData] = useState<CustomerQuotationHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
@@ -48,7 +51,11 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
       dataIndex: "quotation_no",
       key: "quotation_no",
       width: 150,
-      render: (v: string) => <Tag color="blue">{v}</Tag>,
+      render: (v: string, record) => (
+        <Button type="link" size="small" onClick={() => navigate(`/sales/quotations/${record.id}`)}>
+          {v || `#${record.id}`}
+        </Button>
+      ),
     },
     {
       title: "状态",
@@ -93,19 +100,24 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
     {
       title: "操作",
       key: "action",
-      width: 90,
+      width: 150,
       render: (_: unknown, record: typeof quotations[0]) => (
-        <Button
-          size="small"
-          icon={<DownloadOutlined />}
-          onClick={() => {
-            downloadQuotationPDF(record.id, `${record.quotation_no}.pdf`).catch(() =>
-              message.error("下载失败")
-            );
-          }}
-        >
-          PDF
-        </Button>
+        <Space size="small">
+          <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/sales/quotations/${record.id}`)}>
+            详情
+          </Button>
+          <Button
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              downloadQuotationPDF(record.id, `${record.quotation_no}.pdf`).catch(() =>
+                message.error("下载失败")
+              );
+            }}
+          >
+            PDF
+          </Button>
+        </Space>
       ),
     },
   ];

@@ -51,6 +51,23 @@ def _sales_item_ids(item_model, parent_col, text_col, q: str):
     )
 
 
+def _normalize_quotation_items(items_data: list[dict] | None) -> tuple[list[dict], float]:
+    items: list[dict] = []
+    total = 0.0
+    for raw in items_data or []:
+        item = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
+        qty = int(item.get("quantity") or 1)
+        unit_price = float(item.get("unit_price") or 0)
+        total_price = item.get("total_price")
+        line_total = float(total_price) if total_price is not None else qty * unit_price
+        item["quantity"] = qty
+        item["unit_price"] = unit_price
+        item["total_price"] = line_total
+        total += line_total
+        items.append(item)
+    return items, total
+
+
 # ============================================================
 # Opportunity CRUD
 # ============================================================
@@ -184,12 +201,15 @@ async def get_quotation(db: AsyncSession, quote_id: int) -> Quotation | None:
 async def create_quotation(db: AsyncSession, data: dict, items_data: list[dict] | None = None) -> Quotation:
     if not data.get("quotation_no"):
         data["quotation_no"] = await generate_doc_no(db, "QT", Quotation, "quotation_no")
+    normalized_items, total = _normalize_quotation_items(items_data)
+    if normalized_items:
+        data["total_amount"] = total
     quote = Quotation(**{k: v for k, v in data.items() if k != "items"})
     db.add(quote)
     await db.flush()
 
-    if items_data:
-        for item in items_data:
+    if normalized_items:
+        for item in normalized_items:
             qi = QuotationItem(quotation_id=quote.id, **item)
             db.add(qi)
 
@@ -208,15 +228,110 @@ async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Qu
         for item in quote.items:
             item.deleted_at = datetime.now(timezone.utc)
         await db.flush()
-        total = 0.0
-        for item_data in items_data:
-            qty = item_data.get("quantity", 1)
-            up = item_data.get("unit_price") or 0
-            tp = qty * up
-            total += tp
-            qi = QuotationItem(quotation_id=quote.id, **item_data, total_price=tp)
+        normalized_items, total = _normalize_quotation_items(items_data)
+        for item_data in normalized_items:
+            qi = QuotationItem(quotation_id=quote.id, **item_data)
             db.add(qi)
         quote.total_amount = total
+    await db.commit()
+    await db.refresh(quote)
+    return quote
+
+
+async def get_quotation_stats(db: AsyncSession) -> dict:
+    now = datetime.now(timezone.utc)
+    soon = now + timedelta(days=7)
+
+    rows = (await db.execute(
+        select(Quotation.status, func.count(Quotation.id), func.coalesce(func.sum(Quotation.total_amount), 0))
+        .where(Quotation.deleted_at.is_(None))
+        .group_by(Quotation.status)
+    )).all()
+
+    by_status = {
+        status or "unknown": {"count": int(count or 0), "amount": float(amount or 0)}
+        for status, count, amount in rows
+    }
+    total = sum(item["count"] for item in by_status.values())
+    total_amount = sum(item["amount"] for item in by_status.values())
+
+    active_statuses = ["draft", "sent"]
+    expiring_soon = (await db.execute(
+        select(func.count(Quotation.id)).where(
+            Quotation.deleted_at.is_(None),
+            Quotation.status.in_(active_statuses),
+            Quotation.valid_until.is_not(None),
+            Quotation.valid_until >= now,
+            Quotation.valid_until <= soon,
+        )
+    )).scalar() or 0
+    expired = (await db.execute(
+        select(func.count(Quotation.id)).where(
+            Quotation.deleted_at.is_(None),
+            Quotation.status.in_(active_statuses),
+            Quotation.valid_until.is_not(None),
+            Quotation.valid_until < now,
+        )
+    )).scalar() or 0
+    converted = (await db.execute(
+        select(func.count(func.distinct(SalesOrder.quotation_id))).where(
+            SalesOrder.deleted_at.is_(None),
+            SalesOrder.quotation_id.is_not(None),
+        )
+    )).scalar() or 0
+
+    return {
+        "total": total,
+        "total_amount": float(total_amount),
+        "draft": by_status.get("draft", {}).get("count", 0),
+        "sent": by_status.get("sent", {}).get("count", 0),
+        "won": by_status.get("won", {}).get("count", 0),
+        "lost": by_status.get("lost", {}).get("count", 0),
+        "won_amount": by_status.get("won", {}).get("amount", 0),
+        "expiring_soon": int(expiring_soon),
+        "expired": int(expired),
+        "converted": int(converted),
+        "quote_to_order_rate": round((int(converted) / total * 100), 1) if total else 0,
+        "by_status": by_status,
+    }
+
+
+async def duplicate_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
+    quotation_no = await generate_doc_no(db, "QT", Quotation, "quotation_no")
+    new_quote = Quotation(
+        quotation_no=quotation_no,
+        customer_id=quote.customer_id,
+        opportunity_id=quote.opportunity_id,
+        title=f"{quote.title or quote.quotation_no or f'报价单 #{quote.id}'} - 复制",
+        total_amount=quote.total_amount,
+        status="draft",
+        valid_until=quote.valid_until,
+        notes=quote.notes,
+    )
+    db.add(new_quote)
+    await db.flush()
+    for item in quote.items:
+        if item.deleted_at is not None:
+            continue
+        db.add(QuotationItem(
+            quotation_id=new_quote.id,
+            product_id=item.product_id,
+            product_name=item.product_name,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            total_price=item.total_price,
+            notes=item.notes,
+        ))
+    await db.commit()
+    await db.refresh(new_quote)
+    return new_quote
+
+
+async def update_quotation_status(db: AsyncSession, quote: Quotation, status: str) -> Quotation:
+    allowed = {"draft", "sent", "won", "lost"}
+    if status not in allowed:
+        raise ValueError("无效报价状态")
+    quote.status = status
     await db.commit()
     await db.refresh(quote)
     return quote
@@ -308,7 +423,11 @@ async def create_quotation_from_inquiry(
 
     total = 0.0
     # Auto-populate items from inquiry.matched_products if not provided
-    if not items:
+    if items:
+        normalized_items, total = _normalize_quotation_items(items)
+        for item in normalized_items:
+            db.add(QuotationItem(quotation_id=quote.id, **item))
+    else:
         try:
             matched = json.loads(inquiry.matched_products) if inquiry.matched_products else []
         except Exception:

@@ -24,6 +24,7 @@ import {
   Space,
   Statistic,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -70,6 +71,7 @@ import {
   getCustomerStats,
   getDashboardStats,
   getFollowUpReminders,
+  getGlobalFollowUps,
   getTags,
   importCustomers,
   markAllAlertsRead,
@@ -85,6 +87,7 @@ import type {
   DashboardStats,
   DuplicatePair,
   FollowUpReminder,
+  GlobalFollowUp,
   OverdueFollowUp,
   SimilarCustomer,
   Tag as TagType,
@@ -98,6 +101,8 @@ import {
   FOLLOW_UP_PRIORITY_OPTIONS,
   FOLLOW_UP_STATUS_OPTIONS,
   FollowUpMethodTag,
+  FollowUpPriorityTag,
+  FollowUpStatusTag,
 } from "./customerUi";
 
 const INDUSTRIES = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗设备", "安防监控", "其他"];
@@ -117,6 +122,7 @@ const TAG_COLOR_OPTIONS = [
 
 type SceneValue = "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
 type SmartTaskKey = "today" | "overdue" | "high_risk" | "key_stale" | "new_customers" | "ai_suggested" | "all";
+type CustomerWorkbenchTab = "customers" | "followups";
 
 const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "全部客户", value: "all" },
@@ -154,12 +160,22 @@ const COL_LABEL_MAP: Record<string, string> = {
 
 const DEFAULT_VISIBLE_COL_KEYS = ["name", "level", "region", "owner", "next_followup", "last_contacted_at", "tags", "actions"];
 type ReminderBucket = "all" | FollowUpReminder["due_bucket"];
+type GlobalFollowUpBucket = "all" | GlobalFollowUp["due_bucket"];
 
 const REMINDER_BUCKETS: { key: ReminderBucket; label: string }[] = [
   { key: "all", label: "全部" },
   { key: "overdue", label: "逾期" },
   { key: "today", label: "今日" },
   { key: "upcoming", label: "未来" },
+];
+
+const GLOBAL_FOLLOW_UP_BUCKETS: { key: GlobalFollowUpBucket; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "overdue", label: "逾期" },
+  { key: "today", label: "今日" },
+  { key: "upcoming", label: "未来" },
+  { key: "unscheduled", label: "未排期" },
+  { key: "closed", label: "已完成" },
 ];
 
 const SMART_TASK_LABELS: Record<SmartTaskKey, string> = {
@@ -230,6 +246,14 @@ const getReminderDueMeta = (item: FollowUpReminder) => {
     return { text: "今日待跟进", color: "orange" };
   }
   return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
+};
+
+const getGlobalFollowUpDueMeta = (item: GlobalFollowUp) => {
+  if (item.due_bucket === "overdue") return { text: `逾期 ${item.overdue_days} 天`, color: "red" };
+  if (item.due_bucket === "today") return { text: "今日待跟进", color: "orange" };
+  if (item.due_bucket === "upcoming") return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
+  if (item.due_bucket === "closed") return { text: "已完成", color: "green" };
+  return { text: "未排期", color: "default" };
 };
 
 const getDaysSince = (value?: string | null) => {
@@ -328,6 +352,13 @@ export default function CustomerList() {
   const [reminderActionKey, setReminderActionKey] = useState<string | null>(null);
   const [reminderRefreshedAt, setReminderRefreshedAt] = useState<Date | null>(null);
   const [reminderDrawerOpen, setReminderDrawerOpen] = useState(false);
+  const [globalFollowUps, setGlobalFollowUps] = useState<GlobalFollowUp[]>([]);
+  const [globalFollowUpTotal, setGlobalFollowUpTotal] = useState(0);
+  const [globalFollowUpCounts, setGlobalFollowUpCounts] = useState<Record<string, number>>({});
+  const [globalFollowUpBucket, setGlobalFollowUpBucket] = useState<GlobalFollowUpBucket>("all");
+  const [globalFollowUpQ, setGlobalFollowUpQ] = useState("");
+  const [globalFollowUpLoading, setGlobalFollowUpLoading] = useState(false);
+  const [workbenchTab, setWorkbenchTab] = useState<CustomerWorkbenchTab>("customers");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [quickFollowUpCustomer, setQuickFollowUpCustomer] = useState<Customer | null>(null);
   const [quickFollowUpSaving, setQuickFollowUpSaving] = useState(false);
@@ -537,6 +568,27 @@ export default function CustomerList() {
     }
   };
 
+  const loadGlobalFollowUps = async (
+    bucket = globalFollowUpBucket,
+    query = globalFollowUpQ,
+  ) => {
+    setGlobalFollowUpLoading(true);
+    try {
+      const params: Record<string, unknown> = { page: 1, page_size: 30 };
+      if (bucket !== "all") params.due_bucket = bucket;
+      if (query.trim()) params.q = query.trim();
+      const resp = await getGlobalFollowUps(params);
+      const payload = resp.data.data;
+      setGlobalFollowUps(payload?.list || []);
+      setGlobalFollowUpTotal(payload?.total || 0);
+      setGlobalFollowUpCounts(payload?.counts || {});
+    } catch {
+      message.error("加载全局跟进集合失败");
+    } finally {
+      setGlobalFollowUpLoading(false);
+    }
+  };
+
   const fetch = async (p = page, ps = pageSize, search = q) => {
     setLoading(true);
     try {
@@ -602,12 +654,14 @@ export default function CustomerList() {
     getTags().then((r) => setTags(r.data.data || [])).catch(() => {});
     loadStats();
     loadOverdue();
+    loadGlobalFollowUps();
     refreshAlertCount();
   }, []);
 
   useEffect(() => {
     const refreshReminderState = () => {
       loadOverdue();
+      loadGlobalFollowUps();
       refreshAlertCount();
     };
     const refreshWhenVisible = () => {
@@ -897,7 +951,7 @@ export default function CustomerList() {
         completed_at: new Date().toISOString(),
       });
       message.success("跟进已完成");
-      await Promise.all([loadOverdue(), fetch()]);
+      await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
     } catch {
       message.error("完成跟进失败");
     } finally {
@@ -914,9 +968,26 @@ export default function CustomerList() {
         status: item.status || "planned",
       });
       message.success("已延期 1 天");
-      await Promise.all([loadOverdue(), fetch()]);
+      await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
     } catch {
       message.error("延期失败");
+    } finally {
+      setReminderActionKey(null);
+    }
+  };
+
+  const handleCompleteGlobalFollowUp = async (item: GlobalFollowUp) => {
+    const actionKey = `global-complete-${item.id}`;
+    setReminderActionKey(actionKey);
+    try {
+      await updateFollowUp(item.customer_id, item.id, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      });
+      message.success("跟进已完成");
+      await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
+    } catch {
+      message.error("完成跟进失败");
     } finally {
       setReminderActionKey(null);
     }
@@ -978,7 +1049,7 @@ export default function CustomerList() {
       message.success("跟进已创建");
       setQuickFollowUpCustomer(null);
       quickFollowUpForm.resetFields();
-      await Promise.all([loadOverdue(), fetch()]);
+      await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
     } catch {
       message.error("创建跟进失败");
     } finally {
@@ -1408,6 +1479,28 @@ export default function CustomerList() {
         .customer-ai-main {
           min-width: 0;
         }
+        .customer-workbench-tabs {
+          margin-bottom: 10px;
+          padding: 0 4px;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .customer-workbench-tabs .ant-tabs-nav {
+          margin: 0;
+          padding: 0 8px;
+        }
+        .customer-table-card.customer-followup-card .ant-card-body {
+          padding: 12px;
+        }
+        .customer-followup-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+        }
         .customer-toolbar-card .ant-card-body {
           padding: 12px;
         }
@@ -1657,9 +1750,45 @@ export default function CustomerList() {
               </Button>
             </div>
           </div>
+
         </aside>
 
         <main className="customer-ai-main">
+          <Tabs
+            className="customer-workbench-tabs"
+            activeKey={workbenchTab}
+            onChange={(key) => {
+              const next = key as CustomerWorkbenchTab;
+              setWorkbenchTab(next);
+              if (next === "followups") loadGlobalFollowUps();
+            }}
+            items={[
+              {
+                key: "customers",
+                label: (
+                  <Space size={6}>
+                    <UserOutlined />
+                    <span>客户列表</span>
+                    <Tag>{overdueOnly ? tableData.length : total}</Tag>
+                  </Space>
+                ),
+              },
+              {
+                key: "followups",
+                label: (
+                  <Space size={6}>
+                    <PhoneOutlined />
+                    <span>全局跟进</span>
+                    <Tag color={(globalFollowUpCounts.overdue || 0) > 0 ? "red" : "blue"}>
+                      {globalFollowUpCounts.all ?? globalFollowUpTotal}
+                    </Tag>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+          {workbenchTab === "customers" && (
+            <>
       <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
         <div className="customer-toolbar-main">
           <div>
@@ -1893,6 +2022,113 @@ export default function CustomerList() {
           }}
         />
       </Card>
+            </>
+          )}
+
+          {workbenchTab === "followups" && (
+            <Card
+              className="customer-followup-card customer-table-card"
+              size="small"
+              title={(
+                <div className="customer-table-title">
+                  <Typography.Text strong>客户跟进全局集合</Typography.Text>
+                  <Tag>总计 {globalFollowUpCounts.all ?? globalFollowUpTotal}</Tag>
+                  <Tag color="red">逾期 {globalFollowUpCounts.overdue || 0}</Tag>
+                  <Tag color="orange">今日 {globalFollowUpCounts.today || 0}</Tag>
+                  <Tag color="blue">未来 {globalFollowUpCounts.upcoming || 0}</Tag>
+                  <Tag color="green">已完成 {globalFollowUpCounts.closed || 0}</Tag>
+                </div>
+              )}
+              extra={(
+                <Button size="small" icon={<ReloadOutlined />} loading={globalFollowUpLoading} onClick={() => loadGlobalFollowUps()}>
+                  刷新集合
+                </Button>
+              )}
+            >
+              <div className="customer-followup-toolbar">
+                <Input.Search
+                  allowClear
+                  placeholder="搜索客户 / 跟进内容 / 负责人"
+                  value={globalFollowUpQ}
+                  style={{ width: 320, maxWidth: "100%" }}
+                  onChange={(event) => {
+                    setGlobalFollowUpQ(event.target.value);
+                    if (!event.target.value) loadGlobalFollowUps(globalFollowUpBucket, "");
+                  }}
+                  onSearch={(value) => loadGlobalFollowUps(globalFollowUpBucket, value)}
+                />
+                <Segmented
+                  value={globalFollowUpBucket}
+                  options={GLOBAL_FOLLOW_UP_BUCKETS.map((item) => ({
+                    value: item.key,
+                    label: `${item.label} ${item.key === "all" ? (globalFollowUpCounts.all ?? globalFollowUpTotal) : (globalFollowUpCounts[item.key] || 0)}`,
+                  }))}
+                  onChange={(value) => {
+                    const next = value as GlobalFollowUpBucket;
+                    setGlobalFollowUpBucket(next);
+                    loadGlobalFollowUps(next, globalFollowUpQ);
+                  }}
+                />
+              </div>
+              <List
+                loading={globalFollowUpLoading}
+                dataSource={globalFollowUps}
+                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" /> }}
+                renderItem={(item) => {
+                  const due = getGlobalFollowUpDueMeta(item);
+                  const isClosed = item.due_bucket === "closed";
+                  return (
+                    <List.Item
+                      actions={isClosed ? [
+                        <Button key="customer" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                          查看客户
+                        </Button>,
+                      ] : [
+                        <Button
+                          key="complete"
+                          size="small"
+                          type="link"
+                          loading={reminderActionKey === `global-complete-${item.id}`}
+                          onClick={() => handleCompleteGlobalFollowUp(item)}
+                        >
+                          完成
+                        </Button>,
+                        <Button key="customer" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                          查看客户
+                        </Button>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={(
+                          <Space size={6} wrap>
+                            <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                              {item.customer_name}
+                            </Typography.Link>
+                            <Tag color={due.color}>{due.text}</Tag>
+                            <FollowUpStatusTag status={item.status} />
+                            <FollowUpMethodTag method={item.method} />
+                            <FollowUpPriorityTag priority={item.priority} />
+                            {(item.assigned_to || item.owner) && (
+                              <Typography.Text type="secondary">{item.assigned_to || item.owner}</Typography.Text>
+                            )}
+                          </Space>
+                        )}
+                        description={(
+                          <Space direction="vertical" size={2}>
+                            <Typography.Text type="secondary">
+                              计划 {formatDateTime(item.planned_at)} | 创建 {formatDateTime(item.created_at)}
+                            </Typography.Text>
+                            {item.content && <Typography.Text>{item.content}</Typography.Text>}
+                            {item.result && <Typography.Text type="secondary">结果：{item.result}</Typography.Text>}
+                          </Space>
+                        )}
+                      />
+                    </List.Item>
+                  );
+                }}
+              />
+            </Card>
+          )}
         </main>
 
         <aside className="customer-ai-context">

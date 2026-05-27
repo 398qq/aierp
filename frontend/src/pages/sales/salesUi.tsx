@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button, Card, Col, Empty, Input, Row, Select, Space, Statistic, Tag, Typography } from "antd";
 import {
+  AimOutlined,
   AppstoreOutlined,
+  AuditOutlined,
   BarChartOutlined,
   CarOutlined,
+  DollarOutlined,
   FileTextOutlined,
+  MessageOutlined,
   PhoneOutlined,
   PlusOutlined,
+  ReconciliationOutlined,
   ShoppingCartOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
@@ -67,6 +72,11 @@ export function SalesModuleShell({
     { key: "quotations", label: "报价", path: "/sales/quotations", icon: <FileTextOutlined /> },
     { key: "orders", label: "订单", path: "/sales/orders", icon: <ShoppingCartOutlined /> },
     { key: "delivery", label: "发货", path: "/sales/delivery-notes", icon: <CarOutlined /> },
+    { key: "contracts", label: "合同", path: "/sales/contracts", icon: <AuditOutlined /> },
+    { key: "invoices", label: "开票", path: "/sales/invoices", icon: <ReconciliationOutlined /> },
+    { key: "payments", label: "回款", path: "/sales/payments", icon: <DollarOutlined /> },
+    { key: "targets", label: "目标", path: "/sales/targets", icon: <AimOutlined /> },
+    { key: "inquiry", label: "询价", path: "/sales/inquiry", icon: <MessageOutlined /> },
     { key: "analysis", label: "分析", path: "/reports/sales", icon: <BarChartOutlined /> },
   ];
 

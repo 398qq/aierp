@@ -6,7 +6,7 @@ import type { UploadFile } from "antd/es/upload/interface";
 import { getContracts, deleteContract, importContractPDF } from "../../api";
 import client from "../../api/client";
 import type { Contract } from "../../types";
-import { CustomerLink, CustomerSelect } from "./salesUi";
+import { CustomerLink, CustomerSelect, SalesModuleShell } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, signed: { color: "blue", label: "已签署" },
@@ -46,7 +46,11 @@ export default function ContractList() {
   useEffect(() => { load(); }, [page, status, customerId]);
 
   return (
-    <div>
+    <SalesModuleShell
+      title="合同管理"
+      subtitle="管理销售合同签署、履行、到期和导入识别"
+      activeKey="contracts"
+    >
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/contracts/new")}>新增合同</Button>
         <Button icon={<UploadOutlined />} onClick={() => { setImportOpen(true); setImportFile(null); setImportResult(null); }}>导入合同</Button>
@@ -179,6 +183,6 @@ export default function ContractList() {
           </div>
         )}
       </Modal>
-    </div>
+    </SalesModuleShell>
   );
 }

@@ -185,12 +185,13 @@ class TestQuotations:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"], "status": "draft", "total_amount": 30000,
-                "items": [{"product_name": "Test", "quantity": 10, "unit_price": 5, "total_price": 50}],
+                "items": [{"product_name": "Test", "quantity": 10, "unit_price": 5}],
             },
         )
         assert resp.status_code == 201
         assert resp.json()["code"] == 0
         assert "quotation_no" in resp.json()["data"]
+        assert resp.json()["data"]["total_amount"] == 50
 
     async def test_list_searches_quotation_product_lines(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         target = await async_client.post(
@@ -290,6 +291,40 @@ class TestQuotations:
         )
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] == 2
+
+    async def test_quotation_stats_duplicate_and_status(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
+        created = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "draft",
+                "items": [{"product_name": "Stats Test", "quantity": 2, "unit_price": 12.5}],
+            },
+        )
+        quote = created.json()["data"]
+
+        stats = await async_client.get("/api/v1/quotations/stats", headers=auth_headers)
+        assert stats.status_code == 200
+        assert stats.json()["data"]["total"] >= 1
+        assert "quote_to_order_rate" in stats.json()["data"]
+
+        status = await async_client.put(
+            f"/api/v1/quotations/{quote['id']}/status",
+            headers=auth_headers,
+            json={"status": "sent"},
+        )
+        assert status.status_code == 200
+        assert status.json()["data"]["status"] == "sent"
+
+        duplicate = await async_client.post(
+            f"/api/v1/quotations/{quote['id']}/duplicate",
+            headers=auth_headers,
+        )
+        assert duplicate.status_code == 201
+        assert duplicate.json()["data"]["id"] != quote["id"]
+        assert duplicate.json()["data"]["status"] == "draft"
+        assert duplicate.json()["data"]["total_amount"] == quote["total_amount"]
 
 
 class TestSalesOrders:

@@ -108,6 +108,15 @@ export interface FollowUpReminder extends OverdueFollowUp {
   days_until: number | null;
 }
 
+export interface GlobalFollowUp extends Omit<FollowUpReminder, "due_bucket" | "planned_at"> {
+  due_bucket: "overdue" | "today" | "upcoming" | "unscheduled" | "closed";
+  planned_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  result: string | null;
+  assigned_to: string | null;
+}
+
 export interface DashboardStats {
   total: number;
   by_industry: { name: string; value: number }[];
@@ -1168,6 +1177,21 @@ export interface Quotation {
   ai?: QuotationAI | null;
 }
 
+export interface QuotationStats {
+  total: number;
+  total_amount: number;
+  draft: number;
+  sent: number;
+  won: number;
+  lost: number;
+  won_amount: number;
+  expiring_soon: number;
+  expired: number;
+  converted: number;
+  quote_to_order_rate: number;
+  by_status: Record<string, { count: number; amount: number }>;
+}
+
 export interface SalesOrderItem {
   id: number;
   order_id: number;
@@ -1325,7 +1349,7 @@ export interface CustomerQuotationHistory {
     valid_until: string | null;
     notes: string | null;
     created_at: string | null;
-    items: Array<{ id: number; product_id: number; quantity: number; unit_price: number; total_price: number }>;
+    items: Array<{ id: number; product_id: number | null; product_name?: string | null; quantity: number; unit_price: number; total_price: number }>;
   }>;
   total: number;
   stats: {

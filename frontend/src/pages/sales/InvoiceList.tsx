@@ -4,7 +4,7 @@ import { Table, Button, Space, Tag, Select, message, Popconfirm } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { getInvoices, deleteInvoice } from "../../api";
 import type { Invoice } from "../../types";
-import { CustomerLink, CustomerSelect } from "./salesUi";
+import { CustomerLink, CustomerSelect, SalesModuleShell } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, issued: { color: "blue", label: "已开票" },
@@ -36,7 +36,11 @@ export default function InvoiceList() {
   useEffect(() => { load(); }, [page, status, customerId]);
 
   return (
-    <div>
+    <SalesModuleShell
+      title="开票管理"
+      subtitle="按销售订单和客户跟踪发票、税额、开票状态"
+      activeKey="invoices"
+    >
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/invoices/new")}>新增发票</Button>
         <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
@@ -70,6 +74,6 @@ export default function InvoiceList() {
         ]}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
       />
-    </div>
+    </SalesModuleShell>
   );
 }

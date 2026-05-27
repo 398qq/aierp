@@ -726,3 +726,105 @@ async def follow_up_reminders(
         "upcoming": sum(1 for item in items if item["due_bucket"] == "upcoming"),
     }
     return ok({"total": len(items), "counts": counts, "items": items})
+
+
+@router.get("/follow-ups-global")
+async def global_follow_ups(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status: str | None = Query(default=None),
+    priority: str | None = Query(default=None),
+    due_bucket: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    conditions = [
+        CustomerFollowUp.deleted_at.is_(None),
+        Customer.deleted_at.is_(None),
+    ]
+    if status:
+        conditions.append(CustomerFollowUp.status == status)
+    if priority:
+        conditions.append(CustomerFollowUp.priority == priority)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        conditions.append(or_(
+            Customer.name.ilike(pattern),
+            Customer.short_name.ilike(pattern),
+            Customer.code.ilike(pattern),
+            Customer.contact_person.ilike(pattern),
+            CustomerFollowUp.content.ilike(pattern),
+            CustomerFollowUp.result.ilike(pattern),
+            CustomerFollowUp.assigned_to.ilike(pattern),
+        ))
+
+    rows = (await db.execute(
+        select(CustomerFollowUp, Customer)
+        .join(Customer, CustomerFollowUp.customer_id == Customer.id)
+        .where(*conditions)
+        .order_by(CustomerFollowUp.planned_at.asc().nulls_last(), CustomerFollowUp.created_at.desc())
+    )).all()
+
+    items = []
+    for fu, cust in rows:
+        planned_at = _to_utc(fu.planned_at)
+        planned_date = planned_at.date() if planned_at else None
+        if fu.status in TERMINAL_FOLLOWUP_STATUSES:
+            bucket = "closed"
+            overdue_days = 0
+            days_until = None
+        elif planned_date is None:
+            bucket = "unscheduled"
+            overdue_days = 0
+            days_until = None
+        elif planned_date < today and (fu.status is None or fu.status not in TERMINAL_FOLLOWUP_STATUSES):
+            bucket = "overdue"
+            overdue_days = (today - planned_date).days
+            days_until = None
+        elif planned_date == today and (fu.status is None or fu.status not in TERMINAL_FOLLOWUP_STATUSES):
+            bucket = "today"
+            overdue_days = 0
+            days_until = 0
+        else:
+            bucket = "upcoming"
+            overdue_days = 0
+            days_until = (planned_date - today).days
+
+        items.append({
+            "id": fu.id,
+            "customer_id": cust.id,
+            "customer_name": cust.name,
+            "owner": cust.owner,
+            "method": fu.method,
+            "priority": fu.priority,
+            "planned_at": str(fu.planned_at) if fu.planned_at else None,
+            "completed_at": str(fu.completed_at) if fu.completed_at else None,
+            "created_at": str(fu.created_at) if fu.created_at else None,
+            "status": fu.status,
+            "content": fu.content,
+            "result": fu.result,
+            "assigned_to": fu.assigned_to,
+            "overdue_days": overdue_days,
+            "days_until": days_until,
+            "due_bucket": bucket,
+        })
+
+    bucket_order = {"overdue": 0, "today": 1, "upcoming": 2, "unscheduled": 3, "closed": 4}
+    items.sort(key=lambda item: (bucket_order.get(item["due_bucket"], 9), item["planned_at"] or "", item["created_at"] or ""))
+    counts = {
+        "all": len(items),
+        "overdue": sum(1 for item in items if item["due_bucket"] == "overdue"),
+        "today": sum(1 for item in items if item["due_bucket"] == "today"),
+        "upcoming": sum(1 for item in items if item["due_bucket"] == "upcoming"),
+        "unscheduled": sum(1 for item in items if item["due_bucket"] == "unscheduled"),
+        "closed": sum(1 for item in items if item["due_bucket"] == "closed"),
+    }
+    if due_bucket:
+        items = [item for item in items if item["due_bucket"] == due_bucket]
+    start = (page - 1) * page_size
+    paged = items[start:start + page_size]
+    return ok({"list": paged, "total": len(items), "page": page, "page_size": page_size, "counts": counts})

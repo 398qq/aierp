@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, Row, Col, Table, Select, Typography, Spin, Empty, Button } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import client from "../../api/client";
+import { SalesModuleShell } from "../sales/salesUi";
 
 interface MonthlyItem { month: string; count: number; amount: number; }
 interface TopProduct { name: string; sku: string; order_count: number; }
@@ -41,8 +42,6 @@ export default function ReportSales() {
     } catch { /* ignore */ }
   };
 
-  if (loading) return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
-
   const orderColumns = [
     { title: "月份", dataIndex: "month", key: "month" },
     { title: "订单数", dataIndex: "count", key: "count" },
@@ -56,7 +55,11 @@ export default function ReportSales() {
   ];
 
   return (
-    <div>
+    <SalesModuleShell
+      title="销售分析"
+      subtitle="查看销售订单、报价趋势和热销产品"
+      activeKey="analysis"
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>销售报表</Typography.Title>
         <div>
@@ -67,6 +70,10 @@ export default function ReportSales() {
         </div>
       </div>
 
+      {loading ? (
+        <Spin size="large" style={{ display: "block", margin: "120px auto" }} />
+      ) : (
+        <>
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Card title="月度销售订单" size="small">
@@ -89,6 +96,8 @@ export default function ReportSales() {
           <Table rowKey="sku" columns={productColumns} dataSource={data.top_products} pagination={false} size="small" />
         ) : <Empty />}
       </Card>
-    </div>
+        </>
+      )}
+    </SalesModuleShell>
   );
 }

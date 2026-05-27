@@ -3,7 +3,7 @@ import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
   ChurnRisk, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
   DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
-  FollowUp, FollowUpRecognition, FollowUpReminder,
+  FollowUp, FollowUpRecognition, FollowUpReminder, GlobalFollowUp,
   Global360, GroupStats,
   Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
   MergeResult,
@@ -12,7 +12,7 @@ import type {
   NotificationItem,
   Opportunity, OpportunityAI, OverdueFollowUp,
   PageData, PaymentRecord, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360, ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder,
-  Quotation, QuotationAI, RFMAnalysis,
+  Quotation, QuotationAI, QuotationStats, RFMAnalysis,
   SalesOrder, SalesOrderAI, SalesTarget, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard,
   Tag, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent,
   Visit, VisitEffectiveness, VisitReport, VisitSentiment,
@@ -106,6 +106,9 @@ export const getOverdueFollowUps = () =>
 
 export const getFollowUpReminders = () =>
   client.get<APIResponse<{ total: number; counts: Record<string, number>; items: FollowUpReminder[] }>>("/customers/follow-up-reminders");
+
+export const getGlobalFollowUps = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<GlobalFollowUp> & { counts: Record<string, number> }>>("/customers/follow-ups-global", { params });
 
 export const exportCustomers = (params: Record<string, unknown>) =>
   client.get("/customers/export", { params, responseType: "blob" });
@@ -788,6 +791,9 @@ export const batchUpdateOpportunities = (ids: number[], stage?: string, win_prob
 export const getQuotations = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<Quotation> & { ai?: Record<number, QuotationAI> }>>("/quotations", { params });
 
+export const getQuotationStats = () =>
+  client.get<APIResponse<QuotationStats>>("/quotations/stats");
+
 export const getQuotation = (id: number, includeAi = false) =>
   client.get<APIResponse<Quotation>>(`/quotations/${id}?include_ai=${includeAi}`);
 
@@ -802,6 +808,12 @@ export const deleteQuotation = (id: number) =>
 
 export const sendQuotation = (id: number) =>
   client.put<APIResponse>(`/quotations/${id}/send`);
+
+export const updateQuotationStatus = (id: number, status: string) =>
+  client.put<APIResponse<Quotation>>(`/quotations/${id}/status`, { status });
+
+export const duplicateQuotation = (id: number) =>
+  client.post<APIResponse<Quotation>>(`/quotations/${id}/duplicate`);
 
 export const batchDeleteQuotations = (ids: number[]) =>
   client.post<APIResponse>("/quotations/batch-delete", { ids });

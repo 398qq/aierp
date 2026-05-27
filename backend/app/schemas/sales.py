@@ -116,6 +116,10 @@ class QuotationUpdate(BaseModel):
     items: list[QuotationItemCreate] | None = None
 
 
+class QuotationStatusUpdate(BaseModel):
+    status: str
+
+
 class QuotationFromInquiryRequest(BaseModel):
     inquiry_id: int
     customer_id: int | None = None

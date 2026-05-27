@@ -14,7 +14,7 @@ from app.schemas.sales import (
     DeliveryNoteCreate, DeliveryNoteUpdate,
     InquiryAutoReplyRequest,
     OpportunityCreate, OpportunityUpdate,
-    QuotationCreate, QuotationUpdate, QuotationFromInquiryRequest,
+    QuotationCreate, QuotationUpdate, QuotationFromInquiryRequest, QuotationStatusUpdate,
     SalesOrderCreate, SalesOrderUpdate,
     BatchDeleteRequest, OpportunityBatchUpdate, ConversionValidation, ConvertResponse,
 )
@@ -161,6 +161,13 @@ async def list_quotations(
     return ok(result)
 
 
+@router.get("/quotations/stats")
+async def quotation_stats(
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    return ok(await svc.get_quotation_stats(db))
+
+
 @router.get("/quotations/{quote_id}")
 async def get_quotation(
     quote_id: int,
@@ -178,6 +185,34 @@ async def get_quotation(
         result = QuotationResponse.model_validate(quote).model_dump()
         result["ai"] = ai_data
         return ok(result)
+    return ok(quote)
+
+
+@router.post("/quotations/{quote_id}/duplicate", status_code=201)
+async def duplicate_quotation(
+    quote_id: int,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    quote = await svc.get_quotation(db, quote_id)
+    if not quote:
+        return fail("报价单不存在", 404)
+    duplicated = await svc.duplicate_quotation(db, quote)
+    return ok(duplicated)
+
+
+@router.put("/quotations/{quote_id}/status")
+async def update_quotation_status(
+    quote_id: int,
+    body: QuotationStatusUpdate,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    quote = await svc.get_quotation(db, quote_id)
+    if not quote:
+        return fail("报价单不存在", 404)
+    try:
+        quote = await svc.update_quotation_status(db, quote, body.status)
+    except ValueError as e:
+        return fail(str(e), 400)
     return ok(quote)
 
 

@@ -13,6 +13,7 @@ from app.api.v1.customers import (
     crud_router,
     follow_ups_router,
     level_rules_router,
+    quotations_router,
     stats_router,
     tags_router,
 )
@@ -37,6 +38,7 @@ router.include_router(crud_router)
 router.include_router(stats_router)
 router.include_router(contacts_router)
 router.include_router(follow_ups_router)
+router.include_router(quotations_router)
 router.include_router(alerts_router)
 router.include_router(level_rules_router)
 router.include_router(attachments_router)
@@ -50,6 +52,7 @@ __all__ = [
     "ContactUpdate",
     "FollowUpCreate",
     "FollowUpUpdate",
+    "quotations_router",
     "TagCreate",
     "TagUpdate",
     "BatchTag",
