@@ -5,7 +5,7 @@ import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined
 import { getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
-import { CustomerSelect, ProductSelect, SalesModuleShell, money } from "./salesUi";
+import { CustomerSelect, ProductSelect, QuotationSelect, SalesModuleShell, money } from "./salesUi";
 
 type OrderItemForm = {
   product_id?: number;
@@ -53,6 +53,7 @@ export default function SalesOrderForm() {
   const watchedTotal = Form.useWatch("total_amount", form) as number | undefined;
   const watchedStatus = Form.useWatch("status", form) as string | undefined;
   const watchedDeliveryDate = Form.useWatch("delivery_date", form) as Dayjs | undefined;
+  const watchedCustomerId = Form.useWatch("customer_id", form) as number | undefined;
 
   const summary = useMemo(() => {
     const items = watchedItems || [];
@@ -199,7 +200,7 @@ export default function SalesOrderForm() {
                   <CustomerSelect />
                 </Form.Item>
                 <Form.Item name="quotation_id" label="来源报价">
-                  <InputNumber min={1} style={{ width: "100%" }} placeholder="由报价转订单时自动带入" />
+                  <QuotationSelect customerId={watchedCustomerId} />
                 </Form.Item>
                 <Form.Item name="order_no" label="订单号">
                   <Input placeholder="系统自动生成 / 手工编号" />

@@ -16,8 +16,8 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getCustomer, getCustomers, getOpportunity, getOpportunities, getProduct, getProducts } from "../../api";
-import type { Customer, Opportunity, Product } from "../../types";
+import { getCustomer, getCustomers, getOpportunity, getOpportunities, getProduct, getProducts, getQuotation, getQuotations } from "../../api";
+import type { Customer, Opportunity, Product, Quotation } from "../../types";
 
 export const money = (value?: number | null) => `¥${Number(value || 0).toLocaleString()}`;
 
@@ -260,6 +260,62 @@ export function OpportunityLink({ id }: { id?: number | null }) {
     <Typography.Link onClick={() => navigate(`/sales/opportunities/${id}`)}>
       {title || `商机 #${id}`}
     </Typography.Link>
+  );
+}
+
+export function QuotationSelect({
+  value,
+  onChange,
+  customerId,
+}: {
+  value?: number;
+  onChange?: (value?: number) => void;
+  customerId?: number;
+}) {
+  const [items, setItems] = useState<Quotation[]>([]);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      getQuotations({
+        page: 1,
+        page_size: 30,
+        q: search,
+        ...(customerId ? { customer_id: customerId } : {}),
+      })
+        .then((r) => setItems(r.data.data.list || []))
+        .catch(() => {});
+    }, 240);
+    return () => window.clearTimeout(timer);
+  }, [customerId, search]);
+
+  useEffect(() => {
+    if (!value || items.some((item) => item.id === value)) return;
+    getQuotation(value)
+      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .catch(() => {});
+  }, [items, value]);
+
+  return (
+    <Select
+      showSearch
+      allowClear
+      value={value}
+      placeholder="搜索报价单号 / 标题 / 产品"
+      filterOption={false}
+      onSearch={setSearch}
+      onChange={onChange}
+      notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无匹配报价" />}
+      options={items.map((quotation) => ({
+        value: quotation.id,
+        label: [
+          quotation.quotation_no || `报价 #${quotation.id}`,
+          quotation.title,
+          money(quotation.total_amount),
+          salesStatus[quotation.status]?.label || quotation.status,
+        ].filter(Boolean).join(" · "),
+      }))}
+    />
   );
 }
 
