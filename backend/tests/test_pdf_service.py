@@ -140,3 +140,37 @@ def test_money_upper_cn_formats_quote_amounts():
     assert _money_upper_cn(0) == "零元整"
     assert _money_upper_cn(10001) == "壹万零壹元整"
     assert _money_upper_cn(1234567.89) == "壹佰贰拾叁万肆仟伍佰陆拾柒元捌角玖分"
+
+
+def test_generate_sales_order_pdf_with_smart_sections():
+    from app.services.pdf_service import generate_sales_order_pdf
+
+    order = SimpleNamespace(
+        id=1,
+        order_no="SO202605290001",
+        status="confirmed",
+        order_date=datetime.now(timezone.utc),
+        delivery_date=datetime.now(timezone.utc) + timedelta(days=5),
+        total_amount=500,
+        notes="分两批交付",
+        quotation_id=12,
+        customer=SimpleNamespace(
+            name="测试客户",
+            contact_person="李四",
+            phone="13900000000",
+            address="上海",
+        ),
+        items=[
+            SimpleNamespace(
+                product_name="STM32F103",
+                quantity=20,
+                unit_price=25,
+                total_price=500,
+            )
+        ],
+    )
+
+    pdf = generate_sales_order_pdf(order)
+
+    assert pdf.startswith(b"%PDF")
+    assert len(pdf) > 1000

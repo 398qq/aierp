@@ -879,6 +879,32 @@ export const batchDeleteSalesOrders = (ids: number[]) =>
 export const convertSalesOrderToDelivery = (id: number) =>
   client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/sales-orders/${id}/convert-to-delivery`);
 
+export type SalesOrderPDFOptions = {
+  template?: "smart" | "standard" | "compact";
+  company_name?: string;
+  document_title?: string;
+  show_smart_summary?: boolean;
+  show_line_hints?: boolean;
+  show_terms?: boolean;
+  show_notes?: boolean;
+  show_signature?: boolean;
+  prepared_by?: string;
+  contact_phone?: string;
+  terms?: string;
+};
+
+export const downloadSalesOrderPDF = async (id: number, filename?: string, options?: SalesOrderPDFOptions) => {
+  const resp = await client.get(`/sales-orders/${id}/pdf`, { params: options, responseType: "blob" });
+  const url = window.URL.createObjectURL(new Blob([resp.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename || `sales_order_${id}.pdf`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // ============================================================
 // Sales — Delivery Notes
 // ============================================================

@@ -399,6 +399,65 @@ async def list_sales_orders(
     return ok(result)
 
 
+@router.get("/sales-orders/{order_id}/pdf")
+async def get_sales_order_pdf(
+    order_id: int,
+    template: str = Query("smart", description="smart | standard | compact"),
+    company_name: str | None = Query(None, max_length=120),
+    document_title: str | None = Query(None, max_length=120),
+    show_smart_summary: bool = Query(True),
+    show_line_hints: bool = Query(True),
+    show_terms: bool = Query(True),
+    show_notes: bool = Query(True),
+    show_signature: bool = Query(True),
+    prepared_by: str | None = Query(None, max_length=80),
+    contact_phone: str | None = Query(None, max_length=60),
+    terms: str | None = Query(None, max_length=2000),
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    from sqlalchemy import select
+    from app.models.customer import Customer
+    from app.models.sales import SalesOrder
+
+    result = await db.execute(
+        select(SalesOrder)
+        .where(SalesOrder.id == order_id, SalesOrder.deleted_at.is_(None))
+        .options(sqlalchemy.orm.selectinload(SalesOrder.items))
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        return fail("销售订单不存在", 404)
+
+    if order.customer_id:
+        customer_result = await db.execute(select(Customer).where(Customer.id == order.customer_id))
+        order.customer = customer_result.scalar_one_or_none()
+    else:
+        order.customer = None
+
+    from app.services.pdf_service import generate_sales_order_pdf
+    pdf_bytes = generate_sales_order_pdf(order, {
+        "template": template,
+        "company_name": company_name,
+        "document_title": document_title,
+        "show_smart_summary": show_smart_summary,
+        "show_line_hints": show_line_hints,
+        "show_terms": show_terms,
+        "show_notes": show_notes,
+        "show_signature": show_signature,
+        "prepared_by": prepared_by,
+        "contact_phone": contact_phone,
+        "terms": terms,
+    })
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="sales_order_{order.order_no or order_id}.pdf"'
+        },
+    )
+
+
 @router.get("/sales-orders/{order_id}")
 async def get_sales_order(
     order_id: int,

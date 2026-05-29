@@ -507,6 +507,22 @@ class TestSalesOrders:
         assert resp.status_code == 200
         assert "document_no" in resp.json()["data"]
 
+    async def test_download_sales_order_pdf(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
+        order = await async_client.post(
+            "/api/v1/sales-orders", headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "confirmed",
+                "items": [{"product_name": "PDF Order Item", "quantity": 2, "unit_price": 50}],
+            },
+        )
+        order_id = order.json()["data"]["id"]
+
+        resp = await async_client.get(f"/api/v1/sales-orders/{order_id}/pdf", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/pdf"
+        assert resp.content.startswith(b"%PDF")
+
     async def test_convert_order_twice_fails(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         order = await async_client.post(
             "/api/v1/sales-orders", headers=auth_headers,
