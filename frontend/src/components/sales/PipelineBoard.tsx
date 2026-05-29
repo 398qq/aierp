@@ -7,13 +7,14 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   closestCenter,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Col, Row, Typography, Space, Statistic, message } from "antd";
+import { Empty, Typography, Space, Statistic, message } from "antd";
 import { batchUpdateOpportunities } from "../../api";
 import OpportunityCard from "./OpportunityCard";
 import type { Opportunity, OpportunityAI } from "../../types";
@@ -39,27 +40,29 @@ interface ColumnProps {
 }
 
 function PipelineColumn({ stageKey, label, color, opportunities, aiMap, onRefresh }: ColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: stageKey });
   const totalAmount = opportunities.reduce((sum, o) => sum + (o.amount || 0), 0);
+  const weightedAmount = opportunities.reduce((sum, o) => sum + Number(o.amount || 0) * Number(o.win_probability || 0) / 100, 0);
 
   return (
     <div
+      ref={setNodeRef}
       style={{
-        background: "#f5f5f5",
+        background: isOver ? "#f0f7ff" : "#f7f8fa",
+        border: `1px solid ${isOver ? "#91caff" : "#edf0f3"}`,
         borderRadius: 8,
-        padding: "8px 8px 0",
-        minHeight: 200,
+        padding: 10,
+        minHeight: 520,
         display: "flex",
         flexDirection: "column",
       }}
     >
-      {/* Column header */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 8,
-          padding: "4px 4px",
+          marginBottom: 10,
         }}
       >
         <Space>
@@ -75,7 +78,8 @@ function PipelineColumn({ stageKey, label, color, opportunities, aiMap, onRefres
           <Typography.Text strong>{label}</Typography.Text>
           <span
             style={{
-              background: "#e6e6e6",
+              background: "#fff",
+              border: "1px solid #e8ebef",
               borderRadius: 10,
               padding: "0 6px",
               fontSize: 12,
@@ -87,18 +91,23 @@ function PipelineColumn({ stageKey, label, color, opportunities, aiMap, onRefres
         </Space>
       </div>
 
-      {/* Column stats */}
-      <div style={{ marginBottom: 8, padding: "0 4px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
         <Statistic
-          title={null}
+          title="金额"
           value={totalAmount}
           prefix="¥"
-          valueStyle={{ fontSize: 14 }}
-          formatter={(v) => (Number(v) === 0 ? "—" : Number(v).toLocaleString())}
+          valueStyle={{ fontSize: 14, lineHeight: 1.2 }}
+          formatter={(v) => (Number(v) === 0 ? "0" : Number(v).toLocaleString())}
+        />
+        <Statistic
+          title="加权"
+          value={weightedAmount}
+          prefix="¥"
+          valueStyle={{ fontSize: 14, lineHeight: 1.2 }}
+          formatter={(v) => (Number(v) === 0 ? "0" : Number(v).toLocaleString())}
         />
       </div>
 
-      {/* Cards */}
       <SortableContext items={opportunities.map((o) => o.id)} strategy={verticalListSortingStrategy}>
         {opportunities.map((opp) => (
           <OpportunityCard
@@ -111,8 +120,8 @@ function PipelineColumn({ stageKey, label, color, opportunities, aiMap, onRefres
       </SortableContext>
 
       {opportunities.length === 0 && (
-        <div style={{ textAlign: "center", color: "#bbb", padding: "20px 0", fontSize: 13 }}>
-          暂无商机
+        <div style={{ flex: 1, display: "grid", placeItems: "center", minHeight: 160 }}>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商机" />
         </div>
       )}
     </div>
@@ -186,9 +195,9 @@ export default function PipelineBoard({ opportunities, aiMap, loading, onRefresh
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <Row gutter={[12, 12]} style={{ overflowX: "auto", paddingBottom: 16 }}>
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 16 }}>
         {STAGES.map(({ key, label, color }) => (
-          <Col key={key} xs={24} sm={12} md={8} lg={6} xl={4}>
+          <div key={key} style={{ flex: "0 0 260px", minWidth: 260 }}>
             <PipelineColumn
               stageKey={key}
               label={label}
@@ -197,9 +206,9 @@ export default function PipelineBoard({ opportunities, aiMap, loading, onRefresh
               aiMap={aiMap}
               onRefresh={onRefresh}
             />
-          </Col>
+          </div>
         ))}
-      </Row>
+      </div>
 
       <DragOverlay>
         {activeOpportunity && (

@@ -35,20 +35,34 @@ except ModuleNotFoundError:
 
 logger = logging.getLogger(__name__)
 
-# Chinese fonts to try in order
-CHINESE_FONTS = [
-    "Noto Sans CJK SC",
-    "Noto Sans CJK TC",
-    "Noto Sans CJK JP",
-    "Noto Sans CJK KR",
-    "WenQuanYi Micro Hei",
-    "WenQuanYi Zen Hei",
-    "AR PL UMing TW MBE",
-    "AR PL UMing CN",
-    "AR PL UKai CN",
-    "AR PL UKai HK",
-    "AR PL UKai TW",
+# Known CJK fonts that ReportLab can embed on common Linux distributions. Prefer
+# these over broad directory scanning so we do not accidentally pick a partial
+# test font such as Unifont sample variants.
+CHINESE_FONT_PATHS = [
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/arphic/uming.ttc",
+    "/usr/share/fonts/truetype/arphic/ukai.ttc",
+    "/usr/share/fonts/opentype/ipafont-gothic/ipagp.ttf",
+    "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf",
 ]
+
+# Font filename keywords to try in order. Keep these broad because distro font
+# filenames often omit spaces, e.g. NotoSansCJK-Regular.otf.
+CHINESE_FONT_KEYWORDS = [
+    "notosanscjk",
+    "noto sans cjk",
+    "sourcehansans",
+    "source han sans",
+    "wenquanyi",
+    "wqy",
+    "uming",
+    "ukai",
+    "unifont",
+    "ipag",
+    "ipa",
+]
+PARTIAL_FONT_KEYWORDS = ["sample", "csur", "upper"]
 
 # Fallback font if no Chinese font is available
 FALLBACK_FONT = "Helvetica"
@@ -60,34 +74,80 @@ def _get_chinese_font() -> str:
         return FALLBACK_FONT
 
     import os
+    import subprocess
 
     font_dirs = [
         "/usr/share/fonts",
         "/usr/local/share/fonts",
     ]
 
-    try:
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
+    def register_font(font_path: str) -> str | None:
+        try:
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
 
+            registered_name = "AIERP_CJK"
+            pdfmetrics.registerFont(TTFont(registered_name, font_path))
+            logger.info("Registered PDF CJK font: %s", font_path)
+            return registered_name
+        except Exception as e:
+            logger.debug("Could not register CJK font %s: %s", font_path, e)
+            return None
+
+    for font_path in CHINESE_FONT_PATHS:
+        if os.path.exists(font_path):
+            registered = register_font(font_path)
+            if registered:
+                return registered
+
+    try:
+        fc_match = subprocess.run(
+            ["fc-match", "-f", "%{file}\n", "sans:lang=zh-cn"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        for font_path in fc_match.stdout.splitlines():
+            if not font_path:
+                continue
+            registered = register_font(font_path)
+            if registered:
+                return registered
+    except Exception as e:
+        logger.debug("Could not query fontconfig for Chinese fonts: %s", e)
+
+    try:
         for font_dir in font_dirs:
             if not os.path.exists(font_dir):
                 continue
             for root, dirs, files in os.walk(font_dir):
                 for f in files:
-                    if f.endswith((".ttf", ".otf")):
+                    if f.endswith((".ttf", ".otf", ".ttc")):
                         font_path = os.path.join(root, f)
                         font_name = os.path.splitext(f)[0].replace("_", " ").replace("-", " ")
-                        if not any(cjk.lower() in font_name.lower() for cjk in CHINESE_FONTS):
+                        normalized_name = font_name.lower().replace(" ", "")
+                        if any(keyword in normalized_name for keyword in PARTIAL_FONT_KEYWORDS):
                             continue
-                        try:
-                            registered_name = "AIERP_CJK"
-                            pdfmetrics.registerFont(TTFont(registered_name, font_path))
-                            return registered_name
-                        except Exception as e:
-                            logger.debug("Could not register CJK font %s: %s", font_path, e)
+                        if not any(keyword.replace(" ", "") in normalized_name for keyword in CHINESE_FONT_KEYWORDS):
+                            continue
+                        registered = register_font(font_path)
+                        if registered:
+                            return registered
     except Exception as e:
         logger.warning(f"Could not register custom fonts: {e}")
+
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+        # Built into ReportLab. It is not embedded, but PDF viewers generally
+        # resolve it correctly and it avoids Helvetica/Latin-1 Chinese garbage.
+        cid_font = "STSong-Light"
+        pdfmetrics.registerFont(UnicodeCIDFont(cid_font))
+        return cid_font
+    except Exception as e:
+        logger.warning("Could not register ReportLab CID Chinese font: %s", e)
 
     # Fallback to Helvetica for ASCII, will render boxes for Chinese
     return FALLBACK_FONT
@@ -189,8 +249,39 @@ def _pdf_escape(value: Any) -> str:
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def _generate_basic_pdf(quotation: Any) -> bytes:
+def _pdf_options(options: dict[str, Any] | None) -> dict[str, Any]:
+    options = options or {}
+    template = str(options.get("template") or "smart")
+    show_smart_summary = bool(options.get("show_smart_summary", template == "smart"))
+    show_line_hints = bool(options.get("show_line_hints", template == "smart"))
+    show_terms = bool(options.get("show_terms", True))
+    show_notes = bool(options.get("show_notes", True))
+    company_name = str(options.get("company_name") or "深圳天允电子有限公司").strip() or "深圳天允电子有限公司"
+    document_title = str(options.get("document_title") or "智能报价单 / SMART QUOTATION").strip() or "智能报价单 / SMART QUOTATION"
+    terms_text = str(options.get("terms") or "").strip()
+    return {
+        "template": template,
+        "company_name": company_name,
+        "document_title": document_title,
+        "show_smart_summary": show_smart_summary,
+        "show_line_hints": show_line_hints,
+        "show_terms": show_terms,
+        "show_notes": show_notes,
+        "terms": terms_text,
+    }
+
+
+def _default_terms() -> list[str]:
+    return [
+        "1. 本报价以产品行、数量、单价及有效期为准；库存和交期需在下单前再次确认。",
+        "2. 税率、付款方式、运输方式如未单独约定，以双方最终合同或订单确认为准。",
+        "3. 如报价已过有效期，建议重新核价后再作为采购依据。",
+    ]
+
+
+def _generate_basic_pdf(quotation: Any, options: dict[str, Any] | None = None) -> bytes:
     """Generate a dependency-free fallback PDF when ReportLab is unavailable."""
+    pdf_options = _pdf_options(options)
     customer = getattr(quotation, "customer", None)
     items = getattr(quotation, "items", None) or []
     subtotal = sum(_as_decimal(getattr(item, "total_price", None)) for item in items)
@@ -198,7 +289,8 @@ def _generate_basic_pdf(quotation: Any) -> bytes:
     quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
 
     lines = [
-        "AIERP SMART QUOTATION",
+        _pdf_text(pdf_options["company_name"]).upper(),
+        _pdf_text(pdf_options["document_title"]).upper(),
         f"Quotation No: {getattr(quotation, 'quotation_no', None) or getattr(quotation, 'id', '-')}",
         f"Title: {getattr(quotation, 'title', None) or '-'}",
         f"Customer: {getattr(customer, 'name', None) or '-'}",
@@ -218,11 +310,14 @@ def _generate_basic_pdf(quotation: Any) -> bytes:
         "",
         f"Subtotal: {_money(subtotal)}",
         f"Quotation Total: {_money(quote_total)}",
-        f"Smart Status: {risk_label}",
-        f"Next Action: {next_action}",
-        "",
-        "Terms: Inventory, lead time, tax and payment terms are subject to final order confirmation.",
     ])
+    if pdf_options["show_smart_summary"]:
+        lines.extend([f"Smart Status: {risk_label}", f"Next Action: {next_action}", ""])
+    if pdf_options["show_terms"]:
+        terms = pdf_options["terms"].splitlines() if pdf_options["terms"] else [
+            "Inventory, lead time, tax and payment terms are subject to final order confirmation."
+        ]
+        lines.extend(["Terms:", *terms])
 
     content_lines = ["BT", "/F1 10 Tf", "50 790 Td", "14 TL"]
     for line in lines[:52]:
@@ -256,7 +351,7 @@ def _generate_basic_pdf(quotation: Any) -> bytes:
     return bytes(pdf)
 
 
-def generate_quotation_pdf(quotation: Any) -> bytes:
+def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None) -> bytes:
     """
     Generate a PDF for a quotation.
 
@@ -273,20 +368,23 @@ def generate_quotation_pdf(quotation: Any) -> bytes:
     Returns:
         PDF bytes
     """
+    pdf_options = _pdf_options(options)
     if not REPORTLAB_AVAILABLE:
         logger.warning("ReportLab is not installed; using basic PDF fallback")
-        return _generate_basic_pdf(quotation)
+        return _generate_basic_pdf(quotation, pdf_options)
 
     buffer = io.BytesIO()
+    template = pdf_options["template"]
+    compact = template == "compact"
 
     # Create document
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=20 * mm,
-        leftMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
+        rightMargin=(14 if compact else 20) * mm,
+        leftMargin=(14 if compact else 20) * mm,
+        topMargin=(14 if compact else 20) * mm,
+        bottomMargin=(14 if compact else 20) * mm,
     )
 
     # Get styles
@@ -346,8 +444,8 @@ def generate_quotation_pdf(quotation: Any) -> bytes:
     story = []
 
     # Company header
-    story.append(Paragraph("深圳天允电子有限公司", title_style))
-    story.append(Paragraph("智能报价单 / SMART QUOTATION", ParagraphStyle(
+    story.append(Paragraph(pdf_options["company_name"], title_style))
+    story.append(Paragraph(pdf_options["document_title"], ParagraphStyle(
         "QuoteSubTitle",
         parent=small_style,
         alignment=1,
@@ -398,7 +496,10 @@ def generate_quotation_pdf(quotation: Any) -> bytes:
     subtotal = Decimal("0")
     if items:
         # Table header
-        table_data = [["序号", "产品 / 型号", "数量", "单价", "小计", "智能提示"]]
+        if pdf_options["show_line_hints"]:
+            table_data = [["序号", "产品 / 型号", "数量", "单价", "小计", "智能提示"]]
+        else:
+            table_data = [["序号", "产品 / 型号", "数量", "单价", "小计"]]
 
         for index, item in enumerate(items, start=1):
             product_name = item.product_name or "-"
@@ -407,35 +508,35 @@ def generate_quotation_pdf(quotation: Any) -> bytes:
             total_price = item.total_price or (quantity * unit_price)
             subtotal += _as_decimal(total_price)
 
-            table_data.append([
+            row = [
                 str(index),
                 Paragraph(str(product_name), cell_style),
                 str(quantity),
                 _money(unit_price) if unit_price else "-",
                 _money(total_price) if total_price else "-",
-                Paragraph(_line_hint(item), cell_style),
-            ])
+            ]
+            if pdf_options["show_line_hints"]:
+                row.append(Paragraph(_line_hint(item), cell_style))
+            table_data.append(row)
 
         # Create table
-        col_widths = [13 * mm, 58 * mm, 18 * mm, 26 * mm, 28 * mm, 35 * mm]
+        col_widths = [13 * mm, 76 * mm, 20 * mm, 28 * mm, 31 * mm] if not pdf_options["show_line_hints"] else [13 * mm, 58 * mm, 18 * mm, 26 * mm, 28 * mm, 35 * mm]
         table = Table(table_data, colWidths=col_widths)
-        table.setStyle(
-            TableStyle(
-                [
+        table_style = [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                     ("ALIGN", (1, 1), (1, -1), "LEFT"),
-                    ("ALIGN", (5, 1), (5, -1), "LEFT"),
                     ("FONTNAME", (0, 0), (-1, -1), _CHINESE_FONT),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                     ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
                     ("BACKGROUND", (0, 1), (-1, -1), colors.white),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ]
-            )
-        )
+        ]
+        if pdf_options["show_line_hints"]:
+            table_style.append(("ALIGN", (5, 1), (5, -1), "LEFT"))
+        table.setStyle(TableStyle(table_style))
         story.append(table)
         story.append(Spacer(1, 5 * mm))
 
@@ -470,33 +571,36 @@ def generate_quotation_pdf(quotation: Any) -> bytes:
 
     story.append(Spacer(1, 6 * mm))
 
-    risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
-    quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
-    summary_data = [
-        [Paragraph("智能报价摘要", heading_style)],
-        [Paragraph(f"报价状态：{risk_label}", normal_style)],
-        [Paragraph(f"产品行数：{len(items)} 项；明细金额：{_money(subtotal)}；报价合计：{_money(quote_total)}", normal_style)],
-        [Paragraph(f"建议动作：{next_action}", normal_style)],
-    ]
-    summary_table = Table(summary_data, colWidths=[168 * mm])
-    summary_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#93c5fd")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(summary_table)
-    story.append(Spacer(1, 6 * mm))
+    if pdf_options["show_smart_summary"]:
+        risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
+        quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
+        summary_data = [
+            [Paragraph("智能报价摘要", heading_style)],
+            [Paragraph(f"报价状态：{risk_label}", normal_style)],
+            [Paragraph(f"产品行数：{len(items)} 项；明细金额：{_money(subtotal)}；报价合计：{_money(quote_total)}", normal_style)],
+            [Paragraph(f"建议动作：{next_action}", normal_style)],
+        ]
+        summary_table = Table(summary_data, colWidths=[168 * mm])
+        summary_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#93c5fd")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(summary_table)
+        story.append(Spacer(1, 6 * mm))
 
     # Payment terms / Notes
-    story.append(Paragraph("商务条款与说明", heading_style))
-    story.append(Paragraph("1. 本报价以产品行、数量、单价及有效期为准；库存和交期需在下单前再次确认。", small_style))
-    story.append(Paragraph("2. 税率、付款方式、运输方式如未单独约定，以双方最终合同或订单确认为准。", small_style))
-    story.append(Paragraph("3. 如报价已过有效期，建议重新核价后再作为采购依据。", small_style))
+    if pdf_options["show_terms"]:
+        story.append(Paragraph("商务条款与说明", heading_style))
+        terms_lines = pdf_options["terms"].splitlines() if pdf_options["terms"] else _default_terms()
+        for line in terms_lines:
+            if line.strip():
+                story.append(Paragraph(line.strip(), small_style))
 
-    if quotation.notes:
+    if pdf_options["show_notes"] and quotation.notes:
         story.append(Spacer(1, 5 * mm))
         story.append(Paragraph(f"备注: {quotation.notes}", small_style))
 

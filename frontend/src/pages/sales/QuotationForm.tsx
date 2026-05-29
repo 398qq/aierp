@@ -6,7 +6,7 @@ import { getQuotation, createQuotation, updateQuotation } from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import FormAIWarning from "../../components/sales/FormAIWarning";
-import { CustomerSelect, ProductSelect, SalesModuleShell, money } from "./salesUi";
+import { CustomerSelect, OpportunitySelect, ProductSelect, SalesModuleShell, money } from "./salesUi";
 
 type QuoteItemForm = {
   product_id?: number;
@@ -23,6 +23,13 @@ type QuoteItemForm = {
 
 const toNumber = (value: unknown) => Number(value || 0);
 const COST_TAX_RATE = 0.13;
+const formatPercent = (value: number) => `${value.toFixed(2)}%`;
+const DEFAULT_QUOTATION_NOTES = [
+  "1、以上报价为含税13%，如增加或改变加工工艺、零件、辅料，则须重新核价，并以确认的新单价为准；",
+  "2、报价批量含运包费用，供方负责送货到需方指定地点",
+  "3、产品付款方式：以合同为准",
+  "4、报价有效期：3天",
+].join("\n");
 
 export default function QuotationForm() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +41,7 @@ export default function QuotationForm() {
   const isEdit = !!id;
   const watchedItems = Form.useWatch("items", form) as QuoteItemForm[] | undefined;
   const watchedTotal = Form.useWatch("total_amount", form) as number | undefined;
+  const watchedCustomerId = Form.useWatch("customer_id", form) as number | undefined;
 
   const summary = useMemo(() => {
     const items = watchedItems || [];
@@ -148,7 +156,7 @@ export default function QuotationForm() {
           setFormValues(values);
           syncLineTotals();
         }}
-        initialValues={{ status: "draft", items: [{}], valid_until: dayjs().add(30, "day") }}
+        initialValues={{ status: "draft", items: [{}], valid_until: dayjs().add(3, "day"), notes: DEFAULT_QUOTATION_NOTES }}
       >
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 12, alignItems: "start" }}>
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -159,7 +167,17 @@ export default function QuotationForm() {
                   <CustomerSelect />
                 </Form.Item>
                 <Form.Item name="opportunity_id" label="关联商机">
-                  <InputNumber style={{ width: "100%" }} placeholder="可由商机页面带入" />
+                  <OpportunitySelect
+                    customerId={watchedCustomerId}
+                    onOpportunityPicked={(opportunity) => {
+                      if (!form.getFieldValue("customer_id")) {
+                        form.setFieldValue("customer_id", opportunity.customer_id);
+                      }
+                      if (!form.getFieldValue("title")) {
+                        form.setFieldValue("title", opportunity.title);
+                      }
+                    }}
+                  />
                 </Form.Item>
                 <Form.Item name="title" label="标题">
                   <Input placeholder="报价主题" />
@@ -189,7 +207,7 @@ export default function QuotationForm() {
                 </Form.Item>
               </div>
               <Form.Item name="notes" label="备注">
-                <Input.TextArea rows={2} placeholder="付款条件、交期、特别说明" />
+                <Input.TextArea rows={5} placeholder="付款条件、交期、特别说明" />
               </Form.Item>
             </Card>
 
@@ -247,7 +265,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "单价",
+                          title: "含税销售单价",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "unit_price"]} style={{ marginBottom: 0 }}>
@@ -256,7 +274,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "小计",
+                          title: "含税销售额",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "total_price"]} style={{ marginBottom: 0 }}>
@@ -265,7 +283,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "成本",
+                          title: "未税成本单价",
                           width: 130,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "cost_price"]} style={{ marginBottom: 0 }}>
@@ -274,7 +292,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "未税成本",
+                          title: "未税成本额",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "untaxed_cost"]} style={{ marginBottom: 0 }}>
@@ -283,7 +301,20 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "含税成本",
+                          title: "进项税额",
+                          width: 120,
+                          render: (_: unknown, field) => (
+                            <Form.Item noStyle shouldUpdate>
+                              {() => {
+                                const item = (form.getFieldValue(["items", field.name]) || {}) as QuoteItemForm;
+                                const taxAmount = toNumber(item.taxed_cost) - toNumber(item.untaxed_cost);
+                                return <Typography.Text>{money(taxAmount)}</Typography.Text>;
+                              }}
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "含税成本额",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "taxed_cost"]} style={{ marginBottom: 0 }}>
@@ -292,11 +323,29 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "销售利润",
+                          title: "销售毛利",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "sales_profit"]} style={{ marginBottom: 0 }}>
                               <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "毛利率",
+                          width: 110,
+                          render: (_: unknown, field) => (
+                            <Form.Item noStyle shouldUpdate>
+                              {() => {
+                                const item = (form.getFieldValue(["items", field.name]) || {}) as QuoteItemForm;
+                                const totalPrice = toNumber(item.total_price);
+                                const margin = totalPrice ? (toNumber(item.sales_profit) / totalPrice) * 100 : 0;
+                                return (
+                                  <Tag color={margin >= 0 ? "green" : "red"} style={{ margin: 0 }}>
+                                    {formatPercent(margin)}
+                                  </Tag>
+                                );
+                              }}
                             </Form.Item>
                           ),
                         },

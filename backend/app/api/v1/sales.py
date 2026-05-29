@@ -219,6 +219,14 @@ async def update_quotation_status(
 @router.get("/quotations/{quote_id}/pdf")
 async def get_quotation_pdf(
     quote_id: int,
+    template: str = Query("smart", description="smart | standard | compact"),
+    company_name: str | None = Query(None, max_length=120),
+    document_title: str | None = Query(None, max_length=120),
+    show_smart_summary: bool = Query(True),
+    show_line_hints: bool = Query(True),
+    show_terms: bool = Query(True),
+    show_notes: bool = Query(True),
+    terms: str | None = Query(None, max_length=2000),
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
@@ -250,7 +258,16 @@ async def get_quotation_pdf(
         quote.customer = None
 
     from app.services.pdf_service import generate_quotation_pdf
-    pdf_bytes = generate_quotation_pdf(quote)
+    pdf_bytes = generate_quotation_pdf(quote, {
+        "template": template,
+        "company_name": company_name,
+        "document_title": document_title,
+        "show_smart_summary": show_smart_summary,
+        "show_line_hints": show_line_hints,
+        "show_terms": show_terms,
+        "show_notes": show_notes,
+        "terms": terms,
+    })
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),

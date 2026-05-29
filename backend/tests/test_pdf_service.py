@@ -1,7 +1,10 @@
 """PDF service tests."""
 
+import os
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+
+import pytest
 
 
 def test_reportlab_dependency_declared():
@@ -41,3 +44,44 @@ def test_generate_quotation_pdf_with_smart_sections():
 
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 1000
+
+
+def test_generate_quotation_pdf_prefers_embeddable_chinese_font_when_available():
+    if not os.path.exists("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"):
+        pytest.skip("WenQuanYi font is not installed in this environment")
+
+    from app.services import pdf_service
+    from app.services.pdf_service import generate_quotation_pdf
+
+    if not pdf_service.REPORTLAB_AVAILABLE:
+        pytest.skip("ReportLab is not installed in this environment")
+
+    quotation = SimpleNamespace(
+        id=1,
+        quotation_no="QT202605270002",
+        title="中文字体覆盖测试",
+        status="sent",
+        valid_until=datetime.now(timezone.utc) + timedelta(days=3),
+        created_at=datetime.now(timezone.utc),
+        total_amount=250,
+        notes="加工工艺、零件、辅料、付款方式、报价有效期",
+        customer=SimpleNamespace(
+            name="测试客户有限公司",
+            contact_person="张三",
+            phone="13800000000",
+            address="深圳市南山区科技园",
+        ),
+        items=[
+            SimpleNamespace(
+                product_name="全局产品名称：连接器、电阻、电容、芯片、辅料",
+                quantity=10,
+                unit_price=25,
+                total_price=250,
+            )
+        ],
+    )
+
+    pdf = generate_quotation_pdf(quotation)
+
+    assert b"WenQuanYiMicroHei" in pdf
+    assert b"IPAPGothic" not in pdf

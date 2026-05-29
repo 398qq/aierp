@@ -16,8 +16,8 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getCustomer, getCustomers, getProducts } from "../../api";
-import type { Customer, Product } from "../../types";
+import { getCustomer, getCustomers, getOpportunity, getOpportunities, getProduct, getProducts } from "../../api";
+import type { Customer, Opportunity, Product } from "../../types";
 
 export const money = (value?: number | null) => `¥${Number(value || 0).toLocaleString()}`;
 
@@ -186,6 +186,106 @@ export function CustomerLink({ id }: { id?: number | null }) {
   );
 }
 
+export function OpportunitySelect({
+  value,
+  onChange,
+  customerId,
+  onOpportunityPicked,
+}: {
+  value?: number;
+  onChange?: (value?: number) => void;
+  customerId?: number;
+  onOpportunityPicked?: (opportunity: Opportunity) => void;
+}) {
+  const [items, setItems] = useState<Opportunity[]>([]);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      getOpportunities({
+        page: 1,
+        page_size: 30,
+        q: search,
+        ...(customerId ? { customer_id: customerId } : {}),
+      })
+        .then((r) => setItems(r.data.data.list || []))
+        .catch(() => {});
+    }, 240);
+    return () => window.clearTimeout(timer);
+  }, [customerId, search]);
+
+  useEffect(() => {
+    if (!value || items.some((item) => item.id === value)) return;
+    getOpportunity(value)
+      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .catch(() => {});
+  }, [items, value]);
+
+  const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+
+  return (
+    <Select
+      showSearch
+      allowClear
+      value={value}
+      placeholder="搜索商机标题"
+      filterOption={false}
+      onSearch={setSearch}
+      onChange={(next) => {
+        onChange?.(next);
+        const opportunity = byId.get(Number(next));
+        if (opportunity) onOpportunityPicked?.(opportunity);
+      }}
+      notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无匹配商机" />}
+      options={items.map((opportunity) => ({
+        value: opportunity.id,
+        label: opportunity.title,
+      }))}
+    />
+  );
+}
+
+export function OpportunityLink({ id }: { id?: number | null }) {
+  const navigate = useNavigate();
+  const [title, setTitle] = useState<string>("");
+
+  useEffect(() => {
+    if (!id) return;
+    getOpportunity(id).then((r) => setTitle(r.data.data.title)).catch(() => setTitle(""));
+  }, [id]);
+
+  if (!id) return <Typography.Text type="secondary">未关联商机</Typography.Text>;
+
+  return (
+    <Typography.Link onClick={() => navigate(`/sales/opportunities/${id}`)}>
+      {title || `商机 #${id}`}
+    </Typography.Link>
+  );
+}
+
+export const getProductOptionLabel = (p: Product) => [
+  p.name,
+].filter(Boolean).join(" ");
+
+const loadProductCandidates = async (search: string) => {
+  const pageSize = 100;
+  const first = await getProducts({ page: 1, page_size: pageSize, q: search, sort: "name_asc" });
+  const data = first.data.data;
+  const list = [...(data.list || [])];
+  const total = data.total || list.length;
+  const pageCount = Math.ceil(total / pageSize);
+
+  if (pageCount <= 1) return list;
+
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      getProducts({ page: index + 2, page_size: pageSize, q: search, sort: "name_asc" })
+    )
+  );
+  rest.forEach((response) => list.push(...(response.data.data.list || [])));
+  return list;
+};
+
 export function ProductSelect({
   value,
   onChange,
@@ -199,11 +299,26 @@ export function ProductSelect({
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      getProducts({ page: 1, page_size: 30, q: search }).then((r) => setItems(r.data.data.list || [])).catch(() => {});
+      loadProductCandidates(search)
+        .then((list) => {
+          if (!cancelled) setItems(list);
+        })
+        .catch(() => {});
     }, 240);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [search]);
+
+  useEffect(() => {
+    if (!value || items.some((item) => item.id === value)) return;
+    getProduct(value)
+      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .catch(() => {});
+  }, [items, value]);
 
   const byId = useMemo(() => new Map(items.map((p) => [p.id, p])), [items]);
 
@@ -212,7 +327,7 @@ export function ProductSelect({
       showSearch
       allowClear
       value={value}
-      placeholder="搜索产品名称"
+      placeholder="搜索全局产品名称"
       filterOption={false}
       onSearch={setSearch}
       onChange={(next) => {
@@ -223,7 +338,7 @@ export function ProductSelect({
       notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无匹配产品" />}
       options={items.map((p) => ({
         value: p.id,
-        label: p.name,
+        label: getProductOptionLabel(p),
       }))}
     />
   );

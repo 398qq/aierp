@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Empty, Popconfirm, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
+import { Alert, Button, Card, Checkbox, Descriptions, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
 import {
   ArrowLeftOutlined,
   CopyOutlined,
@@ -11,10 +11,11 @@ import {
   ShoppingCartOutlined,
 } from "@ant-design/icons";
 import { convertQuotationToOrder, downloadQuotationPDF, duplicateQuotation, getQuotation, sendQuotation, updateQuotationStatus } from "../../api";
+import type { QuotationPDFOptions } from "../../api";
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation } from "../../types";
-import { CustomerLink, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, MetricBand, OpportunityLink, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
 
 const getDueMeta = (validUntil?: string | null, status?: string) => {
   if (!validUntil || status === "won" || status === "lost") return { text: "-", color: "default", risk: false };
@@ -37,6 +38,9 @@ export default function QuotationDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeAi, setIncludeAi] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [pdfForm] = Form.useForm<QuotationPDFOptions>();
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +70,21 @@ export default function QuotationDetail() {
       profit: items.reduce((sum, item) => sum + Number(item.sales_profit || 0), 0),
     };
   }, [quote]);
+
+  const handleDownloadPDF = async () => {
+    if (!quote) return;
+    setPdfDownloading(true);
+    try {
+      const values = await pdfForm.validateFields();
+      await downloadQuotationPDF(quote.id, `quotation_${quote.quotation_no || quote.id}.pdf`, values);
+      setPdfOpen(false);
+    } catch (err: any) {
+      if (err?.errorFields) return;
+      message.error("下载失败");
+    } finally {
+      setPdfDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -176,7 +195,7 @@ export default function QuotationDetail() {
               标记丢失
             </Button>
           )}
-          <Button icon={<DownloadOutlined />} onClick={() => downloadQuotationPDF(quote.id, `quotation_${quote.quotation_no || quote.id}.pdf`).catch(() => message.error("下载失败"))}>
+          <Button icon={<DownloadOutlined />} onClick={() => setPdfOpen(true)}>
             智能PDF
           </Button>
           <Button icon={<FileProtectOutlined />} onClick={async () => {
@@ -196,6 +215,79 @@ export default function QuotationDetail() {
         </Space>
       </Card>
 
+      <Modal
+        title="自定义智能 PDF"
+        open={pdfOpen}
+        onCancel={() => setPdfOpen(false)}
+        onOk={handleDownloadPDF}
+        confirmLoading={pdfDownloading}
+        okText="下载 PDF"
+        width={680}
+      >
+        <Form
+          form={pdfForm}
+          layout="vertical"
+          onValuesChange={(changed) => {
+            if (!("template" in changed)) return;
+            if (changed.template === "smart") {
+              pdfForm.setFieldsValue({ show_smart_summary: true, show_line_hints: true, show_terms: true, show_notes: true });
+            } else if (changed.template === "standard") {
+              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: true });
+            } else if (changed.template === "compact") {
+              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: false });
+            }
+          }}
+          initialValues={{
+            template: "smart",
+            company_name: "深圳天允电子有限公司",
+            document_title: "智能报价单 / SMART QUOTATION",
+            show_smart_summary: true,
+            show_line_hints: true,
+            show_terms: true,
+            show_notes: true,
+            terms: [
+              "1、以上报价为含税13%，如增加或改变加工工艺、零件、辅料，则须重新核价，并以确认的新单价为准；",
+              "2、报价批量含运包费用，供方负责送货到需方指定地点",
+              "3、产品付款方式：以合同为准",
+              "4、报价有效期：3天",
+            ].join("\n"),
+          }}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <Form.Item name="template" label="PDF 形式">
+              <Select options={[
+                { value: "smart", label: "智能版：含摘要和提示" },
+                { value: "standard", label: "标准版：报价和条款" },
+                { value: "compact", label: "紧凑版：适合打印" },
+              ]} />
+            </Form.Item>
+            <Form.Item name="company_name" label="抬头公司">
+              <Input />
+            </Form.Item>
+          </div>
+          <Form.Item name="document_title" label="文档标题">
+            <Input />
+          </Form.Item>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+            <Form.Item name="show_smart_summary" valuePropName="checked">
+              <Checkbox>智能摘要</Checkbox>
+            </Form.Item>
+            <Form.Item name="show_line_hints" valuePropName="checked">
+              <Checkbox>行项目提示</Checkbox>
+            </Form.Item>
+            <Form.Item name="show_terms" valuePropName="checked">
+              <Checkbox>商务条款</Checkbox>
+            </Form.Item>
+            <Form.Item name="show_notes" valuePropName="checked">
+              <Checkbox>报价备注</Checkbox>
+            </Form.Item>
+          </div>
+          <Form.Item name="terms" label="商务条款">
+            <Input.TextArea rows={5} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 12, alignItems: "start" }}>
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Card
@@ -214,7 +306,7 @@ export default function QuotationDetail() {
               <Descriptions.Item label="标题">{quote.title || "-"}</Descriptions.Item>
               <Descriptions.Item label="有效期">{shortDate(quote.valid_until)}</Descriptions.Item>
               <Descriptions.Item label="总金额">{money(quote.total_amount)}</Descriptions.Item>
-              <Descriptions.Item label="关联商机">{quote.opportunity_id ? `#${quote.opportunity_id}` : "-"}</Descriptions.Item>
+              <Descriptions.Item label="关联商机"><OpportunityLink id={quote.opportunity_id} /></Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{quote.notes || "-"}</Descriptions.Item>
             </Descriptions>
           </Card>

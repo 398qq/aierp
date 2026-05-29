@@ -1,11 +1,12 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, Typography, Space, Tag, Tooltip, Popconfirm, Button, message } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import { Button, Card, Popconfirm, Progress, Space, Tag, Tooltip, Typography, message } from "antd";
+import { DeleteOutlined, EditOutlined, EyeOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import AIInlineBadge from "./AIInlineBadge";
 import type { Opportunity, OpportunityAI } from "../../types";
 import { deleteOpportunity } from "../../api";
+import { money, shortDate } from "../../pages/sales/salesUi";
 
 const { Text } = Typography;
 
@@ -51,23 +52,25 @@ export default function OpportunityCard({ opportunity, aiData, onRefresh }: Prop
     }
   };
 
+  const winProbability = Number(opportunity.win_probability || 0);
+
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card
         size="small"
         style={{
-          marginBottom: 8,
+          marginBottom: 10,
           cursor: "grab",
-          borderLeft: `3px solid ${STAGE_TAGS[opportunity.stage || "lead"] || "#ccc"}`,
+          borderLeft: `4px solid ${STAGE_TAGS[opportunity.stage || "lead"] || "#d9d9d9"}`,
+          borderRadius: 6,
         }}
         bodyStyle={{ padding: 12 }}
       >
-        {/* Header: title + AI badge */}
-        <Space style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <Space style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
           <Typography.Text
             strong
             ellipsis
-            style={{ maxWidth: 160, display: "block" }}
+            style={{ maxWidth: 180, display: "block", cursor: "pointer" }}
             onClick={() => navigate(`/sales/opportunities/${opportunity.id}`)}
           >
             {opportunity.title}
@@ -75,25 +78,25 @@ export default function OpportunityCard({ opportunity, aiData, onRefresh }: Prop
           {aiData && <AIInlineBadge riskLevel={aiData.risk_level} />}
         </Space>
 
-        {/* Amount + Win prob */}
-        <Space style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            {opportunity.amount != null ? `¥${opportunity.amount.toLocaleString()}` : "—"}
-          </Text>
-          {opportunity.win_probability != null && (
-            <Tag color={opportunity.win_probability >= 50 ? "green" : "orange"} style={{ margin: 0 }}>
-              {opportunity.win_probability}%
-            </Tag>
-          )}
+        <Space direction="vertical" size={4} style={{ width: "100%" }}>
+          <Space style={{ display: "flex", justifyContent: "space-between" }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>预计金额</Text>
+            <Typography.Text strong>{money(opportunity.amount)}</Typography.Text>
+          </Space>
+          <Progress
+            percent={winProbability}
+            size="small"
+            showInfo={false}
+            strokeColor={winProbability >= 60 ? "#52c41a" : winProbability >= 30 ? "#faad14" : "#1677ff"}
+          />
+          <Space style={{ display: "flex", justifyContent: "space-between" }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>赢率 {winProbability}%</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{shortDate(opportunity.expected_close_date)}</Text>
+          </Space>
         </Space>
 
-        {/* Expected close date + owner */}
-        <Space style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {opportunity.expected_close_date
-              ? opportunity.expected_close_date.slice(0, 10)
-              : "—"}
-          </Text>
+        <Space style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+          <Text type="secondary" style={{ fontSize: 12 }} ellipsis>{opportunity.source || "未记录来源"}</Text>
           {opportunity.assigned_to && (
             <Tooltip title="负责人">
               <Tag style={{ margin: 0 }}>{opportunity.assigned_to}</Tag>
@@ -101,13 +104,23 @@ export default function OpportunityCard({ opportunity, aiData, onRefresh }: Prop
           )}
         </Space>
 
-        {/* Actions */}
-        <Space size="small" style={{ marginTop: 6 }}>
-          <Button size="small" onClick={() => navigate(`/sales/opportunities/${opportunity.id}`)}>
-            详情
-          </Button>
+        <Space size={4} style={{ marginTop: 10 }}>
+          <Tooltip title="查看详情">
+            <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/sales/opportunities/${opportunity.id}`)} />
+          </Tooltip>
+          <Tooltip title="编辑商机">
+            <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/sales/opportunities/${opportunity.id}/edit`)} />
+          </Tooltip>
+          <Tooltip title="新建报价">
+            <Button
+              size="small"
+              type="primary"
+              icon={<FileTextOutlined />}
+              onClick={() => navigate(`/sales/quotations/new?customer_id=${opportunity.customer_id}&opportunity_id=${opportunity.id}`)}
+            />
+          </Tooltip>
           <Popconfirm title="确定删除?" onConfirm={handleDelete}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
+            <Button size="small" danger type="text" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       </Card>

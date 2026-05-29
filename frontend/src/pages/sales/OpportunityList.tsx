@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Input, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
-import { FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { Button, Card, Col, Input, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
+import { AppstoreOutlined, BarsOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, getOpportunities } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
@@ -12,6 +12,14 @@ const STAGE_OPTIONS = [
   { value: "qualified", label: "需求确认" },
   { value: "proposal", label: "报价中" },
   { value: "negotiation", label: "谈判" },
+  { value: "closed_won", label: "赢单" },
+  { value: "closed_lost", label: "输单" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "活跃" },
+  { value: "won", label: "已赢单" },
+  { value: "lost", label: "已输单" },
 ];
 
 export default function OpportunityList() {
@@ -53,10 +61,27 @@ export default function OpportunityList() {
 
   const stats = useMemo(() => {
     const amount = data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const highValue = data.filter((item) => Number(item.amount || 0) >= 100000).length;
+    const weightedAmount = data.reduce((sum, item) => sum + Number(item.amount || 0) * Number(item.win_probability || 0) / 100, 0);
     const avgWin = data.length ? data.reduce((sum, item) => sum + Number(item.win_probability || 0), 0) / data.length : 0;
-    return { amount, highValue, avgWin };
-  }, [data]);
+    const active = data.filter((item) => item.status === "active").length;
+    const dueSoon = data.filter((item) => {
+      if (!item.expected_close_date || item.status !== "active") return false;
+      const due = new Date(item.expected_close_date).getTime();
+      if (Number.isNaN(due)) return false;
+      const diffDays = Math.ceil((due - Date.now()) / (24 * 60 * 60 * 1000));
+      return diffDays >= 0 && diffDays <= 14;
+    }).length;
+    const atRisk = includeAi ? Object.values(aiMap).filter((item) => item.risk_level === "high").length : 0;
+    return { amount, weightedAmount, avgWin, active, dueSoon, atRisk };
+  }, [aiMap, data, includeAi]);
+
+  const clearFilters = () => {
+    setStatus(undefined);
+    setStage(undefined);
+    setCustomerId(undefined);
+    setSearchText("");
+    setQ("");
+  };
 
   const batchStage = async (nextStage: string) => {
     if (!selected.length) return;
@@ -80,16 +105,27 @@ export default function OpportunityList() {
       <MetricBand
         items={[
           { title: "商机数", value: data.length, suffix: "个", prefix: <ThunderboltOutlined /> },
+          { title: "活跃商机", value: stats.active, suffix: "个" },
           { title: "预计金额", value: stats.amount, prefix: "¥", precision: 0 },
-          { title: "大额商机", value: stats.highValue, suffix: "个" },
+          { title: "加权金额", value: stats.weightedAmount, prefix: "¥", precision: 0 },
           { title: "平均赢率", value: stats.avgWin, suffix: "%", precision: 1 },
+          { title: "14天内预计成交", value: stats.dueSoon, suffix: "个" },
+          { title: "高风险", value: includeAi ? stats.atRisk : "-", suffix: includeAi ? "个" : undefined },
         ]}
       />
 
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/opportunities/new")}>新建商机</Button>
-          <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+      <Card
+        size="small"
+        style={{ marginBottom: 16 }}
+        title={<Typography.Text strong>商机筛选</Typography.Text>}
+        extra={(
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/opportunities/new")}>新建商机</Button>
+          </Space>
+        )}
+      >
+        <Space wrap size={[8, 10]}>
           <Input.Search
             allowClear
             placeholder="搜索客户 / 商机 / 负责人 / 来源"
@@ -99,7 +135,7 @@ export default function OpportunityList() {
               if (!event.target.value) setQ("");
             }}
             onSearch={(value) => setQ(value)}
-            style={{ width: 260 }}
+            style={{ width: 300 }}
           />
           <div style={{ width: 260 }}>
             <CustomerSelect value={customerId} onChange={setCustomerId} />
@@ -108,8 +144,8 @@ export default function OpportunityList() {
             value={view}
             onChange={(v) => setView(v as "board" | "list")}
             options={[
-              { label: "看板", value: "board" },
-              { label: "列表", value: "list" },
+              { label: <><AppstoreOutlined /> 看板</>, value: "board" },
+              { label: <><BarsOutlined /> 列表</>, value: "list" },
             ]}
           />
           <Select
@@ -118,11 +154,7 @@ export default function OpportunityList() {
             style={{ width: 128 }}
             value={status}
             onChange={setStatus}
-            options={[
-              { value: "active", label: "活跃" },
-              { value: "won", label: "已赢单" },
-              { value: "lost", label: "已输单" },
-            ]}
+            options={STATUS_OPTIONS}
           />
           <Select
             placeholder="阶段"
@@ -132,6 +164,7 @@ export default function OpportunityList() {
             onChange={setStage}
             options={STAGE_OPTIONS}
           />
+          <Button onClick={clearFilters}>清空筛选</Button>
           <Space>
             <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
             <span style={{ fontSize: 13 }}>AI</span>
@@ -154,7 +187,7 @@ export default function OpportunityList() {
       ) : view === "board" ? (
         <PipelineBoard opportunities={data} aiMap={aiMap} loading={loading} onRefresh={load} />
       ) : (
-        <Card>
+        <Card size="small" title="商机清单">
           <Table
             rowKey="id"
             dataSource={data}
@@ -166,19 +199,47 @@ export default function OpportunityList() {
                 ellipsis: true,
                 render: (value: string, record: Opportunity) => (
                   <Space direction="vertical" size={0}>
-                    <a onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value}</a>
+                    <Typography.Link strong onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value}</Typography.Link>
                     <CustomerLink id={record.customer_id} />
                   </Space>
                 ),
               },
-              { title: "阶段", dataIndex: "stage", width: 120, render: (value: string) => <Tag color="blue">{stageLabel[value] || value || "-"}</Tag> },
-              { title: "金额", dataIndex: "amount", width: 120, render: money },
-              { title: "赢率", dataIndex: "win_probability", width: 110, render: (value: number | null) => `${value ?? 0}%` },
+              {
+                title: "阶段 / 状态",
+                dataIndex: "stage",
+                width: 150,
+                render: (value: string, record: Opportunity) => (
+                  <Space direction="vertical" size={2}>
+                    <Tag color="blue" style={{ margin: 0 }}>{stageLabel[value] || value || "-"}</Tag>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{STATUS_OPTIONS.find((item) => item.value === record.status)?.label || record.status}</Typography.Text>
+                  </Space>
+                ),
+              },
+              {
+                title: "金额",
+                dataIndex: "amount",
+                width: 130,
+                sorter: (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
+                render: (value: number | null) => <Typography.Text strong>{money(value)}</Typography.Text>,
+              },
+              {
+                title: "赢率",
+                dataIndex: "win_probability",
+                width: 150,
+                sorter: (a, b) => Number(a.win_probability || 0) - Number(b.win_probability || 0),
+                render: (value: number | null) => (
+                  <Space direction="vertical" size={0} style={{ width: "100%" }}>
+                    <Progress percent={Number(value || 0)} size="small" showInfo={false} />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{value ?? 0}%</Typography.Text>
+                  </Space>
+                ),
+              },
               { title: "预计成交", dataIndex: "expected_close_date", width: 120, render: shortDate },
               { title: "负责人", dataIndex: "assigned_to", width: 120, render: (value: string | null) => value || "-" },
+              { title: "来源", dataIndex: "source", width: 120, ellipsis: true, render: (value: string | null) => value || "-" },
               {
                 title: "操作",
-                width: 170,
+                width: 180,
                 render: (_: unknown, record: Opportunity) => (
                   <Space size="small">
                     <Button size="small" onClick={() => navigate(`/sales/opportunities/${record.id}`)}>详情</Button>
@@ -187,7 +248,7 @@ export default function OpportunityList() {
                 ),
               },
             ]}
-            pagination={false}
+            pagination={{ pageSize: 20, showSizeChanger: false }}
           />
         </Card>
       )}

@@ -827,8 +827,19 @@ export const createQuotationFromInquiry = (inquiryId: number, items?: Record<str
 export const convertQuotationToOrder = (id: number) =>
   client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/quotations/${id}/convert-to-order`);
 
-export const downloadQuotationPDF = async (id: number, filename?: string) => {
-  const resp = await client.get(`/quotations/${id}/pdf`, { responseType: "blob" });
+export type QuotationPDFOptions = {
+  template?: "smart" | "standard" | "compact";
+  company_name?: string;
+  document_title?: string;
+  show_smart_summary?: boolean;
+  show_line_hints?: boolean;
+  show_terms?: boolean;
+  show_notes?: boolean;
+  terms?: string;
+};
+
+export const downloadQuotationPDF = async (id: number, filename?: string, options?: QuotationPDFOptions) => {
+  const resp = await client.get(`/quotations/${id}/pdf`, { params: options, responseType: "blob" });
   const url = window.URL.createObjectURL(new Blob([resp.data]));
   const link = document.createElement("a");
   link.href = url;

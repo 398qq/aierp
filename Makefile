@@ -3,6 +3,7 @@
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 BACKEND_PORT ?= 8080
+UVICORN := $(shell test -x $(BACKEND_DIR)/.venv/bin/uvicorn && echo $(BACKEND_DIR)/.venv/bin/uvicorn || echo uvicorn)
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -10,12 +11,12 @@ help: ## Show help
 dev: ## Start backend + frontend hot-reload
 	@echo "Backend: http://localhost:$(BACKEND_PORT) | Frontend: http://localhost:3002"
 	@trap 'kill 0' EXIT; \
-		(cd $(BACKEND_DIR) && uvicorn app.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0 2>&1 | sed 's/^/[backend] /') & \
+		(cd $(BACKEND_DIR) && ../$(UVICORN) app.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0 2>&1 | sed 's/^/[backend] /') & \
 		(cd $(FRONTEND_DIR) && BACKEND_PORT=$(BACKEND_PORT) npx vite --port 3002 2>&1 | sed 's/^/[frontend] /') & \
 		wait
 
 dev-backend: ## Start backend only
-	cd $(BACKEND_DIR) && uvicorn app.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0
+	cd $(BACKEND_DIR) && ../$(UVICORN) app.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0
 
 dev-frontend: ## Start frontend only
 	cd $(FRONTEND_DIR) && BACKEND_PORT=$(BACKEND_PORT) npx vite --port 3002
