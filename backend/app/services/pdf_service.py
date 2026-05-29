@@ -3,7 +3,7 @@
 import io
 import logging
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 try:
@@ -173,6 +173,70 @@ def _money(value: Any) -> str:
     return f"¥{float(_as_decimal(value)):,.2f}"
 
 
+def _money_upper_cn(value: Any) -> str:
+    amount = _as_decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if amount < 0:
+        return "负" + _money_upper_cn(abs(amount))
+    digits = "零壹贰叁肆伍陆柒捌玖"
+    units = ["", "拾", "佰", "仟"]
+    groups = ["", "万", "亿", "兆"]
+
+    integer = int(amount)
+    cents = int((amount - Decimal(integer)) * 100)
+
+    def group_text(num: int) -> str:
+        if num == 0:
+            return ""
+        text = ""
+        zero_pending = False
+        for index in range(4):
+            divisor = 10 ** (3 - index)
+            digit = num // divisor
+            num %= divisor
+            if digit:
+                if zero_pending:
+                    text += digits[0]
+                    zero_pending = False
+                text += digits[digit] + units[3 - index]
+            elif text:
+                zero_pending = True
+        return text.rstrip(digits[0])
+
+    if integer == 0:
+        integer_text = digits[0] + "元"
+    else:
+        group_nums = []
+        while integer:
+            group_nums.append(integer % 10000)
+            integer //= 10000
+        parts = []
+        zero_pending = False
+        for group_index in range(len(group_nums) - 1, -1, -1):
+            group_num = group_nums[group_index]
+            if group_num == 0:
+                if parts:
+                    zero_pending = True
+                continue
+            if parts and (zero_pending or group_num < 1000):
+                parts.append(digits[0])
+            parts.append(group_text(group_num) + groups[group_index])
+            zero_pending = False
+        integer_text = "".join(parts) + "元"
+
+    jiao = cents // 10
+    fen = cents % 10
+    if cents == 0:
+        return integer_text + "整"
+    decimal_text = ""
+    if jiao:
+        decimal_text += digits[jiao] + "角"
+    elif fen:
+        decimal_text += "零"
+    if fen:
+        decimal_text += digits[fen] + "分"
+    return integer_text + decimal_text
+
+
 def _date_text(value: Any) -> str:
     if not value:
         return "-"
@@ -228,15 +292,56 @@ def _line_hint(item: Any) -> str:
     quantity = int(getattr(item, "quantity", 0) or 0)
     unit_price = _as_decimal(getattr(item, "unit_price", None))
     total_price = _as_decimal(getattr(item, "total_price", None))
+    sales_profit = _as_decimal(getattr(item, "sales_profit", None))
     if quantity <= 0:
         return "数量待确认"
     if unit_price <= 0:
         return "单价待确认"
     if total_price <= 0:
         return "小计待确认"
+    if sales_profit < 0:
+        return "负毛利，请复核销售价与成本"
     if quantity >= 1000:
         return "批量需求，建议确认阶梯价与交期"
     return "价格有效，建议确认库存与交期"
+
+
+def _item_total(items: list[Any], field: str) -> Decimal:
+    return sum(_as_decimal(getattr(item, field, None)) for item in items)
+
+
+def _margin_rate(profit: Decimal, amount: Decimal) -> Decimal:
+    if amount <= 0:
+        return Decimal("0")
+    return (profit / amount) * Decimal("100")
+
+
+def _percent(value: Decimal) -> str:
+    return f"{float(value):.2f}%"
+
+
+def _smart_summary_lines(quotation: Any, items: list[Any], subtotal: Decimal) -> list[str]:
+    quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
+    profit = _item_total(items, "sales_profit")
+    taxed_cost = _item_total(items, "taxed_cost")
+    margin = _margin_rate(profit, quote_total)
+    days = _days_until(getattr(quotation, "valid_until", None))
+    risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
+    missing_price = sum(1 for item in items if _as_decimal(getattr(item, "unit_price", None)) <= 0)
+    negative_profit = sum(1 for item in items if _as_decimal(getattr(item, "sales_profit", None)) < 0)
+
+    lines = [
+        f"报价健康：{risk_label}；产品行 {len(items)} 项，总数量 {sum(int(getattr(item, 'quantity', 0) or 0) for item in items)}。",
+        f"金额摘要：明细金额 {_money(subtotal)}，报价合计 {_money(quote_total)}。",
+    ]
+    if taxed_cost > 0 or profit != 0:
+        lines.append(f"内部毛利：含税成本 {_money(taxed_cost)}，销售毛利 {_money(profit)}，综合毛利率 {_percent(margin)}。")
+    if days is not None:
+        lines.append(f"有效期判断：距到期 {days} 天；过期或临期报价建议重新核价。")
+    if missing_price or negative_profit:
+        lines.append(f"复核重点：{missing_price} 行缺少销售单价，{negative_profit} 行为负毛利。")
+    lines.append(f"建议动作：{next_action}")
+    return lines
 
 
 def _pdf_text(value: Any) -> str:
@@ -256,8 +361,12 @@ def _pdf_options(options: dict[str, Any] | None) -> dict[str, Any]:
     show_line_hints = bool(options.get("show_line_hints", template == "smart"))
     show_terms = bool(options.get("show_terms", True))
     show_notes = bool(options.get("show_notes", True))
+    show_internal_metrics = bool(options.get("show_internal_metrics", False))
+    show_signature = bool(options.get("show_signature", True))
     company_name = str(options.get("company_name") or "深圳天允电子有限公司").strip() or "深圳天允电子有限公司"
-    document_title = str(options.get("document_title") or "智能报价单 / SMART QUOTATION").strip() or "智能报价单 / SMART QUOTATION"
+    document_title = str(options.get("document_title") or "正式报价单 / QUOTATION").strip() or "正式报价单 / QUOTATION"
+    prepared_by = str(options.get("prepared_by") or "").strip()
+    contact_phone = str(options.get("contact_phone") or "").strip()
     terms_text = str(options.get("terms") or "").strip()
     return {
         "template": template,
@@ -267,6 +376,10 @@ def _pdf_options(options: dict[str, Any] | None) -> dict[str, Any]:
         "show_line_hints": show_line_hints,
         "show_terms": show_terms,
         "show_notes": show_notes,
+        "show_internal_metrics": show_internal_metrics,
+        "show_signature": show_signature,
+        "prepared_by": prepared_by,
+        "contact_phone": contact_phone,
         "terms": terms_text,
     }
 
@@ -283,6 +396,8 @@ def _generate_basic_pdf(quotation: Any, options: dict[str, Any] | None = None) -
     """Generate a dependency-free fallback PDF when ReportLab is unavailable."""
     pdf_options = _pdf_options(options)
     customer = getattr(quotation, "customer", None)
+    if not (options or {}).get("company_name") and getattr(customer, "name", None):
+        pdf_options["company_name"] = str(getattr(customer, "name"))
     items = getattr(quotation, "items", None) or []
     subtotal = sum(_as_decimal(getattr(item, "total_price", None)) for item in items)
     risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
@@ -318,6 +433,8 @@ def _generate_basic_pdf(quotation: Any, options: dict[str, Any] | None = None) -
             "Inventory, lead time, tax and payment terms are subject to final order confirmation."
         ]
         lines.extend(["Terms:", *terms])
+    if pdf_options["show_signature"]:
+        lines.extend(["", "Prepared by: " + (pdf_options["prepared_by"] or "-"), "Customer signature: __________________"])
 
     content_lines = ["BT", "/F1 10 Tf", "50 790 Td", "14 TL"]
     for line in lines[:52]:
@@ -386,6 +503,24 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
         topMargin=(14 if compact else 20) * mm,
         bottomMargin=(14 if compact else 20) * mm,
     )
+    content_width = A4[0] - doc.leftMargin - doc.rightMargin
+    color_primary = colors.HexColor("#1d3557")
+    color_primary_dark = colors.HexColor("#16324f")
+    color_border = colors.HexColor("#cbd5e1")
+    color_grid = colors.HexColor("#e2e8f0")
+    color_soft_bg = colors.HexColor("#f8fafc")
+    color_summary_bg = colors.HexColor("#eaf2fb")
+
+    def draw_footer(canvas: Any, document: Any) -> None:
+        canvas.saveState()
+        canvas.setFont(_CHINESE_FONT, 8)
+        canvas.setFillColor(colors.HexColor("#64748b"))
+        footer = "系统生成报价文件，正式交易以双方确认订单/合同为准"
+        if pdf_options["contact_phone"]:
+            footer += f" | 联系电话：{pdf_options['contact_phone']}"
+        canvas.drawString(document.leftMargin, 10 * mm, footer)
+        canvas.drawRightString(A4[0] - document.rightMargin, 10 * mm, f"第 {document.page} 页")
+        canvas.restoreState()
 
     # Get styles
     styles = getSampleStyleSheet()
@@ -440,22 +575,23 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
         wordWrap="CJK",
     )
 
+    white_style = ParagraphStyle(
+        "ChineseWhite",
+        parent=small_style,
+        textColor=colors.white,
+        leading=13,
+    )
+
+    total_style = ParagraphStyle(
+        "ChineseTotal",
+        parent=normal_style,
+        fontSize=12,
+        leading=15,
+        textColor=colors.HexColor("#111827"),
+    )
+
     # Build content
     story = []
-
-    # Company header
-    story.append(Paragraph(pdf_options["company_name"], title_style))
-    story.append(Paragraph(pdf_options["document_title"], ParagraphStyle(
-        "QuoteSubTitle",
-        parent=small_style,
-        alignment=1,
-        textColor=colors.HexColor("#6b7280"),
-    )))
-    story.append(Spacer(1, 4 * mm))
-
-    # Quotation title
-    quote_title = quotation.title or f"报价单 {quotation.quotation_no or quotation.id}"
-    story.append(Paragraph(quote_title, heading_style))
 
     customer = quotation.customer
     customer_name = getattr(customer, "name", None) or "-"
@@ -466,22 +602,67 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
     quote_status = _status_label(getattr(quotation, "status", None))
     valid_until = _date_text(getattr(quotation, "valid_until", None))
     created_at = _date_text(getattr(quotation, "created_at", None) or datetime.now(timezone.utc))
+    quote_title = quotation.title or f"报价单 {quotation.quotation_no or quotation.id}"
+    if not (options or {}).get("company_name") and customer_name != "-":
+        pdf_options["company_name"] = str(customer_name)
+
+    header_table = Table(
+        [
+            [
+                Paragraph(pdf_options["company_name"], ParagraphStyle(
+                    "HeaderCompany",
+                    parent=title_style,
+                    alignment=0,
+                    textColor=colors.white,
+                    spaceAfter=1 * mm,
+                )),
+                Paragraph(f"报价单号<br/>{quote_no}", white_style),
+            ],
+            [
+                Paragraph(pdf_options["document_title"], white_style),
+                Paragraph(f"生成日期<br/>{created_at}", white_style),
+            ],
+        ],
+        colWidths=[content_width * 0.70, content_width * 0.30],
+    )
+    header_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), color_primary),
+        ("BOX", (0, 0), (-1, -1), 0.5, color_primary),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, color_primary_dark),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 5 * mm))
+    story.append(Paragraph(quote_title, heading_style))
+
+    info_rows = [
+        [Paragraph("报价单号", label_style), Paragraph(str(quote_no), normal_style), Paragraph("报价状态", label_style), Paragraph(quote_status, normal_style)],
+        [Paragraph("报价日期", label_style), Paragraph(created_at, normal_style), Paragraph("有效期至", label_style), Paragraph(valid_until, normal_style)],
+        [Paragraph("客户名称", label_style), Paragraph(str(customer_name), normal_style), Paragraph("联系人", label_style), Paragraph(str(contact_person), normal_style)],
+        [Paragraph("联系电话", label_style), Paragraph(str(customer_phone), normal_style), Paragraph("客户地址", label_style), Paragraph(str(customer_address), normal_style)],
+    ]
+    if pdf_options["prepared_by"] or pdf_options["contact_phone"]:
+        info_rows.append([
+            Paragraph("报价经办", label_style),
+            Paragraph(pdf_options["prepared_by"] or "-", normal_style),
+            Paragraph("经办电话", label_style),
+            Paragraph(pdf_options["contact_phone"] or "-", normal_style),
+        ])
 
     info_table = Table(
-        [
-            [Paragraph("报价单号", label_style), Paragraph(str(quote_no), normal_style), Paragraph("报价状态", label_style), Paragraph(quote_status, normal_style)],
-            [Paragraph("报价日期", label_style), Paragraph(created_at, normal_style), Paragraph("有效期至", label_style), Paragraph(valid_until, normal_style)],
-            [Paragraph("客户名称", label_style), Paragraph(str(customer_name), normal_style), Paragraph("联系人", label_style), Paragraph(str(contact_person), normal_style)],
-            [Paragraph("联系电话", label_style), Paragraph(str(customer_phone), normal_style), Paragraph("客户地址", label_style), Paragraph(str(customer_address), normal_style)],
-        ],
-        colWidths=[26 * mm, 58 * mm, 26 * mm, 58 * mm],
+        info_rows,
+        colWidths=[content_width * 0.155, content_width * 0.345, content_width * 0.155, content_width * 0.345],
     )
     info_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), _CHINESE_FONT),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f9fafb")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
+        ("BACKGROUND", (0, 0), (-1, -1), color_soft_bg),
+        ("BOX", (0, 0), (-1, -1), 0.5, color_border),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, color_grid),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -495,11 +676,58 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
     items = quotation.items or []
     subtotal = Decimal("0")
     if items:
-        # Table header
-        if pdf_options["show_line_hints"]:
-            table_data = [["序号", "产品 / 型号", "数量", "单价", "小计", "智能提示"]]
+        story.append(Paragraph("报价明细", heading_style))
+        internal = bool(pdf_options["show_internal_metrics"])
+        if internal and pdf_options["show_line_hints"]:
+            table_data = [["序号", "产品 / 型号", "数量", "含税单价", "销售额", "含税成本", "毛利", "提示"]]
+            col_widths = [
+                content_width * 0.06,
+                content_width * 0.23,
+                content_width * 0.08,
+                content_width * 0.12,
+                content_width * 0.13,
+                content_width * 0.12,
+                content_width * 0.12,
+                content_width * 0.14,
+            ]
+            hint_col = 7
+            amount_cols = (3, 6)
+        elif internal:
+            table_data = [["序号", "产品 / 型号", "数量", "含税单价", "销售额", "含税成本", "毛利"]]
+            col_widths = [
+                content_width * 0.06,
+                content_width * 0.32,
+                content_width * 0.08,
+                content_width * 0.13,
+                content_width * 0.14,
+                content_width * 0.13,
+                content_width * 0.14,
+            ]
+            hint_col = None
+            amount_cols = (3, 6)
+        elif pdf_options["show_line_hints"]:
+            table_data = [["序号", "产品 / 型号", "数量", "含税单价", "销售额", "智能提示"]]
+            col_widths = [
+                content_width * 0.07,
+                content_width * 0.36,
+                content_width * 0.10,
+                content_width * 0.14,
+                content_width * 0.16,
+                content_width * 0.17,
+            ]
+            hint_col = 5
+            amount_cols = (3, 4)
         else:
-            table_data = [["序号", "产品 / 型号", "数量", "单价", "小计"]]
+            table_data = [["序号", "产品 / 型号", "数量", "含税单价", "销售额"]]
+            col_widths = [
+                content_width * 0.07,
+                content_width * 0.48,
+                content_width * 0.11,
+                content_width * 0.16,
+                content_width * 0.18,
+            ]
+            hint_col = None
+            amount_cols = (3, 4)
 
         for index, item in enumerate(items, start=1):
             product_name = item.product_name or "-"
@@ -515,15 +743,18 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
                 _money(unit_price) if unit_price else "-",
                 _money(total_price) if total_price else "-",
             ]
+            if internal:
+                row.extend([
+                    _money(getattr(item, "taxed_cost", None)),
+                    _money(getattr(item, "sales_profit", None)),
+                ])
             if pdf_options["show_line_hints"]:
                 row.append(Paragraph(_line_hint(item), cell_style))
             table_data.append(row)
 
-        # Create table
-        col_widths = [13 * mm, 76 * mm, 20 * mm, 28 * mm, 31 * mm] if not pdf_options["show_line_hints"] else [13 * mm, 58 * mm, 18 * mm, 26 * mm, 28 * mm, 35 * mm]
-        table = Table(table_data, colWidths=col_widths)
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
         table_style = [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+                    ("BACKGROUND", (0, 0), (-1, 0), color_primary),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                     ("ALIGN", (1, 1), (1, -1), "LEFT"),
@@ -531,11 +762,20 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                     ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
                     ("BACKGROUND", (0, 1), (-1, -1), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, color_border),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]
-        if pdf_options["show_line_hints"]:
-            table_style.append(("ALIGN", (5, 1), (5, -1), "LEFT"))
+        table_style.extend([
+            ("ALIGN", (amount_cols[0], 1), (amount_cols[1], -1), "RIGHT"),
+            ("RIGHTPADDING", (amount_cols[0], 1), (amount_cols[1], -1), 6),
+            ("LEFTPADDING", (1, 1), (1, -1), 6),
+        ])
+        for row_index in range(2, len(table_data), 2):
+            table_style.append(("BACKGROUND", (0, row_index), (-1, row_index), color_soft_bg))
+        if hint_col is not None:
+            table_style.append(("ALIGN", (hint_col, 1), (hint_col, -1), "LEFT"))
+        if internal:
+            table_style.append(("TEXTCOLOR", (-1 if not pdf_options["show_line_hints"] else -2, 1), (-1 if not pdf_options["show_line_hints"] else -2, -1), colors.HexColor("#166534")))
         table.setStyle(TableStyle(table_style))
         story.append(table)
         story.append(Spacer(1, 5 * mm))
@@ -543,15 +783,26 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
         # Totals section
         quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
         variance = quote_total - subtotal
+        untaxed_cost = _item_total(items, "untaxed_cost")
+        taxed_cost = _item_total(items, "taxed_cost")
+        profit = _item_total(items, "sales_profit")
+        margin = _margin_rate(profit, quote_total)
 
         totals_data = [
-            ["明细小计:", _money(subtotal)],
-            ["报价合计:", _money(quote_total)],
+            [Paragraph("明细销售额", label_style), Paragraph(_money(subtotal), normal_style)],
+            [Paragraph("报价合计", total_style), Paragraph(_money(quote_total), total_style)],
+            [Paragraph("人民币大写", label_style), Paragraph(_money_upper_cn(quote_total), normal_style)],
         ]
         if abs(variance) >= Decimal("0.01"):
-            totals_data.insert(1, ["调整差额:", _money(variance)])
+            totals_data.insert(1, [Paragraph("调整差额", label_style), Paragraph(_money(variance), normal_style)])
+        if internal:
+            totals_data.extend([
+                [Paragraph("未税成本", label_style), Paragraph(_money(untaxed_cost), normal_style)],
+                [Paragraph("含税成本", label_style), Paragraph(_money(taxed_cost), normal_style)],
+                [Paragraph("销售毛利 / 毛利率", total_style), Paragraph(f"{_money(profit)} / {_percent(margin)}", total_style)],
+            ])
 
-        totals_table = Table(totals_data, colWidths=[128 * mm, 40 * mm])
+        totals_table = Table(totals_data, colWidths=[content_width * 0.62, content_width * 0.38])
         totals_table.setStyle(
             TableStyle(
                 [
@@ -559,7 +810,7 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
                     ("FONTNAME", (0, 0), (-1, -1), _CHINESE_FONT),
                     ("FONTSIZE", (0, 0), (-1, -1), 10),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LINEABOVE", (0, -1), (-1, -1), 0.5, colors.black),
+                    ("LINEABOVE", (0, -1), (-1, -1), 0.5, color_primary),
                     ("FONTNAME", (0, -1), (-1, -1), _CHINESE_FONT),
                     ("FONTSIZE", (0, -1), (-1, -1), 11),
                 ]
@@ -572,18 +823,15 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
     story.append(Spacer(1, 6 * mm))
 
     if pdf_options["show_smart_summary"]:
-        risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
-        quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
-        summary_data = [
-            [Paragraph("智能报价摘要", heading_style)],
-            [Paragraph(f"报价状态：{risk_label}", normal_style)],
-            [Paragraph(f"产品行数：{len(items)} 项；明细金额：{_money(subtotal)}；报价合计：{_money(quote_total)}", normal_style)],
-            [Paragraph(f"建议动作：{next_action}", normal_style)],
-        ]
-        summary_table = Table(summary_data, colWidths=[168 * mm])
+        summary_data = [[Paragraph("智能报价摘要", heading_style)]]
+        for line in _smart_summary_lines(quotation, items, subtotal):
+            if "内部毛利" in line and not pdf_options["show_internal_metrics"]:
+                continue
+            summary_data.append([Paragraph(line, normal_style)])
+        summary_table = Table(summary_data, colWidths=[content_width])
         summary_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#93c5fd")),
+            ("BACKGROUND", (0, 0), (-1, -1), color_summary_bg),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#9db7d5")),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -594,21 +842,81 @@ def generate_quotation_pdf(quotation: Any, options: dict[str, Any] | None = None
 
     # Payment terms / Notes
     if pdf_options["show_terms"]:
-        story.append(Paragraph("商务条款与说明", heading_style))
         terms_lines = pdf_options["terms"].splitlines() if pdf_options["terms"] else _default_terms()
+        terms_data = [[Paragraph("商务条款与说明", heading_style)]]
         for line in terms_lines:
             if line.strip():
-                story.append(Paragraph(line.strip(), small_style))
+                terms_data.append([Paragraph(line.strip(), small_style)])
+        terms_table = Table(terms_data, colWidths=[content_width])
+        terms_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), color_soft_bg),
+            ("BOX", (0, 0), (-1, -1), 0.5, color_border),
+            ("INNERGRID", (0, 0), (-1, -1), 0.25, color_grid),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(terms_table)
 
     if pdf_options["show_notes"] and quotation.notes:
         story.append(Spacer(1, 5 * mm))
-        story.append(Paragraph(f"备注: {quotation.notes}", small_style))
+        notes_table = Table(
+            [
+                [Paragraph("报价备注", heading_style)],
+                [Paragraph(str(quotation.notes), small_style)],
+            ],
+            colWidths=[content_width],
+        )
+        notes_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), color_soft_bg),
+            ("BOX", (0, 0), (-1, -1), 0.5, color_border),
+            ("INNERGRID", (0, 0), (-1, -1), 0.25, color_grid),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(notes_table)
 
     story.append(Spacer(1, 8 * mm))
+    if pdf_options["show_signature"]:
+        signature_table = Table(
+            [
+                [
+                    Paragraph("报价经办", label_style),
+                    Paragraph(pdf_options["prepared_by"] or "____________", normal_style),
+                    Paragraph("客户确认", label_style),
+                    Paragraph("____________", normal_style),
+                ],
+                [
+                    Paragraph("确认日期", label_style),
+                    Paragraph("____________", normal_style),
+                    Paragraph("客户盖章/签字", label_style),
+                    Paragraph("____________", normal_style),
+                ],
+            ],
+            colWidths=[content_width * 0.14, content_width * 0.36, content_width * 0.17, content_width * 0.33],
+        )
+        signature_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), _CHINESE_FONT),
+            ("BOX", (0, 0), (-1, -1), 0.5, color_border),
+            ("INNERGRID", (0, 0), (-1, -1), 0.25, color_grid),
+            ("BACKGROUND", (0, 0), (0, -1), color_soft_bg),
+            ("BACKGROUND", (2, 0), (2, -1), color_soft_bg),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        story.append(signature_table)
+        story.append(Spacer(1, 5 * mm))
+
     story.append(Paragraph("以上报价由系统根据客户、产品、数量、状态及有效期生成智能摘要，正式交易以双方确认的订单/合同为准。", small_style))
 
     # Build PDF
-    doc.build(story)
+    doc.build(story, onFirstPage=draw_footer, onLaterPages=draw_footer)
     pdf_bytes = buffer.getvalue()
     buffer.close()
 

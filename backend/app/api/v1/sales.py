@@ -226,6 +226,10 @@ async def get_quotation_pdf(
     show_line_hints: bool = Query(True),
     show_terms: bool = Query(True),
     show_notes: bool = Query(True),
+    show_internal_metrics: bool = Query(False),
+    show_signature: bool = Query(True),
+    prepared_by: str | None = Query(None, max_length=80),
+    contact_phone: str | None = Query(None, max_length=60),
     terms: str | None = Query(None, max_length=2000),
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
@@ -266,6 +270,10 @@ async def get_quotation_pdf(
         "show_line_hints": show_line_hints,
         "show_terms": show_terms,
         "show_notes": show_notes,
+        "show_internal_metrics": show_internal_metrics,
+        "show_signature": show_signature,
+        "prepared_by": prepared_by,
+        "contact_phone": contact_phone,
         "terms": terms,
     })
 

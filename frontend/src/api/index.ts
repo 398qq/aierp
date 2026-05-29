@@ -835,6 +835,10 @@ export type QuotationPDFOptions = {
   show_line_hints?: boolean;
   show_terms?: boolean;
   show_notes?: boolean;
+  show_internal_metrics?: boolean;
+  show_signature?: boolean;
+  prepared_by?: string;
+  contact_phone?: string;
   terms?: string;
 };
 

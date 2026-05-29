@@ -10,7 +10,7 @@ import {
   SendOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
-import { convertQuotationToOrder, downloadQuotationPDF, duplicateQuotation, getQuotation, sendQuotation, updateQuotationStatus } from "../../api";
+import { convertQuotationToOrder, downloadQuotationPDF, duplicateQuotation, getCustomer, getQuotation, sendQuotation, updateQuotationStatus } from "../../api";
 import type { QuotationPDFOptions } from "../../api";
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
@@ -40,6 +40,7 @@ export default function QuotationDetail() {
   const [includeAi, setIncludeAi] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [customerName, setCustomerName] = useState("");
   const [pdfForm] = Form.useForm<QuotationPDFOptions>();
 
   const load = async () => {
@@ -58,6 +59,21 @@ export default function QuotationDetail() {
   useEffect(() => {
     load();
   }, [id, includeAi]);
+
+  useEffect(() => {
+    if (!quote?.customer_id) {
+      setCustomerName("");
+      return;
+    }
+    getCustomer(quote.customer_id)
+      .then((resp) => setCustomerName(resp.data.data.name || ""))
+      .catch(() => setCustomerName(""));
+  }, [quote?.customer_id]);
+
+  useEffect(() => {
+    if (!pdfOpen || !customerName || pdfForm.isFieldTouched("company_name")) return;
+    pdfForm.setFieldValue("company_name", customerName);
+  }, [customerName, pdfForm, pdfOpen]);
 
   const itemSummary = useMemo(() => {
     const items = quote?.items || [];
@@ -195,7 +211,12 @@ export default function QuotationDetail() {
               标记丢失
             </Button>
           )}
-          <Button icon={<DownloadOutlined />} onClick={() => setPdfOpen(true)}>
+          <Button icon={<DownloadOutlined />} onClick={() => {
+            if (customerName && !pdfForm.getFieldValue("company_name")) {
+              pdfForm.setFieldValue("company_name", customerName);
+            }
+            setPdfOpen(true);
+          }}>
             智能PDF
           </Button>
           <Button icon={<FileProtectOutlined />} onClick={async () => {
@@ -230,21 +251,23 @@ export default function QuotationDetail() {
           onValuesChange={(changed) => {
             if (!("template" in changed)) return;
             if (changed.template === "smart") {
-              pdfForm.setFieldsValue({ show_smart_summary: true, show_line_hints: true, show_terms: true, show_notes: true });
+              pdfForm.setFieldsValue({ show_smart_summary: true, show_line_hints: true, show_terms: true, show_notes: true, show_signature: true });
             } else if (changed.template === "standard") {
-              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: true });
+              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: true, show_signature: true });
             } else if (changed.template === "compact") {
-              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: false });
+              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: false, show_signature: false });
             }
           }}
           initialValues={{
             template: "smart",
-            company_name: "深圳天允电子有限公司",
-            document_title: "智能报价单 / SMART QUOTATION",
+            company_name: customerName,
+            document_title: "正式报价单 / QUOTATION",
             show_smart_summary: true,
             show_line_hints: true,
             show_terms: true,
             show_notes: true,
+            show_internal_metrics: false,
+            show_signature: true,
             terms: [
               "1、以上报价为含税13%，如增加或改变加工工艺、零件、辅料，则须重新核价，并以确认的新单价为准；",
               "2、报价批量含运包费用，供方负责送货到需方指定地点",
@@ -262,12 +285,20 @@ export default function QuotationDetail() {
               ]} />
             </Form.Item>
             <Form.Item name="company_name" label="抬头公司">
-              <Input />
+              <Input placeholder="默认取客户公司名称" />
             </Form.Item>
           </div>
           <Form.Item name="document_title" label="文档标题">
             <Input />
           </Form.Item>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <Form.Item name="prepared_by" label="报价经办">
+              <Input placeholder="销售 / 商务负责人" />
+            </Form.Item>
+            <Form.Item name="contact_phone" label="联系电话">
+              <Input placeholder="对外联系号码" />
+            </Form.Item>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
             <Form.Item name="show_smart_summary" valuePropName="checked">
               <Checkbox>智能摘要</Checkbox>
@@ -281,7 +312,19 @@ export default function QuotationDetail() {
             <Form.Item name="show_notes" valuePropName="checked">
               <Checkbox>报价备注</Checkbox>
             </Form.Item>
+            <Form.Item name="show_signature" valuePropName="checked">
+              <Checkbox>签署确认栏</Checkbox>
+            </Form.Item>
+            <Form.Item name="show_internal_metrics" valuePropName="checked">
+              <Checkbox>内部成本毛利</Checkbox>
+            </Form.Item>
           </div>
+          <Alert
+            showIcon
+            type="warning"
+            message="勾选“内部成本毛利”会把含税成本、销售毛利和毛利率写入 PDF，请仅用于内部评审。"
+            style={{ marginBottom: 12 }}
+          />
           <Form.Item name="terms" label="商务条款">
             <Input.TextArea rows={5} />
           </Form.Item>
