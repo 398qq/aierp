@@ -213,6 +213,7 @@ class SalesOrderUpdate(BaseModel):
     order_date: datetime | None = None
     delivery_date: datetime | None = None
     notes: str | None = None
+    items: list[SalesOrderItemCreate] | None = None
 
 
 class SalesOrderResponse(BaseModel):

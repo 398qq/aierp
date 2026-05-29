@@ -79,6 +79,23 @@ def _normalize_quotation_items(items_data: list[dict] | None) -> tuple[list[dict
     return items, total
 
 
+def _normalize_sales_order_items(items_data: list[dict] | None) -> tuple[list[dict], float]:
+    items: list[dict] = []
+    total = 0.0
+    for raw in items_data or []:
+        item = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
+        qty = int(item.get("quantity") or 1)
+        unit_price = float(item.get("unit_price") or 0)
+        total_price = item.get("total_price")
+        line_total = float(total_price) if total_price is not None else qty * unit_price
+        item["quantity"] = qty
+        item["unit_price"] = unit_price
+        item["total_price"] = line_total
+        total += line_total
+        items.append(item)
+    return items, total
+
+
 # ============================================================
 # Opportunity CRUD
 # ============================================================
@@ -534,12 +551,15 @@ async def create_sales_order(db: AsyncSession, data: dict, items_data: list[dict
         data["order_no"] = await generate_doc_no(db, "SO", SalesOrder, "order_no")
     if not data.get("order_date"):
         data["order_date"] = datetime.now(timezone.utc)
+    normalized_items, total = _normalize_sales_order_items(items_data)
+    if normalized_items:
+        data["total_amount"] = total
     order = SalesOrder(**{k: v for k, v in data.items() if k != "items"})
     db.add(order)
     await db.flush()
 
-    if items_data:
-        for item in items_data:
+    if normalized_items:
+        for item in normalized_items:
             soi = SalesOrderItem(order_id=order.id, **item)
             db.add(soi)
 
@@ -550,9 +570,17 @@ async def create_sales_order(db: AsyncSession, data: dict, items_data: list[dict
 
 async def update_sales_order(db: AsyncSession, order: SalesOrder, data: dict) -> SalesOrder:
     old_status = order.status
+    items_data = data.pop("items", None)
     for k, v in data.items():
         if v is not None and k != "items":
             setattr(order, k, v)
+    if items_data is not None:
+        normalized_items, total = _normalize_sales_order_items(items_data)
+        order.items.clear()
+        order.total_amount = total
+        await db.flush()
+        for item in normalized_items:
+            db.add(SalesOrderItem(order_id=order.id, **item))
     await db.commit()
     await db.refresh(order)
 

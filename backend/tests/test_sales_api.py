@@ -446,6 +446,38 @@ class TestSalesOrders:
         )
         assert resp.status_code == 200
 
+    async def test_update_sales_order_replaces_items(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_customer: dict,
+    ):
+        created = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "pending",
+                "items": [{"product_name": "Old Order Item", "quantity": 1, "unit_price": 10}],
+            },
+        )
+        order_id = created.json()["data"]["id"]
+
+        resp = await async_client.put(
+            f"/api/v1/sales-orders/{order_id}",
+            headers=auth_headers,
+            json={
+                "items": [{"product_name": "New Order Item", "quantity": 4, "unit_price": 25}],
+            },
+        )
+
+        assert resp.status_code == 200
+        items = resp.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["product_name"] == "New Order Item"
+        assert items[0]["total_price"] == 100
+        assert resp.json()["data"]["total_amount"] == 100
+
     async def test_delete_sales_order(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(
             "/api/v1/sales-orders", headers=auth_headers,
