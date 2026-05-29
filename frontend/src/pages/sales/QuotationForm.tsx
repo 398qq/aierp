@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
-import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { getQuotation, createQuotation, updateQuotation } from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -30,6 +30,29 @@ const DEFAULT_QUOTATION_NOTES = [
   "3、产品付款方式：以合同为准",
   "4、报价有效期：3天",
 ].join("\n");
+
+const STATUS_OPTIONS = [
+  { value: "draft", label: "草稿" },
+  { value: "sent", label: "已发送" },
+  { value: "won", label: "成交" },
+  { value: "lost", label: "丢失" },
+];
+
+const sectionTitleStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  fontWeight: 600,
+} as const;
+
+const compactFormGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  columnGap: 16,
+  rowGap: 2,
+} as const;
+
+const labelTextStyle = { fontSize: 12, color: "#667085" } as const;
 
 export default function QuotationForm() {
   const { id } = useParams<{ id: string }>();
@@ -141,10 +164,13 @@ export default function QuotationForm() {
     }
   };
 
+  const marginRate = summary.amount ? (summary.profit / summary.amount) * 100 : 0;
+  const marginColor = marginRate >= 20 ? "green" : marginRate >= 8 ? "orange" : marginRate >= 0 ? "blue" : "red";
+
   return (
     <SalesModuleShell
       title={isEdit ? "编辑报价单" : "新增报价单"}
-      subtitle="选择客户与产品后自动计算报价金额，减少手工汇总错误"
+      subtitle="按 ERP 单据录入报价抬头、产品明细、成本毛利与交易条款"
       activeKey="quotations"
       extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/quotations")}>返回</Button>}
     >
@@ -156,13 +182,39 @@ export default function QuotationForm() {
           setFormValues(values);
           syncLineTotals();
         }}
+        requiredMark={false}
         initialValues={{ status: "draft", items: [{}], valid_until: dayjs().add(3, "day"), notes: DEFAULT_QUOTATION_NOTES }}
       >
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 12, alignItems: "start" }}>
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Card size="small" title="报价基础信息">
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Card
+              size="small"
+              title={<span style={sectionTitleStyle}><FileDoneOutlined /> 单据抬头</span>}
+              extra={<Tag color={summary.itemCount > 0 ? "processing" : "default"}>销售报价单</Tag>}
+              style={{ borderColor: "#d9e2ec" }}
+            >
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 16,
+                paddingBottom: 12,
+                marginBottom: 12,
+                borderBottom: "1px solid #eef2f7",
+              }}>
+                <div>
+                  <Typography.Title level={4} style={{ margin: 0 }}>销售报价单</Typography.Title>
+                  <Typography.Text type="secondary">客户、商机、报价号、有效期在抬头集中维护</Typography.Text>
+                </div>
+                <Space wrap>
+                  <Tag color="blue">含税报价</Tag>
+                  <Tag color="cyan">税率 {formatPercent(COST_TAX_RATE * 100)}</Tag>
+                </Space>
+              </div>
+
               <FormAIWarning entityType="quotation" formData={formValues} />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+
+              <div style={compactFormGrid}>
                 <Form.Item name="customer_id" label="客户" rules={[{ required: true, message: "请选择客户" }]}>
                   <CustomerSelect />
                 </Form.Item>
@@ -179,23 +231,18 @@ export default function QuotationForm() {
                     }}
                   />
                 </Form.Item>
-                <Form.Item name="title" label="标题">
-                  <Input placeholder="报价主题" />
-                </Form.Item>
                 <Form.Item name="quotation_no" label="报价单号">
-                  <Input placeholder="留空自动生成" />
+                  <Input placeholder="系统自动生成 / 手工编号" />
                 </Form.Item>
-                <Form.Item name="status" label="状态">
-                  <Select options={[
-                    { value: "draft", label: "草稿" },
-                    { value: "sent", label: "已发送" },
-                    { value: "won", label: "成交" },
-                    { value: "lost", label: "丢失" },
-                  ]} />
+                <Form.Item name="status" label="单据状态">
+                  <Select options={STATUS_OPTIONS} />
+                </Form.Item>
+                <Form.Item name="title" label="报价主题">
+                  <Input placeholder="例如：华东客户 MCU 批量报价" />
                 </Form.Item>
                 <Form.Item
                   name="valid_until"
-                  label="有效期"
+                  label="报价有效期"
                   rules={[{
                     validator: (_, value: Dayjs | null) => {
                       if (!value || value.endOf("day").isAfter(dayjs())) return Promise.resolve();
@@ -206,29 +253,75 @@ export default function QuotationForm() {
                   <DatePicker style={{ width: "100%" }} />
                 </Form.Item>
               </div>
-              <Form.Item name="notes" label="备注">
-                <Input.TextArea rows={5} placeholder="付款条件、交期、特别说明" />
-              </Form.Item>
             </Card>
 
             <Card
               size="small"
-              title="报价产品行"
-              extra={<Tag color={summary.itemCount > 0 ? "blue" : "red"}>{summary.itemCount} 项</Tag>}
+              title={<span style={sectionTitleStyle}><CalculatorOutlined /> 报价明细</span>}
+              extra={(
+                <Space size={8}>
+                  <Tag color={summary.itemCount > 0 ? "blue" : "red"}>{summary.itemCount} 行</Tag>
+                  <Tag>数量 {summary.quantity}</Tag>
+                </Space>
+              )}
+              style={{ borderColor: "#d9e2ec" }}
             >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                <Typography.Text type="secondary">
+                  明细行自动计算含税销售额、未税成本、进项税、含税成本、销售毛利与毛利率。
+                </Typography.Text>
+                <Typography.Text strong>明细合计：{money(summary.amount)}</Typography.Text>
+              </div>
               <Form.List name="items">
                 {(fields, { add, remove }) => (
                   <>
                     <Table
                       rowKey="key"
                       size="small"
+                      bordered
                       pagination={false}
                       dataSource={fields}
                       scroll={{ x: "max-content" }}
+                      summary={() => (
+                        <Table.Summary fixed>
+                          <Table.Summary.Row>
+                            <Table.Summary.Cell index={0}>
+                              <Typography.Text strong>合计</Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={1}>
+                              <Typography.Text strong>{summary.quantity}</Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={2} />
+                            <Table.Summary.Cell index={3}>
+                              <Typography.Text strong>{money(summary.amount)}</Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={4} />
+                            <Table.Summary.Cell index={5}>
+                              <Typography.Text>{money(summary.untaxedCost)}</Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={6}>
+                              <Typography.Text>{money(summary.taxedCost - summary.untaxedCost)}</Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={7}>
+                              <Typography.Text>{money(summary.taxedCost)}</Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={8}>
+                              <Typography.Text type={summary.profit < 0 ? "danger" : undefined} strong>
+                                {money(summary.profit)}
+                              </Typography.Text>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={9}>
+                              <Tag color={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</Tag>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={10} />
+                            <Table.Summary.Cell index={11} />
+                          </Table.Summary.Row>
+                        </Table.Summary>
+                      )}
                       columns={[
                         {
-                          title: "产品",
-                          width: 310,
+                          title: "物料 / 产品",
+                          width: 320,
                           render: (_: unknown, field) => (
                             <>
                               <Form.Item name={[field.name, "product_name"]} hidden />
@@ -265,7 +358,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "含税销售单价",
+                          title: "含税单价",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "unit_price"]} style={{ marginBottom: 0 }}>
@@ -274,7 +367,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "含税销售额",
+                          title: "销售额",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "total_price"]} style={{ marginBottom: 0 }}>
@@ -367,58 +460,103 @@ export default function QuotationForm() {
                         },
                       ]}
                     />
-                    <Button
-                      type="dashed"
-                      icon={<PlusOutlined />}
-                      onClick={() => add({
-                        quantity: 1,
-                        unit_price: 0,
-                        total_price: 0,
-                        cost_price: 0,
-                        untaxed_cost: 0,
-                        taxed_cost: 0,
-                        sales_profit: 0,
-                      })}
-                      block
-                      style={{ marginTop: 12 }}
-                    >
-                      添加产品行
-                    </Button>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12 }}>
+                      <Button
+                        type="dashed"
+                        icon={<PlusOutlined />}
+                        onClick={() => add({
+                          quantity: 1,
+                          unit_price: 0,
+                          total_price: 0,
+                          cost_price: 0,
+                          untaxed_cost: 0,
+                          taxed_cost: 0,
+                          sales_profit: 0,
+                        })}
+                      >
+                        添加明细行
+                      </Button>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        ERP 单据保存前至少需要一条有效产品明细。
+                      </Typography.Text>
+                    </div>
                   </>
                 )}
               </Form.List>
             </Card>
+
+            <Card
+              size="small"
+              title={<span style={sectionTitleStyle}>交易条款与备注</span>}
+              style={{ borderColor: "#d9e2ec" }}
+            >
+              <Form.Item name="notes" label="报价条款">
+                <Input.TextArea rows={6} placeholder="付款条件、交期、运输、价格有效期、特别说明" />
+              </Form.Item>
+            </Card>
           </Space>
 
           <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-            <Card size="small" title="报价摘要">
-              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Card
+              size="small"
+              title="单据控制台"
+              extra={<Tag color={marginColor}>毛利率 {formatPercent(marginRate)}</Tag>}
+              style={{ borderColor: "#d9e2ec" }}
+            >
+              <Space direction="vertical" size={14} style={{ width: "100%" }}>
                 <Statistic title="报价总金额" value={summary.amount} prefix="¥" precision={2} />
-                <Space wrap>
-                  <Tag color="blue">产品行 {summary.itemCount}</Tag>
-                  <Tag>总数量 {summary.quantity}</Tag>
-                  <Tag color="green">{money(summary.amount)}</Tag>
-                  <Tag color="orange">含税成本 {money(summary.taxedCost)}</Tag>
-                  <Tag color={summary.profit >= 0 ? "green" : "red"}>利润 {money(summary.profit)}</Tag>
-                </Space>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <div style={labelTextStyle}>产品行</div>
+                    <Typography.Text strong>{summary.itemCount} 行</Typography.Text>
+                  </div>
+                  <div>
+                    <div style={labelTextStyle}>总数量</div>
+                    <Typography.Text strong>{summary.quantity}</Typography.Text>
+                  </div>
+                  <div>
+                    <div style={labelTextStyle}>未税成本</div>
+                    <Typography.Text>{money(summary.untaxedCost)}</Typography.Text>
+                  </div>
+                  <div>
+                    <div style={labelTextStyle}>含税成本</div>
+                    <Typography.Text>{money(summary.taxedCost)}</Typography.Text>
+                  </div>
+                  <div>
+                    <div style={labelTextStyle}>销售毛利</div>
+                    <Typography.Text type={summary.profit < 0 ? "danger" : undefined} strong>
+                      {money(summary.profit)}
+                    </Typography.Text>
+                  </div>
+                  <div>
+                    <div style={labelTextStyle}>综合毛利率</div>
+                    <Tag color={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</Tag>
+                  </div>
+                </div>
                 <Form.Item name="total_amount" hidden>
                   <InputNumber />
                 </Form.Item>
                 <Alert
                   showIcon
-                  type={summary.itemCount > 0 ? "info" : "warning"}
-                  message={summary.itemCount > 0 ? "总金额由产品行自动汇总" : "请先添加产品报价行"}
+                  type={summary.itemCount > 0 && summary.profit >= 0 ? "info" : "warning"}
+                  message={
+                    summary.itemCount === 0
+                      ? "请先添加产品明细后再保存单据"
+                      : summary.profit < 0
+                        ? "当前报价毛利为负，请复核销售价或成本"
+                        : "金额由明细行自动汇总，保存时同步写入单据总额"
+                  }
                 />
               </Space>
             </Card>
             <Card size="small">
               <Space direction="vertical" size={8} style={{ width: "100%" }}>
                 <Button block type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
-                  {isEdit ? "保存报价" : "创建报价"}
+                  {isEdit ? "保存单据" : "创建单据"}
                 </Button>
                 <Button block onClick={() => navigate("/sales/quotations")}>取消</Button>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  成交建议通过详情页“转订单”完成，便于保持报价和订单链路一致。
+                  报价成交后在详情页执行“转订单”，保持报价、订单、发货链路一致。
                 </Typography.Text>
               </Space>
             </Card>
