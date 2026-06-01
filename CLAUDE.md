@@ -14,9 +14,9 @@ AIERP is an AI-powered ERP platform for small/medium electronics trading compani
 | Database | PostgreSQL 16 + pgvector (vector embeddings) |
 | Cache | Redis 7 |
 | AI Provider | SiliconFlow API (OpenAI-compatible) — DeepSeek-V4-Flash for chat, BAAI/bge-large-zh-v1.5 for embeddings |
-| Frontend | React 19, TypeScript 5.7, Vite 6, Ant Design 5, Zustand 5, Recharts |
+| Frontend | React 19.2, TypeScript 6.0, Vite 8, Ant Design 6, Zustand 5, Recharts |
 | Scheduler | APScheduler (background jobs in-process) |
-| PDF | ReportLab (quotation PDF generation) |
+| PDF | ReportLab (quotation PDF), pytesseract/rapidocr (sales order PDF import) |
 
 ## Key Commands
 
@@ -37,7 +37,10 @@ make test-frontend-cov   # vitest with coverage
 pytest backend/tests/path/to/test_file.py::test_name -v
 
 # Linting
-make lint                # Backend: ruff + mypy, Frontend: tsc --noEmit
+make lint                # Backend: ruff check + mypy, Frontend: tsc --noEmit
+
+# Security
+make security-check      # pip-audit backend + npm audit frontend
 
 # Database
 make db-reset            # Drop and recreate PostgreSQL database
@@ -46,6 +49,9 @@ make db-restore BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump
 
 # Docker (start pgvector + redis)
 docker compose up -d
+
+# Build
+make build               # pip install backend + vite build frontend
 ```
 
 ## Architecture
@@ -54,121 +60,168 @@ docker compose up -d
 
 ```
 backend/app/
-├── main.py              # FastAPI app, lifespan, CORS
+├── main.py              # FastAPI app, lifespan, CORS, health endpoints
 ├── config.py            # Pydantic Settings — all config from env
-├── database.py          # Async engine, session, Base, pgvector init
-├── core/               # Security (JWT, bcrypt password hashing)
+├── database.py          # Async engine, session, Base, pgvector init, slow-query logging
+├── core/                # Security (JWT, bcrypt), error handlers, rate_limit, request_logging, request_context, security_headers
 ├── api/
-│   ├── deps.py          # get_current_user dependency (Bearer token → user dict)
+│   ├── deps.py          # get_current_user (Bearer token + httpOnly cookie fallback → user dict with roles)
 │   └── v1/
-│       ├── router.py    # Master router — all sub-routers under /api/v1
-│       ├── auth.py      # POST /auth/login, GET /auth/me
+│       ├── router.py    # Master router — 25+ sub-routers under /api/v1
+│       ├── auth.py      # POST /auth/login, GET /auth/me, change-password
 │       ├── customers.py # CRUD + tags, contacts, follow-ups, alerts, import/export
 │       ├── products.py  # Products, brands, suppliers, warehouses, inventory
 │       ├── sales.py     # Opportunities, quotations, orders, deliveries, pipeline
-│       ├── finance.py   # Invoices, payments, contracts, targets
-│       ├── transactions.py # Purchase orders, tickets, visits, samples
+│       ├── finance.py   # Invoices, payments, contracts
+│       ├── transactions.py # Purchase orders, tickets, visits, samples, payments
 │       ├── ai.py        # All /ai/* endpoints (intelligence, chat, agents)
 │       ├── dashboard.py # Sales dashboard, watchtower, daily report
 │       ├── public.py    # Unauthenticated inquiry portal
+│       ├── approvals.py # Approval workflow engine
+│       ├── documents.py # Document management
+│       ├── export_import.py
+│       ├── finance_accounts.py
+│       ├── integrations.py
 │       ├── notifications.py
+│       ├── permissions.py # RBAC permission management
+│       ├── procurement.py
+│       ├── reports.py
+│       ├── targets.py   # Separate from finance
 │       ├── users.py
 │       └── inventory_transactions.py
-├── models/             # SQLAlchemy ORM models (all use Base from database.py)
+├── models/             # SQLAlchemy ORM models (soft-delete via TimestampMixin)
 │   ├── base.py          # TimestampMixin: id, created_at, updated_at, deleted_at
 │   ├── customer.py      # Customer, Contact, FollowUp, Tag, AlertRule, etc.
 │   ├── product.py       # Product, Brand, Supplier, Warehouse, Inventory
 │   ├── sales.py         # Opportunity, Quotation, SalesOrder, DeliveryNote, Inquiry
 │   ├── transaction.py   # PurchaseOrder, Ticket, Visit, Sample
 │   ├── finance.py       # Invoice, Payment, Contract, SalesTarget, Notification
-│   └── user.py          # User (role-based: admin/sales/warehouse/finance)
+│   ├── account.py       # Chart of accounts
+│   ├── approval.py      # Approval workflow models
+│   ├── document.py      # Document/attachment storage
+│   ├── rbac.py          # Roles, permissions, user_role mapping
+│   ├── report.py        # Saved reports
+│   └── user.py          # User model
 ├── schemas/            # Pydantic request/response schemas (mirrors models/)
 ├── services/
 │   ├── ai/              # AI client + agents
-│   │   ├── client.py    # AIClient singleton (chat, chat_stream, chat_structured, embed)
-│   │   ├── agents.py    # Agent classes: CustomerAgent, ProductAgent, InventoryAgent, etc.
+│   │   ├── client.py    # AIClient singleton: chat, chat_stream, chat_structured, embed (tenacity retry 3x)
+│   │   ├── agents.py    # Agent classes: CustomerAgent, ProductAgent, InventoryAgent, WatchtowerService, etc.
 │   │   ├── prompts.py   # Prompt templates
-│   │   └── recommend.py # Recommendation logic
-│   ├── sales_service.py      # Business logic for sales pipeline
-│   ├── sales_ai_service.py   # AI enrichment for opportunities/quotations
-│   ├── sales_ai_pipeline.py  # Pipeline kanban AI features
+│   │   └── recommend.py # AI recommendation logic
+│   ├── sales_service.py           # Business logic for sales pipeline
+│   ├── sales_ai_service.py        # AI enrichment for opportunities/quotations
+│   ├── sales_ai_pipeline.py       # Pipeline kanban AI features
+│   ├── sales_order_pdf_import.py  # PDF → structured sales order extraction
 │   ├── brand_intel_service.py
 │   ├── supplier_intel_service.py
-│   ├── watchtower_service.py  # Cross-domain anomaly detection
+│   ├── po_intel_service.py        # Purchase order AI intelligence
+│   ├── contract_intel_service.py
+│   ├── finance_intel_service.py
+│   ├── product_intel_service.py
+│   ├── ticket_intel_service.py
+│   ├── target_intel_service.py
+│   ├── nlp_query_service.py       # Natural language → DB query
+│   ├── watchtower_service.py      # Cross-domain anomaly detection
 │   ├── notification_service.py
-│   ├── matching_service.py    # Product-customer matching
+│   ├── matching_service.py        # Product-customer matching
 │   ├── embedding_pipeline.py
 │   ├── pricing_service.py
-│   └── pdf_service.py         # Quotation PDF generation
-├── jobs/scheduler.py    # APScheduler: 9 background jobs (insights, embeddings, reports, cleanup)
-└── migrations/          # Raw SQL migrations (pgvector extension, indexes)
+│   ├── pdf_service.py             # Quotation PDF generation (ReportLab)
+│   ├── cache_service.py           # Redis caching layer
+│   ├── docno.py                   # Document number generation
+│   ├── finance_service.py
+│   ├── inventory_service.py
+│   ├── customer_service.py
+│   ├── orchestration_service.py   # Cross-domain orchestration
+│   └── pagination.py
+├── jobs/scheduler.py    # APScheduler: 9 background jobs (6h/12h/24h intervals + cron at 18:00)
+└── migrations/          # Raw SQL migrations (pgvector extension, RBAC seed data, indexes)
 ```
+
+### Middleware Pipeline
+
+Applied in `main.py` in this order:
+1. **CORSMiddleware** — configured origins from env
+2. **RateLimitMiddleware** — per-IP rate limiting
+3. **RequestLoggingMiddleware** — logs method, path, status, duration
+4. **SecurityHeadersMiddleware** — CSP, HSTS, X-Content-Type-Options, etc.
+5. **RequestContextMiddleware** — request_id injection for tracing
+6. **Exception handlers** — unified `{code, msg, data, request_id}` response format
 
 ### Frontend (`frontend/src/`)
 
 ```
 frontend/src/
-├── App.tsx              # Routes, lazy-loaded pages, auth guard
+├── App.tsx              # Routes (react-router-dom v7), lazy-loaded pages, auth guard
 ├── api/index.ts         # All API calls — axios-based, typed request/response
-├── api/client.ts        # Axios instance with Bearer token interceptor
-├── store/auth.ts        # Zustand auth store (httpOnly cookie, login, logout)
+├── api/client.ts        # Axios instance with httpOnly cookie auth interceptor + error normalization
+├── store/auth.ts        # Zustand auth store (login, logout, user state)
 ├── layouts/MainLayout.tsx  # Ant Design ProLayout with sidebar
-├── types/index.ts       # TypeScript interfaces for all entities
-├── pages/
-│   ├── ai/             # AI Chat (SSE streaming)
-│   ├── auth/           # Login page
-│   ├── brands/         # List, Detail
-│   ├── customers/      # List, Detail, Form, Dashboard, 360, FollowUps
-│   ├── dashboard/      # Watchtower, Global360
-│   ├── finance/        # Invoices, Payments
-│   ├── import-export/   # Data import/export
-│   ├── inventory/      # Inventory list
-│   ├── notifications/  # Notification management
-│   ├── procurement/    # Purchase orders, procurement
-│   ├── products/       # List, Detail, PriceImport, InventoryManage
-│   ├── public/         # InquiryPortal (unauthenticated)
-│   ├── reports/        # Report generation
-│   ├── sales/          # Opportunities, Quotations, Orders, Deliveries, Invoices, Payments, Contracts, Targets, PurchaseOrders
-│   ├── settings/       # System settings
-│   ├── suppliers/      # List, Detail, Dashboard, 360, Compare
-│   ├── system/         # User management
-│   ├── tickets/        # List, Form, Detail
-│   ├── users/          # User administration
-│   └── warehouse/      # Warehouses, Inventory Ledger
+├── types/index.ts       # TypeScript interfaces for all entities + APIResponse<T> + PageData<T>
+├── pages/               # One directory per domain — lazy-loaded
+│   ├── ai/              # AI Chat (SSE streaming) + follow-up intelligence
+│   ├── auth/            # Login page
+│   ├── brands/          # List, Detail, Dashboard, 360, Compare
+│   ├── customers/       # List, Detail, Form, Dashboard, 360, FollowUps, Recognition
+│   ├── dashboard/       # Watchtower, Global360
+│   ├── finance/         # Invoices, Payments
+│   ├── import-export/   # Data import/export UI
+│   ├── inventory/       # Inventory list, ledger
+│   ├── notifications/   # Notification center
+│   ├── procurement/     # Purchase orders, procurement planning
+│   ├── products/        # List, Detail, PriceImport, InventoryManage, Associations
+│   ├── public/          # InquiryPortal (unauthenticated)
+│   ├── reports/         # Report generation
+│   ├── sales/           # Opportunities, Quotations, Orders, Deliveries, Invoices, Payments, Contracts, Targets, PurchaseOrders, AI insights
+│   ├── settings/        # System settings
+│   ├── suppliers/       # List, Detail, Dashboard, 360, Compare
+│   ├── system/          # User management
+│   ├── tickets/         # List, Form, Detail, clusters
+│   └── warehouse/       # Warehouses, Inventory Ledger
 └── components/
-    ├── ai/AIInsight.tsx
-    └── sales/           # PipelineBoard, OpportunityCard, SalesAIInsight
+    ├── ai/AIInsight.tsx  # Reusable AI insight card
+    └── sales/            # PipelineBoard (dnd-kit), OpportunityCard, SalesAIInsight
 ```
 
 ### Data Flow
 
 ```
-Frontend (Ant Design) → axios → FastAPI /api/v1/* → Service Layer → SQLAlchemy → PostgreSQL
-                                                      ↕
-                                              AIClient → SiliconFlow API
-                                              EmbeddingService → pgvector
-                                              APScheduler → periodic background jobs
+Frontend (Ant Design 6) → axios (withCredentials) → FastAPI /api/v1/* → Service Layer → SQLAlchemy 2.0 async → PostgreSQL
+                                                         ↕                                                     ↕
+                                                 AIClient → SiliconFlow API                          pgvector (Vector(1024))
+                                                 EmbeddingService → pgvector                         Redis (caching)
+                                                 APScheduler → 9 periodic jobs
 ```
 
 ### Key Patterns
 
 - **Soft delete**: All models inherit `TimestampMixin` with `deleted_at`. Queries always filter `deleted_at.is_(None)`.
-- **AI calls**: `ai_client.chat()` for text, `ai_client.chat_structured(schema)` for JSON, `ai_client.embed()` for vectors. Tenacity retry (3 attempts, exponential backoff).
+- **Auth**: JWT in httpOnly cookie (`aierp_token`) + Bearer token fallback. `get_current_user` dependency extracts `{user_id, username, roles}`.
+- **RBAC**: Role-based access control. Users → roles → permissions. Permission checks via `require_permissions()` dependency.
+- **AI calls**: `ai_client.chat()` for text, `ai_client.chat_stream()` for SSE, `ai_client.chat_structured(schema)` for JSON, `ai_client.embed()` for vectors. Tenacity retry (3 attempts, exponential backoff).
 - **Embeddings**: Customers, Products, Suppliers, and Brand entities have pgvector `Vector(1024)` columns for semantic search.
-- **AI Agents**: `services/ai/agents.py` defines domain-specific agents (CustomerAgent, ProductAgent, InventoryAgent, etc.) that combine AI calls with database operations.
-- **Tests**: Backend uses `httpx.AsyncClient` with FastAPI dependency overrides. SQLite (aiosqlite) replaces PostgreSQL in tests; pgvector Vector columns are patched to Text for SQLite compatibility. Run single test: `pytest backend/tests/path/to/test_file.py::test_name -v`
-- **Auth**: JWT stored in httpOnly cookie (not localStorage). `get_current_user` dependency extracts `{user_id, username}` from cookie payload.
-- **Scheduler**: 9 APScheduler jobs — sales insights refresh, overdue payment alerts, embedding pipeline, contact reminders, RFM analysis, churn prediction, daily reports, expired quotations check, and cleanup.
-- **Env**: `backend/.env` (optional, overrides defaults in config.py). Test DB config via `TEST_DATABASE_URL` env var.
+- **AI Agents**: `services/ai/agents.py` defines domain-specific agents (CustomerAgent, ProductAgent, InventoryAgent, WatchtowerService, etc.) that combine AI calls with database operations.
+- **Tests**: SQLite (aiosqlite) replaces PostgreSQL. pgvector Vector columns are patched to `Text` in conftest.py for SQLite compatibility. FastAPI dependency overrides + httpx.AsyncClient.
+- **Error handling**: Unified `{code: number, msg: string, data: T, request_id?: string}` response format. Global exception handlers for HTTPException, RequestValidationError, and unhandled exceptions.
+- **Health endpoints**: `GET /health` (db+redis+ai checks), `GET /health/ready` (db-only liveness), `GET /health/live` (always ok).
+- **Scheduler**: 9 APScheduler jobs — sales insights refresh (6h), overdue alerts (12h), target progress (24h), contract expiry (24h), embedding refresh (24h), watchtower scan (4h), customer insights (24h), daily report (cron 18:00), notification cleanup (24h).
+- **Config**: All config from environment via Pydantic Settings with `backend/.env` override. Key vars: `DB_HOST/PORT/USER/PASSWORD/NAME`, `JWT_SECRET`, `AI_API_KEY`, `AI_BASE_URL`, `CORS_ORIGINS`, `REDIS_URL`.
+- **Slow query logging**: SQLAlchemy event listener logs queries exceeding `SLOW_QUERY_THRESHOLD_MS` with request_id and duration.
 
 ### Frontend Conventions
 
 - All pages are lazy-loaded via `React.lazy()` in App.tsx
-- `api/index.ts` is the single API layer — all endpoints defined here
-- API responses: `{ code: 0, message: "ok", data: T }` pattern
+- `api/index.ts` is the single API layer — all typed endpoints defined here
+- API response pattern: `{ code: 0, msg: "ok", data: T }` — error responses include `request_id` for tracing
+- `api/client.ts`: axios instance with `withCredentials: true` (httpOnly cookie). Error interceptor normalizes messages (401 → redirect to /login, timeout → "请求超时")
 - Zustand store for auth state only; page state is local `useState`/`useEffect`
-- Ant Design 5 with Chinese locale (zhCN)
-- Vite proxy: `/api` → `localhost:8080`
+- Ant Design 6 with Chinese locale (zhCN) and `@ant-design/v5-patch-for-react-19`
+- Vite proxy: `/api` → `localhost:8080` (configurable via `BACKEND_PORT` env var)
+- DnD (PipelineBoard): `@dnd-kit/core` + `@dnd-kit/sortable`
+- Charts: Recharts for dashboards and analytics
+- Excel import: `read-excel-file`
+- AI Chat: SSE streaming via EventSource
 
 ## Rules
 
