@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from "antd";
+import type { MenuProps } from "antd";
 import {
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  EllipsisOutlined,
   FileDoneOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -188,7 +190,7 @@ export default function QuotationList() {
         ]}
       />
 
-      <Card size="small" style={{ marginBottom: 12 }}>
+      <Card size="small" className="sales-erp-toolbar" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/quotations/new")}>新建报价</Button>
           <Button icon={<ReloadOutlined />} loading={loading} onClick={refreshAll}>刷新</Button>
@@ -240,7 +242,17 @@ export default function QuotationList() {
         </Space>
       </Card>
 
-      <Card size="small">
+      <Card
+        size="small"
+        className="sales-erp-table-card"
+        title={(
+          <Space size={8} wrap>
+            <Typography.Text strong>报价单据</Typography.Text>
+            <Typography.Text type="secondary">{visibleData.length} / {total} 张</Typography.Text>
+            {selected.length > 0 && <Tag color="blue">已选 {selected.length}</Tag>}
+          </Space>
+        )}
+      >
         <Tabs
           activeKey={scene}
           onChange={(key) => {
@@ -259,6 +271,8 @@ export default function QuotationList() {
         />
         <Table
           rowKey="id"
+          size="small"
+          bordered
           loading={loading}
           dataSource={visibleData}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
@@ -266,39 +280,34 @@ export default function QuotationList() {
             {
               title: "报价单",
               dataIndex: "quotation_no",
-              minWidth: 240,
-              render: (value: string | null, record: Quotation) => (
-                <Space direction="vertical" size={0}>
-                  <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
-                    {value || record.title || `#${record.id}`}
-                  </Typography.Link>
-                  <Space size={8} wrap>
-                    <CustomerLink id={record.customer_id} />
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>产品行 {record.items?.length || 0}</Typography.Text>
-                    {record.title && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{record.title}</Typography.Text>}
+              minWidth: 280,
+              render: (value: string | null, record: Quotation) => {
+                const names = (record.items || []).map((item) => item.product_name).filter(Boolean).slice(0, 3);
+                return (
+                  <Space direction="vertical" size={2}>
+                    <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
+                      {value || record.title || `#${record.id}`}
+                    </Typography.Link>
+                    <Space size={6} wrap>
+                      <CustomerLink id={record.customer_id} />
+                      {record.title && value && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{record.title}</Typography.Text>}
+                    </Space>
+                    {names.length > 0 && (
+                      <Space size={[3, 2]} wrap style={{ marginTop: 2 }}>
+                        {names.map((name) => <Tag key={name} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{name}</Tag>)}
+                        {(record.items?.length || 0) > 3 && <Tag style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>+{(record.items?.length || 0) - 3}</Tag>}
+                      </Space>
+                    )}
                   </Space>
-                </Space>
-              ),
-            },
-            {
-              title: "产品摘要",
-              width: 220,
-              render: (_: unknown, record: Quotation) => {
-                const names = (record.items || []).map((item) => item.product_name).filter(Boolean).slice(0, 2);
-                return names.length ? (
-                  <Space size={[4, 4]} wrap>
-                    {names.map((name) => <Tag key={name}>{name}</Tag>)}
-                    {(record.items?.length || 0) > 2 && <Tag>+{(record.items?.length || 0) - 2}</Tag>}
-                  </Space>
-                ) : <Typography.Text type="secondary">暂无产品行</Typography.Text>;
+                );
               },
             },
-            { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
-            { title: "状态", dataIndex: "status", width: 100, render: (value: string) => <SalesStatusTag value={value} /> },
+            { title: "金额", dataIndex: "total_amount", width: 120, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
+            { title: "状态", dataIndex: "status", width: 80, render: (value: string) => <SalesStatusTag value={value} /> },
             {
               title: "有效期",
               dataIndex: "valid_until",
-              width: 140,
+              width: 130,
               render: (value: string | null, record: Quotation) => {
                 const due = getDueMeta(value, record.status);
                 return <Tag color={due.color}>{due.text}</Tag>;
@@ -306,7 +315,7 @@ export default function QuotationList() {
             },
             {
               title: "AI",
-              width: 110,
+              width: 90,
               render: (_: unknown, record: Quotation) => (
                 <AIInlineBadge
                   riskLevel={aiMap[record.id]?.pricing_health === "poor" ? "high" : aiMap[record.id]?.pricing_health === "fair" ? "medium" : "low"}
@@ -316,7 +325,7 @@ export default function QuotationList() {
             },
             {
               title: "下一步",
-              width: 130,
+              width: 100,
               render: (_: unknown, record: Quotation) => {
                 const due = getDueMeta(record.valid_until, record.status);
                 if (record.status === "draft") return <Tag icon={<SendOutlined />} color="blue">发送报价</Tag>;
@@ -328,36 +337,28 @@ export default function QuotationList() {
             },
             {
               title: "操作",
-              width: 300,
+              width: 60,
               fixed: "right",
-              render: (_: unknown, record: Quotation) => (
-                <Space size="small">
-                  <Button size="small" onClick={() => navigate(`/sales/quotations/${record.id}`)}>详情</Button>
-                  {record.status === "draft" && (
-                    <Tooltip title="标记报价已发送">
-                      <Button size="small" icon={<SendOutlined />} onClick={() => handleSend(record)}>发送</Button>
-                    </Tooltip>
-                  )}
-                  <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadQuotationPDF(record.id, `quotation_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败"))}>智能PDF</Button>
-                  <Button size="small" icon={<CopyOutlined />} onClick={() => handleDuplicate(record)}>复制</Button>
-                  {record.status !== "won" ? (
-                    <Popconfirm title="转为销售订单?" onConfirm={() => handleConvert(record)}>
-                      <Button size="small" type="primary" icon={<ShoppingCartOutlined />}>转订单</Button>
-                    </Popconfirm>
-                  ) : null}
-                  <Popconfirm title="确定删除?" onConfirm={async () => {
-                    try {
-                      await deleteQuotation(record.id);
-                      message.success("已删除");
-                      refreshAll();
-                    } catch {
-                      message.error("删除失败");
-                    }
-                  }}>
-                    <Button size="small" danger>删除</Button>
-                  </Popconfirm>
-                </Space>
-              ),
+              render: (_: unknown, record: Quotation) => {
+                const items: MenuProps["items"] = [
+                  { key: "view", icon: <FileDoneOutlined />, label: "查看详情", onClick: () => navigate(`/sales/quotations/${record.id}`) },
+                  ...(record.status === "draft" ? [{ key: "send", icon: <SendOutlined />, label: "标记发送", onClick: () => handleSend(record) }] : []),
+                  { key: "pdf", icon: <DownloadOutlined />, label: "智能 PDF", onClick: () => downloadQuotationPDF(record.id, `quotation_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败")) },
+                  { key: "copy", icon: <CopyOutlined />, label: "复制", onClick: () => handleDuplicate(record) },
+                  ...(record.status !== "won" ? [{ key: "convert", icon: <ShoppingCartOutlined />, label: "转订单", onClick: () => {
+                    Modal.confirm({ title: "转为销售订单?", content: `将报价 ${record.quotation_no || `#${record.id}`} 转为销售订单`, onOk: () => handleConvert(record) });
+                  } }] : []),
+                  { type: "divider" as const },
+                  { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
+                    Modal.confirm({ title: "确定删除?", content: `删除报价 ${record.quotation_no || `#${record.id}`}`, onOk: () => deleteQuotation(record.id).then(() => { message.success("已删除"); refreshAll(); }).catch(() => message.error("删除失败")) });
+                  }},
+                ];
+                return (
+                  <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+                    <Button size="small" icon={<EllipsisOutlined />} type="text" />
+                  </Dropdown>
+                );
+              },
             },
           ]}
           scroll={{ x: "max-content" }}

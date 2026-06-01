@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Checkbox, Descriptions, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
+import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
 import {
   ArrowLeftOutlined,
   CopyOutlined,
+  DollarOutlined,
   DownloadOutlined,
   EditOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
   FileProtectOutlined,
   SendOutlined,
   ShoppingCartOutlined,
@@ -38,6 +41,7 @@ export default function QuotationDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeAi, setIncludeAi] = useState(false);
+  const [showCostColumns, setShowCostColumns] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -77,13 +81,16 @@ export default function QuotationDetail() {
 
   const itemSummary = useMemo(() => {
     const items = quote?.items || [];
+    const amount = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+    const profit = items.reduce((sum, item) => sum + Number(item.sales_profit || 0), 0);
     return {
       count: items.length,
       quantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
-      amount: items.reduce((sum, item) => sum + Number(item.total_price || 0), 0),
+      amount,
       untaxedCost: items.reduce((sum, item) => sum + Number(item.untaxed_cost || 0), 0),
       taxedCost: items.reduce((sum, item) => sum + Number(item.taxed_cost || 0), 0),
-      profit: items.reduce((sum, item) => sum + Number(item.sales_profit || 0), 0),
+      profit,
+      profitMargin: amount > 0 ? (profit / amount) * 100 : 0,
     };
   }, [quote]);
 
@@ -164,11 +171,18 @@ export default function QuotationDetail() {
       <MetricBand
         items={[
           { title: "报价金额", value: quote.total_amount || 0, prefix: "¥", precision: 2 },
-          { title: "产品行", value: itemSummary.count, suffix: "项" },
-          { title: "总数量", value: itemSummary.quantity },
-          { title: "明细合计", value: itemSummary.amount, prefix: "¥", precision: 2 },
-          { title: "含税成本", value: itemSummary.taxedCost, prefix: "¥", precision: 2 },
-          { title: "销售利润", value: itemSummary.profit, prefix: "¥", precision: 2 },
+          {
+            title: "销售利润",
+            value: itemSummary.profit,
+            prefix: "¥",
+            precision: 2,
+          },
+          {
+            title: "毛利率",
+            value: itemSummary.profitMargin,
+            suffix: "%",
+            precision: 1,
+          },
           { title: "状态", value: quote.status },
           { title: "有效期", value: due.text },
         ]}
@@ -354,7 +368,22 @@ export default function QuotationDetail() {
             </Descriptions>
           </Card>
 
-          <Card title="报价明细" size="small">
+          <Card
+            title="报价明细"
+            size="small"
+            extra={
+              <Tooltip title={showCostColumns ? "隐藏成本列" : "显示成本列"}>
+                <Button
+                  size="small"
+                  type={showCostColumns ? "primary" : "default"}
+                  icon={showCostColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                  onClick={() => setShowCostColumns((prev) => !prev)}
+                >
+                  {showCostColumns ? "隐藏成本" : "查看成本"}
+                </Button>
+              </Tooltip>
+            }
+          >
             <Table
               rowKey={(record) => record.id || `${record.product_id}-${record.product_name}`}
               dataSource={quote.items}
@@ -365,6 +394,7 @@ export default function QuotationDetail() {
                   title: "产品",
                   dataIndex: "product_name",
                   ellipsis: true,
+                  width: 220,
                   render: (value: string | null, record) => (
                     <Space direction="vertical" size={0}>
                       <Typography.Text>{value || "-"}</Typography.Text>
@@ -376,37 +406,46 @@ export default function QuotationDetail() {
                     </Space>
                   ),
                 },
-                { title: "数量", dataIndex: "quantity", width: 90 },
-                { title: "单价", dataIndex: "unit_price", width: 120, render: (value: number | null) => value != null ? money(value) : "-" },
-                { title: "小计", dataIndex: "total_price", width: 130, render: (value: number | null) => value != null ? money(value) : "-" },
-                { title: "成本", dataIndex: "cost_price", width: 120, render: (value: number | null) => value != null ? money(value) : "-" },
-                { title: "未税成本", dataIndex: "untaxed_cost", width: 130, render: (value: number | null) => value != null ? money(value) : "-" },
-                { title: "含税成本", dataIndex: "taxed_cost", width: 130, render: (value: number | null) => value != null ? money(value) : "-" },
-                {
-                  title: "销售利润",
-                  dataIndex: "sales_profit",
-                  width: 130,
-                  render: (value: number | null) => (
-                    value != null ? <Typography.Text type={value < 0 ? "danger" : undefined}>{money(value)}</Typography.Text> : "-"
-                  ),
-                },
-                { title: "备注", dataIndex: "notes", width: 180, ellipsis: true, render: (value: string | null) => value || "-" },
+                { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+                { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
+                { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (value: number | null) => value != null ? <Typography.Text strong>{money(value)}</Typography.Text> : "-" },
+                ...(showCostColumns ? [
+                  { title: "成本", dataIndex: "cost_price", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
+                  { title: "未税成本", dataIndex: "untaxed_cost", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
+                  { title: "含税成本", dataIndex: "taxed_cost", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
+                  {
+                    title: "销售利润",
+                    dataIndex: "sales_profit",
+                    width: 110,
+                    align: "right" as const,
+                    render: (value: number | null) => (
+                      value != null ? <Typography.Text type={value < 0 ? "danger" : undefined}>{money(value)}</Typography.Text> : "-"
+                    ),
+                  },
+                ] : []),
+                { title: "备注", dataIndex: "notes", width: 160, ellipsis: true, render: (value: string | null) => value || "-" },
               ]}
               summary={() => (
                 <Table.Summary.Row>
                   <Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1}>{itemSummary.quantity}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={2}>-</Table.Summary.Cell>
                   <Table.Summary.Cell index={3}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={4}>-</Table.Summary.Cell>
-                  <Table.Summary.Cell index={5}>{money(itemSummary.untaxedCost)}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={6}>{money(itemSummary.taxedCost)}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={7}>
-                    <Typography.Text strong type={itemSummary.profit < 0 ? "danger" : undefined}>
-                      {money(itemSummary.profit)}
-                    </Typography.Text>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8}>-</Table.Summary.Cell>
+                  {showCostColumns ? (
+                    <>
+                      <Table.Summary.Cell index={4}>-</Table.Summary.Cell>
+                      <Table.Summary.Cell index={5}>{money(itemSummary.untaxedCost)}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={6}>{money(itemSummary.taxedCost)}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={7}>
+                        <Typography.Text strong type={itemSummary.profit < 0 ? "danger" : undefined}>
+                          {money(itemSummary.profit)}
+                        </Typography.Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={8}>-</Table.Summary.Cell>
+                    </>
+                  ) : (
+                    <Table.Summary.Cell index={4}>-</Table.Summary.Cell>
+                  )}
                 </Table.Summary.Row>
               )}
               scroll={{ x: "max-content" }}
@@ -417,6 +456,83 @@ export default function QuotationDetail() {
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
+          <Card size="small" title={<><DollarOutlined /> 成本汇总</>}>
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">明细合计</Typography.Text>
+                <Typography.Text>{money(itemSummary.amount)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">未税成本</Typography.Text>
+                <Typography.Text>{money(itemSummary.untaxedCost)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">含税成本</Typography.Text>
+                <Typography.Text>{money(itemSummary.taxedCost)}</Typography.Text>
+              </div>
+              <Divider style={{ margin: "6px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text strong>销售利润</Typography.Text>
+                <Typography.Text strong type={itemSummary.profit < 0 ? "danger" : undefined}>
+                  {money(itemSummary.profit)}
+                </Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text strong>毛利率</Typography.Text>
+                <Typography.Text strong type={itemSummary.profitMargin < 0 ? "danger" : itemSummary.profitMargin < 10 ? "warning" : undefined}>
+                  {itemSummary.profitMargin.toFixed(1)}%
+                </Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">产品行数</Typography.Text>
+                <Typography.Text>{itemSummary.count} 项 / {itemSummary.quantity} 件</Typography.Text>
+              </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="状态流转">
+            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+              {(["draft", "sent", "won"] as const).map((step) => {
+                const stepStatus = quote.status === step ? "active" : (
+                  ["draft", "sent", "won"].indexOf(quote.status as typeof step) > ["draft", "sent", "won"].indexOf(step) ? "done" : "pending"
+                );
+                const colors: Record<string, string> = { done: "#52c41a", active: "#1677ff", pending: "#d9d9d9" };
+                const labels: Record<string, string> = { draft: "草稿/待发送", sent: "已发送跟进", won: "已成交" };
+                if (step === "won" && quote.status === "lost") {
+                  return (
+                    <div key={step} style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.45 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff4d4f" }} />
+                      <Typography.Text style={{ fontSize: 13 }}>已丢失（终态）</Typography.Text>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={step} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: colors[stepStatus],
+                      boxShadow: stepStatus === "active" ? "0 0 0 3px rgba(22,119,255,0.2)" : "none",
+                    }} />
+                    <Typography.Text
+                      style={{
+                        fontSize: 13,
+                        color: stepStatus === "pending" ? "#bfbfbf" : undefined,
+                        fontWeight: stepStatus === "active" ? 600 : 400,
+                      }}
+                    >
+                      {labels[step]}
+                    </Typography.Text>
+                  </div>
+                );
+              })}
+              <Divider style={{ margin: "6px 0" }} />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                创建于 {shortDate(quote.created_at)}
+                {quote.updated_at ? ` | 更新 ${shortDate(quote.updated_at)}` : ""}
+              </Typography.Text>
+            </Space>
+          </Card>
+
           <Card size="small" title="下一步动作">
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
               {quote.status === "draft" && <Alert showIcon type="info" message="建议先确认有效期和产品行，再发送给客户。" />}
