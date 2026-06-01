@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Card, Col, Empty, Input, Row, Select, Space, Statistic, Tag, Typography } from "antd";
+import { Button, Card, Empty, Input, Select, Space, Statistic, Tag, Tooltip, Typography } from "antd";
 import {
   AimOutlined,
   AppstoreOutlined,
@@ -7,6 +7,7 @@ import {
   BarChartOutlined,
   CarOutlined,
   DollarOutlined,
+  DownloadOutlined,
   FileTextOutlined,
   MessageOutlined,
   PhoneOutlined,
@@ -79,29 +80,213 @@ export function SalesModuleShell({
     { key: "inquiry", label: "询价", path: "/sales/inquiry", icon: <MessageOutlined /> },
     { key: "analysis", label: "分析", path: "/reports/sales", icon: <BarChartOutlined /> },
   ];
+  const flow = [
+    { key: "inquiry", label: "询价" },
+    { key: "opportunities", label: "商机" },
+    { key: "quotations", label: "报价" },
+    { key: "orders", label: "订单" },
+    { key: "delivery", label: "发货" },
+    { key: "invoices", label: "开票" },
+    { key: "payments", label: "回款" },
+  ];
 
   return (
-    <div style={{ maxWidth: 1440, margin: "0 auto", padding: "4px 0 24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 16 }}>
+    <div className="sales-erp-shell">
+      <style>{`
+        .sales-erp-shell {
+          max-width: 1480px;
+          margin: 0 auto;
+          padding: 0 0 24px;
+        }
+        .sales-erp-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 12px;
+          padding: 14px 16px;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+        }
+        .sales-erp-title {
+          margin: 0;
+          color: #111827;
+          font-size: 20px;
+          font-weight: 650;
+          line-height: 28px;
+        }
+        .sales-erp-subtitle {
+          display: block;
+          margin-top: 2px;
+          color: #6b7280;
+          font-size: 13px;
+          line-height: 20px;
+        }
+        .sales-erp-actions {
+          display: flex;
+          justify-content: flex-end;
+          flex: 1 1 360px;
+        }
+        .sales-erp-nav-card.ant-card-small > .ant-card-body {
+          padding: 8px 10px;
+        }
+        .sales-erp-nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          overflow-x: auto;
+        }
+        .sales-erp-modules,
+        .sales-erp-flow {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          min-width: max-content;
+        }
+        .sales-erp-flow {
+          padding-left: 12px;
+          border-left: 1px solid #e5e7eb;
+        }
+        .sales-erp-flow-step {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          color: #6b7280;
+          font-size: 12px;
+        }
+        .sales-erp-flow-step.is-active {
+          color: #1677ff;
+          font-weight: 600;
+        }
+        .sales-erp-flow-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: #d1d5db;
+        }
+        .sales-erp-flow-step.is-active .sales-erp-flow-dot {
+          background: #1677ff;
+        }
+        .sales-erp-flow-arrow {
+          color: #d1d5db;
+          font-size: 11px;
+        }
+        .sales-erp-metrics {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        .sales-erp-metric {
+          min-height: 78px;
+          padding: 10px 12px;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+        }
+        .sales-erp-metric-title {
+          color: #6b7280;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .sales-erp-metric-value {
+          margin-top: 8px;
+          color: #111827;
+          font-size: 22px;
+          font-weight: 650;
+          line-height: 1;
+        }
+        .sales-erp-toolbar.ant-card-small > .ant-card-body {
+          padding: 10px 12px;
+        }
+        .sales-erp-table-card.ant-card-small > .ant-card-body {
+          padding: 0;
+        }
+        .sales-erp-table-card .ant-tabs {
+          padding: 0 12px;
+        }
+        .sales-erp-table-card .ant-tabs-nav {
+          margin-bottom: 10px;
+        }
+        .sales-erp-table-card .ant-card-head {
+          min-height: 44px;
+          padding: 0 12px;
+          border-bottom-color: #e5e7eb;
+        }
+        .sales-erp-table-card .ant-card-head-title,
+        .sales-erp-table-card .ant-card-extra {
+          padding: 10px 0;
+        }
+        .sales-erp-table-card .ant-table-thead > tr > th {
+          background: #f9fafb;
+          color: #374151;
+          font-weight: 600;
+        }
+        .sales-erp-table-card .ant-table-tbody > tr > td {
+          vertical-align: top;
+        }
+        @media (max-width: 1180px) {
+          .sales-erp-metrics {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          .sales-erp-nav {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .sales-erp-flow {
+            padding-left: 0;
+            border-left: 0;
+          }
+        }
+        @media (max-width: 768px) {
+          .sales-erp-header {
+            flex-direction: column;
+          }
+          .sales-erp-actions {
+            width: 100%;
+            justify-content: flex-start;
+          }
+          .sales-erp-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+      `}</style>
+      <div className="sales-erp-header">
         <div>
-          <Typography.Title level={3} style={{ margin: 0 }}>{title}</Typography.Title>
-          {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}
+          <h1 className="sales-erp-title">{title}</h1>
+          {subtitle ? <span className="sales-erp-subtitle">{subtitle}</span> : null}
         </div>
-        <Space wrap>{extra}</Space>
+        <div className="sales-erp-actions">
+          <Space wrap>{extra}</Space>
+        </div>
       </div>
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Space wrap>
-          {tabs.map((tab) => (
-            <Button
-              key={tab.key}
-              type={activeKey === tab.key ? "primary" : "text"}
-              icon={tab.icon}
-              onClick={() => navigate(tab.path)}
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </Space>
+      <Card size="small" className="sales-erp-nav-card" style={{ marginBottom: 12 }}>
+        <div className="sales-erp-nav">
+          <div className="sales-erp-modules">
+            {tabs.map((tab) => (
+              <Button
+                key={tab.key}
+                size="small"
+                type={activeKey === tab.key ? "primary" : "text"}
+                icon={tab.icon}
+                onClick={() => navigate(tab.path)}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+          <div className="sales-erp-flow" aria-label="销售流程">
+            {flow.map((step, index) => (
+              <span className={`sales-erp-flow-step${activeKey === step.key ? " is-active" : ""}`} key={step.key}>
+                <span className="sales-erp-flow-dot" />
+                <span>{step.label}</span>
+                {index < flow.length - 1 && <span className="sales-erp-flow-arrow">/</span>}
+              </span>
+            ))}
+          </div>
+        </div>
       </Card>
       {children}
     </div>
@@ -114,21 +299,20 @@ export function MetricBand({
   items: Array<{ title: string; value: number | string; suffix?: string; prefix?: ReactNode; precision?: number }>;
 }) {
   return (
-    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+    <div className="sales-erp-metrics">
       {items.map((item) => (
-        <Col xs={12} md={8} xl={4} key={item.title}>
-          <Card size="small">
-            <Statistic
-              title={item.title}
-              value={item.value}
-              suffix={item.suffix}
-              prefix={item.prefix}
-              precision={item.precision}
-            />
-          </Card>
-        </Col>
+        <div className="sales-erp-metric" key={item.title}>
+          <div className="sales-erp-metric-title">{item.title}</div>
+          <Statistic
+            className="sales-erp-metric-value"
+            value={item.value}
+            suffix={item.suffix}
+            prefix={item.prefix}
+            precision={item.precision}
+          />
+        </div>
       ))}
-    </Row>
+    </div>
   );
 }
 
@@ -408,6 +592,149 @@ export function SalesQuickActions() {
       <Button icon={<ThunderboltOutlined />} onClick={() => navigate("/sales/opportunities/new")}>新建商机</Button>
       <Button icon={<FileTextOutlined />} onClick={() => navigate("/sales/quotations/new")}>新建报价</Button>
       <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/orders/new")}>新建订单</Button>
+    </Space>
+  );
+}
+
+export interface ExportColumn {
+  key: string;
+  title: string;
+}
+
+export function exportToCSV(data: Record<string, unknown>[], columns: ExportColumn[], filename: string): void {
+  const header = columns.map((col) => col.title).join(",");
+  const rows = data.map((row) =>
+    columns
+      .map((col) => {
+        const val = row[col.key];
+        const str = val == null ? "" : String(val);
+        return str.includes(",") || str.includes('"') || str.includes("\n") ? `"${str.replace(/"/g, '""')}"` : str;
+      })
+      .join(","),
+  );
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function ErpExportButton({
+  data,
+  columns,
+  filename,
+  disabled,
+}: {
+  data: Record<string, unknown>[];
+  columns: ExportColumn[];
+  filename?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Tooltip title="导出CSV">
+      <Button icon={<DownloadOutlined />} disabled={disabled} onClick={() => exportToCSV(data, columns, filename || "export.csv")}>
+        导出
+      </Button>
+    </Tooltip>
+  );
+}
+
+export function ErpAuditInfo({ createdAt, updatedAt }: { createdAt?: string | null; updatedAt?: string | null }) {
+  const formatRelative = (dateStr: string): string => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "刚刚";
+    if (minutes < 60) return `${minutes}分钟前`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}小时前`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}天前`;
+    return shortDate(dateStr);
+  };
+  return (
+    <Space direction="vertical" size={2} style={{ width: "100%" }}>
+      {createdAt ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          创建于 {shortDate(createdAt)} ({formatRelative(createdAt)})
+        </Typography.Text>
+      ) : null}
+      {updatedAt && updatedAt !== createdAt ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          更新于 {shortDate(updatedAt)} ({formatRelative(updatedAt)})
+        </Typography.Text>
+      ) : null}
+    </Space>
+  );
+}
+
+export interface StatusStep {
+  key: string;
+  label: string;
+}
+
+export function ErpStatusTimeline({
+  currentStatus,
+  steps,
+  createdAt,
+  lostStatus,
+}: {
+  currentStatus: string;
+  steps: StatusStep[];
+  createdAt?: string | null;
+  lostStatus?: string;
+}) {
+  const isLost = currentStatus === (lostStatus || "lost") || currentStatus === "cancelled";
+  const currentIndex = steps.findIndex((s) => s.key === currentStatus);
+
+  const getStatus = (stepKey: string): "done" | "active" | "pending" => {
+    if (isLost) return "pending";
+    const stepIndex = steps.findIndex((s) => s.key === stepKey);
+    if (stepIndex < currentIndex) return "done";
+    if (stepIndex === currentIndex) return "active";
+    return "pending";
+  };
+
+  const COLORS: Record<string, string> = { done: "#52c41a", active: "#1677ff", pending: "#d9d9d9" };
+
+  return (
+    <Space direction="vertical" size={6} style={{ width: "100%" }}>
+      {steps.map((step) => {
+        const status = getStatus(step.key);
+        return (
+          <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: COLORS[status],
+                boxShadow: status === "active" ? "0 0 0 3px rgba(22,119,255,0.2)" : "none",
+              }}
+            />
+            <Typography.Text
+              style={{
+                fontSize: 13,
+                color: status === "pending" ? "#bfbfbf" : undefined,
+                fontWeight: status === "active" ? 600 : 400,
+              }}
+            >
+              {step.label}
+            </Typography.Text>
+          </div>
+        );
+      })}
+      {isLost ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.45 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff4d4f" }} />
+          <Typography.Text style={{ fontSize: 13 }}>已取消/丢失</Typography.Text>
+        </div>
+      ) : null}
+      {createdAt ? <ErpAuditInfo createdAt={createdAt} /> : null}
     </Space>
   );
 }

@@ -18,7 +18,7 @@ import type { QuotationPDFOptions } from "../../api";
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation } from "../../types";
-import { CustomerLink, MetricBand, OpportunityLink, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, ErpStatusTimeline, MetricBand, OpportunityLink, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
 
 const getDueMeta = (validUntil?: string | null, status?: string) => {
   if (!validUntil || status === "won" || status === "lost") return { text: "-", color: "default", risk: false };
@@ -491,46 +491,16 @@ export default function QuotationDetail() {
           </Card>
 
           <Card size="small" title="状态流转">
-            <Space direction="vertical" size={6} style={{ width: "100%" }}>
-              {(["draft", "sent", "won"] as const).map((step) => {
-                const stepStatus = quote.status === step ? "active" : (
-                  ["draft", "sent", "won"].indexOf(quote.status as typeof step) > ["draft", "sent", "won"].indexOf(step) ? "done" : "pending"
-                );
-                const colors: Record<string, string> = { done: "#52c41a", active: "#1677ff", pending: "#d9d9d9" };
-                const labels: Record<string, string> = { draft: "草稿/待发送", sent: "已发送跟进", won: "已成交" };
-                if (step === "won" && quote.status === "lost") {
-                  return (
-                    <div key={step} style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.45 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff4d4f" }} />
-                      <Typography.Text style={{ fontSize: 13 }}>已丢失（终态）</Typography.Text>
-                    </div>
-                  );
-                }
-                return (
-                  <div key={step} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: colors[stepStatus],
-                      boxShadow: stepStatus === "active" ? "0 0 0 3px rgba(22,119,255,0.2)" : "none",
-                    }} />
-                    <Typography.Text
-                      style={{
-                        fontSize: 13,
-                        color: stepStatus === "pending" ? "#bfbfbf" : undefined,
-                        fontWeight: stepStatus === "active" ? 600 : 400,
-                      }}
-                    >
-                      {labels[step]}
-                    </Typography.Text>
-                  </div>
-                );
-              })}
-              <Divider style={{ margin: "6px 0" }} />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                创建于 {shortDate(quote.created_at)}
-                {quote.updated_at ? ` | 更新 ${shortDate(quote.updated_at)}` : ""}
-              </Typography.Text>
-            </Space>
+            <ErpStatusTimeline
+              currentStatus={quote.status}
+              steps={[
+                { key: "draft", label: "草稿/待发送" },
+                { key: "sent", label: "已发送跟进" },
+                { key: "won", label: "已成交" },
+              ]}
+              createdAt={quote.created_at}
+              lostStatus="lost"
+            />
           </Card>
 
           <Card size="small" title="下一步动作">

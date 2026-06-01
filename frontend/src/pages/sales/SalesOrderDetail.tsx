@@ -1,25 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, Table, Switch, message, Modal, Form, Select, Input, Checkbox } from "antd";
-import { ArrowLeftOutlined, DownloadOutlined, EditOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
+import {
+  ArrowLeftOutlined,
+  CarOutlined,
+  DollarOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
+} from "@ant-design/icons";
 import { getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF } from "../../api";
 import type { SalesOrderPDFOptions } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
-import type { SalesOrder } from "../../types";
-import { CustomerLink } from "./salesUi";
+import type { SalesOrder, SalesOrderItem } from "../../types";
+import { CustomerLink, ErpAuditInfo, ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
 
-const STATUS: Record<string, { color: string; label: string }> = {
-  pending: { color: "default", label: "待处理" }, confirmed: { color: "blue", label: "已确认" },
-  shipped: { color: "orange", label: "已发货" }, delivered: { color: "green", label: "已签收" }, cancelled: { color: "red", label: "已取消" },
-};
+const STATUS_STEPS = [
+  { key: "pending", label: "待确认" },
+  { key: "confirmed", label: "已确认" },
+  { key: "shipped", label: "已发货" },
+  { key: "delivered", label: "已签收" },
+];
 
 export default function SalesOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [order, setOrder] = useState<SalesOrder | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeAi, setIncludeAi] = useState(true);
+  const [showExtraColumns, setShowExtraColumns] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [pdfForm] = Form.useForm<SalesOrderPDFOptions>();
@@ -33,43 +45,122 @@ export default function SalesOrderDetail() {
       .finally(() => setLoading(false));
   }, [id, includeAi]);
 
-  if (loading) return <Spin style={{ display: "block", margin: "100px auto" }} />;
-  if (error) return <Alert type="error" message={error} />;
-  if (!order) return <Empty description="订单不存在" />;
+  const itemSummary = useMemo(() => {
+    const items = order?.items || [];
+    const quantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const amount = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+    return { count: items.length, quantity, amount };
+  }, [order]);
+
+  const runAction = async (action: () => Promise<void>, success: string) => {
+    setActionLoading(true);
+    try {
+      await action();
+      message.success(success);
+      if (order) {
+        const resp = await getSalesOrder(order.id, includeAi);
+        setOrder(resp.data.data);
+      }
+    } catch {
+      message.error("操作失败");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleDownloadPDF = async () => {
+    if (!order) return;
     setPdfDownloading(true);
     try {
       const values = await pdfForm.validateFields();
       await downloadSalesOrderPDF(order.id, `sales_order_${order.order_no || order.id}.pdf`, values);
       setPdfOpen(false);
-    } catch (err: any) {
-      if (err?.errorFields) return;
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "errorFields" in err) return;
       message.error("下载失败");
     } finally {
       setPdfDownloading(false);
     }
   };
 
+  if (loading) {
+    return (
+      <SalesModuleShell title="订单详情" activeKey="orders">
+        <Spin style={{ display: "block", margin: "100px auto" }} />
+      </SalesModuleShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SalesModuleShell title="订单详情" activeKey="orders">
+        <Alert type="error" message={error} />
+      </SalesModuleShell>
+    );
+  }
+
+  if (!order) {
+    return (
+      <SalesModuleShell title="订单详情" activeKey="orders">
+        <Empty description="订单不存在" />
+      </SalesModuleShell>
+    );
+  }
+
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/orders")}>返回</Button>
-        <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/orders/${order.id}/edit`)}>编辑</Button>
-        <Button icon={<DownloadOutlined />} onClick={() => setPdfOpen(true)}>智能PDF</Button>
-        <Button type="primary" onClick={async () => {
-          try { await convertSalesOrderToDelivery(order.id); message.success("已转为发货单"); navigate("/sales/delivery-notes"); } catch { message.error("转换失败"); }
-        }}>转为发货单</Button>
-        {order.status === "pending" && (
-          <Button type="primary" style={{ background: "#52c41a", borderColor: "#52c41a" }} onClick={async () => {
-            try { await updateSalesOrder(order.id, { status: "confirmed" }); message.success("订单已确认，库存已锁定"); setOrder({ ...order, status: "confirmed" }); } catch { message.error("确认失败"); }
-          }}>确认订单 (锁定库存)</Button>
-        )}
-        <Space>
-          <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
-          <span style={{ fontSize: 13 }}>AI</span>
+    <SalesModuleShell
+      title={order.order_no || `订单 #${order.id}`}
+      subtitle={order.notes ? `备注: ${order.notes}` : "销售订单详情，含产品明细和交付执行信息"}
+      activeKey="orders"
+      extra={(
+        <>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/orders")}>返回</Button>
+          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/orders/${order.id}/edit`)}>编辑</Button>
+          <Space>
+            <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
+            <span style={{ fontSize: 13 }}>AI</span>
+          </Space>
+        </>
+      )}
+    >
+      <MetricBand
+        items={[
+          { title: "订单金额", value: order.total_amount || 0, prefix: "¥", precision: 0 },
+          { title: "产品行数", value: itemSummary.count, suffix: "项" },
+          { title: "总数量", value: itemSummary.quantity, suffix: "件" },
+          { title: "状态", value: order.status },
+          { title: "交付日期", value: order.delivery_date ? shortDate(order.delivery_date) : "-" },
+        ]}
+      />
+
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          {order.status === "pending" ? (
+            <Button
+              type="primary"
+              style={{ background: "#52c41a", borderColor: "#52c41a" }}
+              loading={actionLoading}
+              onClick={() => runAction(
+                () => updateSalesOrder(order.id, { status: "confirmed" }).then(() => {}),
+                "订单已确认，库存已锁定",
+              )}
+            >
+              确认订单
+            </Button>
+          ) : null}
+          <Button
+            icon={<CarOutlined />}
+            loading={actionLoading}
+            onClick={() => runAction(async () => {
+              await convertSalesOrderToDelivery(order.id);
+              navigate("/sales/delivery-notes");
+            }, "已转为发货单")}
+          >
+            转发货单
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={() => setPdfOpen(true)}>智能PDF</Button>
         </Space>
-      </Space>
+      </Card>
 
       <Modal
         title="自定义订单 PDF"
@@ -144,34 +235,140 @@ export default function SalesOrderDetail() {
         </Form>
       </Modal>
 
-      <Card title={order.order_no || `订单 #${order.id}`} extra={<Tag color={STATUS[order.status]?.color}>{STATUS[order.status]?.label || order.status}</Tag>}>
-        <Descriptions column={2} size="small">
-          <Descriptions.Item label="客户"><CustomerLink id={order.customer_id} /></Descriptions.Item>
-          <Descriptions.Item label="总金额">¥{order.total_amount.toLocaleString()}</Descriptions.Item>
-          <Descriptions.Item label="下单日期">{order.order_date?.slice(0, 10) || "-"}</Descriptions.Item>
-          <Descriptions.Item label="预计交货">{order.delivery_date?.slice(0, 10) || "-"}</Descriptions.Item>
-          <Descriptions.Item label="备注" span={2}>{order.notes || "-"}</Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      {order.items.length > 0 && (
-        <Card title="订单明细" size="small" style={{ marginTop: 16 }}>
-          <Table
-            rowKey="id"
-            dataSource={order.items}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 12, alignItems: "start" }}>
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Card
+            title="订单信息"
             size="small"
-            pagination={false}
-            columns={[
-              { title: "产品", dataIndex: "product_name", ellipsis: true },
-              { title: "数量", dataIndex: "quantity", width: 80 },
-              { title: "单价", dataIndex: "unit_price", width: 100, render: (v: number | null) => v ? `¥${v}` : "-" },
-              { title: "小计", dataIndex: "total_price", width: 120, render: (v: number | null) => v ? `¥${v.toLocaleString()}` : "-" },
-            ]}
-          />
-        </Card>
-      )}
+            extra={<SalesStatusTag value={order.status} />}
+          >
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="订单号">{order.order_no || `#${order.id}`}</Descriptions.Item>
+              <Descriptions.Item label="客户"><CustomerLink id={order.customer_id} /></Descriptions.Item>
+              <Descriptions.Item label="总金额">{money(order.total_amount)}</Descriptions.Item>
+              <Descriptions.Item label="下单日期">{shortDate(order.order_date)}</Descriptions.Item>
+              <Descriptions.Item label="预计交货">{shortDate(order.delivery_date)}</Descriptions.Item>
+              <Descriptions.Item label="关联报价">{order.quotation_id ? `报价 #${order.quotation_id}` : "-"}</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{order.notes || "-"}</Descriptions.Item>
+            </Descriptions>
+          </Card>
 
-      {includeAi && <SalesAIInsight aiData={order.ai} />}
-    </div>
+          <Card
+            title="订单明细"
+            size="small"
+            extra={(
+              <Space>
+                <Tooltip title={showExtraColumns ? "隐藏备注列" : "显示备注列"}>
+                  <Button
+                    size="small"
+                    type={showExtraColumns ? "primary" : "default"}
+                    icon={showExtraColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                    onClick={() => setShowExtraColumns((prev) => !prev)}
+                  >
+                    {showExtraColumns ? "隐藏备注" : "查看备注"}
+                  </Button>
+                </Tooltip>
+                <ErpExportButton
+                  data={order.items as unknown as Record<string, unknown>[]}
+                  columns={[
+                    { key: "product_name", title: "产品" },
+                    { key: "quantity", title: "数量" },
+                    { key: "unit_price", title: "单价" },
+                    { key: "total_price", title: "小计" },
+                  ]}
+                  filename={`sales_order_${order.order_no || order.id}_items.csv`}
+                />
+              </Space>
+            )}
+          >
+            <Table
+              rowKey="id"
+              dataSource={order.items}
+              size="small"
+              pagination={false}
+              columns={[
+                { title: "#", width: 40, render: (_: unknown, __: SalesOrderItem, index: number) => index + 1 },
+                { title: "产品", dataIndex: "product_name", ellipsis: true },
+                { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+                { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number | null) => (v != null ? money(v) : "-") },
+                { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number | null) => (v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-") },
+                ...(showExtraColumns ? [{ title: "备注", dataIndex: "notes" as keyof SalesOrderItem, width: 160, ellipsis: true, render: (v: string | null) => v || "-" }] : []),
+              ]}
+              summary={() => (
+                <Table.Summary.Row>
+                  <Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} />
+                  <Table.Summary.Cell index={2}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3}>-</Table.Summary.Cell>
+                  <Table.Summary.Cell index={4}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
+                </Table.Summary.Row>
+              )}
+              scroll={{ x: "max-content" }}
+            />
+          </Card>
+
+          {includeAi && order.ai ? <SalesAIInsight aiData={order.ai} /> : null}
+        </Space>
+
+        <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
+          <Card size="small" title={<><DollarOutlined /> 订单摘要</>}>
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">订单金额</Typography.Text>
+                <Typography.Text strong>{money(order.total_amount)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">产品行数</Typography.Text>
+                <Typography.Text>{itemSummary.count} 项</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">总数量</Typography.Text>
+                <Typography.Text>{itemSummary.quantity} 件</Typography.Text>
+              </div>
+              <Divider style={{ margin: "6px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">状态</Typography.Text>
+                <SalesStatusTag value={order.status} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">下单日期</Typography.Text>
+                <Typography.Text>{shortDate(order.order_date)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">交付日期</Typography.Text>
+                <Typography.Text>{shortDate(order.delivery_date)}</Typography.Text>
+              </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="状态流转">
+            <ErpStatusTimeline
+              currentStatus={order.status}
+              steps={STATUS_STEPS}
+              createdAt={order.created_at}
+              lostStatus="cancelled"
+            />
+          </Card>
+
+          <Card size="small" title="下一步动作">
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              {order.status === "pending" ? (
+                <Alert showIcon type="info" message="订单待确认，建议检查产品明细和交期后确认。" />
+              ) : order.status === "confirmed" ? (
+                <Alert showIcon type="success" message="订单已确认，可转为发货单执行交付。" />
+              ) : order.status === "shipped" ? (
+                <Alert showIcon type="info" message="已发货，需跟进客户签收确认。" />
+              ) : order.status === "delivered" ? (
+                <Alert showIcon type="success" message="订单已完成签收。" />
+              ) : null}
+              <Button block icon={<EditOutlined />} onClick={() => navigate(`/sales/orders/${order.id}/edit`)}>编辑订单</Button>
+              {order.customer_id ? (
+                <Button block onClick={() => navigate(`/customers/${order.customer_id}`)}>查看客户</Button>
+              ) : null}
+            </Space>
+          </Card>
+        </Space>
+      </div>
+    </SalesModuleShell>
   );
 }

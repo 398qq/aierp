@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Input, Modal, Popconfirm, Select, Space, Switch, Table, Typography, Upload, message } from "antd";
-import { CarOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, Upload, message } from "antd";
+import type { MenuProps } from "antd";
+import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders, importSalesOrderPDF } from "../../api";
 import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { SalesOrder } from "../../types";
-import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
 
 export default function SalesOrderList() {
   const [data, setData] = useState<SalesOrder[]>([]);
@@ -110,7 +111,7 @@ export default function SalesOrderList() {
         ]}
       />
 
-      <Card size="small" style={{ marginBottom: 16 }}>
+      <Card size="small" className="sales-erp-toolbar" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/orders/new")}>新建订单</Button>
           <Button
@@ -125,6 +126,17 @@ export default function SalesOrderList() {
             导入PDF订单
           </Button>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <ErpExportButton
+            data={data as unknown as Record<string, unknown>[]}
+            columns={[
+              { key: "order_no", title: "订单号" },
+              { key: "total_amount", title: "金额" },
+              { key: "status", title: "状态" },
+              { key: "order_date", title: "下单日期" },
+              { key: "delivery_date", title: "交付日期" },
+            ]}
+            filename="销售订单.csv"
+          />
           <Input.Search
             allowClear
             placeholder="搜索客户 / 订单号 / 产品"
@@ -173,13 +185,26 @@ export default function SalesOrderList() {
         </Space>
       </Card>
 
-      <Card>
+      <Card
+        size="small"
+        className="sales-erp-table-card"
+        title={(
+          <Space size={8} wrap>
+            <Typography.Text strong>销售订单单据</Typography.Text>
+            <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
+            {selected.length > 0 && <Tag color="blue">已选 {selected.length}</Tag>}
+          </Space>
+        )}
+      >
         <Table
           rowKey="id"
+          size="small"
+          bordered
           loading={loading}
           dataSource={data}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           columns={[
+            { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: SalesOrder, index: number) => (page - 1) * 20 + index + 1 },
             {
               title: "订单",
               dataIndex: "order_no",
@@ -205,34 +230,29 @@ export default function SalesOrderList() {
             },
             {
               title: "操作",
-              width: 230,
-              render: (_: unknown, record: SalesOrder) => (
-                <Space size="small">
-                  <Button size="small" onClick={() => navigate(`/sales/orders/${record.id}`)}>详情</Button>
-                  <Popconfirm title="转为发货单?" onConfirm={async () => {
-                    try {
-                      await convertSalesOrderToDelivery(record.id);
-                      message.success("已转为发货单");
-                      load();
-                    } catch {
-                      message.error("转换失败");
-                    }
-                  }}>
-                    <Button size="small" type="primary" icon={<CarOutlined />}>发货</Button>
-                  </Popconfirm>
-                  <Popconfirm title="确定删除?" onConfirm={async () => {
-                    try {
-                      await deleteSalesOrder(record.id);
-                      message.success("已删除");
-                      load();
-                    } catch {
-                      message.error("删除失败");
-                    }
-                  }}>
-                    <Button size="small" danger>删除</Button>
-                  </Popconfirm>
-                </Space>
-              ),
+              width: 60,
+              fixed: "right" as const,
+              render: (_: unknown, record: SalesOrder) => {
+                const items: MenuProps["items"] = [
+                  { key: "view", label: "查看详情", onClick: () => navigate(`/sales/orders/${record.id}`) },
+                  { key: "delivery", label: "转为发货单", icon: <CarOutlined />, onClick: () => {
+                    Modal.confirm({ title: "转为发货单?", content: `将订单 ${record.order_no || `#${record.id}`} 转为发货单`, onOk: async () => {
+                      try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); load(); } catch { message.error("转换失败"); }
+                    } });
+                  }},
+                  { type: "divider" as const },
+                  { key: "delete", label: "删除", danger: true, icon: <DeleteOutlined />, onClick: () => {
+                    Modal.confirm({ title: "确定删除?", content: `删除订单 ${record.order_no || `#${record.id}`}`, onOk: async () => {
+                      try { await deleteSalesOrder(record.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                    } });
+                  }},
+                ];
+                return (
+                  <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+                    <Button size="small" icon={<EllipsisOutlined />} type="text" />
+                  </Dropdown>
+                );
+              },
             },
           ]}
           pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (count) => `共 ${count} 条` }}

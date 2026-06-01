@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Col, Empty, List, Row, Space, Spin, Table, Tag, Typography } from "antd";
 import {
   BarChartOutlined,
   ExclamationCircleOutlined,
@@ -59,6 +59,8 @@ export default function SalesDashboard() {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -79,12 +81,18 @@ export default function SalesDashboard() {
         setOpportunities(opp.data.data.list || []);
         setQuotations(quote.data.data.list || []);
         setOrders(order.data.data.list || []);
+        setLoadedAt(Date.now());
       } catch {
         setError("销售工作台加载失败");
       } finally {
         setLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
   }, []);
 
   const funnel = overview?.funnel || [];
@@ -128,9 +136,27 @@ export default function SalesDashboard() {
         ]}
       />
 
+      {loadedAt ? (
+        <div style={{ textAlign: "right", marginBottom: 8, fontSize: 12, color: "#9ca3af" }}>
+          <span title={new Date(loadedAt).toLocaleString("zh-CN")}>
+            更新于 {(() => {
+              const diff = Math.floor((now - loadedAt) / 1000);
+              if (diff < 60) return "刚刚";
+              if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+              if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+              return `${Math.floor(diff / 86400)}天前`;
+            })()}
+          </span>
+        </div>
+      ) : null}
+
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
-          <Card title="销售漏斗" extra={<Button type="link" icon={<BarChartOutlined />} onClick={() => navigate("/reports/sales")}>分析</Button>}>
+          <Card
+            size="small"
+            title="销售流程漏斗"
+            extra={<Button size="small" type="link" icon={<BarChartOutlined />} onClick={() => navigate("/reports/sales")}>分析</Button>}
+          >
             {funnel.length ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={funnel} layout="vertical" margin={{ top: 8, right: 28, left: 36, bottom: 8 }}>
@@ -148,7 +174,7 @@ export default function SalesDashboard() {
           </Card>
         </Col>
         <Col xs={24} xl={9}>
-          <Card title="管道金额结构">
+          <Card size="small" title="管道金额结构">
             {funnel.some((item) => item.amount > 0) ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -165,7 +191,7 @@ export default function SalesDashboard() {
 
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={16}>
-          <Card title="月度趋势">
+          <Card size="small" title="月度趋势">
             {trends?.trends?.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trends.trends}>
@@ -183,7 +209,7 @@ export default function SalesDashboard() {
           </Card>
         </Col>
         <Col xs={24} xl={8}>
-          <Card title="风险提醒">
+          <Card size="small" title="风险提醒">
             {alerts?.alerts?.length ? (
               <List
                 dataSource={alerts.alerts}
@@ -208,45 +234,57 @@ export default function SalesDashboard() {
 
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={8}>
-          <Card title="近期商机" extra={<Button type="link" onClick={() => navigate("/sales/opportunities")}>全部</Button>}>
+          <Card size="small" className="sales-erp-table-card" title="近期商机" extra={<Button size="small" type="link" onClick={() => navigate("/sales/opportunities")}>全部</Button>}>
             <Table
               rowKey="id"
               size="small"
+              bordered
               pagination={false}
               dataSource={opportunities}
               columns={[
                 { title: "商机", dataIndex: "title", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/opportunities/${r.id}`)}>{v}</a> },
-                { title: "阶段", dataIndex: "stage", width: 82, render: (v: string) => stageLabel[v] || v || "-" },
+                { title: "阶段", dataIndex: "stage", width: 78, render: (v: string) => {
+                  const stageColors: Record<string, string> = { lead: "default", qualification: "blue", proposal: "purple", negotiation: "orange", closed_won: "green", closed_lost: "red" };
+                  return <Tag color={stageColors[v] || "default"} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{stageLabel[v] || v || "-"}</Tag>;
+                }},
                 { title: "金额", dataIndex: "amount", width: 90, render: money },
               ]}
             />
           </Card>
         </Col>
         <Col xs={24} xl={8}>
-          <Card title="待报价" extra={<Button type="link" icon={<FileTextOutlined />} onClick={() => navigate("/sales/quotations")}>处理</Button>}>
+          <Card size="small" className="sales-erp-table-card" title="待报价" extra={<Button size="small" type="link" icon={<FileTextOutlined />} onClick={() => navigate("/sales/quotations")}>处理</Button>}>
             <Table
               rowKey="id"
               size="small"
+              bordered
               pagination={false}
               dataSource={quotations}
               columns={[
                 { title: "报价", dataIndex: "quotation_no", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/quotations/${r.id}`)}>{v || r.title || `#${r.id}`}</a> },
-                { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <SalesStatusTag value={v} /> },
+                { title: "状态", dataIndex: "status", width: 74, render: (v: string) => <SalesStatusTag value={v} /> },
                 { title: "金额", dataIndex: "total_amount", width: 90, render: money },
               ]}
             />
           </Card>
         </Col>
         <Col xs={24} xl={8}>
-          <Card title="待确认订单" extra={<Button type="link" icon={<ShoppingCartOutlined />} onClick={() => navigate("/sales/orders")}>执行</Button>}>
+          <Card size="small" className="sales-erp-table-card" title="待确认订单" extra={<Button size="small" type="link" icon={<ShoppingCartOutlined />} onClick={() => navigate("/sales/orders")}>执行</Button>}>
             <Table
               rowKey="id"
               size="small"
+              bordered
               pagination={false}
               dataSource={orders}
               columns={[
                 { title: "订单", dataIndex: "order_no", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/orders/${r.id}`)}>{v || `#${r.id}`}</a> },
-                { title: "交付", dataIndex: "delivery_date", width: 92, render: shortDate },
+                { title: "交付", dataIndex: "delivery_date", width: 86, render: (v: string | null) => {
+                  if (!v) return "-";
+                  const diff = Math.ceil((new Date(v).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                  if (diff < 0) return <Tag color="red" style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>逾期{-diff}天</Tag>;
+                  if (diff <= 7) return <Tag color="orange" style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{diff}天内</Tag>;
+                  return shortDate(v);
+                }},
                 { title: "金额", dataIndex: "total_amount", width: 90, render: money },
               ]}
             />
@@ -254,20 +292,43 @@ export default function SalesDashboard() {
         </Col>
       </Row>
 
-      <Card title="销售闭环健康度" style={{ marginTop: 16 }}>
+      <Card size="small" title="销售闭环健康度" style={{ marginTop: 16 }}>
         <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <Typography.Text type="secondary">商机到报价</Typography.Text>
-            <Progress percent={overview?.opp_to_quote_rate || 0} />
-          </Col>
-          <Col xs={24} md={8}>
-            <Typography.Text type="secondary">报价到订单</Typography.Text>
-            <Progress percent={overview?.quote_to_order_rate || 0} />
-          </Col>
-          <Col xs={24} md={8}>
-            <Typography.Text type="secondary">赢单沉淀</Typography.Text>
-            <Progress percent={wonRate} />
-          </Col>
+          {[
+            { label: "商机到报价", value: overview?.opp_to_quote_rate || 0, color: "#1677ff" },
+            { label: "报价到订单", value: overview?.quote_to_order_rate || 0, color: "#52c41a" },
+            { label: "赢单沉淀", value: wonRate, color: "#722ed1" },
+          ].map((item) => (
+            <Col key={item.label} xs={24} md={8}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "20px 12px",
+                  background: "linear-gradient(135deg, #fafafa 0%, #f3f4f6 100%)",
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <div style={{ fontSize: 36, fontWeight: 700, color: item.color, lineHeight: 1.1 }}>
+                  {item.value.toFixed(1)}%
+                </div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "2px 12px",
+                    display: "inline-block",
+                    background: item.color + "18",
+                    color: item.color,
+                    borderRadius: 12,
+                    fontSize: 12,
+                    fontWeight: 500,
+                  }}
+                >
+                  {item.label}
+                </div>
+              </div>
+            </Col>
+          ))}
         </Row>
       </Card>
     </SalesModuleShell>
