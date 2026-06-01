@@ -1433,90 +1433,32 @@ export default function CustomerList() {
           font-weight: 650;
           line-height: 1;
         }
-          .customer-kpi-note {
-            margin-top: 7px;
-            color: #8c8c8c;
-            font-size: 12px;
-            line-height: 18px;
+        .customer-kpi-note {
+          margin-top: 7px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
           white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-        .crm-object-strip {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(150px, 1fr));
-          gap: 10px;
-          margin-bottom: 12px;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .crm-object-button {
+        .crm-compact-bar {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
-          min-height: 58px;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
           padding: 10px 12px;
-          color: #262626;
-          text-align: left;
           background: #fff;
           border: 1px solid #f0f0f0;
           border-radius: 8px;
-          cursor: pointer;
         }
-        .crm-object-button:hover,
-        .crm-object-button.is-active {
-          border-color: #91caff;
-          background: #f0f7ff;
-        }
-        .crm-object-main {
+        .crm-compact-controls {
           display: flex;
           align-items: center;
           gap: 8px;
-          min-width: 0;
-        }
-        .crm-object-title {
-          display: block;
-          font-weight: 600;
-          line-height: 20px;
-        }
-        .crm-object-label {
-          display: block;
-          color: #8c8c8c;
-          font-size: 12px;
-          line-height: 18px;
-        }
-        .crm-view-strip {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(150px, 1fr));
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-        .crm-view-button {
-          min-height: 64px;
-          padding: 9px 10px;
-          text-align: left;
-          background: #fff;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-          cursor: pointer;
-        }
-        .crm-view-button:hover,
-        .crm-view-button.is-active {
-          border-color: #91caff;
-          background: #f0f7ff;
-        }
-        .crm-view-name {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          font-weight: 600;
-          line-height: 20px;
-        }
-        .crm-view-desc {
-          margin-top: 4px;
-          color: #8c8c8c;
-          font-size: 12px;
-          line-height: 18px;
+          flex-wrap: wrap;
         }
         .customer-batch-bar {
           position: sticky;
@@ -1530,17 +1472,12 @@ export default function CustomerList() {
         }
         .customer-ai-layout {
           display: grid;
-          grid-template-columns: 220px minmax(0, 1fr) 280px;
-          gap: 12px;
+          grid-template-columns: minmax(0, 1fr);
           align-items: start;
         }
         .customer-ai-sidebar,
         .customer-ai-context {
-          position: sticky;
-          top: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
+          display: none;
         }
         .customer-ai-panel {
           background: #fff;
@@ -1874,20 +1811,6 @@ export default function CustomerList() {
           .customer-workbench-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
-          .crm-object-strip,
-          .crm-view-strip {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-          .customer-ai-layout {
-            grid-template-columns: 1fr;
-          }
-          .customer-ai-sidebar,
-          .customer-ai-context {
-            position: static;
-          }
-          .customer-ai-context-actions {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-          }
           .customer-toolbar-main {
             grid-template-columns: 1fr;
           }
@@ -1901,13 +1824,6 @@ export default function CustomerList() {
         @media (max-width: 768px) {
           .customer-workbench-grid {
             grid-template-columns: 1fr;
-          }
-          .crm-object-strip,
-          .crm-view-strip {
-            grid-template-columns: 1fr;
-          }
-          .customer-ai-context-actions {
-            grid-template-columns: 1fr 1fr;
           }
           .customer-stat-grid,
           .customer-active-filters,
@@ -1958,43 +1874,50 @@ export default function CustomerList() {
         </div>
       </div>
 
-      <div className="crm-object-strip">
-        {CRM_OBJECTS.map((object) => (
-          <button
-            key={object.key}
-            type="button"
-            className={`crm-object-button${activeCrmObject === object.key ? " is-active" : ""}`}
-            onClick={() => openCrmObject(object)}
-          >
-            <span className="crm-object-main">
-              {object.icon}
-              <span>
-                <span className="crm-object-title">{object.title}</span>
-                <span className="crm-object-label">{object.label}</span>
-              </span>
-            </span>
-            {activeCrmObject === object.key ? <Tag color="blue">当前</Tag> : <Tag>打开</Tag>}
-          </button>
-        ))}
-      </div>
-
-      <div className="crm-view-strip">
-        {CRM_VIEW_PRESETS.map((preset) => (
-          <button
-            key={preset.key}
-            type="button"
-            className={`crm-view-button${activeViewPreset === preset.key ? " is-active" : ""}`}
-            onClick={() => applyCrmViewPreset(preset.key)}
-          >
-            <span className="crm-view-name">
-              <span>{preset.label}</span>
-              <Tag color={activeViewPreset === preset.key ? "blue" : "default"}>
-                {preset.view === "board" ? "Board" : "Table"}
-              </Tag>
-            </span>
-            <span className="crm-view-desc">{preset.description}</span>
-          </button>
-        ))}
+      <div className="crm-compact-bar">
+        <Space size={8} wrap>
+          <Typography.Text strong>CRM</Typography.Text>
+          <Select
+            size="small"
+            style={{ width: 148 }}
+            value={activeCrmObject}
+            options={CRM_OBJECTS.map((object) => ({
+              value: object.key,
+              label: object.title,
+            }))}
+            onChange={(key) => {
+              const object = CRM_OBJECTS.find((item) => item.key === key);
+              if (object) openCrmObject(object);
+            }}
+          />
+          <Select
+            size="small"
+            style={{ width: 180 }}
+            value={activeViewPreset}
+            options={CRM_VIEW_PRESETS.map((preset) => ({
+              value: preset.key,
+              label: preset.description,
+            }))}
+            onChange={applyCrmViewPreset}
+          />
+        </Space>
+        <div className="crm-compact-controls">
+          <Segmented
+            size="small"
+            value={customerView}
+            options={[
+              { label: "表格", value: "table" },
+              { label: "看板", value: "board" },
+            ]}
+            onChange={(value) => setCustomerView(value as CustomerViewMode)}
+          />
+          <Button size="small" icon={<BellOutlined />} onClick={() => setReminderDrawerOpen(true)}>
+            跟进 {reminderCounts.today + reminderCounts.overdue}
+          </Button>
+          <Button size="small" icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>
+            AI队列
+          </Button>
+        </div>
       </div>
 
       <div className="customer-ai-layout">
@@ -2276,15 +2199,6 @@ export default function CustomerList() {
         )}
         extra={(
           <Space size={8}>
-            <Segmented
-              size="small"
-              value={customerView}
-              options={[
-                { label: "表格", value: "table" },
-                { label: "看板", value: "board" },
-              ]}
-              onChange={(value) => setCustomerView(value as CustomerViewMode)}
-            />
             <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => fetch()}>
               刷新列表
             </Button>
