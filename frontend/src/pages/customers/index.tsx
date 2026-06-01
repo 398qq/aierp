@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   App,
@@ -123,6 +124,8 @@ const TAG_COLOR_OPTIONS = [
 type SceneValue = "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
 type SmartTaskKey = "today" | "overdue" | "high_risk" | "key_stale" | "new_customers" | "ai_suggested" | "all";
 type CustomerWorkbenchTab = "customers" | "followups";
+type CustomerViewMode = "table" | "board";
+type CrmObjectKey = "companies" | "people" | "opportunities" | "quotations" | "orders";
 
 const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "全部客户", value: "all" },
@@ -152,6 +155,8 @@ const COL_LABEL_MAP: Record<string, string> = {
   tags: "标签",
   owner: "负责人",
   contact_person: "联系人",
+  phone: "电话",
+  email: "邮箱",
   last_contacted_at: "最近联系",
   source: "来源",
   created_at: "创建时间",
@@ -159,6 +164,7 @@ const COL_LABEL_MAP: Record<string, string> = {
 };
 
 const DEFAULT_VISIBLE_COL_KEYS = ["name", "level", "region", "owner", "next_followup", "last_contacted_at", "tags", "actions"];
+const PEOPLE_VISIBLE_COL_KEYS = ["name", "contact_person", "phone", "email", "owner", "last_contacted_at", "actions"];
 type ReminderBucket = "all" | FollowUpReminder["due_bucket"];
 type GlobalFollowUpBucket = "all" | GlobalFollowUp["due_bucket"];
 
@@ -187,6 +193,22 @@ const SMART_TASK_LABELS: Record<SmartTaskKey, string> = {
   ai_suggested: "AI推荐动作",
   all: "全部客户",
 };
+
+const CRM_OBJECTS: Array<{ key: CrmObjectKey; label: string; title: string; path: string; icon: ReactNode }> = [
+  { key: "companies", label: "Companies", title: "客户公司", path: "/customers", icon: <UserOutlined /> },
+  { key: "people", label: "People", title: "联系人", path: "/customers?view=people", icon: <PhoneOutlined /> },
+  { key: "opportunities", label: "Opportunities", title: "商机", path: "/sales/opportunities", icon: <BulbOutlined /> },
+  { key: "quotations", label: "Quotes", title: "报价", path: "/sales/quotations", icon: <SendOutlined /> },
+  { key: "orders", label: "Orders", title: "订单", path: "/sales/orders", icon: <ShoppingCartOutlined /> },
+];
+
+const CRM_VIEW_PRESETS = [
+  { key: "all", label: "All companies", description: "全部公司对象", task: "all" as SmartTaskKey, view: "table" as CustomerViewMode },
+  { key: "key", label: "Key accounts", description: "A级客户看板", task: "all" as SmartTaskKey, scene: "key_accounts" as SceneValue, view: "board" as CustomerViewMode },
+  { key: "today", label: "Today follow-ups", description: "今日必须推进", task: "today" as SmartTaskKey, view: "table" as CustomerViewMode },
+  { key: "risk", label: "At risk", description: "逾期或健康度低", task: "high_risk" as SmartTaskKey, view: "board" as CustomerViewMode },
+  { key: "new", label: "New companies", description: "14天内新建", task: "new_customers" as SmartTaskKey, view: "table" as CustomerViewMode },
+];
 
 const DEFAULT_STATS: DashboardStats = {
   total: 0,
@@ -359,6 +381,8 @@ export default function CustomerList() {
   const [globalFollowUpQ, setGlobalFollowUpQ] = useState("");
   const [globalFollowUpLoading, setGlobalFollowUpLoading] = useState(false);
   const [workbenchTab, setWorkbenchTab] = useState<CustomerWorkbenchTab>("customers");
+  const [customerView, setCustomerView] = useState<CustomerViewMode>("table");
+  const [activeCrmObject, setActiveCrmObject] = useState<CrmObjectKey>("companies");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [quickFollowUpCustomer, setQuickFollowUpCustomer] = useState<Customer | null>(null);
   const [quickFollowUpSaving, setQuickFollowUpSaving] = useState(false);
@@ -380,6 +404,7 @@ export default function CustomerList() {
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
   const [detailStats, setDetailStats] = useState<CustomerStats | null>(null);
   const [smartTask, setSmartTask] = useState<SmartTaskKey>("today");
+  const [activeViewPreset, setActiveViewPreset] = useState("today");
   const [contextCustomerId, setContextCustomerId] = useState<number | null>(null);
   const [productRecLoading, setProductRecLoading] = useState(false);
   const [productRecCustomerId, setProductRecCustomerId] = useState<number | null>(null);
@@ -397,6 +422,8 @@ export default function CustomerList() {
     "tags",
     "owner",
     "contact_person",
+    "phone",
+    "email",
     "last_contacted_at",
     "source",
     "created_at",
@@ -531,6 +558,19 @@ export default function CustomerList() {
     () => contextCustomer ? buildFollowUpTalkTrack(contextCustomer, contextNextFollowUp) : [],
     [contextCustomer, contextNextFollowUp],
   );
+  const customerBoardColumns = useMemo(() => {
+    const stages = [...LEVELS, "未分级"];
+    return stages.map((stage) => {
+      const customers = tableData.filter((customer) => (customer.level || "未分级") === stage);
+      const overdueCount = customers.filter((customer) => overdueCustomerIds.has(customer.id)).length;
+      const avgPriority = customers.length
+        ? Math.round(customers.reduce((sum, customer) => (
+          sum + getCustomerPriorityScore(customer, nextFollowUpByCustomer.get(customer.id))
+        ), 0) / customers.length)
+        : 0;
+      return { stage, customers, overdueCount, avgPriority };
+    });
+  }, [nextFollowUpByCustomer, overdueCustomerIds, tableData]);
 
   const loadStats = async () => {
     setStatsLoading(true);
@@ -688,7 +728,54 @@ export default function CustomerList() {
     setAdvancedOpen(false);
     setSortBy("id");
     setSortOrder("desc");
+    setSmartTask("all");
+    setActiveViewPreset("all");
+    setActiveCrmObject("companies");
+    setCustomerView("table");
+    setVisibleCols(DEFAULT_VISIBLE_COL_KEYS);
     setPage(1);
+  };
+
+  const applyCrmViewPreset = (presetKey: string) => {
+    const preset = CRM_VIEW_PRESETS.find((item) => item.key === presetKey);
+    if (!preset) return;
+    setActiveViewPreset(preset.key);
+    setActiveCrmObject("companies");
+    setSmartTask(preset.task);
+    setCustomerView(preset.view);
+    setVisibleCols(DEFAULT_VISIBLE_COL_KEYS);
+    setScene(preset.scene || "all");
+    setQ("");
+    setIndustry(undefined);
+    setLevel(undefined);
+    setRegion(undefined);
+    setSource(undefined);
+    setCreditLevel(undefined);
+    setOverdueOnly(preset.task === "overdue");
+    setContextCustomerId(null);
+    setPage(1);
+  };
+
+  const openCrmObject = (object: (typeof CRM_OBJECTS)[number]) => {
+    if (object.key === "companies") {
+      setActiveCrmObject("companies");
+      setWorkbenchTab("customers");
+      setCustomerView("table");
+      setVisibleCols(DEFAULT_VISIBLE_COL_KEYS);
+      return;
+    }
+    if (object.key === "people") {
+      setActiveCrmObject("people");
+      setWorkbenchTab("customers");
+      setCustomerView("table");
+      setSmartTask("all");
+      setActiveViewPreset("all");
+      setScene("all");
+      setVisibleCols(PEOPLE_VISIBLE_COL_KEYS);
+      setPage(1);
+      return;
+    }
+    navigate(object.path);
   };
 
   const handleDelete = async (id: number) => {
@@ -1201,6 +1288,20 @@ export default function CustomerList() {
       render: (v: string | null) => v || "-",
     },
     {
+      title: "电话",
+      dataIndex: "phone",
+      key: "phone",
+      width: 130,
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "邮箱",
+      dataIndex: "email",
+      key: "email",
+      width: 180,
+      render: (v: string | null) => v ? <Typography.Text copyable>{v}</Typography.Text> : "-",
+    },
+    {
       title: "最近联系",
       dataIndex: "last_contacted_at",
       key: "last_contacted_at",
@@ -1332,14 +1433,90 @@ export default function CustomerList() {
           font-weight: 650;
           line-height: 1;
         }
-        .customer-kpi-note {
-          margin-top: 7px;
+          .customer-kpi-note {
+            margin-top: 7px;
+            color: #8c8c8c;
+            font-size: 12px;
+            line-height: 18px;
+          white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+        .crm-object-strip {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(150px, 1fr));
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        .crm-object-button {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          min-height: 58px;
+          padding: 10px 12px;
+          color: #262626;
+          text-align: left;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .crm-object-button:hover,
+        .crm-object-button.is-active {
+          border-color: #91caff;
+          background: #f0f7ff;
+        }
+        .crm-object-main {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+        }
+        .crm-object-title {
+          display: block;
+          font-weight: 600;
+          line-height: 20px;
+        }
+        .crm-object-label {
+          display: block;
           color: #8c8c8c;
           font-size: 12px;
           line-height: 18px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+        }
+        .crm-view-strip {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(150px, 1fr));
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .crm-view-button {
+          min-height: 64px;
+          padding: 9px 10px;
+          text-align: left;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .crm-view-button:hover,
+        .crm-view-button.is-active {
+          border-color: #91caff;
+          background: #f0f7ff;
+        }
+        .crm-view-name {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          font-weight: 600;
+          line-height: 20px;
+        }
+        .crm-view-desc {
+          margin-top: 4px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
         }
         .customer-batch-bar {
           position: sticky;
@@ -1618,6 +1795,76 @@ export default function CustomerList() {
           padding-bottom: 10px;
           vertical-align: top;
         }
+        .customer-board {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(220px, 1fr));
+          gap: 10px;
+          padding: 12px;
+          overflow-x: auto;
+        }
+        .customer-board-column {
+          min-width: 220px;
+          background: #fafafa;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+        }
+        .customer-board-column-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 10px;
+          border-bottom: 1px solid #f0f0f0;
+        }
+        .customer-board-column-meta {
+          margin-top: 5px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .customer-board-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-height: 180px;
+          padding: 8px;
+        }
+        .customer-board-card {
+          padding: 10px;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .customer-board-card:hover,
+        .customer-board-card.is-active {
+          border-color: #91caff;
+          box-shadow: 0 2px 8px rgba(22, 119, 255, 0.12);
+        }
+        .customer-board-card.is-overdue {
+          border-left: 3px solid #ff4d4f;
+        }
+        .customer-board-card-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .customer-board-card-name {
+          max-width: 150px;
+        }
+        .customer-board-card-meta {
+          margin-top: 6px;
+          color: #8c8c8c;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .customer-board-card-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          margin-top: 8px;
+        }
         .customer-row-overdue td:first-child { border-left: 3px solid #ff4d4f; }
         .customer-row-key td:first-child { border-left: 3px solid #52c41a; }
         .customer-row-selected td {
@@ -1625,6 +1872,10 @@ export default function CustomerList() {
         }
         @media (max-width: 1180px) {
           .customer-workbench-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .crm-object-strip,
+          .crm-view-strip {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
           .customer-ai-layout {
@@ -1640,12 +1891,19 @@ export default function CustomerList() {
           .customer-toolbar-main {
             grid-template-columns: 1fr;
           }
+          .customer-board {
+            grid-template-columns: repeat(5, minmax(220px, 240px));
+          }
           .customer-toolbar-actions {
             justify-content: flex-start !important;
           }
         }
         @media (max-width: 768px) {
           .customer-workbench-grid {
+            grid-template-columns: 1fr;
+          }
+          .crm-object-strip,
+          .crm-view-strip {
             grid-template-columns: 1fr;
           }
           .customer-ai-context-actions {
@@ -1698,6 +1956,45 @@ export default function CustomerList() {
             {topRegion ? `主力区域 ${topRegion.name} ${topRegion.value}` : `本月新增 ${monthlyNewCount}`}
           </div>
         </div>
+      </div>
+
+      <div className="crm-object-strip">
+        {CRM_OBJECTS.map((object) => (
+          <button
+            key={object.key}
+            type="button"
+            className={`crm-object-button${activeCrmObject === object.key ? " is-active" : ""}`}
+            onClick={() => openCrmObject(object)}
+          >
+            <span className="crm-object-main">
+              {object.icon}
+              <span>
+                <span className="crm-object-title">{object.title}</span>
+                <span className="crm-object-label">{object.label}</span>
+              </span>
+            </span>
+            {activeCrmObject === object.key ? <Tag color="blue">当前</Tag> : <Tag>打开</Tag>}
+          </button>
+        ))}
+      </div>
+
+      <div className="crm-view-strip">
+        {CRM_VIEW_PRESETS.map((preset) => (
+          <button
+            key={preset.key}
+            type="button"
+            className={`crm-view-button${activeViewPreset === preset.key ? " is-active" : ""}`}
+            onClick={() => applyCrmViewPreset(preset.key)}
+          >
+            <span className="crm-view-name">
+              <span>{preset.label}</span>
+              <Tag color={activeViewPreset === preset.key ? "blue" : "default"}>
+                {preset.view === "board" ? "Board" : "Table"}
+              </Tag>
+            </span>
+            <span className="crm-view-desc">{preset.description}</span>
+          </button>
+        ))}
       </div>
 
       <div className="customer-ai-layout">
@@ -1799,6 +2096,7 @@ export default function CustomerList() {
               onChange={(e) => {
                 setQ(e.target.value);
                 setSmartTask("all");
+                setActiveViewPreset("all");
                 setOverdueOnly(false);
                 setPage(1);
               }}
@@ -1978,49 +2276,149 @@ export default function CustomerList() {
         )}
         extra={(
           <Space size={8}>
+            <Segmented
+              size="small"
+              value={customerView}
+              options={[
+                { label: "表格", value: "table" },
+                { label: "看板", value: "board" },
+              ]}
+              onChange={(value) => setCustomerView(value as CustomerViewMode)}
+            />
             <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => fetch()}>
               刷新列表
             </Button>
           </Space>
         )}
       >
-        <Table
-          rowKey="id"
-          size="middle"
-          sticky
-          columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
-          dataSource={tableData}
-          loading={loading}
-          onChange={handleTableChange}
-          rowSelection={{
-            columnWidth: 44,
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys as number[]),
-          }}
-          rowClassName={(record) => {
-            if (contextCustomer?.id === record.id) return "customer-row-selected";
-            if (overdueCustomerIds.has(record.id)) return "customer-row-overdue";
-            if (record.level === "A") return "customer-row-key";
-            return "";
-          }}
-          onRow={(record) => ({
-            onClick: () => setContextCustomerId(record.id),
-          })}
-          scroll={{ x: "max-content" }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
-          pagination={{
-            current: page,
-            total: activeSmartTask !== "all" || overdueOnly ? tableData.length : total,
-            pageSize,
-            pageSizeOptions: ["10", "20", "50", "100"],
-            showSizeChanger: true,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
-            },
-          }}
-        />
+        {customerView === "board" ? (
+          <div className="customer-board">
+            {customerBoardColumns.map((column) => (
+              <section className="customer-board-column" key={column.stage}>
+                <div className="customer-board-column-head">
+                  <div>
+                    <Space size={6}>
+                      <Tag color={getLevelColor(column.stage === "未分级" ? null : column.stage)}>{column.stage}</Tag>
+                      <Typography.Text strong>{column.customers.length}</Typography.Text>
+                    </Space>
+                    <div className="customer-board-column-meta">
+                      逾期 {column.overdueCount} | 平均优先级 {column.avgPriority || "-"}
+                    </div>
+                  </div>
+                  {column.overdueCount > 0 && <BellOutlined style={{ color: "#cf1322" }} />}
+                </div>
+                <div className="customer-board-list">
+                  {column.customers.length === 0 ? (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户" />
+                  ) : column.customers.map((customer) => {
+                    const next = nextFollowUpByCustomer.get(customer.id);
+                    const priority = getCustomerPriorityScore(customer, next);
+                    const overdue = overdueCustomerIds.has(customer.id);
+                    const active = contextCustomer?.id === customer.id;
+                    return (
+                      <div
+                        key={customer.id}
+                        className={`customer-board-card${overdue ? " is-overdue" : ""}${active ? " is-active" : ""}`}
+                        onClick={() => setContextCustomerId(customer.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") setContextCustomerId(customer.id);
+                        }}
+                      >
+                        <div className="customer-board-card-head">
+                          <Typography.Link
+                            strong
+                            className="customer-board-card-name"
+                            ellipsis
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/customers/${customer.id}`);
+                            }}
+                          >
+                            {customer.name}
+                          </Typography.Link>
+                          <Tag color={priority >= 75 ? "red" : priority >= 60 ? "orange" : "blue"}>{priority}</Tag>
+                        </div>
+                        <div className="customer-board-card-meta">
+                          {[customer.industry, customer.region, customer.owner].filter(Boolean).join(" / ") || "暂无画像信息"}
+                        </div>
+                        <Space size={[4, 6]} wrap style={{ marginTop: 7 }}>
+                          {customer.health_score != null && <Tag color={getHealthColor(customer.health_score)}>健康 {customer.health_score}</Tag>}
+                          {next && <Tag color={getReminderDueMeta(next).color}>{getReminderDueMeta(next).text}</Tag>}
+                          {overdue && <Tag color="red">逾期</Tag>}
+                        </Space>
+                        <div className="customer-board-card-meta">
+                          {getCustomerSuggestedAction(customer, next)}
+                        </div>
+                        <div className="customer-board-card-actions">
+                          <Button
+                            size="small"
+                            icon={<PhoneOutlined />}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openQuickFollowUp(customer);
+                            }}
+                          >
+                            跟进
+                          </Button>
+                          <Button
+                            size="small"
+                            icon={<EyeOutlined />}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/customers/${customer.id}`);
+                            }}
+                          >
+                            详情
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <Table
+            rowKey="id"
+            size="middle"
+            sticky
+            columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+            dataSource={tableData}
+            loading={loading}
+            onChange={handleTableChange}
+            rowSelection={{
+              columnWidth: 44,
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys as number[]),
+            }}
+            rowClassName={(record) => {
+              if (contextCustomer?.id === record.id) return "customer-row-selected";
+              if (overdueCustomerIds.has(record.id)) return "customer-row-overdue";
+              if (record.level === "A") return "customer-row-key";
+              return "";
+            }}
+            onRow={(record) => ({
+              onClick: () => setContextCustomerId(record.id),
+            })}
+            scroll={{ x: "max-content" }}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
+            pagination={{
+              current: page,
+              total: activeSmartTask !== "all" || overdueOnly ? tableData.length : total,
+              pageSize,
+              pageSizeOptions: ["10", "20", "50", "100"],
+              showSizeChanger: true,
+              showTotal: (t) => `共 ${t} 条`,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
+            }}
+          />
+        )}
       </Card>
             </>
           )}
