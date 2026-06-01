@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Row, Col } from "antd";
-import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ExportOutlined, ClearOutlined } from "@ant-design/icons";
+import { Table, Tag, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
 import { getPurchaseOrders, getSuppliers, receivePurchaseOrder, deletePurchaseOrder } from "../../api";
 import type { PurchaseOrder } from "../../types";
 import dayjs from "dayjs";
+import { ErpExportButton, MetricBand, SalesModuleShell } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" },
@@ -54,34 +55,20 @@ export default function PurchaseOrderList() {
     ).catch(() => {});
   }, []);
 
+  const stats = useMemo(() => {
+    const amount = data.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+    const draft = data.filter((item) => item.status === "draft").length;
+    const received = data.filter((item) => item.status === "received").length;
+    const cancelled = data.filter((item) => item.status === "cancelled").length;
+    return { amount, draft, received, cancelled };
+  }, [data]);
+
   const clearFilters = () => {
     setFilterSupplierId(undefined);
     setFilterStatus(undefined);
     setFilterDateFrom(undefined);
     setFilterDateTo(undefined);
     setPage(1);
-  };
-
-  const handleExport = () => {
-    const headers = ["订单号", "供应商", "状态", "金额", "预计到货", "备注", "创建时间"];
-    const rows = data.map((r) => [
-      r.order_no || "-",
-      r.supplier_name || `#${r.supplier_id}`,
-      STATUS[r.status]?.label || r.status,
-      r.total_amount,
-      r.expected_date?.slice(0, 10) || "-",
-      r.notes || "-",
-      r.created_at?.slice(0, 10) || "-",
-    ]);
-    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `采购订单_${dayjs().format("YYYYMMDD")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    message.success("导出成功");
   };
 
   const handleReceive = async () => {
@@ -104,14 +91,25 @@ export default function PurchaseOrderList() {
     } catch { message.error("删除失败"); }
   };
 
+  const exportData = useMemo(() => data.map((item) => ({
+    order_no: item.order_no || "-",
+    supplier: item.supplier_name || `#${item.supplier_id}`,
+    status: STATUS[item.status]?.label || item.status,
+    total_amount: `¥${item.total_amount?.toLocaleString() ?? 0}`,
+    expected_date: item.expected_date?.slice(0, 10) || "-",
+    notes: item.notes || "-",
+    created_at: item.created_at?.slice(0, 10) || "-",
+  })), [data]);
+
   const columns: ColumnsType<PurchaseOrder> = [
+    { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: PurchaseOrder, index: number) => (page - 1) * 20 + index + 1 },
     {
       title: "订单号", dataIndex: "order_no", width: 150,
-      render: (v: string, r: PurchaseOrder) => (
+      render: (v: string | null, r: PurchaseOrder) => (
         <a onClick={() => navigate(`/sales/purchase-orders/${r.id}`)}>{v || "-"}</a>
       ),
     },
-    { title: "供应商", dataIndex: "supplier_name", width: 120, render: (v: string, r) => v || `#${r.supplier_id}` },
+    { title: "供应商", dataIndex: "supplier_name", width: 120, render: (v: string | null, r: PurchaseOrder) => v || `#${r.supplier_id}` },
     {
       title: "状态", dataIndex: "status", width: 80,
       render: (s: string) => <Tag color={STATUS[s]?.color}>{STATUS[s]?.label || s}</Tag>,
@@ -120,9 +118,9 @@ export default function PurchaseOrderList() {
       title: "金额", dataIndex: "total_amount", width: 100,
       render: (v: number) => `¥${v?.toLocaleString() ?? 0}`,
     },
-    { title: "预计到货", dataIndex: "expected_date", width: 100, render: (v) => v?.slice(0, 10) || "-" },
+    { title: "预计到货", dataIndex: "expected_date", width: 100, render: (v: string | null) => v?.slice(0, 10) || "-" },
     { title: "备注", dataIndex: "notes", ellipsis: true },
-    { title: "创建时间", dataIndex: "created_at", width: 100, render: (v) => v?.slice(0, 10) || "-" },
+    { title: "创建时间", dataIndex: "created_at", width: 100, render: (v: string) => v?.slice(0, 10) || "-" },
     {
       title: "操作", key: "action", width: 120,
       render: (_: unknown, r: PurchaseOrder) => (
@@ -135,7 +133,7 @@ export default function PurchaseOrderList() {
                   onClick: () => { setReceivePO(r); setReceiveModalOpen(true); } },
                 { key: "edit", icon: <EditOutlined />, label: "编辑",
                   onClick: () => navigate(`/sales/purchase-orders/${r.id}/edit`) },
-                { type: "divider" },
+                { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true,
                   onClick: () => Modal.confirm({
                     title: "确认删除",
@@ -156,72 +154,97 @@ export default function PurchaseOrderList() {
   ];
 
   return (
-    <div>
+    <SalesModuleShell
+      title="采购订单"
+      subtitle="管理供应商采购，跟踪到货和入库"
+      activeKey="procurement"
+      extra={(
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/purchase-orders/new")}>新建采购单</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+        </Space>
+      )}
+    >
+      <MetricBand
+        items={[
+          { title: "采购单数", value: total, suffix: "单" },
+          { title: "本页金额", value: stats.amount, prefix: "¥", precision: 0 },
+          { title: "草稿", value: stats.draft, suffix: "单" },
+          { title: "已收货", value: stats.received, suffix: "单" },
+          { title: "已取消", value: stats.cancelled, suffix: "单" },
+        ]}
+      />
+
+      <Card size="small" className="sales-erp-toolbar" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <ErpExportButton
+            data={exportData as unknown as Record<string, unknown>[]}
+            columns={[
+              { key: "order_no", title: "订单号" },
+              { key: "supplier", title: "供应商" },
+              { key: "status", title: "状态" },
+              { key: "total_amount", title: "金额" },
+              { key: "expected_date", title: "预计到货" },
+              { key: "notes", title: "备注" },
+              { key: "created_at", title: "创建时间" },
+            ]}
+            filename={`采购订单_${dayjs().format("YYYYMMDD")}.csv`}
+          />
+          <Select
+            allowClear
+            showSearch
+            placeholder="供应商"
+            optionFilterProp="label"
+            style={{ width: 160 }}
+            value={filterSupplierId}
+            onChange={(v) => { setFilterSupplierId(v); setPage(1); }}
+            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+          />
+          <Select
+            allowClear
+            placeholder="状态"
+            style={{ width: 120 }}
+            value={filterStatus}
+            onChange={(v) => { setFilterStatus(v); setPage(1); }}
+            options={[
+              { value: "draft", label: "草稿" },
+              { value: "received", label: "已收货" },
+              { value: "cancelled", label: "已取消" },
+            ]}
+          />
+          <DatePicker
+            placeholder="创建日期-从"
+            value={filterDateFrom ? dayjs(filterDateFrom) : null}
+            onChange={(d) => { setFilterDateFrom(d?.format("YYYY-MM-DD")); setPage(1); }}
+          />
+          <DatePicker
+            placeholder="创建日期-至"
+            value={filterDateTo ? dayjs(filterDateTo) : null}
+            onChange={(d) => { setFilterDateTo(d?.format("YYYY-MM-DD")); setPage(1); }}
+          />
+          <Button icon={<ClearOutlined />} onClick={clearFilters} disabled={!filterSupplierId && !filterStatus && !filterDateFrom && !filterDateTo}>
+            清除筛选
+          </Button>
+        </Space>
+      </Card>
+
       <Card
-        title="采购订单"
-        extra={
-          <Space>
-            <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/purchase-orders/new")}>新建</Button>
-            <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+        size="small"
+        className="sales-erp-table-card"
+        title={(
+          <Space size={8} wrap>
+            <Typography.Text strong>采购订单单据</Typography.Text>
+            <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
           </Space>
-        }
+        )}
       >
-        <Row gutter={12} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Select
-              allowClear
-              showSearch
-              placeholder="供应商"
-              optionFilterProp="label"
-              style={{ width: "100%" }}
-              value={filterSupplierId}
-              onChange={(v) => { setFilterSupplierId(v); setPage(1); }}
-              options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-            />
-          </Col>
-          <Col span={4}>
-            <Select
-              allowClear
-              placeholder="状态"
-              style={{ width: "100%" }}
-              value={filterStatus}
-              onChange={(v) => { setFilterStatus(v); setPage(1); }}
-              options={[
-                { value: "draft", label: "草稿" },
-                { value: "received", label: "已收货" },
-                { value: "cancelled", label: "已取消" },
-              ]}
-            />
-          </Col>
-          <Col span={4}>
-            <DatePicker
-              placeholder="创建日期-从"
-              style={{ width: "100%" }}
-              value={filterDateFrom ? dayjs(filterDateFrom) : null}
-              onChange={(d) => { setFilterDateFrom(d?.format("YYYY-MM-DD")); setPage(1); }}
-            />
-          </Col>
-          <Col span={4}>
-            <DatePicker
-              placeholder="创建日期-至"
-              style={{ width: "100%" }}
-              value={filterDateTo ? dayjs(filterDateTo) : null}
-              onChange={(d) => { setFilterDateTo(d?.format("YYYY-MM-DD")); setPage(1); }}
-            />
-          </Col>
-          <Col span={6}>
-            <Button icon={<ClearOutlined />} onClick={clearFilters} disabled={!filterSupplierId && !filterStatus && !filterDateFrom && !filterDateTo}>
-              清除筛选
-            </Button>
-          </Col>
-        </Row>
         <Table
           rowKey="id"
           columns={columns}
           dataSource={data}
           loading={loading}
           size="small"
+          bordered
           scroll={{ x: 800 }}
           pagination={{
             current: page, total, pageSize: 20,
@@ -251,6 +274,6 @@ export default function PurchaseOrderList() {
           </>
         )}
       </Modal>
-    </div>
+    </SalesModuleShell>
   );
 }

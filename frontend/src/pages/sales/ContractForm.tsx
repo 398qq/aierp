@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
+import { Button, Card, DatePicker, Form, Input, InputNumber, message, Select } from "antd";
 import { getContract, createContract, updateContract, getSalesOrders } from "../../api";
 import dayjs from "dayjs";
 import type { SalesOrder } from "../../types";
-import { CustomerSelect, shortDate } from "./salesUi";
+import { CustomerSelect, SalesModuleShell, shortDate } from "./salesUi";
 
 export default function ContractForm() {
   const { id } = useParams<{ id: string }>();
@@ -47,41 +47,49 @@ export default function ContractForm() {
   };
 
   return (
-    <Card title={isEdit ? "编辑合同" : "新增合同"}>
-      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft" }}>
-        <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
-          <CustomerSelect />
-        </Form.Item>
-        <Form.Item name="sales_order_id" label="关联订单">
-          <Select
-            showSearch
-            allowClear
-            placeholder="选择订单"
-            optionFilterProp="label"
-            onChange={applyOrder}
-            options={orders.map((order) => ({
-              value: order.id,
-              label: `${order.order_no || `#${order.id}`} / 客户 #${order.customer_id} / ${shortDate(order.delivery_date)}`,
-            }))}
-          />
-        </Form.Item>
-        <Form.Item name="title" label="标题" rules={[{ required: true }]}><Input /></Form.Item>
-        <Form.Item name="contract_no" label="合同号"><Input placeholder="留空自动生成" /></Form.Item>
-        <Form.Item name="amount" label="金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
-        <Form.Item name="status" label="状态">
-          <Select options={[
-            { value: "draft", label: "草稿" }, { value: "signed", label: "已签署" }, { value: "active", label: "履行中" }, { value: "terminated", label: "已终止" },
-          ]} />
-        </Form.Item>
-        <Form.Item name="signed_date" label="签署日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
-        <Form.Item name="expire_date" label="到期日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
-        <Form.Item name="file_url" label="文件URL"><Input /></Form.Item>
-        <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
-          <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/contracts")}>取消</Button>
-        </Form.Item>
-      </Form>
-    </Card>
+    <SalesModuleShell
+      title={isEdit ? "编辑合同" : "新增合同"}
+      subtitle={isEdit ? "修改合同信息" : "创建新合同，关联客户和订单"}
+      activeKey="contracts"
+    >
+      <Card size="small">
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft" }} style={{ maxWidth: 720 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+            <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
+              <CustomerSelect />
+            </Form.Item>
+            <Form.Item name="sales_order_id" label="关联订单">
+              <Select
+                showSearch
+                allowClear
+                placeholder="选择订单"
+                optionFilterProp="label"
+                onChange={applyOrder}
+                options={orders.map((order) => ({
+                  value: order.id,
+                  label: `${order.order_no || `#${order.id}`} / 客户 #${order.customer_id} / ${shortDate(order.delivery_date)}`,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item name="title" label="标题" rules={[{ required: true }]}><Input /></Form.Item>
+            <Form.Item name="contract_no" label="合同号"><Input placeholder="留空自动生成" /></Form.Item>
+            <Form.Item name="amount" label="金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
+            <Form.Item name="status" label="状态">
+              <Select options={[
+                { value: "draft", label: "草稿" }, { value: "signed", label: "已签署" }, { value: "active", label: "履行中" }, { value: "terminated", label: "已终止" },
+              ]} />
+            </Form.Item>
+            <Form.Item name="signed_date" label="签署日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="expire_date" label="到期日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
+          </div>
+          <Form.Item name="file_url" label="文件URL"><Input /></Form.Item>
+          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
+            <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/contracts")}>取消</Button>
+          </Form.Item>
+        </Form>
+      </Card>
+    </SalesModuleShell>
   );
 }

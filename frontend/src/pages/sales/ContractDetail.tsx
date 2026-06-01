@@ -1,15 +1,25 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty } from "antd";
-import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
+import { ArrowLeftOutlined, AuditOutlined, EditOutlined } from "@ant-design/icons";
 import { getContract } from "../../api";
 import type { Contract } from "../../types";
-import { CustomerLink } from "./salesUi";
+import { CustomerLink, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
-  draft: { color: "default", label: "草稿" }, signed: { color: "blue", label: "已签署" },
-  active: { color: "green", label: "履行中" }, expired: { color: "orange", label: "已到期" }, terminated: { color: "red", label: "已终止" },
+  draft: { color: "default", label: "草稿" },
+  signed: { color: "blue", label: "已签署" },
+  active: { color: "green", label: "履行中" },
+  expired: { color: "orange", label: "已到期" },
+  terminated: { color: "red", label: "已终止" },
 };
+
+const STATUS_STEPS = [
+  { key: "draft", label: "草稿" },
+  { key: "signed", label: "已签署" },
+  { key: "active", label: "履行中" },
+  { key: "expired", label: "已到期" },
+];
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,33 +29,148 @@ export default function ContractDetail() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getContract(Number(id)).then((r) => setCt(r.data.data))
+    setLoading(true);
+    setError(null);
+    getContract(Number(id))
+      .then((r) => setCt(r.data.data))
       .catch((e) => setError(e.message || "加载失败"))
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <Spin style={{ display: "block", margin: "100px auto" }} />;
-  if (error) return <Alert type="error" message={error} />;
-  if (!ct) return <Empty description="合同不存在" />;
+  if (loading) {
+    return (
+      <SalesModuleShell title="合同详情" activeKey="contracts">
+        <Spin style={{ display: "block", margin: "100px auto" }} />
+      </SalesModuleShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SalesModuleShell title="合同详情" activeKey="contracts">
+        <Alert type="error" message={error} />
+      </SalesModuleShell>
+    );
+  }
+
+  if (!ct) {
+    return (
+      <SalesModuleShell title="合同详情" activeKey="contracts">
+        <Empty description="合同不存在" />
+      </SalesModuleShell>
+    );
+  }
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/contracts")}>返回</Button>
-        <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/contracts/${ct.id}/edit`)}>编辑</Button>
-      </Space>
-      <Card title={ct.contract_no || `合同 #${ct.id}`} extra={<Tag color={STATUS[ct.status]?.color}>{STATUS[ct.status]?.label || ct.status}</Tag>}>
-        <Descriptions column={2} size="small">
-          <Descriptions.Item label="标题">{ct.title}</Descriptions.Item>
-          <Descriptions.Item label="金额">¥{ct.amount.toLocaleString()}</Descriptions.Item>
-          <Descriptions.Item label="客户"><CustomerLink id={ct.customer_id} /></Descriptions.Item>
-          <Descriptions.Item label="关联订单">{ct.sales_order_id || "-"}</Descriptions.Item>
-          <Descriptions.Item label="签署日期">{ct.signed_date?.slice(0, 10) || "-"}</Descriptions.Item>
-          <Descriptions.Item label="到期日期">{ct.expire_date?.slice(0, 10) || "-"}</Descriptions.Item>
-          <Descriptions.Item label="文件">{ct.file_url || "-"}</Descriptions.Item>
-          <Descriptions.Item label="备注" span={2}>{ct.notes || "-"}</Descriptions.Item>
-        </Descriptions>
+    <SalesModuleShell
+      title={ct.contract_no || `合同 #${ct.id}`}
+      subtitle={ct.notes ? `备注: ${ct.notes}` : "销售合同详情，含签署信息、履行状态和到期跟踪"}
+      activeKey="contracts"
+      extra={(
+        <>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/contracts")}>返回</Button>
+          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/contracts/${ct.id}/edit`)}>编辑</Button>
+        </>
+      )}
+    >
+      <MetricBand
+        items={[
+          { title: "合同金额", value: ct.amount || 0, prefix: "¥", precision: 0 },
+          { title: "已开票金额", value: 0, prefix: "¥", precision: 0 },
+          { title: "状态", value: STATUS[ct.status]?.label || ct.status },
+          { title: "到期日", value: ct.expire_date ? shortDate(ct.expire_date) : "-" },
+        ]}
+      />
+
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/contracts")}>返回列表</Button>
+          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/contracts/${ct.id}/edit`)}>编辑合同</Button>
+        </Space>
       </Card>
-    </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 12, alignItems: "start" }}>
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Card
+            title="合同信息"
+            size="small"
+            extra={<Tag color={STATUS[ct.status]?.color}>{STATUS[ct.status]?.label || ct.status}</Tag>}
+          >
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="合同号">{ct.contract_no || `#${ct.id}`}</Descriptions.Item>
+              <Descriptions.Item label="客户"><CustomerLink id={ct.customer_id} /></Descriptions.Item>
+              <Descriptions.Item label="标题">{ct.title}</Descriptions.Item>
+              <Descriptions.Item label="金额">{money(ct.amount)}</Descriptions.Item>
+              <Descriptions.Item label="签署日期">{shortDate(ct.signed_date)}</Descriptions.Item>
+              <Descriptions.Item label="到期日期">{shortDate(ct.expire_date)}</Descriptions.Item>
+              <Descriptions.Item label="关联订单">{ct.sales_order_id ? `订单 #${ct.sales_order_id}` : "-"}</Descriptions.Item>
+              <Descriptions.Item label="文件">{ct.file_url ? <Typography.Link href={ct.file_url} target="_blank">查看文件</Typography.Link> : "-"}</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{ct.notes || "-"}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Space>
+
+        <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
+          <Card size="small" title={<><AuditOutlined /> 合同摘要</>}>
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">合同金额</Typography.Text>
+                <Typography.Text strong>{money(ct.amount)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">合同标题</Typography.Text>
+                <Typography.Text>{ct.title}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">合同号</Typography.Text>
+                <Typography.Text>{ct.contract_no || `#${ct.id}`}</Typography.Text>
+              </div>
+              <Divider style={{ margin: "6px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">状态</Typography.Text>
+                <SalesStatusTag value={ct.status} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">签署日期</Typography.Text>
+                <Typography.Text>{shortDate(ct.signed_date)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">到期日期</Typography.Text>
+                <Typography.Text>{shortDate(ct.expire_date)}</Typography.Text>
+              </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="状态流转">
+            <ErpStatusTimeline
+              currentStatus={ct.status}
+              steps={STATUS_STEPS}
+              createdAt={ct.created_at}
+              lostStatus="terminated"
+            />
+          </Card>
+
+          <Card size="small" title="下一步动作">
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              {ct.status === "draft" ? (
+                <Alert showIcon type="info" message="合同为草稿状态，完善信息后可签署。" />
+              ) : ct.status === "signed" ? (
+                <Alert showIcon type="success" message="合同已签署，进入履行阶段。" />
+              ) : ct.status === "active" ? (
+                <Alert showIcon type="info" message="合同履行中，关注到期日和交付进度。" />
+              ) : ct.status === "expired" ? (
+                <Alert showIcon type="warning" message="合同已到期，如需续签请及时处理。" />
+              ) : ct.status === "terminated" ? (
+                <Alert showIcon type="error" message="合同已终止。" />
+              ) : null}
+              <Button block icon={<EditOutlined />} onClick={() => navigate(`/sales/contracts/${ct.id}/edit`)}>编辑合同</Button>
+              {ct.customer_id ? (
+                <Button block onClick={() => navigate(`/customers/${ct.customer_id}`)}>查看客户</Button>
+              ) : null}
+            </Space>
+          </Card>
+        </Space>
+      </div>
+    </SalesModuleShell>
   );
 }

@@ -4,6 +4,7 @@ import { Card, Form, Input, InputNumber, Select, Button, Space, message, DatePic
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getSuppliers, getProducts, createPurchaseOrder, getPurchaseOrder, updatePurchaseOrder } from "../../api";
+import { SalesModuleShell } from "./salesUi";
 
 export default function PurchaseOrderForm() {
   const { id } = useParams<{ id: string }>();
@@ -82,12 +83,15 @@ export default function PurchaseOrderForm() {
   if (loading) return <Spin style={{ display: "block", margin: "80px auto" }} />;
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/purchase-orders")}>返回</Button>
-      </Space>
-
-      <Card title={isEdit ? "编辑采购订单" : "新建采购订单"}>
+    <SalesModuleShell
+      title={isEdit ? "编辑采购订单" : "新建采购订单"}
+      subtitle="创建和管理供应商采购订单，包含采购明细和预计到货日期"
+      activeKey="procurement"
+      extra={(
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/purchase-orders")}>返回列表</Button>
+      )}
+    >
+      <Card>
         <Form form={form} layout="vertical" onFinish={handleSubmit}
           initialValues={{ items: [{}] }}
           onFinishFailed={() => message.warning("请完善必填项")}
@@ -184,6 +188,6 @@ export default function PurchaseOrderForm() {
           </div>
         </Form>
       </Card>
-    </div>
+    </SalesModuleShell>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
 import { getTarget, createTarget, updateTarget } from "../../api";
+import { SalesModuleShell } from "./salesUi";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 
@@ -35,8 +36,13 @@ export default function TargetForm() {
   };
 
   return (
-    <Card title={isEdit ? "编辑销售目标" : "新增销售目标"}>
-      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "active", target_type: "monthly" }}>
+    <SalesModuleShell
+      title={isEdit ? "编辑销售目标" : "新增销售目标"}
+      subtitle="设定销售人员的月度/季度/年度业绩目标，跟踪完成进度"
+      activeKey="targets"
+    >
+      <Card>
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "active", target_type: "monthly" }}>
         <Form.Item name="user_id" label="用户ID" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item>
         <Form.Item name="target_amount" label="目标金额" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
         <Form.Item name="actual_amount" label="实际完成"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
@@ -56,7 +62,8 @@ export default function TargetForm() {
           <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>
           <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/targets")}>取消</Button>
         </Form.Item>
-      </Form>
-    </Card>
+        </Form>
+      </Card>
+    </SalesModuleShell>
   );
 }

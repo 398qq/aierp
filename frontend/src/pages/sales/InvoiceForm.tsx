@@ -4,7 +4,7 @@ import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } f
 import { getInvoice, createInvoice, updateInvoice, getSalesOrders } from "../../api";
 import dayjs from "dayjs";
 import type { SalesOrder } from "../../types";
-import { CustomerSelect, shortDate } from "./salesUi";
+import { CustomerSelect, SalesModuleShell, shortDate } from "./salesUi";
 
 export default function InvoiceForm() {
   const { id } = useParams<{ id: string }>();
@@ -47,8 +47,13 @@ export default function InvoiceForm() {
   };
 
   return (
-    <Card title={isEdit ? "编辑发票" : "新增发票"}>
-      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft", invoice_type: "普通发票" }}>
+    <SalesModuleShell
+      title={isEdit ? "编辑发票" : "新增发票"}
+      subtitle="填写发票信息，关联销售订单"
+      activeKey="invoices"
+    >
+      <Card>
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft", invoice_type: "普通发票" }}>
         <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
           <CustomerSelect />
         </Form.Item>
@@ -82,6 +87,7 @@ export default function InvoiceForm() {
           <Button style={{ marginLeft: 8 }} onClick={() => navigate("/sales/invoices")}>取消</Button>
         </Form.Item>
       </Form>
-    </Card>
+      </Card>
+    </SalesModuleShell>
   );
 }
