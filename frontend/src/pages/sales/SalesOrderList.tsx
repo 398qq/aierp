@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Typography, message } from "antd";
-import { CarOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders } from "../../api";
+import { Alert, Button, Card, Descriptions, Input, Modal, Popconfirm, Select, Space, Switch, Table, Typography, Upload, message } from "antd";
+import { CarOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import type { UploadFile } from "antd/es/upload/interface";
+import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders, importSalesOrderPDF } from "../../api";
+import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { SalesOrder } from "../../types";
 import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
@@ -19,6 +21,11 @@ export default function SalesOrderList() {
   const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { delivery_risk?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
+  const [pdfImportOpen, setPdfImportOpen] = useState(false);
+  const [pdfFile, setPdfFile] = useState<UploadFile | null>(null);
+  const [pdfCustomerId, setPdfCustomerId] = useState<number | undefined>();
+  const [pdfImporting, setPdfImporting] = useState(false);
+  const [pdfResult, setPdfResult] = useState<SalesOrderPDFImportResult | null>(null);
   const navigate = useNavigate();
 
   const load = async () => {
@@ -63,6 +70,29 @@ export default function SalesOrderList() {
     }
   };
 
+  const handlePdfImport = async () => {
+    if (!pdfFile) {
+      message.warning("请选择PDF订单文件");
+      return;
+    }
+    setPdfImporting(true);
+    try {
+      const resp = await importSalesOrderPDF(pdfFile as unknown as File, pdfCustomerId);
+      if (resp.data.code !== 0) {
+        message.error(resp.data.msg || "导入失败");
+        return;
+      }
+      setPdfResult(resp.data.data);
+      message.success(resp.data.msg || "PDF订单导入成功");
+      load();
+    } catch (err: unknown) {
+      const serverMsg = (err as { response?: { data?: { msg?: string } } })?.response?.data?.msg;
+      message.error(serverMsg || "导入失败");
+    } finally {
+      setPdfImporting(false);
+    }
+  };
+
   return (
     <SalesModuleShell
       title="销售订单"
@@ -83,6 +113,17 @@ export default function SalesOrderList() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/orders/new")}>新建订单</Button>
+          <Button
+            icon={<UploadOutlined />}
+            onClick={() => {
+              setPdfImportOpen(true);
+              setPdfFile(null);
+              setPdfCustomerId(undefined);
+              setPdfResult(null);
+            }}
+          >
+            导入PDF订单
+          </Button>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
           <Input.Search
             allowClear
@@ -197,6 +238,63 @@ export default function SalesOrderList() {
           pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (count) => `共 ${count} 条` }}
         />
       </Card>
+
+      <Modal
+        title="导入PDF订单"
+        open={pdfImportOpen}
+        onCancel={() => setPdfImportOpen(false)}
+        onOk={handlePdfImport}
+        confirmLoading={pdfImporting}
+        okText="开始导入"
+        width={720}
+      >
+        <Space direction="vertical" size={14} style={{ width: "100%" }}>
+          <Upload
+            accept=".pdf"
+            maxCount={1}
+            beforeUpload={(file) => {
+              setPdfFile(file as unknown as UploadFile);
+              setPdfResult(null);
+              return false;
+            }}
+            onRemove={() => {
+              setPdfFile(null);
+              setPdfResult(null);
+            }}
+            fileList={pdfFile ? [pdfFile] : []}
+          >
+            <Button icon={<UploadOutlined />}>选择PDF订单文件</Button>
+          </Upload>
+          <div>
+            <Typography.Text strong>客户匹配</Typography.Text>
+            <div style={{ marginTop: 8, width: 320 }}>
+              <CustomerSelect value={pdfCustomerId} onChange={setPdfCustomerId} />
+            </div>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              PDF 内客户名称无法准确匹配时，可手工指定客户；系统会保留 PDF 文件名和识别摘要到订单备注。
+            </Typography.Text>
+          </div>
+          <Alert
+            type="info"
+            showIcon
+            message="支持文本型 PDF 订单，自动识别订单号、客户、日期、产品明细、数量、单价和金额。扫描件需先转为可复制文字的 PDF。"
+          />
+          {pdfResult ? (
+            <div style={{ borderTop: "1px solid #eef2f7", paddingTop: 12 }}>
+              <Descriptions size="small" column={2} bordered>
+                <Descriptions.Item label="订单号">{pdfResult.order_no || `#${pdfResult.id}`}</Descriptions.Item>
+                <Descriptions.Item label="客户">{pdfResult.matched.customer_name}</Descriptions.Item>
+                <Descriptions.Item label="明细行">{pdfResult.parsed.item_count}</Descriptions.Item>
+                <Descriptions.Item label="金额">{money(pdfResult.parsed.total_amount)}</Descriptions.Item>
+              </Descriptions>
+              <Space style={{ marginTop: 12 }}>
+                <Button type="primary" onClick={() => navigate(`/sales/orders/${pdfResult.id}`)}>查看订单</Button>
+                <Button onClick={() => setPdfImportOpen(false)}>关闭</Button>
+              </Space>
+            </div>
+          ) : null}
+        </Space>
+      </Modal>
     </SalesModuleShell>
   );
 }

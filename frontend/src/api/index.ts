@@ -879,6 +879,34 @@ export const batchDeleteSalesOrders = (ids: number[]) =>
 export const convertSalesOrderToDelivery = (id: number) =>
   client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/sales-orders/${id}/convert-to-delivery`);
 
+export type SalesOrderPDFImportResult = {
+  id: number;
+  order_no: string | null;
+  customer_id: number;
+  parsed: {
+    order_no?: string | null;
+    customer_name?: string | null;
+    item_count: number;
+    total_amount: number;
+    order_date?: string | null;
+    delivery_date?: string | null;
+  };
+  matched: {
+    customer_name: string;
+    products: Array<{ source?: string | null; product_id: number | null; product_name: string | null }>;
+  };
+  raw_text_preview: string;
+};
+
+export const importSalesOrderPDF = (file: File, customerId?: number) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post<APIResponse<SalesOrderPDFImportResult>>("/sales-orders/import-pdf", form, {
+    params: customerId ? { customer_id: customerId } : undefined,
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
 export type SalesOrderPDFOptions = {
   template?: "smart" | "standard" | "compact";
   company_name?: string;

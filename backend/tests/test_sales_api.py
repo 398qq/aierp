@@ -523,6 +523,46 @@ class TestSalesOrders:
         assert resp.headers["content-type"] == "application/pdf"
         assert resp.content.startswith(b"%PDF")
 
+    async def test_import_sales_order_pdf(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_customer: dict,
+        monkeypatch,
+    ):
+        from app.services import sales_order_pdf_import
+
+        monkeypatch.setattr(
+            sales_order_pdf_import,
+            "extract_pdf_text",
+            lambda _content: (
+                "Order No: PO-20260529\n"
+                f"Customer: {test_customer['name']}\n"
+                "Order Date: 2026-05-20\n"
+                "Delivery Date: 2026-05-30\n"
+                "ABC-100 2 15 30\n"
+                "XYZ-200 3 20 60\n"
+                "Total Amount: 90\n"
+            ),
+        )
+
+        resp = await async_client.post(
+            "/api/v1/sales-orders/import-pdf",
+            headers=auth_headers,
+            files={"file": ("customer_order.pdf", b"%PDF-1.4", "application/pdf")},
+        )
+
+        assert resp.status_code == 201
+        payload = resp.json()["data"]
+        assert payload["order_no"] == "PO-20260529"
+        assert payload["customer_id"] == test_customer["id"]
+        assert payload["parsed"]["item_count"] == 2
+        assert payload["parsed"]["total_amount"] == 90
+
+        order = await async_client.get(f"/api/v1/sales-orders/{payload['id']}", headers=auth_headers)
+        assert order.status_code == 200
+        assert len(order.json()["data"]["items"]) == 2
+
     async def test_convert_order_twice_fails(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         order = await async_client.post(
             "/api/v1/sales-orders", headers=auth_headers,

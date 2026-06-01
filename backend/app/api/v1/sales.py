@@ -3,7 +3,7 @@
 import io
 import sqlalchemy.orm
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -397,6 +397,35 @@ async def list_sales_orders(
         ai_map = await enrich_order_list(db, result["list"])
         result["ai"] = ai_map
     return ok(result)
+
+
+@router.post("/sales-orders/import-pdf", status_code=status.HTTP_201_CREATED)
+async def import_sales_order_pdf(
+    customer_id: int | None = Query(None, description="客户无法从 PDF 识别时可手工指定"),
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        return fail("请上传 PDF 订单文件")
+
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        return fail("文件大小不能超过 20MB")
+
+    try:
+        from app.services.sales_order_pdf_import import import_sales_order_from_pdf
+        result = await import_sales_order_from_pdf(
+            db,
+            content,
+            filename=file.filename,
+            customer_id=customer_id,
+        )
+        return ok(result, msg="PDF订单导入成功")
+    except ValueError as e:
+        return fail(str(e), 400)
+    except Exception as e:
+        return fail(f"PDF订单导入失败: {e}", 500)
 
 
 @router.get("/sales-orders/{order_id}/pdf")
