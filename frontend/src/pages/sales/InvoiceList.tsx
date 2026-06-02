@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Space, Tag, Select, message, Popconfirm } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
+import type { MenuProps } from "antd";
+import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getInvoices, deleteInvoice } from "../../api";
 import type { Invoice } from "../../types";
-import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, issued: { color: "blue", label: "已开票" },
@@ -92,27 +93,70 @@ export default function InvoiceList() {
       </Space>
       <Table
         rowKey="id" loading={loading} dataSource={data}
+        rowClassName={erpRowClass}
+        scroll={{ x: "max-content" }}
         columns={[
-          { title: "#", width: 45, render: (_: unknown, __: Invoice, index: number) => (page - 1) * 20 + index + 1 },
-          { title: "发票号", dataIndex: "invoice_no", width: 140, render: (v: string, r: Invoice) => <a onClick={() => navigate(`/sales/invoices/${r.id}`)}>{v || `#${r.id}`}</a> },
-          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
-          { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
-          { title: "税额", dataIndex: "tax_amount", width: 100, render: (v: number) => `¥${v.toLocaleString()}` },
-          { title: "类型", dataIndex: "invoice_type", width: 100 },
-          { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
-          { title: "开票日期", dataIndex: "invoice_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
+          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: Invoice, index: number) => (page - 1) * 20 + index + 1 },
           {
-            title: "操作", width: 120,
-            render: (_: unknown, r: Invoice) => (
-              <Space size="small">
-                <Button size="small" onClick={() => navigate(`/sales/invoices/${r.id}`)}>详情</Button>
-                <Popconfirm title="确定删除?" onConfirm={async () => {
-                  try { await deleteInvoice(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
-                }}><Button size="small" danger>删除</Button></Popconfirm>
-              </Space>
+            title: "发票号", dataIndex: "invoice_no", width: 140, fixed: "left",
+            render: (v: string, r: Invoice) => (
+              <div>
+                <div className="erp-cell-primary">
+                  <Typography.Link strong onClick={() => navigate(`/sales/invoices/${r.id}`)}>{v || `#${r.id}`}</Typography.Link>
+                </div>
+                <div className="erp-cell-secondary"><CustomerLink id={r.customer_id} /></div>
+              </div>
             ),
           },
+          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
+          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (v: number) => money(v) },
+          { title: "税额", dataIndex: "tax_amount", width: 100, align: "right", sorter: (a, b) => (a.tax_amount || 0) - (b.tax_amount || 0), render: (v: number) => money(v) },
+          { title: "类型", dataIndex: "invoice_type", width: 100 },
+          {
+            title: "状态", dataIndex: "status", width: 90,
+            sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+            render: (v: string) => (
+              <>
+                {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
+                <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag>
+              </>
+            ),
+          },
+          { title: "开票日期", dataIndex: "invoice_date", width: 110, sorter: (a, b) => (a.invoice_date || "").localeCompare(b.invoice_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
+          {
+            title: "操作", width: 60, fixed: "right",
+            render: (_: unknown, r: Invoice) => {
+              const items: MenuProps["items"] = [
+                { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/invoices/${r.id}`) },
+                { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/invoices/${r.id}/edit`) },
+                { type: "divider" as const },
+                { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
+                  Modal.confirm({ title: "确定删除?", content: `删除发票 #${r.id}？`, onOk: async () => {
+                    try { await deleteInvoice(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                  }});
+                }},
+              ];
+              return (
+                <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+                  <Button size="small" icon={<EllipsisOutlined />} type="text" />
+                </Dropdown>
+              );
+            },
+          },
         ]}
+        summary={(pageData: readonly Invoice[]) => {
+          const totalAmount = pageData.reduce((s, r) => s + r.amount, 0);
+          const totalTax = pageData.reduce((s, r) => s + (r.tax_amount || 0), 0);
+          return (
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
+              <Table.Summary.Cell index={1} colSpan={2} />
+              <Table.Summary.Cell index={3} align="right"><Typography.Text strong>{money(totalAmount)}</Typography.Text></Table.Summary.Cell>
+              <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalTax)}</Typography.Text></Table.Summary.Cell>
+              <Table.Summary.Cell index={5} colSpan={4} />
+            </Table.Summary.Row>
+          );
+        }}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
       />
     </SalesModuleShell>

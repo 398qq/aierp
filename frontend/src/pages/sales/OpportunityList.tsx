@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Input, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
-import { AppstoreOutlined, BarsOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
-import { batchUpdateOpportunities, getOpportunities } from "../../api";
+import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
+import type { MenuProps } from "antd";
+import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { batchUpdateOpportunities, deleteOpportunity, getOpportunities } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
-import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, money, shortDate, stageLabel } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, stageLabel, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STAGE_OPTIONS = [
   { value: "lead", label: "线索" },
@@ -82,6 +83,21 @@ export default function OpportunityList() {
     setSearchText("");
     setQ("");
   };
+
+  const exportData = useMemo(() =>
+    data.map((r) => ({
+      id: r.id,
+      title: r.title,
+      customer_id: r.customer_id,
+      stage: r.stage ? (stageLabel[r.stage] || r.stage) : "",
+      status: STATUS_OPTIONS.find((s) => s.value === r.status)?.label || r.status,
+      amount: r.amount || 0,
+      win_probability: r.win_probability ?? 0,
+      expected_close_date: r.expected_close_date?.slice(0, 10) || "",
+      assigned_to: r.assigned_to || "",
+      source: r.source || "",
+    })),
+  [data]);
 
   const batchStage = async (nextStage: string) => {
     if (!selected.length) return;
@@ -169,6 +185,22 @@ export default function OpportunityList() {
             <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
             <span style={{ fontSize: 13 }}>AI</span>
           </Space>
+          <ErpExportButton
+            data={exportData}
+            columns={[
+              { key: "id", title: "ID" },
+              { key: "title", title: "商机" },
+              { key: "customer_id", title: "客户ID" },
+              { key: "stage", title: "阶段" },
+              { key: "status", title: "状态" },
+              { key: "amount", title: "金额" },
+              { key: "win_probability", title: "赢率(%)" },
+              { key: "expected_close_date", title: "预计成交" },
+              { key: "assigned_to", title: "负责人" },
+              { key: "source", title: "来源" },
+            ]}
+            filename="opportunities_export.csv"
+          />
           {selected.length ? (
             <Select
               placeholder={`批量推进 ${selected.length} 个`}
@@ -191,34 +223,54 @@ export default function OpportunityList() {
           <Table
             rowKey="id"
             dataSource={data}
+            rowClassName={erpRowClass}
             rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+            scroll={{ x: "max-content" }}
             columns={[
+              {
+                title: "#", width: 45, fixed: "left",
+                render: (_: unknown, __: Opportunity, index: number) => index + 1,
+              },
               {
                 title: "商机",
                 dataIndex: "title",
                 ellipsis: true,
+                fixed: "left",
                 render: (value: string, record: Opportunity) => (
-                  <Space direction="vertical" size={0}>
-                    <Typography.Link strong onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value}</Typography.Link>
-                    <CustomerLink id={record.customer_id} />
-                  </Space>
+                  <div>
+                    <div className="erp-cell-primary">
+                      <Typography.Link strong onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
+                    </div>
+                    <div className="erp-cell-secondary"><CustomerLink id={record.customer_id} /></div>
+                  </div>
                 ),
               },
               {
-                title: "阶段 / 状态",
+                title: "阶段",
                 dataIndex: "stage",
-                width: 150,
-                render: (value: string, record: Opportunity) => (
-                  <Space direction="vertical" size={2}>
-                    <Tag color="blue" style={{ margin: 0 }}>{stageLabel[value] || value || "-"}</Tag>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{STATUS_OPTIONS.find((item) => item.value === record.status)?.label || record.status}</Typography.Text>
-                  </Space>
+                width: 110,
+                sorter: (a, b) => (a.stage || "").localeCompare(b.stage || ""),
+                render: (value: string) => (
+                  <Tag color="blue" style={{ margin: 0 }}>{stageLabel[value] || value || "-"}</Tag>
+                ),
+              },
+              {
+                title: "状态",
+                dataIndex: "status",
+                width: 100,
+                sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+                render: (value: string) => (
+                  <>
+                    {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
+                    <SalesStatusTag value={value} />
+                  </>
                 ),
               },
               {
                 title: "金额",
                 dataIndex: "amount",
                 width: 130,
+                align: "right",
                 sorter: (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
                 render: (value: number | null) => <Typography.Text strong>{money(value)}</Typography.Text>,
               },
@@ -234,20 +286,42 @@ export default function OpportunityList() {
                   </Space>
                 ),
               },
-              { title: "预计成交", dataIndex: "expected_close_date", width: 120, render: shortDate },
+              { title: "预计成交", dataIndex: "expected_close_date", width: 120, sorter: (a, b) => (a.expected_close_date || "").localeCompare(b.expected_close_date || ""), render: shortDate },
               { title: "负责人", dataIndex: "assigned_to", width: 120, render: (value: string | null) => value || "-" },
               { title: "来源", dataIndex: "source", width: 120, ellipsis: true, render: (value: string | null) => value || "-" },
               {
-                title: "操作",
-                width: 180,
-                render: (_: unknown, record: Opportunity) => (
-                  <Space size="small">
-                    <Button size="small" onClick={() => navigate(`/sales/opportunities/${record.id}`)}>详情</Button>
-                    <Button size="small" icon={<FileTextOutlined />} onClick={() => navigate(`/sales/quotations/new?customer_id=${record.customer_id}&opportunity_id=${record.id}`)}>报价</Button>
-                  </Space>
-                ),
+                title: "操作", width: 60, fixed: "right",
+                render: (_: unknown, record: Opportunity) => {
+                  const items: MenuProps["items"] = [
+                    { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/opportunities/${record.id}`) },
+                    { key: "quote", icon: <FileTextOutlined />, label: "创建报价", onClick: () => navigate(`/sales/quotations/new?customer_id=${record.customer_id}&opportunity_id=${record.id}`) },
+                    { type: "divider" as const },
+                    { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
+                      Modal.confirm({ title: "确定删除?", content: `删除商机 #${record.id}？`, onOk: async () => {
+                        try { await deleteOpportunity(record.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                      }});
+                    }},
+                  ];
+                  return (
+                    <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+                      <Button size="small" icon={<EllipsisOutlined />} type="text" />
+                    </Dropdown>
+                  );
+                },
               },
             ]}
+            summary={(pageData: readonly Opportunity[]) => {
+              const totalAmt = pageData.reduce((s, r) => s + Number(r.amount || 0), 0);
+              return (
+                <Table.Summary.Row>
+                  <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} colSpan={2} />
+                  <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalAmt)}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} colSpan={5} />
+                </Table.Summary.Row>
+              );
+            }}
             pagination={{ pageSize: 20, showSizeChanger: false }}
           />
         </Card>

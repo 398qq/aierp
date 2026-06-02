@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Space, Tag, Select, message, Popconfirm, Modal, Upload } from "antd";
-import { PlusOutlined, UploadOutlined, DownloadOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Upload, message } from "antd";
+import type { MenuProps } from "antd";
+import { DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import { getContracts, deleteContract, importContractPDF } from "../../api";
 import client from "../../api/client";
 import type { Contract } from "../../types";
-import { CustomerLink, CustomerSelect, SalesModuleShell } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, signed: { color: "blue", label: "已签署" },
@@ -45,6 +46,17 @@ export default function ContractList() {
 
   useEffect(() => { load(); }, [page, status, customerId]);
 
+  const exportData = useMemo(() =>
+    data.map((r) => ({
+      contract_no: r.contract_no || `#${r.id}`,
+      title: r.title,
+      amount: r.amount,
+      status: STATUS[r.status]?.label || r.status,
+      signed_date: r.signed_date?.slice(0, 10) || "",
+      expire_date: r.expire_date?.slice(0, 10) || "",
+    })),
+  [data]);
+
   return (
     <SalesModuleShell
       title="合同管理"
@@ -56,6 +68,18 @@ export default function ContractList() {
         <Button icon={<UploadOutlined />} onClick={() => { setImportOpen(true); setImportFile(null); setImportResult(null); }}>导入合同</Button>
         <Button onClick={() => { setPdfImportOpen(true); setPdfFile(null); setPdfResult(null); }}>导入PDF</Button>
         <Button icon={<DownloadOutlined />} onClick={() => { window.open("/api/v1/export/contracts?format=csv", "_blank"); }}>导出</Button>
+        <ErpExportButton
+          data={exportData}
+          columns={[
+            { key: "contract_no", title: "合同号" },
+            { key: "title", title: "标题" },
+            { key: "amount", title: "金额" },
+            { key: "status", title: "状态" },
+            { key: "signed_date", title: "签署日期" },
+            { key: "expire_date", title: "到期日期" },
+          ]}
+          filename="contracts_export.csv"
+        />
         <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
           { value: "draft", label: "草稿" }, { value: "signed", label: "已签署" }, { value: "active", label: "履行中" },
         ]} />
@@ -65,26 +89,67 @@ export default function ContractList() {
       </Space>
       <Table
         rowKey="id" loading={loading} dataSource={data}
+        rowClassName={erpRowClass}
+        scroll={{ x: "max-content" }}
         columns={[
-          { title: "合同号", dataIndex: "contract_no", width: 140, render: (v: string, r: Contract) => <a onClick={() => navigate(`/sales/contracts/${r.id}`)}>{v || `#${r.id}`}</a> },
-          { title: "标题", dataIndex: "title", ellipsis: true },
-          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
-          { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
-          { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
-          { title: "签署日期", dataIndex: "signed_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
-          { title: "到期日期", dataIndex: "expire_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
+          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: Contract, index: number) => (page - 1) * 20 + index + 1 },
           {
-            title: "操作", width: 120,
-            render: (_: unknown, r: Contract) => (
-              <Space size="small">
-                <Button size="small" onClick={() => navigate(`/sales/contracts/${r.id}`)}>详情</Button>
-                <Popconfirm title="确定删除?" onConfirm={async () => {
-                  try { await deleteContract(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
-                }}><Button size="small" danger>删除</Button></Popconfirm>
-              </Space>
+            title: "合同号", dataIndex: "contract_no", width: 140, fixed: "left",
+            render: (v: string, r: Contract) => (
+              <div>
+                <div className="erp-cell-primary">
+                  <Typography.Link strong onClick={() => navigate(`/sales/contracts/${r.id}`)}>{v || `#${r.id}`}</Typography.Link>
+                </div>
+                <div className="erp-cell-secondary">{r.title}</div>
+              </div>
             ),
           },
+          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
+          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
+          {
+            title: "状态", dataIndex: "status", width: 90,
+            sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+            render: (v: string) => (
+              <>
+                {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
+                <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag>
+              </>
+            ),
+          },
+          { title: "签署日期", dataIndex: "signed_date", width: 110, sorter: (a, b) => (a.signed_date || "").localeCompare(b.signed_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
+          { title: "到期日期", dataIndex: "expire_date", width: 110, sorter: (a, b) => (a.expire_date || "").localeCompare(b.expire_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
+          {
+            title: "操作", width: 60, fixed: "right",
+            render: (_: unknown, r: Contract) => {
+              const items: MenuProps["items"] = [
+                { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/contracts/${r.id}`) },
+                { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/contracts/${r.id}/edit`) },
+                { type: "divider" as const },
+                { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
+                  Modal.confirm({ title: "确定删除?", content: `删除合同 #${r.id}？`, onOk: async () => {
+                    try { await deleteContract(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                  }});
+                }},
+              ];
+              return (
+                <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+                  <Button size="small" icon={<EllipsisOutlined />} type="text" />
+                </Dropdown>
+              );
+            },
+          },
         ]}
+        summary={(pageData: readonly Contract[]) => {
+          const total = pageData.reduce((s, r) => s + r.amount, 0);
+          return (
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
+              <Table.Summary.Cell index={1} colSpan={2} />
+              <Table.Summary.Cell index={3} align="right"><Typography.Text strong>{money(total)}</Typography.Text></Table.Summary.Cell>
+              <Table.Summary.Cell index={4} colSpan={4} />
+            </Table.Summary.Row>
+          );
+        }}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
       />
 

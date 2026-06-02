@@ -8,7 +8,7 @@ import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, 
 import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { SalesOrder } from "../../types";
-import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 export default function SalesOrderList() {
   const [data, setData] = useState<SalesOrder[]>([]);
@@ -202,27 +202,43 @@ export default function SalesOrderList() {
           bordered
           loading={loading}
           dataSource={data}
+          rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+          scroll={{ x: "max-content" }}
           columns={[
             { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: SalesOrder, index: number) => (page - 1) * 20 + index + 1 },
             {
               title: "订单",
               dataIndex: "order_no",
+              fixed: "left",
               minWidth: 220,
               render: (value: string | null, record: SalesOrder) => (
-                <Space direction="vertical" size={0}>
-                  <a onClick={() => navigate(`/sales/orders/${record.id}`)}>{value || `#${record.id}`}</a>
-                  <Space size={8}>
-                    <CustomerLink id={record.customer_id} />
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>产品行 {record.items?.length || 0}</Typography.Text>
-                  </Space>
-                </Space>
+                <div>
+                  <div className="erp-cell-primary">
+                    <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
+                  </div>
+                  <div className="erp-cell-secondary">
+                    <Space size={8}>
+                      <CustomerLink id={record.customer_id} />
+                      <span>产品行 {record.items?.length || 0}</span>
+                    </Space>
+                  </div>
+                </div>
               ),
             },
-            { title: "金额", dataIndex: "total_amount", width: 130, render: money },
-            { title: "状态", dataIndex: "status", width: 100, render: (value: string) => <SalesStatusTag value={value} /> },
-            { title: "下单", dataIndex: "order_date", width: 120, render: shortDate },
-            { title: "交付", dataIndex: "delivery_date", width: 120, render: shortDate },
+            { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
+            {
+              title: "状态", dataIndex: "status", width: 100,
+              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              render: (value: string) => (
+                <>
+                  {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
+                  <SalesStatusTag value={value} />
+                </>
+              ),
+            },
+            { title: "下单", dataIndex: "order_date", width: 120, sorter: (a, b) => (a.order_date || "").localeCompare(b.order_date || ""), render: shortDate },
+            { title: "交付", dataIndex: "delivery_date", width: 120, sorter: (a, b) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
             {
               title: "AI",
               width: 100,

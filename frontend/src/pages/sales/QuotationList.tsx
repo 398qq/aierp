@@ -25,7 +25,7 @@ import {
 } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { Quotation, QuotationStats } from "../../types";
-import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, money, shortDate } from "./salesUi";
+import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 type QuoteScene = "all" | "draft" | "sent" | "expiring" | "expired" | "won" | "lost";
 
@@ -275,23 +275,35 @@ export default function QuotationList() {
           bordered
           loading={loading}
           dataSource={visibleData}
+          rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           columns={[
             {
+              title: "#", width: 45, fixed: "left",
+              render: (_: unknown, __: Quotation, index: number) => (page - 1) * 20 + index + 1,
+            },
+            {
               title: "报价单",
               dataIndex: "quotation_no",
+              fixed: "left",
               minWidth: 280,
               render: (value: string | null, record: Quotation) => {
                 const names = (record.items || []).map((item) => item.product_name).filter(Boolean).slice(0, 3);
                 return (
                   <Space direction="vertical" size={2}>
-                    <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
-                      {value || record.title || `#${record.id}`}
-                    </Typography.Link>
-                    <Space size={6} wrap>
-                      <CustomerLink id={record.customer_id} />
-                      {record.title && value && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{record.title}</Typography.Text>}
-                    </Space>
+                    <div>
+                      <div className="erp-cell-primary">
+                        <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
+                          {value || record.title || `#${record.id}`}
+                        </Typography.Link>
+                      </div>
+                      <div className="erp-cell-secondary">
+                        <Space size={6} wrap>
+                          <CustomerLink id={record.customer_id} />
+                          {record.title && value && <span>{record.title}</span>}
+                        </Space>
+                      </div>
+                    </div>
                     {names.length > 0 && (
                       <Space size={[3, 2]} wrap style={{ marginTop: 2 }}>
                         {names.map((name) => <Tag key={name} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{name}</Tag>)}
@@ -303,11 +315,21 @@ export default function QuotationList() {
               },
             },
             { title: "金额", dataIndex: "total_amount", width: 120, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
-            { title: "状态", dataIndex: "status", width: 80, render: (value: string) => <SalesStatusTag value={value} /> },
+            {
+              title: "状态", dataIndex: "status", width: 90,
+              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              render: (value: string) => (
+                <>
+                  {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
+                  <SalesStatusTag value={value} />
+                </>
+              ),
+            },
             {
               title: "有效期",
               dataIndex: "valid_until",
               width: 130,
+              sorter: (a, b) => (a.valid_until || "").localeCompare(b.valid_until || ""),
               render: (value: string | null, record: Quotation) => {
                 const due = getDueMeta(value, record.status);
                 return <Tag color={due.color}>{due.text}</Tag>;

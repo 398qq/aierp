@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd";
-import { DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd";
+import type { MenuProps } from "antd";
+import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { DeliveryNote, PaymentRecord } from "../../types";
-import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesStatusTag, shortDate } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const PAYMENT_STATUS: Record<string, { color: string; label: string }> = {
   completed: { color: "green", label: "已收款" },
@@ -78,6 +79,19 @@ export default function DeliveryNoteList() {
     return { pending, shipped, linkedCustomers, lineCount };
   }, [data]);
 
+  const exportData = useMemo(() =>
+    data.map((r) => ({
+      delivery_no: r.delivery_no || `#${r.id}`,
+      sales_order_id: r.sales_order_id,
+      customer_id: r.customer_id,
+      status: r.status,
+      delivery_date: r.delivery_date?.slice(0, 10) || "",
+      received_date: r.received_date?.slice(0, 10) || "",
+      items_count: r.items?.length || 0,
+      payment_status: paymentMap[r.id] ? (PAYMENT_STATUS[paymentMap[r.id].status]?.label || paymentMap[r.id].status) : "",
+    })),
+  [data, paymentMap]);
+
   const handleBatchDelete = async () => {
     try {
       await batchDeleteDeliveryNotes(selected);
@@ -149,30 +163,62 @@ export default function DeliveryNoteList() {
               <Button danger icon={<DeleteOutlined />}>删除({selected.length})</Button>
             </Popconfirm>
           )}
+          <ErpExportButton
+            data={exportData}
+            columns={[
+              { key: "delivery_no", title: "发货单" },
+              { key: "sales_order_id", title: "订单号" },
+              { key: "customer_id", title: "客户ID" },
+              { key: "status", title: "状态" },
+              { key: "delivery_date", title: "发货日期" },
+              { key: "received_date", title: "签收日期" },
+              { key: "items_count", title: "明细行数" },
+              { key: "payment_status", title: "回款状态" },
+            ]}
+            filename="delivery_notes_export.csv"
+          />
         </Space>
 
         <Table
           rowKey="id"
           loading={loading}
           dataSource={data}
+          rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+          scroll={{ x: "max-content" }}
           columns={[
+            {
+              title: "#", width: 45, fixed: "left",
+              render: (_: unknown, __: DeliveryNote, index: number) => (page - 1) * 20 + index + 1,
+            },
             {
               title: "发货单",
               dataIndex: "delivery_no",
               width: 180,
+              fixed: "left",
               render: (value: string, record: DeliveryNote) => (
-                <Space direction="vertical" size={0}>
-                  <Typography.Link onClick={() => navigate(`/sales/delivery-notes/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>订单 #{record.sales_order_id}</Typography.Text>
-                </Space>
+                <div>
+                  <div className="erp-cell-primary">
+                    <Typography.Link strong onClick={() => navigate(`/sales/delivery-notes/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
+                  </div>
+                  <div className="erp-cell-secondary">订单 #{record.sales_order_id}</div>
+                </div>
               ),
             },
             { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
-            { title: "状态", dataIndex: "status", width: 110, render: (value: string) => <SalesStatusTag value={value} /> },
-            { title: "发货日期", dataIndex: "delivery_date", width: 120, render: shortDate },
-            { title: "签收日期", dataIndex: "received_date", width: 120, render: shortDate },
-            { title: "明细", width: 90, render: (_: unknown, record: DeliveryNote) => record.items?.length || 0 },
+            {
+              title: "状态", dataIndex: "status", width: 110,
+              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              render: (value: string) => (
+                <>
+                  {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
+                  <SalesStatusTag value={value} />
+                </>
+              ),
+            },
+            { title: "发货日期", dataIndex: "delivery_date", width: 120, sorter: (a, b) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
+            { title: "签收日期", dataIndex: "received_date", width: 120, sorter: (a, b) => (a.received_date || "").localeCompare(b.received_date || ""), render: shortDate },
+            { title: "明细", width: 80, align: "right", render: (_: unknown, record: DeliveryNote) => record.items?.length || 0 },
             {
               title: "回款", width: 100,
               render: (_: unknown, record: DeliveryNote) => {
@@ -187,26 +233,38 @@ export default function DeliveryNoteList() {
               render: (_: unknown, record: DeliveryNote) => <AIInlineBadge riskLevel={aiMap[record.id]?.completion_risk} flag={aiMap[record.id]?.flag} />,
             },
             {
-              title: "操作",
-              width: 140,
-              render: (_: unknown, record: DeliveryNote) => (
-                <Space size="small">
-                  <Button size="small" onClick={() => navigate(`/sales/delivery-notes/${record.id}`)}>详情</Button>
-                  <Popconfirm title="确定删除?" onConfirm={async () => {
-                    try {
-                      await deleteDeliveryNote(record.id);
-                      message.success("已删除");
-                      load();
-                    } catch {
-                      message.error("删除失败");
-                    }
-                  }}>
-                    <Button size="small" danger>删除</Button>
-                  </Popconfirm>
-                </Space>
-              ),
+              title: "操作", width: 60, fixed: "right",
+              render: (_: unknown, record: DeliveryNote) => {
+                const items: MenuProps["items"] = [
+                  { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/delivery-notes/${record.id}`) },
+                  { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/delivery-notes/${record.id}/edit`) },
+                  { type: "divider" as const },
+                  { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
+                    Modal.confirm({ title: "确定删除?", content: `删除发货单 #${record.id}？`, onOk: async () => {
+                      try { await deleteDeliveryNote(record.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                    }});
+                  }},
+                ];
+                return (
+                  <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+                    <Button size="small" icon={<EllipsisOutlined />} type="text" />
+                  </Dropdown>
+                );
+              },
             },
           ]}
+          summary={(pageData: readonly DeliveryNote[]) => {
+            const itemCount = pageData.reduce((s, r) => s + (r.items?.length || 0), 0);
+            return (
+              <Table.Summary.Row>
+                <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
+                <Table.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={2} colSpan={4} />
+                <Table.Summary.Cell index={6} align="right"><Typography.Text strong>{itemCount} 行</Typography.Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={7} colSpan={3} />
+              </Table.Summary.Row>
+            );
+          }}
           pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (count) => `共 ${count} 条` }}
         />
       </Card>

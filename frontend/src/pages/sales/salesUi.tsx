@@ -226,6 +226,34 @@ export function SalesModuleShell({
         }
         .sales-erp-table-card .ant-table-tbody > tr > td {
           vertical-align: top;
+          padding: 4px 8px !important;
+        }
+        .sales-erp-table-card .ant-table-thead > tr > th {
+          padding: 6px 8px !important;
+        }
+        .sales-erp-table-card .ant-table-tbody > tr.erp-row-even > td {
+          background: #f8fafc;
+        }
+        .sales-erp-table-card .ant-table-tbody > tr:hover > td {
+          background: #eef2ff !important;
+        }
+        .sales-erp-table-card .erp-status-dot {
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          margin-right: 6px;
+          vertical-align: middle;
+        }
+        .sales-erp-table-card .erp-cell-primary {
+          color: #111827;
+          font-weight: 500;
+          font-size: 13px;
+        }
+        .sales-erp-table-card .erp-cell-secondary {
+          color: #9ca3af;
+          font-size: 11px;
+          line-height: 1.4;
         }
         @media (max-width: 1180px) {
           .sales-erp-metrics {
@@ -595,6 +623,23 @@ export function SalesQuickActions() {
     </Space>
   );
 }
+
+// ─── ERP Professional Table Utilities ────────────────────────────
+
+/** Shared rowClassName for striping — pass the page state & size */
+export const erpRowClass = (_: unknown, index: number) => (index % 2 === 0 ? "erp-row-even" : "");
+
+/** Status dot indicator: <span className="erp-status-dot" style={{background:"..."}} /> */
+export const statusDot = (color: string) => <span className="erp-status-dot" style={{ background: color }} />;
+
+/** Map status values to dot colors for consistent table display */
+export const ERP_STATUS_DOT: Record<string, string> = {
+  draft: "#d9d9d9", pending: "#d9d9d9", sent: "#1677ff", confirmed: "#1677ff",
+  active: "#1677ff", signed: "#1677ff", shipped: "#faad14",
+  delivered: "#52c41a", completed: "#52c41a", won: "#52c41a",
+  expired: "#faad14", overdue: "#ff4d4f",
+  lost: "#ff4d4f", cancelled: "#ff4d4f", terminated: "#ff4d4f",
+};
 
 export interface ExportColumn {
   key: string;
