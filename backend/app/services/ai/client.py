@@ -1,10 +1,15 @@
 import json
+import logging
+import time
 from collections.abc import AsyncGenerator
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import settings
+from app.core.observability.metrics import ai_call_duration_seconds
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_numbers(obj):
@@ -42,34 +47,44 @@ class AIClient:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def chat(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> str:
-        async with httpx.AsyncClient(trust_env=False, timeout=180) as client:
-            resp = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=self.headers,
-                json={
-                    "model": model or settings.AI_MODEL,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+        agent_name = model or settings.AI_MODEL
+        start = time.perf_counter()
+        outcome = "success"
+        try:
+            async with httpx.AsyncClient(trust_env=False, timeout=180) as client:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=self.headers,
+                    json={
+                        "model": agent_name,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                text = data["choices"][0]["message"]["content"]
 
-            # Strip markdown code block wrappers: ```json ... ```
-            text = text.strip()
-            if text.startswith("```"):
-                # Find the end of the opening line (```json or ```)
-                end_marker = text.find("\n")
-                if end_marker >= 0:
-                    text = text[end_marker+1:]
-                # Remove closing ```
-                if text.rstrip().endswith("```"):
-                    text = text[:text.rfind("```")]
-            text = text.strip()
+                # Strip markdown code block wrappers: ```json ... ```
+                text = text.strip()
+                if text.startswith("```"):
+                    # Find the end of the opening line (```json or ```)
+                    end_marker = text.find("\n")
+                    if end_marker >= 0:
+                        text = text[end_marker+1:]
+                    # Remove closing ```
+                    if text.rstrip().endswith("```"):
+                        text = text[:text.rfind("```")]
+                text = text.strip()
 
-            return text
+                return text
+        except Exception:
+            outcome = "error"
+            raise
+        finally:
+            elapsed = time.perf_counter() - start
+            ai_call_duration_seconds.observe(elapsed, agent=agent_name, outcome=outcome)
 
     async def chat_stream(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> AsyncGenerator[str, None]:
         async with httpx.AsyncClient(trust_env=False, timeout=120) as client:
@@ -306,19 +321,29 @@ class AIClient:
         safe_texts = [text[:EMBEDDING_TEXT_LIMIT] for text in texts]
         embeddings: list[list[float]] = []
 
-        async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
-            for start in range(0, len(safe_texts), EMBEDDING_BATCH_SIZE):
-                batch = safe_texts[start:start + EMBEDDING_BATCH_SIZE]
-                resp = await client.post(
-                    f"{self.base_url}/embeddings",
-                    headers=self.headers,
-                    json={"model": settings.AI_EMBEDDING_MODEL, "input": batch},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                embeddings.extend(item["embedding"] for item in data["data"])
-
-        return embeddings
+        start_time = time.perf_counter()
+        outcome = "success"
+        try:
+            async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
+                for start in range(0, len(safe_texts), EMBEDDING_BATCH_SIZE):
+                    batch = safe_texts[start:start + EMBEDDING_BATCH_SIZE]
+                    resp = await client.post(
+                        f"{self.base_url}/embeddings",
+                        headers=self.headers,
+                        json={"model": settings.AI_EMBEDDING_MODEL, "input": batch},
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    embeddings.extend(item["embedding"] for item in data["data"])
+            return embeddings
+        except Exception:
+            outcome = "error"
+            raise
+        finally:
+            elapsed = time.perf_counter() - start_time
+            ai_call_duration_seconds.observe(
+                elapsed, agent=settings.AI_EMBEDDING_MODEL, outcome=outcome,
+            )
 
     async def embed_single(self, text: str) -> list[float]:
         results = await self.embed([text])

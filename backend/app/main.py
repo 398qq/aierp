@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from sqlalchemy import text
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 
 from app.api.v1.router import api_router
 from app.config import settings
@@ -37,6 +37,16 @@ for _model_module in (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    from app.application.event_handlers import (
+        register_default_handlers,
+        register_inventory_handlers,
+    )
+    from app.core.event_bus import event_bus
+    from app.application.uow import init_uow
+    from app.database import async_session
+    register_default_handlers(event_bus)
+    register_inventory_handlers(event_bus)
+    init_uow(async_session)
     from app.jobs.scheduler import start, shutdown
     start()
     try:
@@ -140,3 +150,21 @@ async def health_ready():
 @app.get("/health/live")
 async def health_live():
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def metrics():
+    """In-process metrics snapshot. Plug into Prometheus by replacing the
+    primitives in `core.observability.metrics` with `prometheus_client` types."""
+    from app.core.observability.metrics import all_snapshots
+    return all_snapshots()
+
+
+@app.get("/metrics/prometheus", response_class=PlainTextResponse)
+async def metrics_prometheus():
+    """Prometheus text exposition format — drop-in for scraping."""
+    from app.core.observability.metrics import render_prometheus_text
+    return PlainTextResponse(
+        content=render_prometheus_text(),
+        media_type="text/plain; version=0.0.4",
+    )

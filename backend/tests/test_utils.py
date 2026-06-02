@@ -22,7 +22,7 @@ class TestGenerateDocNo:
         mock_result.scalar.return_value = 0
         db.execute = AsyncMock(return_value=mock_result)
 
-        with patch("app.services.docno.select") as mock_select:
+        with patch("app.services.docno.select") as _:
             no = await generate_doc_no(db, "QT", mock_model, "quotation_no")
             assert no.startswith("QT")
             assert len(no) == 14  # QT202605110001 = 14 chars
@@ -43,7 +43,7 @@ class TestGenerateDocNo:
         mock_result.scalar.return_value = 5
         db.execute = AsyncMock(return_value=mock_result)
 
-        with patch("app.services.docno.select") as mock_select:
+        with patch("app.services.docno.select") as _:
             no = await generate_doc_no(db, "QT", mock_model, "quotation_no")
             assert no.endswith("0006")  # 5 + 1
 
@@ -64,7 +64,7 @@ class TestGenerateDocNo:
         mock_result.scalar.return_value = 0
         db.execute = AsyncMock(return_value=mock_result)
 
-        with patch("app.services.docno.select") as mock_select:
+        with patch("app.services.docno.select") as _:
             await generate_doc_no(db, "QT", mock_model, "quotation_no")
             # Should have called execute twice: advisory lock + count query
             assert db.execute.call_count >= 2

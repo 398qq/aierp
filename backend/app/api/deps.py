@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.uow import UnitOfWork, get_uow as _get_uow_ctx
 from app.core.security import decode_access_token
 from app.database import get_db
 from app.models.rbac import Role, user_roles_table
@@ -33,3 +34,14 @@ async def get_current_user(
     )
     roles = [row[0] for row in result.fetchall()]
     return {"user_id": user_id, "username": payload["username"], "roles": roles}
+
+
+async def get_uow() -> UnitOfWork:
+    """FastAPI dependency that yields a UnitOfWork.
+
+    The UoW wraps a session and auto-commits on success / auto-rolls back
+    on exception. Domain events tracked via `uow.track_event()` are
+    dispatched to the event bus after the DB transaction succeeds.
+    """
+    async with _get_uow_ctx() as uow:
+        yield uow
