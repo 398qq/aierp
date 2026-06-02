@@ -95,3 +95,20 @@ claude-flow\.config\.json
 frontend/Dockerfile
 backend/Dockerfile
 nginx\.conf
+
+# Workflow artifacts
+.ao-output/
+agency-agents-zh/
+workflows/
+
+# One-off utility scripts (development, not production)
+backend/add_contacts.py
+backend/add_customers.py
+backend/add_erp_temp_followups.py
+backend/add_followups.py
+backend/check_pw.py
+backend/check_pw2.py
+backend/reset_admin.py
+
+# Generated customer fixtures
+customers/
