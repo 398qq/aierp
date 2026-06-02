@@ -987,6 +987,16 @@ export const getPayments = (params: Record<string, unknown>) =>
 export const getPaymentStats = () =>
   client.get<APIResponse<{ total_received: number; total_pending: number; total_overdue: number; by_method: Record<string, number>; monthly: Record<string, unknown>[] }>>("/payments/stats");
 
+export const markDeliveryNotePaid = (
+  id: number,
+  data: { amount?: number; payment_method?: string; payment_date?: string; notes?: string } = {},
+) =>
+  client.post<APIResponse<{
+    created: boolean;
+    payment: { id: number; amount: number; status: string; method: string; date: string };
+    delivery_note: { id: number; status: string; received_date: string };
+  }>>(`/delivery-notes/${id}/mark-paid`, data);
+
 export const getPayment = (id: number) =>
   client.get<APIResponse<PaymentRecord>>(`/payments/${id}`);
 

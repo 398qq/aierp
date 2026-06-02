@@ -282,6 +282,13 @@ class DeliveryNoteUpdate(BaseModel):
     notes: str | None = None
 
 
+class DeliveryNoteMarkPaidIn(BaseModel):
+    amount: float | None = None
+    payment_method: str = "bank"
+    payment_date: datetime | None = None
+    notes: str | None = None
+
+
 class DeliveryNoteResponse(BaseModel):
     id: int
     delivery_no: str | None = None

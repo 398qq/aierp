@@ -2,16 +2,15 @@
 
 import io
 import sqlalchemy.orm
-
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.schemas.common import fail, ok
 from app.schemas.sales import (
-    DeliveryNoteCreate, DeliveryNoteUpdate,
+    DeliveryNoteCreate, DeliveryNoteUpdate, DeliveryNoteMarkPaidIn,
     InquiryAutoReplyRequest,
     OpportunityCreate, OpportunityUpdate,
     QuotationCreate, QuotationUpdate, QuotationFromInquiryRequest, QuotationStatusUpdate,
@@ -633,6 +632,54 @@ async def delete_delivery_note(
         return fail("发货单不存在", 404)
     await svc.delete_delivery_note(db, note)
     return ok({"deleted": note_id})
+
+
+@router.post("/delivery-notes/{note_id}/mark-paid")
+async def mark_delivery_note_paid(
+    note_id: int,
+    body: DeliveryNoteMarkPaidIn,
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+):
+    """Create a PaymentRecord for a delivery note and mark it received.
+
+    Idempotent — returns the existing payment if one already exists.
+    Defaults amount to the order total when not provided.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models.sales import DeliveryNote as DeliveryNoteModel
+
+    stmt = (
+        select(DeliveryNoteModel)
+        .where(DeliveryNoteModel.id == note_id, DeliveryNoteModel.deleted_at.is_(None))
+        .options(selectinload(DeliveryNoteModel.items))
+    )
+    result = await db.execute(stmt)
+    note = result.scalar_one_or_none()
+    if not note:
+        return fail("发货单不存在", 404)
+
+    result = await svc.mark_delivery_note_paid(
+        db, note,
+        amount=body.amount,
+        payment_method=body.payment_method,
+        payment_date=body.payment_date,
+        notes=body.notes,
+    )
+    return ok({
+        "created": result["created"],
+        "payment": {
+            "id": result["payment"].id,
+            "amount": float(result["payment"].amount),
+            "status": result["payment"].status,
+            "method": result["payment"].payment_method,
+            "date": result["payment"].payment_date.isoformat() if result["payment"].payment_date else None,
+        },
+        "delivery_note": {
+            "id": note.id,
+            "status": note.status,
+            "received_date": note.received_date.isoformat() if note.received_date else None,
+        },
+    })
 
 
 @router.post("/delivery-notes/batch-delete")

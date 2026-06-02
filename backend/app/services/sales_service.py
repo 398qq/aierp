@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-
+from decimal import Decimal
 import httpx
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -779,6 +779,75 @@ async def _auto_lock_sales_order(db: AsyncSession, order: SalesOrder) -> None:
 async def delete_delivery_note(db: AsyncSession, note: DeliveryNote) -> None:
     note.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+async def mark_delivery_note_paid(
+    db: AsyncSession,
+    note: DeliveryNote,
+    amount: float | None = None,
+    payment_method: str = "bank",
+    payment_date: datetime | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Record payment for a delivery note.
+
+    Idempotent: if a payment record already exists for this delivery note,
+    returns it instead of creating a duplicate.
+
+    Defaults:
+    - amount = order total_amount (if available) else first item's total
+    - payment_date = now (UTC)
+    - status = "completed"
+    - links to both sales_order_id and customer_id
+    """
+    from app.models.finance import PaymentRecord
+
+    # Check for existing payment
+    existing = (await db.execute(
+        select(PaymentRecord).where(
+            PaymentRecord.delivery_note_id == note.id,
+            PaymentRecord.deleted_at.is_(None),
+        )
+    )).scalar_one_or_none()
+    if existing is not None:
+        return {"payment": existing, "created": False}
+
+    # Determine amount if not provided
+    if amount is None:
+        from app.models.sales import SalesOrder
+        order = (await db.execute(
+            select(SalesOrder).where(SalesOrder.id == note.sales_order_id)
+        )).scalar_one_or_none()
+        if order is not None and order.total_amount:
+            amount = float(order.total_amount)
+        else:
+            # Sum line totals from delivery note items
+            amount = sum(
+                (item.quantity or 0) for item in note.items
+            ) * 1.0  # Fallback: just count items
+
+    paid_at = payment_date or datetime.now(timezone.utc)
+
+    pay = PaymentRecord(
+        customer_id=note.customer_id,
+        sales_order_id=note.sales_order_id,
+        delivery_note_id=note.id,
+        amount=Decimal(str(amount)),
+        payment_date=paid_at,
+        payment_method=payment_method,
+        status="completed",
+        notes=notes or f"发货单 {note.delivery_no or note.id} 签收收款",
+    )
+    db.add(pay)
+
+    # Update delivery note — mark as received and set received_date
+    note.received_date = paid_at
+    if note.status == "shipped":
+        note.status = "delivered"
+
+    await db.commit()
+    await db.refresh(pay)
+    return {"payment": pay, "created": True}
 
 
 # ============================================================
