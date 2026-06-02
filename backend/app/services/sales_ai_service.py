@@ -1,5 +1,6 @@
 """Sales AI enrichment — embeds AI insights into every sales entity."""
 
+import asyncio
 import logging
 from collections import Counter
 
@@ -9,14 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.sales import DeliveryNote, Opportunity, Quotation, SalesOrder
 
 logger = logging.getLogger(__name__)
+SALES_AI_TIMEOUT_SECONDS = 8
 
 
 async def _call_ai(messages: list[dict], output_schema: dict) -> dict | None:
     """Call AI with structured output. Returns None on any failure."""
     try:
         from app.services.ai.client import ai_client
-        result = await ai_client.chat_structured(messages, output_schema, temperature=0.3)
+        result = await asyncio.wait_for(
+            ai_client.chat_structured(messages, output_schema, temperature=0.3),
+            timeout=SALES_AI_TIMEOUT_SECONDS,
+        )
         return result
+    except asyncio.TimeoutError:
+        logger.warning("Sales AI enrichment timed out after %ss", SALES_AI_TIMEOUT_SECONDS)
+        return None
     except Exception:
         logger.exception("Sales AI enrichment failed")
         return None

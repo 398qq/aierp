@@ -1,4 +1,6 @@
 """Unit tests for business logic services and core utilities."""
+import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -197,3 +199,23 @@ class TestSecurity:
 
         assert decode_access_token("garbage.token.here") is None
         assert decode_access_token("") is None
+
+
+class TestSalesAIService:
+    @pytest.mark.unit
+    async def test_order_list_ai_timeout_falls_back_fast(self, monkeypatch):
+        from app.services import sales_ai_service
+
+        class SlowAIClient:
+            async def chat_structured(self, *_args, **_kwargs):
+                await asyncio.sleep(1)
+                return {"items": [{"id": 1, "delivery_risk": "high", "flag": "late"}]}
+
+        order = MagicMock(id=1, total_amount=100, status="pending", items=[])
+        monkeypatch.setattr(sales_ai_service, "SALES_AI_TIMEOUT_SECONDS", 0.01)
+        with patch("app.services.ai.client.ai_client", SlowAIClient()):
+            started = time.perf_counter()
+            result = await sales_ai_service.enrich_order_list(MagicMock(), [order])
+
+        assert time.perf_counter() - started < 0.5
+        assert result == {1: {"delivery_risk": "low", "flag": None}}
