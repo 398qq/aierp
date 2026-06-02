@@ -106,12 +106,12 @@ export function SalesModuleShell({
           margin-bottom: 12px;
           padding: 14px 16px;
           background: #fff;
-          border: 1px solid #e5e7eb;
+          border: 1px solid #e3e8ee;
           border-radius: 8px;
         }
         .sales-erp-title {
           margin: 0;
-          color: #111827;
+          color: #0d253d;
           font-size: 20px;
           font-weight: 650;
           line-height: 28px;
@@ -119,7 +119,7 @@ export function SalesModuleShell({
         .sales-erp-subtitle {
           display: block;
           margin-top: 2px;
-          color: #6b7280;
+          color: #64748d;
           font-size: 13px;
           line-height: 20px;
         }
@@ -147,30 +147,30 @@ export function SalesModuleShell({
         }
         .sales-erp-flow {
           padding-left: 12px;
-          border-left: 1px solid #e5e7eb;
+          border-left: 1px solid #e3e8ee;
         }
         .sales-erp-flow-step {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          color: #6b7280;
+          color: #64748d;
           font-size: 12px;
         }
         .sales-erp-flow-step.is-active {
-          color: #1677ff;
+          color: #533afd;
           font-weight: 600;
         }
         .sales-erp-flow-dot {
           width: 6px;
           height: 6px;
           border-radius: 999px;
-          background: #d1d5db;
+          background: #e3e8ee;
         }
         .sales-erp-flow-step.is-active .sales-erp-flow-dot {
-          background: #1677ff;
+          background: #533afd;
         }
         .sales-erp-flow-arrow {
-          color: #d1d5db;
+          color: #e3e8ee;
           font-size: 11px;
         }
         .sales-erp-metrics {
@@ -183,17 +183,17 @@ export function SalesModuleShell({
           min-height: 78px;
           padding: 10px 12px;
           background: #fff;
-          border: 1px solid #e5e7eb;
+          border: 1px solid #e3e8ee;
           border-radius: 8px;
         }
         .sales-erp-metric-title {
-          color: #6b7280;
+          color: #64748d;
           font-size: 12px;
           line-height: 18px;
         }
         .sales-erp-metric-value {
           margin-top: 8px;
-          color: #111827;
+          color: #0d253d;
           font-size: 22px;
           font-weight: 650;
           line-height: 1;
@@ -220,8 +220,8 @@ export function SalesModuleShell({
           padding: 10px 0;
         }
         .sales-erp-table-card .ant-table-thead > tr > th {
-          background: #f9fafb;
-          color: #374151;
+          background: #f8fafc;
+          color: #273951;
           font-weight: 600;
         }
         .sales-erp-table-card .ant-table-tbody > tr > td {
@@ -235,7 +235,7 @@ export function SalesModuleShell({
           background: #f8fafc;
         }
         .sales-erp-table-card .ant-table-tbody > tr:hover > td {
-          background: #eef2ff !important;
+          background: #f1f5f9 !important;
         }
         .sales-erp-table-card .erp-status-dot {
           display: inline-block;
@@ -246,12 +246,12 @@ export function SalesModuleShell({
           vertical-align: middle;
         }
         .sales-erp-table-card .erp-cell-primary {
-          color: #111827;
+          color: #0d253d;
           font-weight: 500;
           font-size: 13px;
         }
         .sales-erp-table-card .erp-cell-secondary {
-          color: #9ca3af;
+          color: #94a3b8;
           font-size: 11px;
           line-height: 1.4;
         }

@@ -2,6 +2,7 @@ import { useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ConfigProvider, App as AntdApp, Spin } from "antd";
 import zhCN from "antd/locale/zh_CN";
+import { stripeTheme } from "./theme/stripe";
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
@@ -108,7 +109,7 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <ConfigProvider locale={zhCN} theme={{ token: { colorPrimary: "#1677ff" } }}>
+    <ConfigProvider locale={zhCN} theme={stripeTheme}>
       <AntdApp>
         <BrowserRouter>
           <Routes>
