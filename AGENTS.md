@@ -38,3 +38,32 @@ Pull requests should describe the user-visible change, list validation performed
 ## Security & Configuration Tips
 
 Backend environment examples are in `backend/.env.example` and test defaults in `backend/.env.test`. Do not commit real secrets from `backend/.env`. Database reset/backup helpers in the Makefile assume local PostgreSQL credentials; verify targets before running them.
+
+## ERP Product Standards
+
+When implementing ERP features, prioritize operational correctness over visual novelty. Treat each change as part of a business workflow with status transitions, permissions, auditability, reporting impact, and data consistency.
+
+Core flows:
+
+- inquiry → opportunity → quotation → sales order → delivery note → invoice → payment
+- restock suggestion → purchase order → receiving → inventory ledger
+- customer/supplier/product master data → transactional documents → reports
+
+Backend expectations:
+
+- Keep route handlers thin and put domain behavior in `services/`.
+- Validate request/response contracts with schemas.
+- Keep document totals, line items, and downstream statuses consistent.
+- Bound slow dependencies such as AI, OCR, logistics APIs, payment gateways, and imports with explicit timeouts and safe fallback behavior.
+- Consider RBAC, approval rules, audit logs, soft delete, request IDs, and slow-query logging for core workflows.
+
+Frontend expectations:
+
+- Build dense, scan-friendly Ant Design operational screens with tables, filters, batch actions, detail pages, status tags, and clear async/error states.
+- Avoid marketing-style layouts for ERP modules.
+- Keep UI copy business-facing and compact.
+
+Validation expectations:
+
+- Add targeted tests around status transitions, document conversions, totals, permissions, and slow/failing dependencies.
+- For timeout or performance fixes, capture before/after timings and state the bounded slow path.
