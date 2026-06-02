@@ -85,17 +85,25 @@ class SalesClerkUser(_BaseERPUser):
 
     weight = 5
 
-    @task(6)
+    @task(5)
     def list_customers(self) -> None:
         self._get("/customers?page=1&page_size=20", "GET /customers")
 
-    @task(5)
+    @task(4)
     def list_products(self) -> None:
         self._get("/products?page=1&page_size=20", "GET /products")
 
     @task(3)
     def list_sales_orders(self) -> None:
         self._get("/sales-orders?page=1&page_size=20", "GET /sales-orders")
+
+    @task(2)
+    def list_opportunities(self) -> None:
+        self._get("/opportunities?page=1&page_size=20", "GET /opportunities")
+
+    @task(2)
+    def list_quotations(self) -> None:
+        self._get("/quotations?page=1&page_size=20", "GET /quotations")
 
     @task(1)
     def get_customer_detail(self) -> None:
