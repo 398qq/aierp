@@ -123,6 +123,9 @@ async def _ensure_brand_schema(eng):
                 await conn.exec_driver_sql(
                     f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} BIGINT REFERENCES users(id)"
                 )
+        await conn.exec_driver_sql(
+            "ALTER TABLE inventories ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 0"
+        )
         await conn.commit()
 
 

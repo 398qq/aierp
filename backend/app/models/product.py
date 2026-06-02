@@ -114,6 +114,7 @@ class Inventory(TimestampMixin, Base):
     safety_stock: Mapped[int] = mapped_column(default=0)
     locked_quantity: Mapped[int] = mapped_column(default=0)
     unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True, default=None)
+    version: Mapped[int] = mapped_column(default=0, nullable=False)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 

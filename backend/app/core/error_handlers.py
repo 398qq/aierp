@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
 
 from app.config import settings
+from app.domain.shared.errors import DomainError
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,17 @@ def _request_id(request: Request) -> str | None:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(DomainError)
+    async def _domain_exception_handler(request: Request, exc: DomainError):
+        rid = _request_id(request)
+        payload = {
+            "code": exc.code,
+            "msg": exc.message,
+            "data": exc.context or None,
+            "request_id": rid,
+        }
+        return JSONResponse(status_code=exc.http_status, content=payload)
+
     @app.exception_handler(HTTPException)
     async def _http_exception_handler(request: Request, exc: HTTPException):
         rid = _request_id(request)
