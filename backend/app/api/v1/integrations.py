@@ -201,7 +201,7 @@ async def track_logistics(
 
 
 # ---------------------------------------------------------------------------
-# Webhook Receiver
+# Webhook Receiver (HMAC-SHA256 signed)
 # ---------------------------------------------------------------------------
 @router.post("/webhook/{source}")
 async def receive_webhook(
@@ -209,19 +209,39 @@ async def receive_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Receive webhook payloads from external systems."""
-    body = await request.json()
+    """Receive webhook payloads from external systems.
 
-    # Log the webhook
+    All webhooks must be signed with HMAC-SHA256:
+    - Header X-AIERP-Signature: hex(HMAC-SHA256(secret, f"{ts}.{body}"))
+    - Header X-AIERP-Timestamp: Unix epoch seconds (must be within 5 min)
+
+    Configure the secret per source via env var WEBHOOK_SECRET_<SOURCE>.
+    See app/core/webhook_security.py for the protocol details.
+    """
+    from app.core.webhook_security import require_webhook_signature
+    # Verify signature manually since `source` comes from path params
+    body = await require_webhook_signature(
+        request, source=source,
+        x_aierp_signature=request.headers.get("X-AIERP-Signature"),
+        x_aierp_timestamp=request.headers.get("X-AIERP-Timestamp"),
+    )
+
+    import json
+    try:
+        body_json = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return fail("Invalid JSON body", 400)
+
     from app.models.finance import Notification
     from app.models.user import User
 
-    # Get admin user for notification
-    admin = (await db.execute(select(User).where(User.role == "admin").limit(1))).scalars().first()
+    admin = (await db.execute(
+        select(User).where(User.role == "admin").limit(1)
+    )).scalars().first()
     if admin:
         db.add(Notification(
             user_id=admin.id, type="webhook", title=f"Webhook: {source}",
-            content=str(body)[:500], channel="in_app",
+            content=json.dumps(body_json)[:500], channel="in_app",
         ))
 
     await db.commit()

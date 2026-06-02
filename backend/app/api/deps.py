@@ -25,8 +25,20 @@ async def get_current_user(
     payload = decode_access_token(token)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    # Blacklist check — if token was revoked, treat as expired
+    jti = payload.get("jti")
+    if jti:
+        from app.core.security import is_token_revoked
+        if await is_token_revoked(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
+
     user_id = int(payload["sub"])
     request.state.user_id = user_id
+    request.state.token_jti = jti
     result = await db.execute(
         select(Role.name)
         .join(user_roles_table, user_roles_table.c.role_id == Role.id)

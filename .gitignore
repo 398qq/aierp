@@ -112,3 +112,8 @@ backend/reset_admin.py
 
 # Generated customer fixtures
 customers/
+
+# AI CLI session artifacts (per-developer local context)
+GEMINI.md
+AGENTS.local.md
+CLAUDE.local.md
