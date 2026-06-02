@@ -3,9 +3,14 @@
 Add to main.py:
     from app.core.rate_limit import RateLimitMiddleware
     app.add_middleware(RateLimitMiddleware)
+
+Override the default 100 req/min per-IP limit via env vars
+(e.g. for performance testing or staging):
+    AIERP_RATE_LIMIT_CALLS=10000   AIERP_RATE_LIMIT_WINDOW=60
 """
 
 import logging
+import os
 import time
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,9 +19,25 @@ from starlette.responses import Response, JSONResponse
 
 logger = logging.getLogger(__name__)
 
-# Global config — set from main.py or config.py
-RATE_LIMIT_CALLS = 100      # max requests per window
-RATE_LIMIT_WINDOW = 60      # window in seconds
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("rate_limit: non-integer %s=%r, using default %s", name, raw, default)
+        return default
+    if value <= 0:
+        logger.warning("rate_limit: %s=%r must be positive, using default %s", name, raw, default)
+        return default
+    return value
+
+
+# Global config — overridable via env vars
+RATE_LIMIT_CALLS = _env_int("AIERP_RATE_LIMIT_CALLS", 100)
+RATE_LIMIT_WINDOW = _env_int("AIERP_RATE_LIMIT_WINDOW", 60)
 RATE_LIMIT_KEY_PREFIX = "aierp:rl:"
 
 
