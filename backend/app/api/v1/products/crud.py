@@ -1,8 +1,12 @@
 """Products CRUD + price import endpoints."""
 
+import hashlib
+import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +15,16 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.product import Brand, Inventory, Product, SupplierProduct
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_delete, cache_get, cache_set
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+# Cache TTL for /products list (5 minutes — list view tolerates slight staleness)
+PRODUCTS_LIST_CACHE_TTL = 300
+# Cache key version — bump to invalidate all entries after schema change
+PRODUCTS_LIST_CACHE_VERSION = "v1"
 
 
 # --- Price Import ---
@@ -282,6 +294,7 @@ async def products_stats_summary(
 
 @router.get("")
 async def list_products(
+    response: JSONResponse,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     q: str | None = None,
@@ -296,6 +309,20 @@ async def list_products(
     effective_stock_status = stock_status
     if not effective_stock_status and scene in {"in_stock", "out_of_stock", "low_stock"}:
         effective_stock_status = scene
+
+    cache_key = _products_cache_key(
+        page=page, page_size=page_size, q=q, category=category,
+        brand_id=brand_id, scene=scene, stock_status=effective_stock_status,
+        sort=sort,
+    )
+    cached_payload = await cache_get(cache_key)
+    if cached_payload is not None:
+        return JSONResponse(
+            content=json.loads(cached_payload),
+            headers={"X-Cache": "HIT", "X-Cache-Key": cache_key},
+        )
+
+    response.headers["X-Cache"] = "MISS"
 
     inv_subq = _inventory_metrics_subquery()
     sales_subq = _sales_metrics_subquery()
@@ -406,7 +433,16 @@ async def list_products(
             last_sale_at,
         ) in rows
     ]
-    return ok({"list": items, "total": total, "page": page, "page_size": page_size})
+    payload = {"list": items, "total": total, "page": page, "page_size": page_size}
+    await cache_set(cache_key, json.dumps(payload, default=str), PRODUCTS_LIST_CACHE_TTL)
+    return ok(payload)
+
+
+def _products_cache_key(**parts: object) -> str:
+    """Stable cache key derived from all query parameters."""
+    canonical = json.dumps(parts, sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:{digest}"
 
 
 @router.get("/{product_id}")
@@ -468,6 +504,7 @@ async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db)
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
     after_product_save(product.id)
+    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
     return ok({"id": product.id, "name": product.name})
 
 
@@ -482,6 +519,7 @@ async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession 
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
     after_product_save(product.id)
+    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
     return ok({"id": product.id})
 
 
@@ -493,6 +531,7 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
         return fail("Product not found", 404)
     product.deleted_at = datetime.now(timezone.utc)
     await db.flush()
+    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
     return ok(msg="deleted")
 
 
@@ -507,6 +546,7 @@ async def batch_delete_products(body: dict, db: AsyncSession = Depends(get_db), 
         .where(Product.id.in_(ids), Product.deleted_at.is_(None))
         .values(deleted_at=now)
     )
+    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
     return ok({"deleted": result.rowcount or 0})
 
 
@@ -522,6 +562,7 @@ async def batch_update_products(body: dict, db: AsyncSession = Depends(get_db), 
     await db.execute(
         update(Product).where(Product.id.in_(ids), Product.deleted_at.is_(None)).values(**updates)
     )
+    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
     return ok({"updated": len(ids), "fields": list(updates.keys())})
 
 

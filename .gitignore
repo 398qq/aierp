@@ -117,3 +117,7 @@ customers/
 GEMINI.md
 AGENTS.local.md
 CLAUDE.local.md
+
+# Backups / pre-existing dev artifacts
+DESIGN.md.linear.bak
+.codex/
