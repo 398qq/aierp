@@ -1,4 +1,4 @@
-from sqlalchemy import DECIMAL, Boolean, Date, DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import DECIMAL, Boolean, Date, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -62,6 +62,28 @@ class BankReconciliation(TimestampMixin, Base):
 
     payment = relationship("PaymentRecord", foreign_keys=[payment_id])
     reconciler = relationship("User", foreign_keys=[reconciled_by])
+
+
+class AccountingPeriodORM(TimestampMixin, Base):
+    """Accounting period — one row per (year, month).
+
+    Persists the `AccountingPeriod` domain aggregate. A UNIQUE constraint
+    on (year, month) prevents accidental duplicates.
+    """
+
+    __tablename__ = "accounting_periods"
+    __table_args__ = (
+        UniqueConstraint("year", "month", name="uq_accounting_periods_year_month"),
+    )
+
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="open")
+    closed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reopen_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    closer = relationship("User", foreign_keys=[closed_by])
 
 
 class NotificationTemplate(TimestampMixin, Base):

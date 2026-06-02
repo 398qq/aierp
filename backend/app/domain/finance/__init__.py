@@ -1,11 +1,19 @@
 """Finance domain — chart of accounts, journal entries, period management."""
 
+from app.domain.finance.events import (
+    PeriodClosed,
+    PeriodReopened,
+)
 from app.domain.finance.journal import (
+    InvalidLineError,
     JournalEntry,
     JournalLine,
     JournalStatus,
     UnbalancedEntryError,
-    InvalidLineError,
+)
+from app.domain.finance.period import (
+    AccountingPeriod,
+    PeriodStatus,
 )
 
 __all__ = [
@@ -14,4 +22,8 @@ __all__ = [
     "JournalStatus",
     "UnbalancedEntryError",
     "InvalidLineError",
+    "AccountingPeriod",
+    "PeriodStatus",
+    "PeriodClosed",
+    "PeriodReopened",
 ]

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from decimal import Decimal
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from app.core.observability.metrics import (
     inventory_concurrent_conflicts_total,
     inventory_reserved_total,
 )
+from app.domain.inventory import make_cost_strategy
 from app.domain.shared.errors import (
     ConcurrentModificationError,
     InsufficientStockError,
@@ -203,12 +205,16 @@ class InventoryRepository:
         product_id: int,
         warehouse_id: int,
         qty: int,
+        unit_cost: float | None = None,
+        cost_strategy: str = "weighted_average",
         max_retries: int = 3,
     ) -> Inventory:
         """Add stock from inbound (e.g. PO receipt).
 
-        Auto-creates the inventory row if missing. Uses optimistic lock on
-        existing rows; new rows are inserted directly.
+        If `unit_cost` is provided, recomputes the per-unit average
+        cost using the chosen cost strategy (default: weighted average).
+        Auto-creates the inventory row if missing. Uses optimistic lock
+        on existing rows; new rows are inserted directly.
         """
         if qty <= 0:
             raise ValueError("qty must be positive")
@@ -222,16 +228,27 @@ class InventoryRepository:
                     quantity=qty,
                     locked_quantity=0,
                     version=0,
+                    unit_price=Decimal(str(unit_cost)) if unit_cost is not None else None,
                 )
                 self.session.add(new_inv)
                 try:
                     await self.session.flush()
                     return new_inv
                 except Exception:
-                    # Another process created it concurrently — retry
                     await self.session.rollback()
                     await asyncio.sleep(0.01 * (2 ** attempt))
                     continue
+
+            # Recompute average cost if incoming unit cost was provided
+            new_unit_price = inv.unit_price
+            if unit_cost is not None:
+                strategy = make_cost_strategy(cost_strategy)
+                new_unit_price = strategy.compute_new_unit_cost(
+                    current_qty=Decimal(str(inv.quantity or 0)),
+                    current_avg_cost=Decimal(str(inv.unit_price or 0)),
+                    incoming_qty=Decimal(qty),
+                    incoming_unit_cost=Decimal(str(unit_cost)),
+                )
 
             stmt = (
                 update(Inventory)
@@ -242,14 +259,17 @@ class InventoryRepository:
                 .values(
                     quantity=Inventory.quantity + qty,
                     version=Inventory.version + 1,
+                    **({"unit_price": new_unit_price} if unit_cost is not None else {}),
                 )
             )
             result = await self.session.execute(stmt)
             if result.rowcount > 0:
+                inventory_reserved_total.inc(product_category="unknown")
                 await self.session.flush()
                 await self.session.refresh(inv)
                 return inv
 
+            inventory_concurrent_conflicts_total.inc()
             await asyncio.sleep(0.01 * (2 ** attempt))
 
         raise ConcurrentModificationError(

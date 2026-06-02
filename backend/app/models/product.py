@@ -1,9 +1,14 @@
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DECIMAL, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean, CheckConstraint, DateTime, DECIMAL, Float, ForeignKey, Integer, String, Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
+
+import datetime
 
 
 class Brand(TimestampMixin, Base):
@@ -117,6 +122,42 @@ class Inventory(TimestampMixin, Base):
     version: Mapped[int] = mapped_column(default=0, nullable=False)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class InventoryBatchORM(TimestampMixin, Base):
+    """One row per receipt batch — traceability for ROHS / MSL / perishable items.
+
+    Each batch has its own quantity, cost, expiry. The application
+    layer uses FEFO allocation to pick which batch to deduct from.
+    """
+
+    __tablename__ = "inventory_batches"
+    __table_args__ = (
+        UniqueConstraint("product_id", "warehouse_id", "batch_no", name="uq_inv_batch_pkey"),
+        CheckConstraint("quantity >= 0", name="ck_inv_batch_qty_nonneg"),
+    )
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
+    batch_no: Mapped[str] = mapped_column(String(50), nullable=False)
+    quantity: Mapped[int] = mapped_column(default=0, nullable=False)
+    locked_quantity: Mapped[int] = mapped_column(default=0, nullable=False)
+    unit_cost: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    received_date: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), default=datetime.datetime.utcnow
+    )
+    expiry_date: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    manufacture_date: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="available")
+    rohs_compliant: Mapped[bool] = mapped_column(Boolean, default=True)
+    msl_level: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    certificate_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    product = relationship("Product", foreign_keys=[product_id])
+    warehouse = relationship("Warehouse", foreign_keys=[warehouse_id])
+    supplier = relationship("Supplier", foreign_keys=[supplier_id])
 
 
 class InventoryTransaction(TimestampMixin, Base):

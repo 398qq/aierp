@@ -1,4 +1,4 @@
-"""Procurement domain — purchase order and goods receipt."""
+"""Procurement domain — purchase order, goods receipt, three-way match."""
 
 from app.domain.procurement.entities import (
     POStatus,
@@ -10,6 +10,16 @@ from app.domain.procurement.events import (
     PurchaseOrderApproved,
     PurchaseOrderCancelled,
 )
+from app.domain.procurement.three_way_match import (
+    GRLineSnapshot,
+    InvoiceLineSnapshot,
+    LineDiscrepancy,
+    MatchStatus,
+    MatchTolerance,
+    POLineSnapshot,
+    ThreeWayMatchResult,
+    match_po_gr_invoice,
+)
 
 __all__ = [
     "POStatus",
@@ -18,4 +28,12 @@ __all__ = [
     "GoodsReceived",
     "PurchaseOrderApproved",
     "PurchaseOrderCancelled",
+    "MatchStatus",
+    "MatchTolerance",
+    "POLineSnapshot",
+    "GRLineSnapshot",
+    "InvoiceLineSnapshot",
+    "LineDiscrepancy",
+    "ThreeWayMatchResult",
+    "match_po_gr_invoice",
 ]
