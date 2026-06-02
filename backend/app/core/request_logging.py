@@ -1,14 +1,18 @@
-"""Structured request logging middleware."""
+"""Structured request logging middleware.
 
-import json
+Emits one JSON object per HTTP request via the configured `JsonFormatter`.
+The middleware also sets the request_id and user_id contextvars so any
+log statements inside the request handler are auto-enriched.
+"""
+
 import logging
 import time
-from datetime import datetime, timezone
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.core.json_logging import set_request_id, set_user_id
 from app.core.security import decode_access_token
 
 logger = logging.getLogger("app.request")
@@ -49,6 +53,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         started = time.perf_counter()
         status_code = 500
+        rid = getattr(getattr(request, "state", None), "request_id", "") or ""
+        uid = _extract_user_id(request)
+
+        # Inject context for the rest of the request
+        set_request_id(rid)
+        set_user_id(uid)
 
         try:
             response = await call_next(request)
@@ -56,17 +66,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             return response
         finally:
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
-            request_id = getattr(getattr(request, "state", None), "request_id", "")
-            log_data = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "level": "INFO",
-                "request_id": request_id,
-                "user_id": _extract_user_id(request),
-                "message": "request completed",
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": status_code,
-                "duration_ms": duration_ms,
-                "client_ip": _client_ip(request),
-            }
-            logger.info(json.dumps(log_data, ensure_ascii=False))
+            logger.info(
+                "request completed",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": status_code,
+                    "duration_ms": duration_ms,
+                    "client_ip": _client_ip(request),
+                },
+            )
