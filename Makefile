@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore lint test security-check help
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -46,6 +46,17 @@ db-backup: ## Backup database to ~/date/
 db-restore: ## Restore from backup (BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump)
 	@PGPASSWORD=aierp pg_restore -h localhost -U aierp -d aierp -c $(BACKUP)
 	@echo "Database restored."
+
+db-migrate: ## Run Alembic migrations to head
+	@echo "Running Alembic migrations..."
+	@cd backend && alembic upgrade head
+	@echo "Migrations applied."
+
+db-revision: ## Create new Alembic migration (MSG="your message")
+	@cd backend && alembic revision --autogenerate -m "$(MSG)"
+
+db-stamp: ## Stamp current DB as head (use after manual SQL migration)
+	@cd backend && alembic stamp head
 
 lint: ## Run linters
 	cd $(BACKEND_DIR) && ruff check app/ && mypy app/ --explicit-package-bases --ignore-missing-imports --exclude "app/api/v1/(permissions|finance|sales).py"

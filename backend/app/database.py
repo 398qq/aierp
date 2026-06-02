@@ -107,9 +107,38 @@ async def init_db():
     await _ensure_phase6_schema(engine)
     await _ensure_payment_delivery_note_schema(engine)
     await _ensure_quotation_item_cost_schema(engine)
+    await _ensure_critical_indexes(engine)
     await _ensure_pgvector(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
+
+
+async def _ensure_critical_indexes(eng) -> None:
+    """Apply critical performance indexes on hot-path query columns.
+
+    The SQL file `migrations/008_critical_indexes.sql` is idempotent
+    (uses `CREATE INDEX IF NOT EXISTS`) and runs on every startup so
+    the deployment is self-healing. SQLite is skipped (it has no
+    partial-index support needed for the WHERE-clause filtering).
+    """
+    import logging
+    import pathlib
+    _log = logging.getLogger("app.db.migration")
+    if eng.dialect.name != "postgresql":
+        return
+    sql_path = pathlib.Path(__file__).resolve().parent / "migrations" / "008_critical_indexes.sql"
+    if not sql_path.exists():
+        return
+    sql = sql_path.read_text()
+    async with eng.begin() as conn:
+        for stmt in sql.split(";"):
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            try:
+                await conn.exec_driver_sql(stmt + ";")
+            except Exception as exc:  # noqa: BLE001
+                _log.warning("Index migration failed (non-fatal): %s", exc)
 
 
 async def _ensure_brand_schema(eng):
