@@ -106,12 +106,12 @@ export function SalesModuleShell({
           margin-bottom: 12px;
           padding: 14px 16px;
           background: #fff;
-          border: 1px solid #e3e8ee;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
         }
         .sales-erp-title {
           margin: 0;
-          color: #0d253d;
+          color: #111827;
           font-size: 20px;
           font-weight: 650;
           line-height: 28px;
@@ -119,7 +119,7 @@ export function SalesModuleShell({
         .sales-erp-subtitle {
           display: block;
           margin-top: 2px;
-          color: #64748d;
+          color: #6b7280;
           font-size: 13px;
           line-height: 20px;
         }
@@ -153,11 +153,11 @@ export function SalesModuleShell({
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          color: #64748d;
+          color: #6b7280;
           font-size: 12px;
         }
         .sales-erp-flow-step.is-active {
-          color: #533afd;
+          color: #1677ff;
           font-weight: 600;
         }
         .sales-erp-flow-dot {
@@ -167,7 +167,7 @@ export function SalesModuleShell({
           background: #e3e8ee;
         }
         .sales-erp-flow-step.is-active .sales-erp-flow-dot {
-          background: #533afd;
+          background: #1677ff;
         }
         .sales-erp-flow-arrow {
           color: #e3e8ee;
@@ -183,17 +183,17 @@ export function SalesModuleShell({
           min-height: 78px;
           padding: 10px 12px;
           background: #fff;
-          border: 1px solid #e3e8ee;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
         }
         .sales-erp-metric-title {
-          color: #64748d;
+          color: #6b7280;
           font-size: 12px;
           line-height: 18px;
         }
         .sales-erp-metric-value {
           margin-top: 8px;
-          color: #0d253d;
+          color: #111827;
           font-size: 22px;
           font-weight: 650;
           line-height: 1;
@@ -220,8 +220,8 @@ export function SalesModuleShell({
           padding: 10px 0;
         }
         .sales-erp-table-card .ant-table-thead > tr > th {
-          background: #f8fafc;
-          color: #273951;
+          background: #f9fafb;
+          color: #374151;
           font-weight: 600;
         }
         .sales-erp-table-card .ant-table-tbody > tr > td {
@@ -232,10 +232,10 @@ export function SalesModuleShell({
           padding: 6px 8px !important;
         }
         .sales-erp-table-card .ant-table-tbody > tr.erp-row-even > td {
-          background: #f8fafc;
+          background: #f9fafb;
         }
         .sales-erp-table-card .ant-table-tbody > tr:hover > td {
-          background: #f1f5f9 !important;
+          background: #eef2ff !important;
         }
         .sales-erp-table-card .erp-status-dot {
           display: inline-block;
@@ -246,7 +246,7 @@ export function SalesModuleShell({
           vertical-align: middle;
         }
         .sales-erp-table-card .erp-cell-primary {
-          color: #0d253d;
+          color: #111827;
           font-weight: 500;
           font-size: 13px;
         }
