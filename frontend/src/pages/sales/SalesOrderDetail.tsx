@@ -10,7 +10,7 @@ import {
   EyeInvisibleOutlined,
   EyeOutlined,
 } from "@ant-design/icons";
-import { getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF } from "../../api";
+import { getPayments, getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF } from "../../api";
 import type { SalesOrderPDFOptions } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { SalesOrder, SalesOrderItem } from "../../types";
@@ -32,15 +32,29 @@ export default function SalesOrderDetail() {
   const [error, setError] = useState<string | null>(null);
   const [includeAi, setIncludeAi] = useState(true);
   const [showExtraColumns, setShowExtraColumns] = useState(false);
+  const [payments, setPayments] = useState<{ amount: number; status: string }[]>([]);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [pdfForm] = Form.useForm<SalesOrderPDFOptions>();
 
+  const loadPayments = async (orderId: number) => {
+    try {
+      const resp = await getPayments({ sales_order_id: orderId, page_size: 50 });
+      setPayments(resp.data.data.list || []);
+    } catch {
+      setPayments([]);
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     setError(null);
-    getSalesOrder(Number(id), includeAi)
-      .then((r) => setOrder(r.data.data))
+    const oid = Number(id);
+    getSalesOrder(oid, includeAi)
+      .then((r) => {
+        setOrder(r.data.data);
+        loadPayments(oid);
+      })
       .catch((e) => setError(e.message || "加载失败"))
       .finally(() => setLoading(false));
   }, [id, includeAi]);
@@ -51,6 +65,14 @@ export default function SalesOrderDetail() {
     const amount = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
     return { count: items.length, quantity, amount };
   }, [order]);
+
+  const paymentSummary = useMemo(() => {
+    const paid = payments.filter((p) => p.status === "completed").reduce((s, p) => s + Number(p.amount || 0), 0);
+    const total = order?.total_amount || 0;
+    const outstanding = Math.max(0, total - paid);
+    const pct = total > 0 ? (paid / total) * 100 : 0;
+    return { paid, total, outstanding, pct };
+  }, [payments, order]);
 
   const runAction = async (action: () => Promise<void>, success: string) => {
     setActionLoading(true);
@@ -338,6 +360,50 @@ export default function SalesOrderDetail() {
                 <Typography.Text type="secondary">交付日期</Typography.Text>
                 <Typography.Text>{shortDate(order.delivery_date)}</Typography.Text>
               </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title={<><DollarOutlined /> 回款情况</>}>
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">订单金额</Typography.Text>
+                <Typography.Text strong>{money(paymentSummary.total)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">已回款</Typography.Text>
+                <Typography.Text style={{ color: "#52c41a" }}>{money(paymentSummary.paid)}</Typography.Text>
+              </div>
+              <Divider style={{ margin: "6px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text strong>未回款</Typography.Text>
+                <Typography.Text strong type={paymentSummary.outstanding > 0 ? "danger" : undefined}>
+                  {money(paymentSummary.outstanding)}
+                </Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">回款进度</Typography.Text>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{
+                    width: 60, height: 6, borderRadius: 3, background: "#f0f0f0",
+                    overflow: "hidden",
+                  }}>
+                    <div style={{
+                      width: `${Math.min(paymentSummary.pct, 100)}%`, height: "100%",
+                      background: paymentSummary.pct >= 100 ? "#52c41a" : paymentSummary.pct > 0 ? "#1677ff" : "#f0f0f0",
+                      borderRadius: 3, transition: "width 0.3s",
+                    }} />
+                  </div>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {paymentSummary.pct.toFixed(0)}%
+                  </Typography.Text>
+                </div>
+              </div>
+              {paymentSummary.outstanding > 0 && (
+                <Button size="small" block icon={<DollarOutlined />} style={{ marginTop: 4 }}
+                  onClick={() => navigate(`/sales/payments/new?order_id=${order.id}&customer_id=${order.customer_id}`)}>
+                  登记回款
+                </Button>
+              )}
             </Space>
           </Card>
 
