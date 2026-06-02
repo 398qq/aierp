@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.persistence.inventory_repo import InventoryRepository
 from app.models.product import Brand, Inventory, InventoryTransaction, Product, SupplierProduct
 from app.models.sales import SalesOrder, SalesOrderItem
 
@@ -203,11 +204,21 @@ async def receive_po_item(
     quantity: int,
     po_id: int,
 ) -> dict:
-    """Auto-receive stock when a purchase order item is received."""
-    inv = await _ensure_inventory(db, product_id, warehouse_id)
-    before = inv.quantity
-    inv.quantity += quantity
-    after = inv.quantity
+    """Auto-receive stock when a purchase order item is received.
+
+    Uses InventoryRepository for concurrency-safe update, then logs the
+    transaction for audit.
+    """
+    repo = InventoryRepository(db)
+    inv = await repo.get(product_id, warehouse_id)
+    before = inv.quantity if inv else 0
+
+    await repo.receive(product_id, warehouse_id, quantity)
+    await db.refresh(inv) if inv else None
+
+    if inv is None:
+        inv = await repo.get(product_id, warehouse_id)
+    after = inv.quantity if inv else quantity
 
     txn = InventoryTransaction(
         product_id=product_id,
@@ -232,16 +243,21 @@ async def deduct_for_delivery(
     quantity: int,
     delivery_id: int,
 ) -> dict:
-    """Deduct stock (and release lock) when a delivery note item is shipped."""
-    inv = await _ensure_inventory(db, product_id, warehouse_id)
+    """Deduct stock (and release lock) when a delivery note item is shipped.
 
-    release_qty = min(quantity, inv.locked_quantity)
-    if release_qty > 0:
-        inv.locked_quantity -= release_qty
+    Uses InventoryRepository for concurrency-safe deduct. Raises
+    InsufficientStockError if physical stock is insufficient.
+    """
+    repo = InventoryRepository(db)
+    inv = await repo.get(product_id, warehouse_id)
+    before = inv.quantity if inv else 0
+    before_locked = inv.locked_quantity if inv else 0
 
-    before = inv.quantity
-    inv.quantity = max(0, inv.quantity - quantity)
-    after = inv.quantity
+    await repo.deduct(product_id, warehouse_id, quantity)
+    await db.refresh(inv) if inv else None
+    after = inv.quantity if inv else 0
+    after_locked = inv.locked_quantity if inv else 0
+    release_qty = before_locked - after_locked
 
     txn = InventoryTransaction(
         product_id=product_id,
@@ -266,20 +282,29 @@ async def lock_for_sales_order(
     quantity: int,
     order_id: int,
 ) -> dict:
-    """Lock stock when a sales order is confirmed."""
-    inv = await _ensure_inventory(db, product_id, warehouse_id)
+    """Lock stock when a sales order is confirmed.
 
-    lockable = min(quantity, max(0, inv.quantity - inv.locked_quantity))
+    Returns the actual amount locked (may be less than requested if stock is
+    insufficient). Returns lockable=0 if no stock available.
+    """
+    inv_check = await _ensure_inventory(db, product_id, warehouse_id)
+    available_before = inv_check.quantity - inv_check.locked_quantity
+    lockable = min(quantity, max(0, available_before))
+
     if lockable > 0:
-        inv.locked_quantity += lockable
+        repo = InventoryRepository(db)
+        ok = await repo.reserve(product_id, warehouse_id, lockable)
+        if not ok:
+            # Lost race; current available is 0
+            lockable = 0
 
     txn = InventoryTransaction(
         product_id=product_id,
         warehouse_id=warehouse_id,
         type="adjust",
         quantity=0,
-        before_qty=inv.quantity,
-        after_qty=inv.quantity,
+        before_qty=inv_check.quantity,
+        after_qty=inv_check.quantity,
         reference_type="sales_order_lock",
         reference_id=order_id,
         notes=f"订单锁定: SO#{order_id} 锁定{lockable}/{quantity}" + (" (部分锁定)" if lockable < quantity else ""),

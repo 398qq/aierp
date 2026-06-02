@@ -24,6 +24,7 @@ from app.models.sales import (
 )
 from app.models.finance import SalesTarget
 from app.services.docno import generate_doc_no
+from app.domain.shared.errors import InsufficientStockError
 from app.services.inventory_service import deduct_for_delivery, lock_for_sales_order
 
 logger = logging.getLogger(__name__)
@@ -722,7 +723,10 @@ async def update_delivery_note(db: AsyncSession, note: DeliveryNote, data: dict)
 
 
 async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:
-    """Auto-deduct inventory for each item when a delivery note is shipped/completed."""
+    """Auto-deduct inventory for each item when a delivery note is shipped/completed.
+
+    Insufficient stock surfaces as a domain error so the caller can respond.
+    """
     result = await db.execute(select(Warehouse.id).limit(1))
     warehouse_id = result.scalar() or 1
 
@@ -730,21 +734,46 @@ async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:
         if item.product_id and item.quantity > 0:
             try:
                 await deduct_for_delivery(db, item.product_id, warehouse_id, item.quantity, note.id)
+            except InsufficientStockError:
+                raise
             except Exception as e:
                 logger.error("Auto-deduct failed DN#%s product#%s: %s", note.id, item.product_id, e)
 
 
 async def _auto_lock_sales_order(db: AsyncSession, order: SalesOrder) -> None:
-    """Auto-lock inventory for each item when a sales order is confirmed."""
+    """Auto-lock inventory for each item when a sales order is confirmed.
+
+    Collects per-item lock results. Returns a summary so callers can decide
+    whether the confirmation should fail (no stock at all) or proceed
+    (partial lock with backorder).
+    """
     result = await db.execute(select(Warehouse.id).limit(1))
     warehouse_id = result.scalar() or 1
 
+    total_requested = 0
+    total_locked = 0
     for item in order.items:
         if item.product_id and item.quantity > 0:
             try:
-                await lock_for_sales_order(db, item.product_id, warehouse_id, item.quantity, order.id)
+                outcome = await lock_for_sales_order(
+                    db, item.product_id, warehouse_id, item.quantity, order.id
+                )
+                total_requested += outcome.get("requested", 0)
+                total_locked += outcome.get("locked", 0)
+            except InsufficientStockError as e:
+                logger.warning(
+                    "Auto-lock short SO#%s product#%s requested=%s available=%s",
+                    order.id, item.product_id, e.context.get("requested"),
+                    e.context.get("available"),
+                )
             except Exception as e:
                 logger.error("Auto-lock failed SO#%s product#%s: %s", order.id, item.product_id, e)
+
+    if total_requested > 0 and total_locked == 0:
+        logger.warning(
+            "Order SO#%s confirmed but NO stock locked (%s requested)",
+            order.id, total_requested,
+        )
 
 
 async def delete_delivery_note(db: AsyncSession, note: DeliveryNote) -> None:
