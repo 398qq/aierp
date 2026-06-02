@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Dropdown, Modal, Popconfirm, Row, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getPayments, deletePayment, getPaymentStats } from "../../api";
 import type { PaymentRecord } from "../../types";
-import { CustomerLink, CustomerSelect, ErpExportButton, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   pending: { color: "orange", label: "待收款" }, completed: { color: "green", label: "已收款" },
@@ -56,11 +56,13 @@ export default function PaymentList() {
       subtitle="按客户和订单跟踪待收、已收、逾期回款"
       activeKey="payments"
     >
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}><Card size="small"><Statistic title="已收款" value={stats.total_received} prefix="¥" valueStyle={{ color: "#52c41a" }} /></Card></Col>
-        <Col span={6}><Card size="small"><Statistic title="待收款" value={stats.total_pending} prefix="¥" valueStyle={{ color: "#faad14" }} /></Card></Col>
-        <Col span={6}><Card size="small"><Statistic title="逾期" value={stats.total_overdue} prefix="¥" valueStyle={{ color: "#ff4d4f" }} /></Card></Col>
-      </Row>
+      <MetricBand
+        items={[
+          { title: "已收款", value: stats.total_received, prefix: "¥", precision: 0 },
+          { title: "待收款", value: stats.total_pending, prefix: "¥", precision: 0 },
+          { title: "逾期", value: stats.total_overdue, prefix: "¥", precision: 0 },
+        ]}
+      />
 
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/payments/new")}>新增回款</Button>

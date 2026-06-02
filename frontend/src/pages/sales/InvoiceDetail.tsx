@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
-import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
 import { getInvoice } from "../../api";
 import type { Invoice } from "../../types";
-import { CustomerLink, SalesModuleShell, money, shortDate } from "./salesUi";
+import { CustomerLink, ErpStatusTimeline, MetricBand, SalesModuleShell, money, shortDate } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, issued: { color: "blue", label: "已开票" },
   paid: { color: "green", label: "已付款" }, overdue: { color: "red", label: "逾期" }, cancelled: { color: "default", label: "已取消" },
 };
+
+const STATUS_STEPS = [
+  { key: "draft", label: "草稿" },
+  { key: "issued", label: "已开票" },
+  { key: "paid", label: "已付款" },
+];
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -53,7 +59,22 @@ export default function InvoiceDetail() {
       title={inv.invoice_no || `发票 #${inv.id}`}
       subtitle={inv.notes ? `备注: ${inv.notes}` : "发票详情，含金额、税额和开票信息"}
       activeKey="invoices"
+      extra={(
+        <>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/invoices")}>返回</Button>
+          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/invoices/${inv.id}/edit`)}>编辑</Button>
+        </>
+      )}
     >
+      <MetricBand
+        items={[
+          { title: "发票金额", value: inv.amount || 0, prefix: "¥", precision: 0 },
+          { title: "税额", value: inv.tax_amount || 0, prefix: "¥", precision: 0 },
+          { title: "状态", value: STATUS[inv.status]?.label || inv.status },
+          { title: "开票日期", value: inv.invoice_date ? shortDate(inv.invoice_date) : "-" },
+        ]}
+      />
+
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/invoices")}>返回</Button>
@@ -69,10 +90,16 @@ export default function InvoiceDetail() {
             extra={<Tag color={STATUS[inv.status]?.color}>{STATUS[inv.status]?.label || inv.status}</Tag>}
           >
             <Descriptions column={2} size="small">
-              <Descriptions.Item label="金额">¥{inv.amount.toLocaleString()}</Descriptions.Item>
-              <Descriptions.Item label="税额">¥{inv.tax_amount.toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="金额">{money(inv.amount)}</Descriptions.Item>
+              <Descriptions.Item label="税额">{money(inv.tax_amount)}</Descriptions.Item>
               <Descriptions.Item label="类型">{inv.invoice_type}</Descriptions.Item>
-              <Descriptions.Item label="关联订单">{inv.sales_order_id}</Descriptions.Item>
+              <Descriptions.Item label="关联订单">
+                {inv.sales_order_id ? (
+                  <Typography.Link onClick={() => navigate(`/sales/orders/${inv.sales_order_id}`)}>
+                    订单 #{inv.sales_order_id}
+                  </Typography.Link>
+                ) : "-"}
+              </Descriptions.Item>
               <Descriptions.Item label="客户"><CustomerLink id={inv.customer_id} /></Descriptions.Item>
               <Descriptions.Item label="开票日期">{inv.invoice_date?.slice(0, 10) || "-"}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{inv.notes || "-"}</Descriptions.Item>
@@ -81,7 +108,7 @@ export default function InvoiceDetail() {
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-          <Card size="small" title="发票摘要">
+          <Card size="small" title={<><DollarOutlined /> 发票摘要</>}>
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">发票号</Typography.Text>
@@ -109,6 +136,15 @@ export default function InvoiceDetail() {
                 <Typography.Text>{inv.invoice_type}</Typography.Text>
               </div>
             </Space>
+          </Card>
+
+          <Card size="small" title="状态流转">
+            <ErpStatusTimeline
+              currentStatus={inv.status}
+              steps={STATUS_STEPS}
+              createdAt={inv.created_at}
+              lostStatus="cancelled"
+            />
           </Card>
 
           <Card size="small" title="下一步动作">
