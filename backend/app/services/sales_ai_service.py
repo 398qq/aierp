@@ -1,6 +1,8 @@
 """Sales AI enrichment — embeds AI insights into every sales entity."""
 
 import asyncio
+import hashlib
+import json
 import logging
 from collections import Counter
 
@@ -8,9 +10,45 @@ from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sales import DeliveryNote, Opportunity, Quotation, SalesOrder
+from app.services.cache_service import cache_get_versioned, cache_set_versioned
 
 logger = logging.getLogger(__name__)
 SALES_AI_TIMEOUT_SECONDS = 8
+
+# Cache TTL for AI enrichment results (30 min — AI model + prompt version stable)
+AI_ENRICHMENT_CACHE_TTL = 1800
+# Bump this when prompts change to invalidate all cached AI responses
+AI_ENRICHMENT_PROMPT_VERSION = "v1"
+
+
+def _ai_enrichment_cache_key(entity: str, input_data: list[dict]) -> str:
+    """Stable hash from entity type + input list (id + key fields)."""
+    canonical = json.dumps([entity, input_data], sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return f"ai:enrich:{entity}:{AI_ENRICHMENT_PROMPT_VERSION}:{digest}"
+
+
+async def _cached_ai_call(
+    entity: str, input_data: list[dict], messages: list[dict], schema: dict,
+) -> dict | None:
+    """Cached AI call: hash inputs, return cached result or call AI and store.
+
+    Uses version-bump family invalidation: bumping the family's version
+    invalidates all entries without scanning KEYS.
+    """
+    if not input_data:
+        return None
+    cache_key = _ai_enrichment_cache_key(entity, input_data)
+    cached = await cache_get_versioned(f"ai:enrich:{entity}", cache_key)
+    if cached is not None:
+        return json.loads(cached)
+    result = await _call_ai(messages, schema)
+    if result is not None:
+        await cache_set_versioned(
+            f"ai:enrich:{entity}", cache_key,
+            json.dumps(result, default=str), AI_ENRICHMENT_CACHE_TTL,
+        )
+    return result
 
 
 async def _call_ai(messages: list[dict], output_schema: dict) -> dict | None:
@@ -156,7 +194,8 @@ async def enrich_opportunity_list(db: AsyncSession, opps: list[Opportunity]) -> 
     schema = {
         "items": [{"id": "integer", "risk_level": "string", "flag": "string | null"}],
     }
-    result = await _call_ai(
+    result = await _cached_ai_call(
+        "opp_list", opp_data,
         [{"role": "system", "content": "你是B2B电子元器件销售分析专家。批量评估商机风险。"},
          {"role": "user", "content": list_risk_summary_prompt(opp_data)}],
         schema,
@@ -183,7 +222,8 @@ async def enrich_quotation_list(db: AsyncSession, quotes: list[Quotation]) -> di
     schema = {
         "items": [{"id": "integer", "pricing_health": "string", "flag": "string | null"}],
     }
-    result = await _call_ai(
+    result = await _cached_ai_call(
+        "quote_list", quote_data,
         [{"role": "system", "content": "你是B2B电子元器件报价分析专家。批量评估报价单质量。"},
          {"role": "user", "content": quotation_list_enrich_prompt(quote_data)}],
         schema,
@@ -199,25 +239,24 @@ async def enrich_order_list(db: AsyncSession, orders: list[SalesOrder]) -> dict[
 
     if not orders:
         return {}
-
     order_data = [{
         "id": o.id,
-        "total_amount": str(o.total_amount),
+        "total_amount": str(o.total_amount or 0),
         "status": o.status,
-        "item_count": str(len(o.items) if o.items else 0),
+        "item_count": str(len(o.items) if getattr(o, "items", None) else 0),
     } for o in orders]
-
     schema = {
-        "items": [{"id": "integer", "delivery_risk": "string", "flag": "string | null"}],
+        "items": [{"id": "integer", "health": "string", "flag": "string | null"}],
     }
-    result = await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件订单管理专家。批量评估订单风险。"},
+    result = await _cached_ai_call(
+        "order_list", order_data,
+        [{"role": "system", "content": "你是B2B电子元器件订单分析专家。批量评估订单健康度。"},
          {"role": "user", "content": order_list_enrich_prompt(order_data)}],
         schema,
     )
     if not result:
-        return {o.id: {"delivery_risk": "low", "flag": None} for o in orders}
-    return {item["id"]: {"delivery_risk": item.get("delivery_risk", "low"), "flag": item.get("flag")}
+        return {o.id: {"health": "fair", "flag": None} for o in orders}
+    return {item["id"]: {"health": item.get("health", "fair"), "flag": item.get("flag")}
             for item in result.get("items", []) if "id" in item}
 
 

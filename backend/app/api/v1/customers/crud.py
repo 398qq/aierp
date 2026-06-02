@@ -20,7 +20,7 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.customer import Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog
 from app.schemas.common import fail, ok
-from app.services.cache_service import cache_delete, cache_get, cache_set
+from app.services.cache_service import cache_bump_version, cache_get_versioned, cache_set_versioned
 from app.services.customer_service import (
     calc_health,
     customer_name_conflict_message,
@@ -350,7 +350,7 @@ async def list_customers(
         tag_ids=tag_ids, page=page, page_size=page_size,
         sort_by=sort_by, sort_order=sort_order,
     )
-    cached_payload = await cache_get(cache_key)
+    cached_payload = await cache_get_versioned('customers:list', cache_key)
     if cached_payload is not None:
         response.headers["X-Cache"] = "HIT"
         response.headers["X-Cache-Key"] = cache_key
@@ -408,7 +408,7 @@ async def list_customers(
     now = datetime.now(timezone.utc)
     rows = [_customer_row(c, now=now) for c in customers]
     payload = {"list": rows, "total": total, "page": page, "page_size": page_size}
-    await cache_set(cache_key, json.dumps(payload, default=str), CUSTOMERS_LIST_CACHE_TTL)
+    await cache_set_versioned('customers:list', cache_key, json.dumps(payload, default=str), CUSTOMERS_LIST_CACHE_TTL)
     return ok(payload)
 
 
@@ -521,7 +521,7 @@ async def import_customers(
             db.add(customer)
             imported += 1
         await db.commit()
-        await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
+        await cache_bump_version("customers:list")
         return ok({"imported": imported, "updated": updated})
     except Exception as e:
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -641,7 +641,7 @@ async def merge_customers(body: MergeRequest, db: AsyncSession = Depends(get_db)
     await _log(db, body.target_id, "merge", summary=f"从 #{body.source_id} {source.name} 合并入", operator=username)
 
     await db.flush()
-    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("customers:list")
     return ok({"merged": True, "transferred": transferred})
 
 
@@ -674,7 +674,7 @@ async def batch_delete(
     for c in customers:
         c.deleted_at = now
     await db.flush()
-    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("customers:list")
     return ok({"deleted": len(customers)})
 
 
@@ -747,7 +747,7 @@ async def create_customer(
     await db.flush()
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
-    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("customers:list")
     return ok({
         "id": customer.id,
         "name": customer.name,
@@ -813,7 +813,7 @@ async def update_customer(
     await db.flush()
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
-    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("customers:list")
     return ok({"id": customer.id})
 
 
@@ -832,5 +832,5 @@ async def delete_customer(
     customer.deleted_at = datetime.now(timezone.utc)
     await _log(db, customer_id, "delete", summary=f"删除客户: {customer.name}", operator=_user.get("username"))
     await db.flush()
-    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("customers:list")
     return ok(msg="deleted")

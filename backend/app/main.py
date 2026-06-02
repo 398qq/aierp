@@ -163,7 +163,18 @@ async def metrics():
 @app.get("/metrics/prometheus", response_class=PlainTextResponse)
 async def metrics_prometheus():
     """Prometheus text exposition format — drop-in for scraping."""
-    from app.core.observability.metrics import render_prometheus_text
+    from app.core.observability.metrics import (
+        cache_hit_ratio, cache_hits_total, cache_misses_total, render_prometheus_text,
+    )
+    # Sample cache_hit_ratio per family (Prometheus prefers gauges over computed values)
+    for family in ("products:list", "customers:list", "sales-orders:list",
+                   "opportunities:list", "quotations:list", "ai:enrich:opp_list",
+                   "ai:enrich:quote_list", "ai:enrich:order_list"):
+        hits = cache_hits_total.value(family=family)
+        misses = cache_misses_total.value(family=family)
+        total = hits + misses
+        if total > 0:
+            cache_hit_ratio.set(hits / total, family=family)
     return PlainTextResponse(
         content=render_prometheus_text(),
         media_type="text/plain; version=0.0.4",

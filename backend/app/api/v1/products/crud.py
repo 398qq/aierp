@@ -15,7 +15,7 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.product import Brand, Inventory, Product, SupplierProduct
 from app.schemas.common import fail, ok
-from app.services.cache_service import cache_delete, cache_get, cache_set
+from app.services.cache_service import cache_bump_version, cache_get_versioned, cache_set_versioned
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +315,7 @@ async def list_products(
         brand_id=brand_id, scene=scene, stock_status=effective_stock_status,
         sort=sort,
     )
-    cached_payload = await cache_get(cache_key)
+    cached_payload = await cache_get_versioned("products:list", cache_key)
     if cached_payload is not None:
         return JSONResponse(
             content=json.loads(cached_payload),
@@ -434,7 +434,7 @@ async def list_products(
         ) in rows
     ]
     payload = {"list": items, "total": total, "page": page, "page_size": page_size}
-    await cache_set(cache_key, json.dumps(payload, default=str), PRODUCTS_LIST_CACHE_TTL)
+    await cache_set_versioned("products:list", cache_key, json.dumps(payload, default=str), PRODUCTS_LIST_CACHE_TTL)
     return ok(payload)
 
 
@@ -504,7 +504,7 @@ async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db)
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
     after_product_save(product.id)
-    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("products:list")
     return ok({"id": product.id, "name": product.name})
 
 
@@ -519,7 +519,7 @@ async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession 
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
     after_product_save(product.id)
-    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("products:list")
     return ok({"id": product.id})
 
 
@@ -531,7 +531,7 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
         return fail("Product not found", 404)
     product.deleted_at = datetime.now(timezone.utc)
     await db.flush()
-    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("products:list")
     return ok(msg="deleted")
 
 
@@ -546,7 +546,7 @@ async def batch_delete_products(body: dict, db: AsyncSession = Depends(get_db), 
         .where(Product.id.in_(ids), Product.deleted_at.is_(None))
         .values(deleted_at=now)
     )
-    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("products:list")
     return ok({"deleted": result.rowcount or 0})
 
 
@@ -562,7 +562,7 @@ async def batch_update_products(body: dict, db: AsyncSession = Depends(get_db), 
     await db.execute(
         update(Product).where(Product.id.in_(ids), Product.deleted_at.is_(None)).values(**updates)
     )
-    await cache_delete(f"products:list:{PRODUCTS_LIST_CACHE_VERSION}:*")
+    await cache_bump_version("products:list")
     return ok({"updated": len(ids), "fields": list(updates.keys())})
 
 

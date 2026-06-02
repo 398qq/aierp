@@ -78,6 +78,10 @@ class Gauge:
         key = tuple(label_values[label] for label in self.labels)
         return self._values.get(key, 0.0)
 
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {k: v for k, v in self._values.items()}
+
 
 class Histogram:
     """Histogram with predefined buckets (in seconds)."""
@@ -191,17 +195,52 @@ domain_errors_total = Counter(
     labels=["error_type"],
 )
 
+# ── Cache metrics ─────────────────────────────────────────────────────────
+
+cache_hits_total = Counter(
+    "cache_hits_total",
+    "Total cache hits, labeled by cache family.",
+    labels=["family"],
+)
+
+cache_misses_total = Counter(
+    "cache_misses_total",
+    "Total cache misses, labeled by cache family.",
+    labels=["family"],
+)
+
+cache_invalidations_total = Counter(
+    "cache_invalidations_total",
+    "Total cache invalidations (version bumps or deletes).",
+    labels=["family"],
+)
+
+cache_hit_ratio = Gauge(
+    "cache_hit_ratio",
+    "Cache hit ratio (hits / (hits + misses)) per family. Sampled by the metrics endpoint.",
+    labels=["family"],
+)
+
+cache_lookup_duration_seconds = Histogram(
+    "cache_lookup_duration_seconds",
+    "Cache lookup latency.",
+    labels=["family", "outcome"],
+)
+
 
 def reset_all() -> None:
-    """Reset all metrics — useful in tests."""
     for m in (
         orders_confirmed_total, orders_cancelled_total,
         inventory_reserved_total, inventory_release_failures_total,
         inventory_concurrent_conflicts_total, domain_events_total,
         domain_errors_total,
+        cache_hits_total, cache_misses_total, cache_invalidations_total,
     ):
         m._values.clear()  # type: ignore[attr-defined]
-    for h in (ai_call_duration_seconds, event_dispatch_duration_seconds):
+    for g in (cache_hit_ratio,):
+        g._values.clear()  # type: ignore[attr-defined]
+    for h in (ai_call_duration_seconds, event_dispatch_duration_seconds,
+              cache_lookup_duration_seconds):
         h._values.clear()  # type: ignore[attr-defined]
 
 
@@ -215,11 +254,17 @@ def all_snapshots() -> dict:
                 inventory_reserved_total, inventory_release_failures_total,
                 inventory_concurrent_conflicts_total, domain_events_total,
                 domain_errors_total,
+                cache_hits_total, cache_misses_total, cache_invalidations_total,
             )
+        },
+        "gauges": {
+            g.name: g.snapshot()  # type: ignore[attr-defined]
+            for g in (cache_hit_ratio,)
         },
         "histograms": {
             h.name: h.snapshot()  # type: ignore[attr-defined]
-            for h in (ai_call_duration_seconds, event_dispatch_duration_seconds)
+            for h in (ai_call_duration_seconds, event_dispatch_duration_seconds,
+                      cache_lookup_duration_seconds)
         },
     }
 
@@ -249,10 +294,17 @@ def render_prometheus_text() -> str:
         "inventory_concurrent_conflicts_total": "Total optimistic-lock conflicts on inventory.",
         "domain_events_total": "Total domain events published.",
         "domain_errors_total": "Total domain errors raised.",
+        "cache_hits_total": "Total cache hits.",
+        "cache_misses_total": "Total cache misses.",
+        "cache_invalidations_total": "Total cache invalidations.",
+    }
+    gauge_docs: dict[str, str] = {
+        "cache_hit_ratio": "Cache hit ratio per family (hits / total).",
     }
     histogram_docs: dict[str, str] = {
         "ai_call_duration_seconds": "AI call latency.",
         "event_dispatch_duration_seconds": "Domain event dispatch latency.",
+        "cache_lookup_duration_seconds": "Cache lookup latency.",
     }
 
     counters = {
@@ -263,6 +315,12 @@ def render_prometheus_text() -> str:
         "inventory_concurrent_conflicts_total": inventory_concurrent_conflicts_total,
         "domain_events_total": domain_events_total,
         "domain_errors_total": domain_errors_total,
+        "cache_hits_total": cache_hits_total,
+        "cache_misses_total": cache_misses_total,
+        "cache_invalidations_total": cache_invalidations_total,
+    }
+    gauges = {
+        "cache_hit_ratio": cache_hit_ratio,
     }
 
     for name, counter in counters.items():
@@ -271,6 +329,20 @@ def render_prometheus_text() -> str:
         lines.append(f"# TYPE {name} counter")
         labels = counter.labels  # type: ignore[attr-defined]
         snap = counter.snapshot()  # type: ignore[attr-defined]
+        for label_tuple, value in sorted(snap.items()):
+            label_str = ",".join(
+                f'{label}="{_escape_label(value)}"'
+                for label, value in zip(labels, label_tuple)
+            )
+            lines.append(f"{name}{{{label_str}}} {_format_value(value)}")
+        lines.append("")
+
+    for name, gauge in gauges.items():
+        doc = gauge_docs[name]
+        lines.append(f"# HELP {name} {doc}")
+        lines.append(f"# TYPE {name} gauge")
+        labels = gauge.labels  # type: ignore[attr-defined]
+        snap = gauge.snapshot()  # type: ignore[attr-defined]
         for label_tuple, value in sorted(snap.items()):
             label_str = ",".join(
                 f'{label}="{_escape_label(value)}"'

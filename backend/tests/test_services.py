@@ -209,7 +209,7 @@ class TestSalesAIService:
         class SlowAIClient:
             async def chat_structured(self, *_args, **_kwargs):
                 await asyncio.sleep(1)
-                return {"items": [{"id": 1, "delivery_risk": "high", "flag": "late"}]}
+                return {"items": [{"id": 1, "health": "fair", "flag": None}]}
 
         order = MagicMock(id=1, total_amount=100, status="pending", items=[])
         monkeypatch.setattr(sales_ai_service, "SALES_AI_TIMEOUT_SECONDS", 0.01)
@@ -218,4 +218,4 @@ class TestSalesAIService:
             result = await sales_ai_service.enrich_order_list(MagicMock(), [order])
 
         assert time.perf_counter() - started < 0.5
-        assert result == {1: {"delivery_risk": "low", "flag": None}}
+        assert result == {1: {"health": "fair", "flag": None}}
