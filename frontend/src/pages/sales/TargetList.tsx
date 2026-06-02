@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Space, Tag, Select, message, Popconfirm, Row, Col, Card, Statistic, Progress } from "antd";
+import { Table, Button, Space, Tag, Select, message, Popconfirm, Card, Progress } from "antd";
 import { PlusOutlined, AimOutlined } from "@ant-design/icons";
 import { getTargets, deleteTarget, getTargetStats } from "../../api";
 import type { SalesTarget } from "../../types";
-import { SalesModuleShell } from "./salesUi";
+import { MetricBand, SalesModuleShell } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   active: { color: "blue", label: "进行中" }, completed: { color: "green", label: "已完成" }, cancelled: { color: "default", label: "已取消" },
@@ -41,48 +41,47 @@ export default function TargetList() {
       subtitle="管理销售目标、实际达成和执行进度"
       activeKey="targets"
     >
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}><Card size="small"><Statistic title="总目标" value={stats.total_target} prefix="¥" /></Card></Col>
-        <Col span={6}><Card size="small"><Statistic title="已完成" value={stats.total_actual} prefix="¥" valueStyle={{ color: "#52c41a" }} /></Card></Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic title="达成率" value={stats.achievement_pct} suffix="%" />
-            <Progress percent={stats.achievement_pct} size="small" strokeColor={stats.achievement_pct >= 80 ? "#52c41a" : stats.achievement_pct >= 50 ? "#faad14" : "#ff4d4f"} />
-          </Card>
-        </Col>
-      </Row>
+      <MetricBand items={[
+        { title: "总目标", value: stats.total_target, prefix: "¥", precision: 0 },
+        { title: "已完成", value: stats.total_actual, prefix: "¥", precision: 0 },
+        { title: "达成率", value: stats.achievement_pct, suffix: "%", precision: 1 },
+      ]} />
 
-      <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/targets/new")}>新增目标</Button>
-        <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
-          { value: "active", label: "进行中" }, { value: "completed", label: "已完成" },
-        ]} />
-      </Space>
+      <Card size="small" className="sales-erp-toolbar" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/targets/new")}>新增目标</Button>
+          <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
+            { value: "active", label: "进行中" }, { value: "completed", label: "已完成" },
+          ]} />
+        </Space>
+      </Card>
 
-      <Table
-        rowKey="id" loading={loading} dataSource={data}
-        columns={[
-          { title: "ID", dataIndex: "id", width: 60 },
-          { title: "类型", dataIndex: "target_type", width: 80, render: (v: string) => TYPE[v] || v },
-          { title: "目标金额", dataIndex: "target_amount", width: 130, render: (v: number) => `¥${v.toLocaleString()}` },
-          { title: "实际金额", dataIndex: "actual_amount", width: 130, render: (v: number) => `¥${v.toLocaleString()}` },
-          { title: "达成率", width: 100, render: (_: unknown, r: SalesTarget) => <Progress percent={Math.round(r.target_amount > 0 ? r.actual_amount / r.target_amount * 100 : 0)} size="small" /> },
-          { title: "期间", width: 180, render: (_: unknown, r: SalesTarget) => `${r.period_start?.slice(0, 10) || "?"} ~ ${r.period_end?.slice(0, 10) || "?"}` },
-          { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
-          {
-            title: "操作", width: 120,
-            render: (_: unknown, r: SalesTarget) => (
-              <Space size="small">
-                <Button size="small" onClick={() => navigate(`/sales/targets/${r.id}/edit`)}>编辑</Button>
-                <Popconfirm title="确定删除?" onConfirm={async () => {
-                  try { await deleteTarget(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
-                }}><Button size="small" danger>删除</Button></Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
-      />
+      <Card size="small" className="sales-erp-table-card">
+        <Table
+          rowKey="id" size="small" bordered loading={loading} dataSource={data}
+          columns={[
+            { title: "ID", dataIndex: "id", width: 60 },
+            { title: "类型", dataIndex: "target_type", width: 80, render: (v: string) => TYPE[v] || v },
+            { title: "目标金额", dataIndex: "target_amount", width: 130, render: (v: number) => `¥${v.toLocaleString()}` },
+            { title: "实际金额", dataIndex: "actual_amount", width: 130, render: (v: number) => `¥${v.toLocaleString()}` },
+            { title: "达成率", width: 100, render: (_: unknown, r: SalesTarget) => <Progress percent={Math.round(r.target_amount > 0 ? r.actual_amount / r.target_amount * 100 : 0)} size="small" /> },
+            { title: "期间", width: 180, render: (_: unknown, r: SalesTarget) => `${r.period_start?.slice(0, 10) || "?"} ~ ${r.period_end?.slice(0, 10) || "?"}` },
+            { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
+            {
+              title: "操作", width: 120,
+              render: (_: unknown, r: SalesTarget) => (
+                <Space size="small">
+                  <Button size="small" onClick={() => navigate(`/sales/targets/${r.id}/edit`)}>编辑</Button>
+                  <Popconfirm title="确定删除?" onConfirm={async () => {
+                    try { await deleteTarget(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                  }}><Button size="small" danger>删除</Button></Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+        />
+      </Card>
     </SalesModuleShell>
   );
 }

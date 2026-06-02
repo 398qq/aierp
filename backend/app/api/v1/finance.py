@@ -82,13 +82,14 @@ async def delete_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user:
 async def list_payments(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
     customer_id: int | None = None, status: str | None = None,
-    sales_order_id: int | None = None,
+    sales_order_id: int | None = None, delivery_note_id: int | None = None,
     sort_by: str = "id", sort_order: str = "desc",
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     from app.services.finance_service import list_payments as svc_list
     result = await svc_list(db, page=page, page_size=page_size, customer_id=customer_id,
                           status=status, sales_order_id=sales_order_id,
+                          delivery_note_id=delivery_note_id,
                           sort_by=sort_by, sort_order=sort_order)
     return ok(result)
 

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Empty, message, Space, Spin, Switch, Table } from "antd";
+import { Alert, Button, Card, Descriptions, Empty, message, Space, Spin, Switch, Table, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
-import { getDeliveryNote, updateDeliveryNote } from "../../api";
+import { getDeliveryNote, getPayments, updateDeliveryNote } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
-import type { DeliveryNote } from "../../types";
+import type { DeliveryNote, PaymentRecord } from "../../types";
 import { CustomerLink, SalesModuleShell, SalesStatusTag, shortDate } from "./salesUi";
 
 export default function DeliveryNoteDetail() {
@@ -14,12 +14,20 @@ export default function DeliveryNoteDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeAi, setIncludeAi] = useState(true);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    getDeliveryNote(Number(id), includeAi)
-      .then((r) => setNote(r.data.data))
+    const noteId = Number(id);
+    Promise.all([
+      getDeliveryNote(noteId, includeAi),
+      getPayments({ page: 1, page_size: 100, delivery_note_id: noteId }),
+    ])
+      .then(([noteResp, payResp]) => {
+        setNote(noteResp.data.data);
+        setPayments(payResp.data.data.list || []);
+      })
       .catch((err) => setError(err.message || "加载失败"))
       .finally(() => setLoading(false));
   }, [id, includeAi]);
@@ -80,6 +88,35 @@ export default function DeliveryNoteDetail() {
           />
         </Card>
       )}
+
+      <Card title="回款信息" size="small" style={{ marginTop: 16 }}>
+        {payments.length === 0 ? (
+          <Typography.Text type="secondary">暂无回款记录</Typography.Text>
+        ) : (
+          <Table
+            rowKey="id"
+            dataSource={payments}
+            size="small"
+            pagination={false}
+            columns={[
+              { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
+              { title: "方式", dataIndex: "payment_method", width: 80 },
+              { title: "日期", dataIndex: "payment_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
+              {
+                title: "状态", dataIndex: "status", width: 80,
+                render: (v: string) => {
+                  const m: Record<string, { color: string; label: string }> = {
+                    pending: { color: "orange", label: "待收款" },
+                    completed: { color: "green", label: "已收款" },
+                    overdue: { color: "red", label: "逾期" },
+                  };
+                  return <Tag color={m[v]?.color}>{m[v]?.label || v}</Tag>;
+                },
+              },
+            ]}
+          />
+        )}
+      </Card>
 
       {includeAi && <SalesAIInsight aiData={note.ai} />}
     </SalesModuleShell>

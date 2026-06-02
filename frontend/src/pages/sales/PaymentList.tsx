@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, Tag, Select, message, Popconfirm, Row, Col, Card, Statistic } from "antd";
-import { PlusOutlined, DollarOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import { getPayments, deletePayment, getPaymentStats } from "../../api";
 import type { PaymentRecord } from "../../types";
 import { CustomerLink, CustomerSelect, SalesModuleShell } from "./salesUi";
@@ -63,7 +63,21 @@ export default function PaymentList() {
         rowKey="id" loading={loading} dataSource={data}
         columns={[
           { title: "ID", dataIndex: "id", width: 60 },
-          { title: "订单ID", dataIndex: "sales_order_id", width: 80 },
+          {
+            title: "关联订单", dataIndex: "sales_order_id", width: 100,
+            render: (value: number) => (
+              <a onClick={() => navigate(`/sales/orders/${value}`)}>#{value}</a>
+            ),
+          },
+          {
+            title: "发货单", dataIndex: "delivery_note_id", width: 100,
+            render: (value: number | null) => {
+              if (!value) return <span style={{ color: "#999" }}>-</span>;
+              return (
+                <a onClick={() => navigate(`/sales/delivery-notes/${value}`)}>#{value}</a>
+              );
+            },
+          },
           { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
           { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => `¥${v.toLocaleString()}` },
           { title: "方式", dataIndex: "payment_method", width: 80 },

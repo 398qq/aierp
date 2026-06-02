@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography } from "antd";
+import { Table, Tag, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { MenuProps } from "antd";
 import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
-import { getPurchaseOrders, getSuppliers, receivePurchaseOrder, deletePurchaseOrder } from "../../api";
+import { getPurchaseOrders, getSuppliers, receivePurchaseOrder, deletePurchaseOrder, batchDeletePurchaseOrders } from "../../api";
 import type { PurchaseOrder } from "../../types";
 import dayjs from "dayjs";
-import { ErpExportButton, MetricBand, SalesModuleShell } from "./salesUi";
+import { ErpExportButton, MetricBand, SalesModuleShell, shortDate } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" },
@@ -24,6 +25,9 @@ export default function PurchaseOrderList() {
   const [receivePO, setReceivePO] = useState<PurchaseOrder | null>(null);
   const [receiveWarehouseId, setReceiveWarehouseId] = useState(1);
   const [receiving, setReceiving] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [searchText, setSearchText] = useState("");
+  const [q, setQ] = useState("");
 
   // Filters
   const [filterSupplierId, setFilterSupplierId] = useState<number | undefined>();
@@ -40,6 +44,7 @@ export default function PurchaseOrderList() {
       if (filterStatus) params.status = filterStatus;
       if (filterDateFrom) params.date_from = filterDateFrom;
       if (filterDateTo) params.date_to = filterDateTo;
+      if (q.trim()) params.q = q.trim();
       const r = await getPurchaseOrders(params);
       setData((r.data.data?.list || []) as PurchaseOrder[]);
       setTotal((r.data.data?.total || 0) as number);
@@ -47,10 +52,10 @@ export default function PurchaseOrderList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [page, filterSupplierId, filterStatus, filterDateFrom, filterDateTo]);
+  useEffect(() => { fetch(); }, [page, filterSupplierId, filterStatus, filterDateFrom, filterDateTo, q]);
 
   useEffect(() => {
-    getSuppliers({ page: 1, page_size: 100 }).then((r) =>
+    getSuppliers({ page: 1, page_size: 200 }).then((r) =>
       setSuppliers((r.data.data?.list || []) as { id: number; name: string }[])
     ).catch(() => {});
   }, []);
@@ -71,6 +76,15 @@ export default function PurchaseOrderList() {
     setPage(1);
   };
 
+  const handleBatchDelete = async () => {
+    try {
+      await batchDeletePurchaseOrders(selected);
+      message.success("已批量删除");
+      setSelected([]);
+      fetch();
+    } catch { message.error("批量删除失败"); }
+  };
+
   const handleReceive = async () => {
     if (!receivePO) return;
     setReceiving(true);
@@ -87,6 +101,7 @@ export default function PurchaseOrderList() {
     try {
       await deletePurchaseOrder(po.id);
       message.success(`PO ${po.order_no || `#${po.id}`} 已删除`);
+      setSelected((prev) => prev.filter((id) => id !== po.id));
       fetch();
     } catch { message.error("删除失败"); }
   };
@@ -104,52 +119,55 @@ export default function PurchaseOrderList() {
   const columns: ColumnsType<PurchaseOrder> = [
     { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: PurchaseOrder, index: number) => (page - 1) * 20 + index + 1 },
     {
-      title: "订单号", dataIndex: "order_no", width: 150,
+      title: "采购单", dataIndex: "order_no", minWidth: 200,
       render: (v: string | null, r: PurchaseOrder) => (
-        <a onClick={() => navigate(`/sales/purchase-orders/${r.id}`)}>{v || "-"}</a>
+        <Space direction="vertical" size={0}>
+          <a onClick={() => navigate(`/sales/purchase-orders/${r.id}`)}>{v || `PO#${r.id}`}</a>
+          <Space size={8}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.supplier_name || `#${r.supplier_id}`}</Typography.Text>
+          </Space>
+        </Space>
       ),
     },
-    { title: "供应商", dataIndex: "supplier_name", width: 120, render: (v: string | null, r: PurchaseOrder) => v || `#${r.supplier_id}` },
     {
       title: "状态", dataIndex: "status", width: 80,
       render: (s: string) => <Tag color={STATUS[s]?.color}>{STATUS[s]?.label || s}</Tag>,
     },
     {
-      title: "金额", dataIndex: "total_amount", width: 100,
+      title: "金额", dataIndex: "total_amount", width: 120,
       render: (v: number) => `¥${v?.toLocaleString() ?? 0}`,
     },
-    { title: "预计到货", dataIndex: "expected_date", width: 100, render: (v: string | null) => v?.slice(0, 10) || "-" },
+    { title: "预计到货", dataIndex: "expected_date", width: 100, render: (v: string | null) => shortDate(v) },
     { title: "备注", dataIndex: "notes", ellipsis: true },
-    { title: "创建时间", dataIndex: "created_at", width: 100, render: (v: string) => v?.slice(0, 10) || "-" },
+    { title: "创建时间", dataIndex: "created_at", width: 100, render: (v: string) => shortDate(v) },
     {
-      title: "操作", key: "action", width: 120,
-      render: (_: unknown, r: PurchaseOrder) => (
-        <Space size={0}>
-          <Button type="link" size="small" onClick={() => navigate(`/sales/purchase-orders/${r.id}`)}>查看</Button>
-          {r.status === "draft" && (
-            <Dropdown menu={{
-              items: [
-                { key: "receive", icon: <CheckCircleOutlined />, label: "收货",
-                  onClick: () => { setReceivePO(r); setReceiveModalOpen(true); } },
-                { key: "edit", icon: <EditOutlined />, label: "编辑",
-                  onClick: () => navigate(`/sales/purchase-orders/${r.id}/edit`) },
-                { type: "divider" as const },
-                { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true,
-                  onClick: () => Modal.confirm({
-                    title: "确认删除",
-                    content: `确定要删除 ${r.order_no || `PO#${r.id}`} 吗？`,
-                    onOk: () => handleDelete(r),
-                    okText: "删除",
-                    cancelText: "取消",
-                    okButtonProps: { danger: true },
-                  }) },
-              ],
-            }}>
-              <Button size="small" icon={<MoreOutlined />} />
-            </Dropdown>
-          )}
-        </Space>
-      ),
+      title: "操作", key: "action", width: 60, fixed: "right" as const,
+      render: (_: unknown, r: PurchaseOrder) => {
+        const items: MenuProps["items"] = [
+          { key: "view", label: "查看详情", onClick: () => navigate(`/sales/purchase-orders/${r.id}`) },
+          ...(r.status === "draft" ? [
+            { key: "receive", icon: <CheckCircleOutlined />, label: "收货",
+              onClick: () => { setReceivePO(r); setReceiveModalOpen(true); } },
+            { key: "edit", icon: <EditOutlined />, label: "编辑",
+              onClick: () => navigate(`/sales/purchase-orders/${r.id}/edit`) },
+            { type: "divider" as const },
+            { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true,
+              onClick: () => Modal.confirm({
+                title: "确认删除",
+                content: `确定要删除 ${r.order_no || `PO#${r.id}`} 吗？`,
+                onOk: () => handleDelete(r),
+                okText: "删除",
+                cancelText: "取消",
+                okButtonProps: { danger: true },
+              }) },
+          ] : []),
+        ];
+        return (
+          <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+            <Button size="small" icon={<MoreOutlined />} type="text" />
+          </Dropdown>
+        );
+      },
     },
   ];
 
@@ -190,6 +208,23 @@ export default function PurchaseOrderList() {
             ]}
             filename={`采购订单_${dayjs().format("YYYYMMDD")}.csv`}
           />
+          <Input.Search
+            allowClear
+            placeholder="搜索订单号 / 供应商 / 产品"
+            value={searchText}
+            onChange={(e) => {
+              setSearchText(e.target.value);
+              if (!e.target.value) {
+                setPage(1);
+                setQ("");
+              }
+            }}
+            onSearch={(value) => {
+              setPage(1);
+              setQ(value);
+            }}
+            style={{ width: 240 }}
+          />
           <Select
             allowClear
             showSearch
@@ -225,6 +260,11 @@ export default function PurchaseOrderList() {
           <Button icon={<ClearOutlined />} onClick={clearFilters} disabled={!filterSupplierId && !filterStatus && !filterDateFrom && !filterDateTo}>
             清除筛选
           </Button>
+          {selected.length > 0 ? (
+            <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}>
+              <Button danger icon={<DeleteOutlined />}>删除 {selected.length}</Button>
+            </Popconfirm>
+          ) : null}
         </Space>
       </Card>
 
@@ -235,6 +275,7 @@ export default function PurchaseOrderList() {
           <Space size={8} wrap>
             <Typography.Text strong>采购订单单据</Typography.Text>
             <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
+            {selected.length > 0 && <Tag color="blue">已选 {selected.length}</Tag>}
           </Space>
         )}
       >
@@ -245,7 +286,8 @@ export default function PurchaseOrderList() {
           loading={loading}
           size="small"
           bordered
-          scroll={{ x: 800 }}
+          rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+          scroll={{ x: 900 }}
           pagination={{
             current: page, total, pageSize: 20,
             showTotal: (t) => `共 ${t} 条`,

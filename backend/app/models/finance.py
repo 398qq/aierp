@@ -12,6 +12,7 @@ class PaymentRecord(TimestampMixin, Base):
 
     sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    delivery_note_id: Mapped[int | None] = mapped_column(ForeignKey("delivery_notes.id"), nullable=True)
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
     payment_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payment_method: Mapped[str] = mapped_column(String(30), default="bank")
@@ -20,6 +21,7 @@ class PaymentRecord(TimestampMixin, Base):
 
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     customer = relationship("Customer", foreign_keys=[customer_id])
+    delivery_note = relationship("DeliveryNote", foreign_keys=[delivery_note_id])
 
 
 class Invoice(TimestampMixin, Base):

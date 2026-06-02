@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Typography, message } from "antd";
+import { Button, Card, Input, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd";
 import { DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes } from "../../api";
+import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
-import type { DeliveryNote } from "../../types";
+import type { DeliveryNote, PaymentRecord } from "../../types";
 import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesStatusTag, shortDate } from "./salesUi";
+
+const PAYMENT_STATUS: Record<string, { color: string; label: string }> = {
+  completed: { color: "green", label: "已收款" },
+  partial: { color: "orange", label: "部分收款" },
+  none: { color: "default", label: "未收款" },
+};
 
 export default function DeliveryNoteList() {
   const [data, setData] = useState<DeliveryNote[]>([]);
@@ -16,6 +22,7 @@ export default function DeliveryNoteList() {
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
   const [q, setQ] = useState("");
+  const [paymentMap, setPaymentMap] = useState<Record<number, { status: string; total: number; received: number }>>({});
   const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { completion_risk?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
@@ -30,9 +37,30 @@ export default function DeliveryNoteList() {
       if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
       const resp = await getDeliveryNotes(params);
-      setData(resp.data.data.list || []);
+      const notes = resp.data.data.list || [];
+      setData(notes);
       setTotal(resp.data.data.total || 0);
       setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, { completion_risk?: string; flag?: string }> }).ai || {}) : {});
+
+      // Fetch payments for displayed delivery notes
+      const dnIds = notes.map((n: DeliveryNote) => n.id);
+      if (dnIds.length > 0) {
+        const payResp = await getPayments({ page: 1, page_size: 200 });
+        const allPayments: PaymentRecord[] = payResp.data.data.list || [];
+        const map: Record<number, { status: string; total: number; received: number }> = {};
+        for (const dnId of dnIds) {
+          const related = allPayments.filter((p) => p.delivery_note_id === dnId);
+          if (related.length === 0) {
+            map[dnId] = { status: "none", total: 0, received: 0 };
+          } else {
+            const totalAmt = related.reduce((s, p) => s + p.amount, 0);
+            const receivedAmt = related.filter((p) => p.status === "completed").reduce((s, p) => s + p.amount, 0);
+            const allCompleted = related.every((p) => p.status === "completed");
+            map[dnId] = { status: allCompleted ? "completed" : "partial", total: totalAmt, received: receivedAmt };
+          }
+        }
+        setPaymentMap(map);
+      }
     } catch {
       message.error("加载失败");
     } finally {
@@ -145,6 +173,14 @@ export default function DeliveryNoteList() {
             { title: "发货日期", dataIndex: "delivery_date", width: 120, render: shortDate },
             { title: "签收日期", dataIndex: "received_date", width: 120, render: shortDate },
             { title: "明细", width: 90, render: (_: unknown, record: DeliveryNote) => record.items?.length || 0 },
+            {
+              title: "回款", width: 100,
+              render: (_: unknown, record: DeliveryNote) => {
+                const ps = paymentMap[record.id];
+                if (!ps) return <Tag>--</Tag>;
+                return <Tag color={PAYMENT_STATUS[ps.status]?.color}>{PAYMENT_STATUS[ps.status]?.label}</Tag>;
+              },
+            },
             {
               title: "AI",
               width: 90,

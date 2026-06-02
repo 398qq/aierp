@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Modal, Space, Spin, Table, Tag, Typography, InputNumber, message } from "antd";
-import { ArrowLeftOutlined, DollarOutlined, EditOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Descriptions, Divider, Empty, Modal, Space, Spin, Table, Tag, Tooltip, Typography, InputNumber, message } from "antd";
+import { ArrowLeftOutlined, DollarOutlined, EditOutlined, CheckCircleOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { getPurchaseOrder, receivePurchaseOrder } from "../../api";
 import client from "../../api/client";
 import type { PurchaseOrder } from "../../types";
-import { ErpStatusTimeline, MetricBand, SalesModuleShell, shortDate, money } from "./salesUi";
+import { ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, shortDate, money } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" },
@@ -18,22 +18,28 @@ const STATUS_STEPS = [
   { key: "received", label: "已收货" },
 ];
 
-type POItem = { id: number; product_id: number; product_name?: string; product_sku?: string; quantity: number; unit_price: number; amount: number };
+type POItem = { id: number; product_id: number; product_name?: string; product_sku?: string; quantity: number; unit_price: number; amount: number; notes?: string };
 
 export default function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [po, setPo] = useState<(PurchaseOrder & { items: POItem[] }) | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [receiveWarehouseId, setReceiveWarehouseId] = useState(1);
   const [receiving, setReceiving] = useState(false);
+  const [showExtraColumns, setShowExtraColumns] = useState(false);
 
   const fetch = async () => {
     setLoading(true);
+    setError(null);
     try {
       const r = await getPurchaseOrder(Number(id));
       setPo(r.data.data as PurchaseOrder & { items: POItem[] });
-    } catch { message.error("加载采购订单详情失败"); }
+    } catch (e) {
+      const errMsg = (e as { message?: string }).message || "加载采购订单详情失败";
+      setError(errMsg);
+    }
     finally { setLoading(false); }
   };
 
@@ -65,10 +71,18 @@ export default function PurchaseOrderDetail() {
     );
   }
 
+  if (error) {
+    return (
+      <SalesModuleShell title="采购订单详情" activeKey="procurement">
+        <Alert type="error" message={error} />
+      </SalesModuleShell>
+    );
+  }
+
   if (!po) {
     return (
       <SalesModuleShell title="采购订单详情" activeKey="procurement">
-        <div>采购订单不存在</div>
+        <Empty description="采购订单不存在" />
       </SalesModuleShell>
     );
   }
@@ -138,6 +152,30 @@ export default function PurchaseOrderDetail() {
           <Card
             size="small"
             title="采购明细"
+            extra={(
+              <Space>
+                <Tooltip title={showExtraColumns ? "隐藏备注列" : "显示备注列"}>
+                  <Button
+                    size="small"
+                    type={showExtraColumns ? "primary" : "default"}
+                    icon={showExtraColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                    onClick={() => setShowExtraColumns((prev) => !prev)}
+                  >
+                    {showExtraColumns ? "隐藏备注" : "查看备注"}
+                  </Button>
+                </Tooltip>
+                <ErpExportButton
+                  data={(po.items || []) as unknown as Record<string, unknown>[]}
+                  columns={[
+                    { key: "product_name", title: "产品" },
+                    { key: "quantity", title: "数量" },
+                    { key: "unit_price", title: "单价" },
+                    { key: "amount", title: "小计" },
+                  ]}
+                  filename={`purchase_order_${po.order_no || po.id}_items.csv`}
+                />
+              </Space>
+            )}
           >
             <Table
               rowKey="id"
@@ -152,6 +190,7 @@ export default function PurchaseOrderDetail() {
                 { title: "数量", dataIndex: "quantity", width: 80, align: "right" as const },
                 { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number) => `¥${v?.toFixed(2) ?? "0.00"}` },
                 { title: "小计", dataIndex: "amount", width: 120, align: "right" as const, render: (v: number) => <Typography.Text strong>{`¥${v?.toFixed(2) ?? "0.00"}`}</Typography.Text> },
+                ...(showExtraColumns ? [{ title: "备注", dataIndex: "notes" as keyof POItem, width: 160, ellipsis: true, render: (v: string | undefined) => v || "-" }] : []),
               ]}
               summary={() => (
                 <Table.Summary.Row>

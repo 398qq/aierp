@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
-import { getPayment, createPayment, updatePayment, getSalesOrders } from "../../api";
+import { getPayment, createPayment, updatePayment, getSalesOrders, getDeliveryNotes } from "../../api";
 import dayjs from "dayjs";
-import type { SalesOrder } from "../../types";
+import type { DeliveryNote, SalesOrder } from "../../types";
 import { CustomerSelect, shortDate } from "./salesUi";
 
 export default function PaymentForm() {
@@ -12,27 +12,44 @@ export default function PaymentForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>([]);
   const isEdit = !!id;
 
   useEffect(() => {
-    getSalesOrders({ page: 1, page_size: 100 }).then((r) => setOrders(r.data.data.list || []));
+    getSalesOrders({ page: 1, page_size: 200 }).then((r) => setOrders(r.data.data.list || []));
     if (isEdit) {
       getPayment(Number(id)).then((r) => {
         const p = r.data.data;
         form.setFieldsValue({ ...p, payment_date: p.payment_date ? dayjs(p.payment_date) : null });
+        // Load delivery notes for the existing payment's sales_order
+        if (p.sales_order_id) {
+          loadDeliveryNotes(p.sales_order_id);
+        }
       });
     }
   }, [form, id, isEdit]);
 
   const orderById = useMemo(() => new Map(orders.map((order) => [order.id, order])), [orders]);
 
-  const applyOrder = (orderId?: number) => {
-    const order = orderById.get(Number(orderId));
+  const loadDeliveryNotes = async (orderId: number) => {
+    try {
+      const resp = await getDeliveryNotes({ page: 1, page_size: 100, sales_order_id: orderId });
+      setDeliveryNotes(resp.data.data.list || []);
+    } catch {
+      setDeliveryNotes([]);
+    }
+  };
+
+  const applyOrder = (orderId: number) => {
+    const order = orderById.get(orderId);
     if (!order) return;
     form.setFieldsValue({
       customer_id: order.customer_id,
       amount: form.getFieldValue("amount") ?? order.total_amount,
     });
+    // Reset delivery_note_id when order changes
+    form.setFieldsValue({ delivery_note_id: undefined });
+    loadDeliveryNotes(orderId);
   };
 
   const onFinish = async (values: Record<string, unknown>) => {
@@ -61,6 +78,16 @@ export default function PaymentForm() {
             options={orders.map((order) => ({
               value: order.id,
               label: `${order.order_no || `#${order.id}`} / 客户 #${order.customer_id} / ${shortDate(order.delivery_date)}`,
+            }))}
+          />
+        </Form.Item>
+        <Form.Item name="delivery_note_id" label="关联发货单">
+          <Select
+            allowClear
+            placeholder="选择发货单（可选）"
+            options={deliveryNotes.map((dn) => ({
+              value: dn.id,
+              label: `${dn.delivery_no || `#${dn.id}`} / ${shortDate(dn.delivery_date)}`,
             }))}
           />
         </Form.Item>

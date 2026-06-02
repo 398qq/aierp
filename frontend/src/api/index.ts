@@ -495,6 +495,9 @@ export const updatePurchaseOrder = (id: number, data: Record<string, unknown>) =
 export const deletePurchaseOrder = (id: number) =>
   client.delete<APIResponse>(`/purchase-orders/${id}`);
 
+export const batchDeletePurchaseOrders = (ids: number[]) =>
+  client.post<APIResponse>("/purchase-orders/batch-delete", { ids });
+
 // Tickets
 export const getTickets = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<Ticket>>>("/tickets", { params });

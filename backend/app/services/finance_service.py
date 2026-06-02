@@ -87,12 +87,12 @@ async def delete_invoice(db: AsyncSession, inv: Invoice) -> None:
 async def list_payments(
     db: AsyncSession, *, page: int = 1, page_size: int = 20,
     customer_id: int | None = None, status: str | None = None,
-    sales_order_id: int | None = None,
+    sales_order_id: int | None = None, delivery_note_id: int | None = None,
     sort_by: str = "id", sort_order: str = "desc",
 ) -> dict:
     base = select(PaymentRecord).where(PaymentRecord.deleted_at.is_(None))
     cnt = select(func.count(PaymentRecord.id)).where(PaymentRecord.deleted_at.is_(None))
-    for col_name, val in [("customer_id", customer_id), ("status", status), ("sales_order_id", sales_order_id)]:
+    for col_name, val in [("customer_id", customer_id), ("status", status), ("sales_order_id", sales_order_id), ("delivery_note_id", delivery_note_id)]:
         if val is not None:
             col = getattr(PaymentRecord, col_name)
             base = base.where(col == val)

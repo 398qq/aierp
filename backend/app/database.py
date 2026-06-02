@@ -105,6 +105,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
     await _ensure_brand_schema(engine)
     await _ensure_phase6_schema(engine)
+    await _ensure_payment_delivery_note_schema(engine)
     await _ensure_quotation_item_cost_schema(engine)
     await _ensure_pgvector(engine)
     await _seed_rbac(engine)
@@ -147,6 +148,17 @@ async def _ensure_quotation_item_cost_schema(eng):
         await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS untaxed_cost DECIMAL(20,6)")
         await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS taxed_cost DECIMAL(20,6)")
         await conn.exec_driver_sql("ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS sales_profit DECIMAL(20,6)")
+        await conn.commit()
+
+
+async def _ensure_payment_delivery_note_schema(eng):
+    """Backfill delivery_note_id column on payment_records for existing databases."""
+    if eng.dialect.name != "postgresql":
+        return
+
+    async with eng.connect() as conn:
+        await conn.exec_driver_sql("ALTER TABLE payment_records ADD COLUMN IF NOT EXISTS delivery_note_id BIGINT REFERENCES delivery_notes(id)")
+        await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_payment_records_delivery_note_id ON payment_records(delivery_note_id)")
         await conn.commit()
 
 
