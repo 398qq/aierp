@@ -1,14 +1,17 @@
 """Customer CRUD operations — list, create, update, delete, merge, import, export."""
 
 import csv
+import hashlib
 import io
+import json
+import logging
 import os
 import re
 import unicodedata
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +20,7 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.customer import Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_delete, cache_get, cache_set
 from app.services.customer_service import (
     calc_health,
     customer_name_conflict_message,
@@ -309,10 +313,21 @@ CSV_TEMPLATE_HEADERS = ["名称", "编码", "简称", "行业", "等级", "区�
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
+CUSTOMERS_LIST_CACHE_TTL = 300
+CUSTOMERS_LIST_CACHE_VERSION = "v1"
+logger = logging.getLogger(__name__)
+
+
+def _customers_cache_key(**parts: object) -> str:
+    canonical = json.dumps(parts, sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:{digest}"
+
 
 @router.get("")
 @router.get("/")
 async def list_customers(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     keyword: str | None = None,
@@ -329,6 +344,22 @@ async def list_customers(
     sort_by: str = "id",
     sort_order: str = "desc",
 ):
+    cache_key = _customers_cache_key(
+        keyword=keyword, q=q, level=level, industry=industry, region=region,
+        source=source, credit_level=credit_level, is_deleted=is_deleted,
+        tag_ids=tag_ids, page=page, page_size=page_size,
+        sort_by=sort_by, sort_order=sort_order,
+    )
+    cached_payload = await cache_get(cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return JSONResponse(
+            content=json.loads(cached_payload),
+            headers={"X-Cache": "HIT", "X-Cache-Key": cache_key},
+        )
+
+    response.headers["X-Cache"] = "MISS"
     stmt = select(Customer)
     conditions = []
     _keyword = keyword or q
@@ -376,7 +407,9 @@ async def list_customers(
     customers = result.scalars().all()
     now = datetime.now(timezone.utc)
     rows = [_customer_row(c, now=now) for c in customers]
-    return ok({"list": rows, "total": total, "page": page, "page_size": page_size})
+    payload = {"list": rows, "total": total, "page": page, "page_size": page_size}
+    await cache_set(cache_key, json.dumps(payload, default=str), CUSTOMERS_LIST_CACHE_TTL)
+    return ok(payload)
 
 
 @router.get("/import-template")
@@ -488,6 +521,7 @@ async def import_customers(
             db.add(customer)
             imported += 1
         await db.commit()
+        await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
         return ok({"imported": imported, "updated": updated})
     except Exception as e:
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -607,6 +641,7 @@ async def merge_customers(body: MergeRequest, db: AsyncSession = Depends(get_db)
     await _log(db, body.target_id, "merge", summary=f"从 #{body.source_id} {source.name} 合并入", operator=username)
 
     await db.flush()
+    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
     return ok({"merged": True, "transferred": transferred})
 
 
@@ -639,6 +674,7 @@ async def batch_delete(
     for c in customers:
         c.deleted_at = now
     await db.flush()
+    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
     return ok({"deleted": len(customers)})
 
 
@@ -711,6 +747,7 @@ async def create_customer(
     await db.flush()
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
+    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
     return ok({
         "id": customer.id,
         "name": customer.name,
@@ -776,6 +813,7 @@ async def update_customer(
     await db.flush()
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
+    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
     return ok({"id": customer.id})
 
 
@@ -794,4 +832,5 @@ async def delete_customer(
     customer.deleted_at = datetime.now(timezone.utc)
     await _log(db, customer_id, "delete", summary=f"删除客户: {customer.name}", operator=_user.get("username"))
     await db.flush()
+    await cache_delete(f"customers:list:{CUSTOMERS_LIST_CACHE_VERSION}:*")
     return ok(msg="deleted")

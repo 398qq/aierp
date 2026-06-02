@@ -1,9 +1,13 @@
 """Sales API — opportunities, quotations, orders, delivery notes with AI enrichment."""
 
+import hashlib
 import io
+import json
+import logging
+
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
@@ -18,8 +22,19 @@ from app.schemas.sales import (
     BatchDeleteRequest, OpportunityBatchUpdate, ConversionValidation, ConvertResponse,
 )
 from app.services import sales_service as svc
+from app.services.cache_service import cache_delete, cache_get, cache_set
 
 router = APIRouter(tags=["sales"])
+
+SALES_ORDERS_LIST_CACHE_TTL = 300
+SALES_ORDERS_LIST_CACHE_VERSION = "v1"
+logger = logging.getLogger(__name__)
+
+
+def _sales_orders_cache_key(**parts: object) -> str:
+    canonical = json.dumps(parts, sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return f"sales-orders:list:{SALES_ORDERS_LIST_CACHE_VERSION}:{digest}"
 
 
 # ============================================================
@@ -380,6 +395,7 @@ async def create_quotation_from_inquiry(
 
 @router.get("/sales-orders")
 async def list_sales_orders(
+    response: JSONResponse,
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
     customer_id: int | None = None, status: str | None = None,
     q: str | None = Query(None, description="Search customer, order no, notes, product line"),
@@ -387,6 +403,22 @@ async def list_sales_orders(
     sort_by: str = "id", sort_order: str = "desc",
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
+    cache_key = _sales_orders_cache_key(
+        page=page, page_size=page_size, customer_id=customer_id,
+        status=status, q=q, sort_by=sort_by, sort_order=sort_order,
+    )
+    cached_payload = await cache_get(cache_key)
+    if cached_payload is not None:
+        result = json.loads(cached_payload)
+        if include_ai and result.get("list"):
+            from app.services.sales_ai_service import enrich_order_list
+            ai_map = await enrich_order_list(db, result["list"])
+            result["ai"] = ai_map
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(result)
+
+    response.headers["X-Cache"] = "MISS"
     result = await svc.list_sales_orders(
         db, page=page, page_size=page_size, customer_id=customer_id,
         status=status, q=q, sort_by=sort_by, sort_order=sort_order,
@@ -395,6 +427,7 @@ async def list_sales_orders(
         from app.services.sales_ai_service import enrich_order_list
         ai_map = await enrich_order_list(db, result["list"])
         result["ai"] = ai_map
+    await cache_set(cache_key, json.dumps(result, default=str), SALES_ORDERS_LIST_CACHE_TTL)
     return ok(result)
 
 
@@ -514,6 +547,7 @@ async def create_sales_order(
     data = body.model_dump()
     items_data = data.pop("items", [])
     order = await svc.create_sales_order(db, data, items_data)
+    await cache_delete(f"sales-orders:list:{SALES_ORDERS_LIST_CACHE_VERSION}:*")
     return ok(order)
 
 
@@ -526,6 +560,7 @@ async def update_sales_order(
     if not order:
         return fail("销售订单不存在", 404)
     order = await svc.update_sales_order(db, order, body.model_dump(exclude_none=True))
+    await cache_delete(f"sales-orders:list:{SALES_ORDERS_LIST_CACHE_VERSION}:*")
     return ok(order)
 
 
@@ -538,6 +573,7 @@ async def delete_sales_order(
     if not order:
         return fail("销售订单不存在", 404)
     await svc.delete_sales_order(db, order)
+    await cache_delete(f"sales-orders:list:{SALES_ORDERS_LIST_CACHE_VERSION}:*")
     return ok({"deleted": order_id})
 
 
@@ -550,6 +586,7 @@ async def batch_delete_sales_orders(
         order = await svc.get_sales_order(db, oid)
         if order:
             await svc.delete_sales_order(db, order)
+    await cache_delete(f"sales-orders:list:{SALES_ORDERS_LIST_CACHE_VERSION}:*")
     return ok({"deleted": len(body.ids)})
 
 
