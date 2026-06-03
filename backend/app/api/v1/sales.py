@@ -35,6 +35,9 @@ OPPORTUNITIES_LIST_CACHE_VERSION = "v1"
 QUOTATIONS_LIST_CACHE_TTL = 300
 QUOTATIONS_LIST_CACHE_VERSION = "v1"
 
+QUOTATIONS_STATS_CACHE_TTL = 300
+QUOTATIONS_STATS_CACHE_VERSION = "v1"
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,6 +133,8 @@ async def create_opportunity(
     after_opportunity_save(opp.id)
     return ok(opp)
     await cache_bump_version("opportunities:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.put("/opportunities/{opp_id}")
@@ -145,6 +150,8 @@ async def update_opportunity(
     after_opportunity_save(opp.id)
     return ok(opp)
     await cache_bump_version("opportunities:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.delete("/opportunities/{opp_id}")
@@ -158,6 +165,8 @@ async def delete_opportunity(
     await svc.delete_opportunity(db, opp)
     return ok({"deleted": opp_id})
     await cache_bump_version("opportunities:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.post("/opportunities/batch-delete")
@@ -171,6 +180,8 @@ async def batch_delete_opportunities(
             await svc.delete_opportunity(db, opp)
     return ok({"deleted": len(body.ids)})
     await cache_bump_version("opportunities:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.post("/opportunities/batch-update")
@@ -192,6 +203,8 @@ async def batch_update_opportunities(
                 count += 1
     return ok({"updated": count})
     await cache_bump_version("opportunities:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 # ============================================================
@@ -238,9 +251,22 @@ async def list_quotations(
 
 @router.get("/quotations/stats")
 async def quotation_stats(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
-    return ok(await svc.get_quotation_stats(db))
+    cache_key = "quotations:stats:global"
+    cached_payload = await cache_get_versioned("quotations:stats", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
+    result = await svc.get_quotation_stats(db)
+    await cache_set_versioned(
+        "quotations:stats", cache_key,
+        json.dumps(result, default=str), QUOTATIONS_STATS_CACHE_TTL,
+    )
+    return ok(result)
 
 
 @router.get("/quotations/{quote_id}")
@@ -274,6 +300,9 @@ async def duplicate_quotation(
     duplicated = await svc.duplicate_quotation(db, quote)
     return ok(duplicated)
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.put("/quotations/{quote_id}/status")
@@ -291,6 +320,9 @@ async def update_quotation_status(
         return fail(str(e), 400)
     return ok(quote)
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.get("/quotations/{quote_id}/pdf")
@@ -375,6 +407,9 @@ async def create_quotation(
     after_quotation_save(quote.id)
     return ok(quote)
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.put("/quotations/{quote_id}")
@@ -394,6 +429,9 @@ async def update_quotation(
     after_quotation_save(quote.id)
     return ok(quote)
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.delete("/quotations/{quote_id}")
@@ -407,6 +445,9 @@ async def delete_quotation(
     await svc.delete_quotation(db, quote)
     return ok({"deleted": quote_id})
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.post("/quotations/batch-delete")
@@ -420,6 +461,9 @@ async def batch_delete_quotations(
             await svc.delete_quotation(db, quote)
     return ok({"deleted": len(body.ids)})
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.put("/quotations/{quote_id}/send")
@@ -433,6 +477,9 @@ async def send_quotation(
     quote = await svc.send_quotation(db, quote)
     return ok(quote)
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
 
 
 @router.post("/quotations/from-inquiry", status_code=201)
@@ -451,6 +498,9 @@ async def create_quotation_from_inquiry(
             items=body.items,
         )
         await cache_bump_version("quotations:list")
+        await cache_bump_version("quotations:stats")
+        await cache_bump_version("dashboard:overview")
+        await cache_bump_version("dashboard:kpi")
         return ok({"id": quote.id, "quotation_no": quote.quotation_no})
     except ValueError as e:
         return fail(str(e), 400)
@@ -617,6 +667,9 @@ async def create_sales_order(
     items_data = data.pop("items", [])
     order = await svc.create_sales_order(db, data, items_data)
     await cache_bump_version("sales-orders:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("dashboard:trends")
     return ok(order)
 
 
@@ -630,6 +683,9 @@ async def update_sales_order(
         return fail("销售订单不存在", 404)
     order = await svc.update_sales_order(db, order, body.model_dump(exclude_none=True))
     await cache_bump_version("sales-orders:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("dashboard:trends")
     return ok(order)
 
 
@@ -643,6 +699,9 @@ async def delete_sales_order(
         return fail("销售订单不存在", 404)
     await svc.delete_sales_order(db, order)
     await cache_bump_version("sales-orders:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("dashboard:trends")
     return ok({"deleted": order_id})
 
 
@@ -656,6 +715,9 @@ async def batch_delete_sales_orders(
         if order:
             await svc.delete_sales_order(db, order)
     await cache_bump_version("sales-orders:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("dashboard:trends")
     return ok({"deleted": len(body.ids)})
 
 
@@ -824,6 +886,9 @@ async def convert_quote_to_order(
     except Exception:
         pass
     await cache_bump_version("quotations:list")
+    await cache_bump_version("quotations:stats")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok(ConvertResponse(
         id=order.id,
         document_no=order.order_no or "",

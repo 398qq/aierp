@@ -105,6 +105,26 @@ class SalesClerkUser(_BaseERPUser):
     def list_quotations(self) -> None:
         self._get("/quotations?page=1&page_size=20", "GET /quotations")
 
+    @task(2)
+    def quotation_stats(self) -> None:
+        self._get("/quotations/stats", "GET /quotations/stats")
+
+    @task(2)
+    def dashboard_overview(self) -> None:
+        self._get("/sales/dashboard/overview", "GET /sales/dashboard/overview")
+
+    @task(1)
+    def dashboard_trends(self) -> None:
+        self._get("/sales/dashboard/trends?months=12", "GET /sales/dashboard/trends")
+
+    @task(1)
+    def dashboard_alerts(self) -> None:
+        self._get("/sales/dashboard/alerts?limit=10", "GET /sales/dashboard/alerts")
+
+    @task(1)
+    def dashboard_kpi(self) -> None:
+        self._get("/dashboard/kpi", "GET /dashboard/kpi")
+
     @task(1)
     def get_customer_detail(self) -> None:
         # Pick a random page to discover a customer id.

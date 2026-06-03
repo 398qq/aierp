@@ -1,8 +1,12 @@
 """Sales Dashboard API — funnel, trends, AI alerts, widgets, KPI."""
 
+import hashlib
+import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,15 +20,41 @@ from app.models.product import Inventory, Product
 from app.models.sales import Opportunity, SalesOrder
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import ok
+from app.services.cache_service import (
+    cache_bump_version, cache_get_versioned, cache_set_versioned,
+)
 
 router = APIRouter(tags=["sales-dashboard"])
+
+logger = logging.getLogger(__name__)
+
+# Cache TTLs (seconds). Dashboard stats can be slightly stale.
+DASHBOARD_OVERVIEW_CACHE_TTL = 300    # 5min
+DASHBOARD_TRENDS_CACHE_TTL = 600      # 10min
+DASHBOARD_ALERTS_CACHE_TTL = 60       # 1min (alerts need fresh data)
+DASHBOARD_WIDGETS_CACHE_TTL = 600     # 10min
+DASHBOARD_KPI_CACHE_TTL = 120         # 2min (KPI needs to be fresh)
+
+
+def _dashboard_cache_key(**parts: object) -> str:
+    canonical = json.dumps(parts, sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return f"dashboard:{digest}"
 
 
 @router.get("/sales/dashboard/overview")
 async def dashboard_overview(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     from app.models.sales import Opportunity, Quotation, SalesOrder, DeliveryNote
+
+    cache_key = _dashboard_cache_key(endpoint="overview")
+    cached = await cache_get_versioned("dashboard:overview", cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached))
+    response.headers["X-Cache"] = "MISS"
 
     # Funnel counts
     opp_count = (await db.execute(
@@ -72,7 +102,7 @@ async def dashboard_overview(
     quote_to_order = round(order_count / quote_count * 100, 1) if quote_count > 0 else 0
     opp_to_quote = round(quote_count / opp_count * 100, 1) if opp_count > 0 else 0
 
-    return ok({
+    result = {
         "funnel": [
             {"stage": "商机", "count": opp_count, "amount": float(opp_amount)},
             {"stage": "报价", "count": quote_count, "amount": float(quote_amount)},
@@ -84,15 +114,28 @@ async def dashboard_overview(
         "total_pipeline": float(opp_amount),
         "quote_to_order_rate": quote_to_order,
         "opp_to_quote_rate": opp_to_quote,
-    })
+    }
+    await cache_set_versioned(
+        "dashboard:overview", cache_key,
+        json.dumps(result, default=str), DASHBOARD_OVERVIEW_CACHE_TTL,
+    )
+    return ok(result)
 
 
 @router.get("/sales/dashboard/trends")
 async def dashboard_trends(
+    response: JSONResponse,
     months: int = Query(12, ge=1, le=24),
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     from app.models.sales import Opportunity, SalesOrder
+
+    cache_key = _dashboard_cache_key(endpoint="trends", months=months)
+    cached = await cache_get_versioned("dashboard:trends", cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached))
+    response.headers["X-Cache"] = "MISS"
 
     now = datetime.now(timezone.utc)
     trend = []
@@ -144,15 +187,28 @@ async def dashboard_trends(
             "orders": orders_created,
             "revenue": float(order_amount),
         })
-    return ok({"trends": trend})
+    result = {"trends": trend}
+    await cache_set_versioned(
+        "dashboard:trends", cache_key,
+        json.dumps(result, default=str), DASHBOARD_TRENDS_CACHE_TTL,
+    )
+    return ok(result)
 
 
 @router.get("/sales/dashboard/alerts")
 async def dashboard_alerts(
+    response: JSONResponse,
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     from app.models.finance import Notification
+
+    cache_key = _dashboard_cache_key(endpoint="alerts", limit=limit)
+    cached = await cache_get_versioned("dashboard:alerts", cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached))
+    response.headers["X-Cache"] = "MISS"
 
     alerts = (await db.execute(
         select(Notification).where(
@@ -162,7 +218,7 @@ async def dashboard_alerts(
         ).order_by(Notification.id.desc()).limit(limit)
     )).scalars().all()
 
-    return ok({
+    result = {
         "alerts": [
             {
                 "id": a.id,
@@ -173,7 +229,12 @@ async def dashboard_alerts(
             }
             for a in alerts
         ],
-    })
+    }
+    await cache_set_versioned(
+        "dashboard:alerts", cache_key,
+        json.dumps(result, default=str), DASHBOARD_ALERTS_CACHE_TTL,
+    )
+    return ok(result)
 
 
 # ---------------------------------------------------------------------------
@@ -181,21 +242,35 @@ async def dashboard_alerts(
 # ---------------------------------------------------------------------------
 @router.get("/dashboard/widgets")
 async def list_widgets(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    user_id = current_user["user_id"]
+    cache_key = _dashboard_cache_key(endpoint="widgets", user_id=user_id)
+    cached = await cache_get_versioned("dashboard:widgets", cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached))
+    response.headers["X-Cache"] = "MISS"
+
     result = await db.execute(
         select(DashboardWidget).where(
-            DashboardWidget.user_id == current_user["user_id"],
+            DashboardWidget.user_id == user_id,
             DashboardWidget.deleted_at.is_(None),
         ).order_by(DashboardWidget.position_y, DashboardWidget.position_x)
     )
     widgets = result.scalars().all()
-    return ok([{
+    payload = [{
         "id": w.id, "widget_type": w.widget_type, "title": w.title,
         "config": w.config, "position_x": w.position_x, "position_y": w.position_y,
         "width": w.width, "height": w.height, "enabled": w.enabled,
-    } for w in widgets])
+    } for w in widgets]
+    await cache_set_versioned(
+        "dashboard:widgets", cache_key,
+        json.dumps(payload, default=str), DASHBOARD_WIDGETS_CACHE_TTL,
+    )
+    return ok(payload)
 
 
 class WidgetSave(BaseModel):
@@ -233,14 +308,23 @@ async def save_widgets(
         ))
 
     await db.commit()
+    await cache_bump_version("dashboard:widgets")
     return ok(msg="仪表板已保存")
 
 
 @router.get("/dashboard/kpi")
 async def dashboard_kpi(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
+    cache_key = _dashboard_cache_key(endpoint="kpi")
+    cached = await cache_get_versioned("dashboard:kpi", cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached))
+    response.headers["X-Cache"] = "MISS"
+
     now = datetime.now(timezone.utc)
     month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
 
@@ -303,7 +387,7 @@ async def dashboard_kpi(
         select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
     )).scalar() or 0
 
-    return ok({
+    result = {
         "month_revenue": float(month_revenue),
         "new_customers": new_customers,
         "open_opportunities": open_opps,
@@ -312,4 +396,9 @@ async def dashboard_kpi(
         "low_stock_items": low_stock,
         "total_products": total_products,
         "total_customers": total_customers,
-    })
+    }
+    await cache_set_versioned(
+        "dashboard:kpi", cache_key,
+        json.dumps(result, default=str), DASHBOARD_KPI_CACHE_TTL,
+    )
+    return ok(result)

@@ -505,6 +505,7 @@ async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db)
     from app.services.embedding_pipeline import after_product_save
     after_product_save(product.id)
     await cache_bump_version("products:list")
+    await cache_bump_version("dashboard:kpi")
     return ok({"id": product.id, "name": product.name})
 
 
@@ -520,6 +521,7 @@ async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession 
     from app.services.embedding_pipeline import after_product_save
     after_product_save(product.id)
     await cache_bump_version("products:list")
+    await cache_bump_version("dashboard:kpi")
     return ok({"id": product.id})
 
 
@@ -532,6 +534,7 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
     product.deleted_at = datetime.now(timezone.utc)
     await db.flush()
     await cache_bump_version("products:list")
+    await cache_bump_version("dashboard:kpi")
     return ok(msg="deleted")
 
 
@@ -547,6 +550,7 @@ async def batch_delete_products(body: dict, db: AsyncSession = Depends(get_db), 
         .values(deleted_at=now)
     )
     await cache_bump_version("products:list")
+    await cache_bump_version("dashboard:kpi")
     return ok({"deleted": result.rowcount or 0})
 
 
@@ -563,6 +567,7 @@ async def batch_update_products(body: dict, db: AsyncSession = Depends(get_db), 
         update(Product).where(Product.id.in_(ids), Product.deleted_at.is_(None)).values(**updates)
     )
     await cache_bump_version("products:list")
+    await cache_bump_version("dashboard:kpi")
     return ok({"updated": len(ids), "fields": list(updates.keys())})
 
 

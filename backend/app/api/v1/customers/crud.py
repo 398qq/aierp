@@ -522,6 +522,8 @@ async def import_customers(
             imported += 1
         await db.commit()
         await cache_bump_version("customers:list")
+        await cache_bump_version("dashboard:overview")
+        await cache_bump_version("dashboard:kpi")
         return ok({"imported": imported, "updated": updated})
     except Exception as e:
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -642,6 +644,8 @@ async def merge_customers(body: MergeRequest, db: AsyncSession = Depends(get_db)
 
     await db.flush()
     await cache_bump_version("customers:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok({"merged": True, "transferred": transferred})
 
 
@@ -675,6 +679,8 @@ async def batch_delete(
         c.deleted_at = now
     await db.flush()
     await cache_bump_version("customers:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok({"deleted": len(customers)})
 
 
@@ -748,6 +754,8 @@ async def create_customer(
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
     await cache_bump_version("customers:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok({
         "id": customer.id,
         "name": customer.name,
@@ -814,6 +822,8 @@ async def update_customer(
     from app.services.embedding_pipeline import after_customer_save
     after_customer_save(customer.id)
     await cache_bump_version("customers:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok({"id": customer.id})
 
 
@@ -833,4 +843,6 @@ async def delete_customer(
     await _log(db, customer_id, "delete", summary=f"删除客户: {customer.name}", operator=_user.get("username"))
     await db.flush()
     await cache_bump_version("customers:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok(msg="deleted")
