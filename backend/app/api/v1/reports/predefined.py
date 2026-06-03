@@ -1,12 +1,16 @@
-"""Reports — templates, execution, predefined reports, export."""
+"""Reports API — predefined analytics reports bounded context.
 
-import datetime
-import io
+All four endpoints run heavy multi-table GROUP BY aggregations. They
+are read-only and cached for 5-10 minutes; cache invalidation happens
+on the upstream write paths (sales-order / invoice / inventory / PO).
+"""
+
 import json
+import logging
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,147 +19,29 @@ from app.database import date_format, get_db
 from app.models.customer import Customer
 from app.models.finance import Invoice
 from app.models.product import Inventory, Product
-from app.models.report import ReportTemplate
 from app.models.sales import Quotation, SalesOrder, SalesOrderItem
 from app.models.transaction import PurchaseOrder
-from app.schemas.common import fail, ok
-from app.services.cache_service import cache_bump_version, cache_get_versioned, cache_set_versioned
+from app.schemas.common import ok
+from app.api.v1.reports._shared import (
+    PREDEFINED_AR_CACHE_TTL,
+    PREDEFINED_INVENTORY_CACHE_TTL,
+    PREDEFINED_PROCUREMENT_CACHE_TTL,
+    PREDEFINED_SALES_CACHE_TTL,
+    _predefined_ar_cache_key,
+    _predefined_inventory_cache_key,
+    _predefined_procurement_cache_key,
+    _predefined_sales_cache_key,
+)
+from app.services.cache_service import (
+    cache_get_versioned,
+    cache_set_versioned,
+)
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+logger = logging.getLogger(__name__)
 
-# ============================================================
-# Cache configuration
-# ============================================================
-TEMPLATES_LIST_CACHE_TTL = 600
-TEMPLATES_LIST_CACHE_VERSION = "v1"
-
-PREDEFINED_SALES_CACHE_TTL = 600
-PREDEFINED_SALES_CACHE_VERSION = "v1"
-
-PREDEFINED_AR_CACHE_TTL = 300
-PREDEFINED_AR_CACHE_VERSION = "v1"
-
-PREDEFINED_INVENTORY_CACHE_TTL = 300
-PREDEFINED_INVENTORY_CACHE_VERSION = "v1"
-
-PREDEFINED_PROCUREMENT_CACHE_TTL = 600
-PREDEFINED_PROCUREMENT_CACHE_VERSION = "v1"
+router = APIRouter(tags=["report:predefined"])
 
 
-def _templates_cache_key() -> str:
-    return f"reports:templates:list:{TEMPLATES_LIST_CACHE_VERSION}:global"
-
-
-def _predefined_sales_cache_key(months: int) -> str:
-    return f"reports:predefined:sales:{PREDEFINED_SALES_CACHE_VERSION}:{months}"
-
-
-def _predefined_ar_cache_key() -> str:
-    return f"reports:predefined:ar:{PREDEFINED_AR_CACHE_VERSION}:global"
-
-
-def _predefined_inventory_cache_key() -> str:
-    return f"reports:predefined:inventory:{PREDEFINED_INVENTORY_CACHE_VERSION}:global"
-
-
-def _predefined_procurement_cache_key(months: int) -> str:
-    return f"reports:predefined:procurement:{PREDEFINED_PROCUREMENT_CACHE_VERSION}:{months}"
-
-
-# ---------------------------------------------------------------------------
-# Templates
-# ---------------------------------------------------------------------------
-@router.get("/templates")
-async def list_templates(
-    response: JSONResponse,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_perm("reports", "read")),
-):
-    cache_key = _templates_cache_key()
-    cached_payload = await cache_get_versioned("reports:templates:list", cache_key)
-    if cached_payload is not None:
-        response.headers["X-Cache"] = "HIT"
-        response.headers["X-Cache-Key"] = cache_key
-        return ok(json.loads(cached_payload))
-    response.headers["X-Cache"] = "MISS"
-    result = await db.execute(
-        select(ReportTemplate).where(
-            ReportTemplate.deleted_at.is_(None),
-        ).order_by(ReportTemplate.id.desc())
-    )
-    temps = result.scalars().all()
-    payload = [{
-        "id": t.id, "name": t.name, "type": t.type, "config": t.config,
-        "is_public": t.is_public, "created_by": t.created_by,
-        "created_at": str(t.created_at),
-    } for t in temps]
-    await cache_set_versioned("reports:templates:list", cache_key, json.dumps(payload, default=str),
-                                TEMPLATES_LIST_CACHE_TTL)
-    return ok(payload)
-
-
-class TemplateCreate(BaseModel):
-    name: str
-    type: str
-    config: dict = {}
-    is_public: bool = False
-
-
-@router.post("/templates", status_code=201)
-async def create_template(
-    body: TemplateCreate,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_perm("reports", "write")),
-):
-    t = ReportTemplate(
-        name=body.name, type=body.type, config=body.config,
-        created_by=current_user["user_id"], is_public=body.is_public,
-    )
-    db.add(t)
-    await db.commit()
-    await cache_bump_version("reports:templates:list")
-    return ok({"id": t.id}, msg="模板创建成功")
-
-
-@router.put("/templates/{template_id}")
-async def update_template(template_id: int, body: TemplateCreate,
-                          request: Request,
-                          db: AsyncSession = Depends(get_db),
-                          current_user: dict = Depends(require_perm("reports", "write"))):
-    t = (await db.execute(
-        select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None))
-    )).scalar_one_or_none()
-    if not t:
-        return fail("模板不存在")
-    t.name = body.name
-    t.type = body.type
-    t.config = body.config
-    t.is_public = body.is_public
-    await db.commit()
-    await cache_bump_version("reports:templates:list")
-    return ok(msg="模板更新成功")
-
-
-@router.delete("/templates/{template_id}")
-async def delete_template(template_id: int,
-                          request: Request,
-                          db: AsyncSession = Depends(get_db),
-                          current_user: dict = Depends(require_perm("reports", "write"))):
-    t = (await db.execute(
-        select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None))
-    )).scalar_one_or_none()
-    if not t:
-        return fail("模板不存在")
-    t.deleted_at = datetime.datetime.now(datetime.timezone.utc)
-    await db.commit()
-    await cache_bump_version("reports:templates:list")
-    return ok(msg="模板已删除")
-
-
-# ---------------------------------------------------------------------------
-# Predefined Reports
-# ---------------------------------------------------------------------------
 @router.get("/predefined/sales")
 async def sales_report(
     response: JSONResponse,
@@ -171,7 +57,6 @@ async def sales_report(
         response.headers["X-Cache-Key"] = cache_key
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
-    from datetime import datetime, timedelta, timezone
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
     so_month = date_format(SalesOrder.created_at, "YYYY-MM")
@@ -198,7 +83,6 @@ async def sales_report(
         ).group_by(q_month).order_by(q_month)
     )).all()
 
-    # Top products by order count
     top_products = (await db.execute(
         select(Product.name, Product.sku, func.count(SalesOrder.id).label("cnt"))
         .select_from(SalesOrder)
@@ -233,10 +117,8 @@ async def ar_report(
         response.headers["X-Cache-Key"] = cache_key
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
-    from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
 
-    # Outstanding invoices
     invoices = (await db.execute(
         select(Invoice, Customer.name, Customer.code)
         .join(Customer, Invoice.customer_id == Customer.id)
@@ -299,7 +181,6 @@ async def inventory_report(
         response.headers["X-Cache-Key"] = cache_key
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
-    # Products with highest/lowest stock
     stock_levels = (await db.execute(
         select(
             Product.name, Product.sku,
@@ -310,7 +191,6 @@ async def inventory_report(
         .group_by(Product.id, Product.name, Product.sku)
     )).all()
 
-    # Build summary
     total_products = len(stock_levels)
     low_stock = sum(1 for _, _, qty, safety in stock_levels if qty <= safety and safety > 0)
     out_of_stock = sum(1 for _, _, qty, _ in stock_levels if qty <= 0)
@@ -352,10 +232,8 @@ async def procurement_report(
         response.headers["X-Cache-Key"] = cache_key
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
-    from datetime import datetime, timedelta, timezone
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
-    # Monthly procurement
     po_month = date_format(PurchaseOrder.created_at, "YYYY-MM")
     monthly = (await db.execute(
         select(
@@ -368,7 +246,6 @@ async def procurement_report(
         ).group_by(po_month).order_by(po_month)
     )).all()
 
-    # PO status summary
     status_summary = (await db.execute(
         select(PurchaseOrder.status, func.count(PurchaseOrder.id))
         .where(PurchaseOrder.deleted_at.is_(None))
@@ -382,37 +259,3 @@ async def procurement_report(
     await cache_set_versioned("reports:predefined:procurement", cache_key, json.dumps(payload, default=str),
                                 PREDEFINED_PROCUREMENT_CACHE_TTL)
     return ok(payload)
-
-
-# ---------------------------------------------------------------------------
-# Export
-# ---------------------------------------------------------------------------
-@router.post("/export/sales")
-async def export_sales_excel(
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_perm("reports", "read")),
-):
-    """Export monthly sales data as CSV."""
-    from datetime import datetime, timedelta, timezone
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
-
-    exp_month = date_format(SalesOrder.created_at, "YYYY-MM")
-    orders = (await db.execute(
-        select(
-            exp_month.label("month"),
-            func.count(SalesOrder.id),
-            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-        ).where(
-            SalesOrder.deleted_at.is_(None),
-            SalesOrder.created_at >= cutoff,
-        ).group_by(exp_month).order_by(exp_month)
-    )).all()
-
-    csv = "月份,订单数,金额\n" + "\n".join(
-        f"{m},{c},{float(a):.2f}" for m, c, a in orders
-    )
-    return StreamingResponse(
-        io.BytesIO(csv.encode("utf-8-sig")),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=sales_report_{datetime.now().strftime('%Y%m%d')}.csv"},
-    )
