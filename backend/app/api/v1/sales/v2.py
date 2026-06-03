@@ -9,6 +9,10 @@ This router demonstrates the new architecture:
 Routes are namespaced under /sales-v2 to avoid colliding with the
 existing /sales router during migration. The legacy router can be
 deprecated once the v2 router is feature-complete.
+
+Lives inside ``app/api/v1/sales/`` subpackage since the sales.py
+split (daf3a96). The aggregator in ``sales/__init__.py`` re-exports
+this router so ``app.api.v1.router`` can still mount it.
 """
 
 import logging
