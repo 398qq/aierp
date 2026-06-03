@@ -1,0 +1,101 @@
+import client from "./client";
+import type {
+  AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
+  ChurnRisk, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
+  DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
+  FollowUp, FollowUpRecognition, FollowUpReminder, GlobalFollowUp,
+  Global360, GroupStats,
+  Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
+  MergeResult,
+  NLPQueryResult, NormalizedSpec,
+  InventoryItem,
+  NotificationItem,
+  Opportunity, OpportunityAI, OverdueFollowUp,
+  PageData, PaymentRecord, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360, ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder,
+  Quotation, QuotationAI, QuotationStats, RFMAnalysis,
+  SalesOrder, SalesOrderAI, SalesTarget, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard,
+  Tag, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent,
+  Visit, VisitEffectiveness, VisitReport, VisitSentiment,
+  Warehouse,
+} from "../types";
+
+// Finance — Invoices
+
+export const getInvoices = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Invoice>>>("/invoices", { params });
+
+export const getInvoice = (id: number) =>
+  client.get<APIResponse<Invoice>>(`/invoices/${id}`);
+
+export const createInvoice = (data: Record<string, unknown>) =>
+  client.post<APIResponse<Invoice>>("/invoices", data);
+
+export const updateInvoice = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Invoice>>(`/invoices/${id}`, data);
+
+export const deleteInvoice = (id: number) =>
+  client.delete<APIResponse>(`/invoices/${id}`);
+
+// ============================================================
+
+// Finance — Payments
+
+export const getPayments = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<PaymentRecord>>>("/payments", { params });
+
+export const getPaymentStats = () =>
+  client.get<APIResponse<{ total_received: number; total_pending: number; total_overdue: number; by_method: Record<string, number>; monthly: Record<string, unknown>[] }>>("/payments/stats");
+
+export const markDeliveryNotePaid = (
+  id: number,
+  data: { amount?: number; payment_method?: string; payment_date?: string; notes?: string } = {},
+) =>
+  client.post<APIResponse<{
+    created: boolean;
+    payment: { id: number; amount: number; status: string; method: string; date: string };
+    delivery_note: { id: number; status: string; received_date: string };
+  }>>(`/delivery-notes/${id}/mark-paid`, data);
+
+export const getPayment = (id: number) =>
+  client.get<APIResponse<PaymentRecord>>(`/payments/${id}`);
+
+export const createPayment = (data: Record<string, unknown>) =>
+  client.post<APIResponse<PaymentRecord>>("/payments", data);
+
+export const updatePayment = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<PaymentRecord>>(`/payments/${id}`, data);
+
+export const deletePayment = (id: number) =>
+  client.delete<APIResponse>(`/payments/${id}`);
+
+// ============================================================
+
+// Finance — Contracts
+
+export const getContracts = (params: Record<string, unknown>) =>
+  client.get<APIResponse<PageData<Contract>>>("/contracts", { params });
+
+export const getContract = (id: number) =>
+  client.get<APIResponse<Contract>>(`/contracts/${id}`);
+
+export const createContract = (data: Record<string, unknown>) =>
+  client.post<APIResponse<Contract>>("/contracts", data);
+
+export const updateContract = (id: number, data: Record<string, unknown>) =>
+  client.put<APIResponse<Contract>>(`/contracts/${id}`, data);
+
+export const deleteContract = (id: number) =>
+  client.delete<APIResponse>(`/contracts/${id}`);
+
+export const importContractPDF = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return client.post<APIResponse<{
+    id: number;
+    parsed: { title?: string; amount?: number; signed_date?: string; buyer_name?: string };
+    raw_text_preview: string;
+  }>>("/contracts/import-pdf", form, { headers: { "Content-Type": "multipart/form-data" } });
+};
+
+// ============================================================
+
