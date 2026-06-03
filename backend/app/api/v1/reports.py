@@ -2,9 +2,10 @@
 
 import datetime
 import io
+import json
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,8 +19,47 @@ from app.models.report import ReportTemplate
 from app.models.sales import Quotation, SalesOrder, SalesOrderItem
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_bump_version, cache_get_versioned, cache_set_versioned
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+# ============================================================
+# Cache configuration
+# ============================================================
+TEMPLATES_LIST_CACHE_TTL = 600
+TEMPLATES_LIST_CACHE_VERSION = "v1"
+
+PREDEFINED_SALES_CACHE_TTL = 600
+PREDEFINED_SALES_CACHE_VERSION = "v1"
+
+PREDEFINED_AR_CACHE_TTL = 300
+PREDEFINED_AR_CACHE_VERSION = "v1"
+
+PREDEFINED_INVENTORY_CACHE_TTL = 300
+PREDEFINED_INVENTORY_CACHE_VERSION = "v1"
+
+PREDEFINED_PROCUREMENT_CACHE_TTL = 600
+PREDEFINED_PROCUREMENT_CACHE_VERSION = "v1"
+
+
+def _templates_cache_key() -> str:
+    return f"reports:templates:list:{TEMPLATES_LIST_CACHE_VERSION}:global"
+
+
+def _predefined_sales_cache_key(months: int) -> str:
+    return f"reports:predefined:sales:{PREDEFINED_SALES_CACHE_VERSION}:{months}"
+
+
+def _predefined_ar_cache_key() -> str:
+    return f"reports:predefined:ar:{PREDEFINED_AR_CACHE_VERSION}:global"
+
+
+def _predefined_inventory_cache_key() -> str:
+    return f"reports:predefined:inventory:{PREDEFINED_INVENTORY_CACHE_VERSION}:global"
+
+
+def _predefined_procurement_cache_key(months: int) -> str:
+    return f"reports:predefined:procurement:{PREDEFINED_PROCUREMENT_CACHE_VERSION}:{months}"
 
 
 # ---------------------------------------------------------------------------
@@ -27,20 +67,31 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 # ---------------------------------------------------------------------------
 @router.get("/templates")
 async def list_templates(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("reports", "read")),
 ):
+    cache_key = _templates_cache_key()
+    cached_payload = await cache_get_versioned("reports:templates:list", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
     result = await db.execute(
         select(ReportTemplate).where(
             ReportTemplate.deleted_at.is_(None),
         ).order_by(ReportTemplate.id.desc())
     )
     temps = result.scalars().all()
-    return ok([{
+    payload = [{
         "id": t.id, "name": t.name, "type": t.type, "config": t.config,
         "is_public": t.is_public, "created_by": t.created_by,
         "created_at": str(t.created_at),
-    } for t in temps])
+    } for t in temps]
+    await cache_set_versioned("reports:templates:list", cache_key, json.dumps(payload, default=str),
+                                TEMPLATES_LIST_CACHE_TTL)
+    return ok(payload)
 
 
 class TemplateCreate(BaseModel):
@@ -63,13 +114,15 @@ async def create_template(
     )
     db.add(t)
     await db.commit()
+    await cache_bump_version("reports:templates:list")
     return ok({"id": t.id}, msg="模板创建成功")
 
 
 @router.put("/templates/{template_id}")
 async def update_template(template_id: int, body: TemplateCreate,
+                          request: Request,
                           db: AsyncSession = Depends(get_db),
-                          _user: dict = Depends(require_perm("reports", "write"))):
+                          current_user: dict = Depends(require_perm("reports", "write"))):
     t = (await db.execute(
         select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None))
     )).scalar_one_or_none()
@@ -80,13 +133,15 @@ async def update_template(template_id: int, body: TemplateCreate,
     t.config = body.config
     t.is_public = body.is_public
     await db.commit()
+    await cache_bump_version("reports:templates:list")
     return ok(msg="模板更新成功")
 
 
 @router.delete("/templates/{template_id}")
 async def delete_template(template_id: int,
+                          request: Request,
                           db: AsyncSession = Depends(get_db),
-                          _user: dict = Depends(require_perm("reports", "write"))):
+                          current_user: dict = Depends(require_perm("reports", "write"))):
     t = (await db.execute(
         select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None))
     )).scalar_one_or_none()
@@ -94,6 +149,7 @@ async def delete_template(template_id: int,
         return fail("模板不存在")
     t.deleted_at = datetime.datetime.now(datetime.timezone.utc)
     await db.commit()
+    await cache_bump_version("reports:templates:list")
     return ok(msg="模板已删除")
 
 
@@ -102,11 +158,19 @@ async def delete_template(template_id: int,
 # ---------------------------------------------------------------------------
 @router.get("/predefined/sales")
 async def sales_report(
+    response: JSONResponse,
     months: int = Query(12, ge=1, le=36),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("reports", "read")),
 ):
     """Sales analysis — monthly quotation/order/delivery counts and amounts."""
+    cache_key = _predefined_sales_cache_key(months)
+    cached_payload = await cache_get_versioned("reports:predefined:sales", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
     from datetime import datetime, timedelta, timezone
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
@@ -145,19 +209,30 @@ async def sales_report(
         .order_by(func.count(SalesOrder.id).desc()).limit(10)
     )).all()
 
-    return ok({
+    payload = {
         "monthly_orders": [{"month": m, "count": c, "amount": float(a)} for m, c, a in orders],
         "monthly_quotations": [{"month": m, "count": c, "amount": float(a)} for m, c, a in quotes],
         "top_products": [{"name": n, "sku": s, "order_count": c} for n, s, c in top_products],
-    })
+    }
+    await cache_set_versioned("reports:predefined:sales", cache_key, json.dumps(payload, default=str),
+                                PREDEFINED_SALES_CACHE_TTL)
+    return ok(payload)
 
 
 @router.get("/predefined/ar")
 async def ar_report(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("reports", "read")),
 ):
     """Accounts Receivable aging report."""
+    cache_key = _predefined_ar_cache_key()
+    cached_payload = await cache_get_versioned("reports:predefined:ar", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
 
@@ -194,7 +269,7 @@ async def ar_report(
         else:
             aging["over_90"].append(entry)
 
-    return ok({
+    payload = {
         "total_ar": total_ar,
         "aging": {
             "current": {"count": len(aging["current"]), "amount": sum(e["amount"] for e in aging["current"])},
@@ -204,15 +279,26 @@ async def ar_report(
             "over_90": {"count": len(aging["over_90"]), "amount": sum(e["amount"] for e in aging["over_90"])},
         },
         "details": aging,
-    })
+    }
+    await cache_set_versioned("reports:predefined:ar", cache_key, json.dumps(payload, default=str),
+                                PREDEFINED_AR_CACHE_TTL)
+    return ok(payload)
 
 
 @router.get("/predefined/inventory")
 async def inventory_report(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("reports", "read")),
 ):
     """Inventory turnover and stock health report."""
+    cache_key = _predefined_inventory_cache_key()
+    cached_payload = await cache_get_versioned("reports:predefined:inventory", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
     # Products with highest/lowest stock
     stock_levels = (await db.execute(
         select(
@@ -241,20 +327,31 @@ async def inventory_report(
 
     items.sort(key=lambda x: x["quantity"])
 
-    return ok({
+    payload = {
         "summary": {"total_products": total_products, "low_stock": low_stock,
                      "out_of_stock": out_of_stock},
         "items": items,
-    })
+    }
+    await cache_set_versioned("reports:predefined:inventory", cache_key, json.dumps(payload, default=str),
+                                PREDEFINED_INVENTORY_CACHE_TTL)
+    return ok(payload)
 
 
 @router.get("/predefined/procurement")
 async def procurement_report(
+    response: JSONResponse,
     months: int = Query(12, ge=1, le=36),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("reports", "read")),
 ):
     """Procurement analysis report."""
+    cache_key = _predefined_procurement_cache_key(months)
+    cached_payload = await cache_get_versioned("reports:predefined:procurement", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        response.headers["X-Cache-Key"] = cache_key
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
     from datetime import datetime, timedelta, timezone
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
@@ -278,10 +375,13 @@ async def procurement_report(
         .group_by(PurchaseOrder.status)
     )).all()
 
-    return ok({
+    payload = {
         "monthly": [{"month": m, "count": c, "amount": float(a)} for m, c, a in monthly],
         "status_summary": [{"status": s, "count": c} for s, c in status_summary],
-    })
+    }
+    await cache_set_versioned("reports:predefined:procurement", cache_key, json.dumps(payload, default=str),
+                                PREDEFINED_PROCUREMENT_CACHE_TTL)
+    return ok(payload)
 
 
 # ---------------------------------------------------------------------------

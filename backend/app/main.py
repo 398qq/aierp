@@ -169,7 +169,14 @@ async def metrics_prometheus():
     # Sample cache_hit_ratio per family (Prometheus prefers gauges over computed values)
     for family in ("products:list", "customers:list", "sales-orders:list",
                    "opportunities:list", "quotations:list", "ai:enrich:opp_list",
-                   "ai:enrich:quote_list", "ai:enrich:order_list"):
+                   "ai:enrich:quote_list", "ai:enrich:order_list",
+                   "invoices:list", "payments:list", "payments:stats",
+                   "contracts:list", "targets:list", "targets:stats",
+                   "accounts:list", "journal-entries:list", "bank-reconciliations:list",
+                   "finance:reports:pnl", "finance:reports:ap",
+                   "reports:templates:list", "reports:predefined:sales",
+                   "reports:predefined:ar", "reports:predefined:inventory",
+                   "reports:predefined:procurement"):
         hits = cache_hits_total.value(family=family)
         misses = cache_misses_total.value(family=family)
         total = hits + misses

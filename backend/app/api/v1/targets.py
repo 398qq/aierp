@@ -8,6 +8,7 @@ from app.database import get_db
 from app.schemas.common import fail, ok
 from app.schemas.sales import TargetCreate, TargetUpdate
 from app.services import sales_service as svc
+from app.services.cache_service import cache_bump_version
 
 router = APIRouter(prefix="/sales/targets", tags=["targets"])
 
@@ -53,18 +54,20 @@ async def create_target(
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
     target = await svc.create_target(db, body.model_dump())
+    await cache_bump_version("targets:list")
+    await cache_bump_version("targets:stats")
     return ok(target)
 
 
 @router.put("/{target_id}")
-async def update_target(
-    target_id: int, body: TargetUpdate,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
-):
+async def update_target(target_id: int, body: TargetUpdate,
+                        db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     target = await svc.get_target(db, target_id)
     if not target:
         return fail("目标不存在", 404)
     target = await svc.update_target(db, target, body.model_dump(exclude_none=True))
+    await cache_bump_version("targets:list")
+    await cache_bump_version("targets:stats")
     return ok(target)
 
 
@@ -77,4 +80,6 @@ async def delete_target(
     if not target:
         return fail("目标不存在", 404)
     await svc.delete_target(db, target)
+    await cache_bump_version("targets:list")
+    await cache_bump_version("targets:stats")
     return ok({"deleted": target_id})

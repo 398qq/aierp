@@ -670,6 +670,7 @@ async def create_sales_order(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("dashboard:trends")
+    await cache_bump_version("reports:predefined:sales")
     return ok(order)
 
 
@@ -686,6 +687,7 @@ async def update_sales_order(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("dashboard:trends")
+    await cache_bump_version("reports:predefined:sales")
     return ok(order)
 
 
@@ -702,6 +704,7 @@ async def delete_sales_order(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("dashboard:trends")
+    await cache_bump_version("reports:predefined:sales")
     return ok({"deleted": order_id})
 
 
@@ -718,6 +721,7 @@ async def batch_delete_sales_orders(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("dashboard:trends")
+    await cache_bump_version("reports:predefined:sales")
     return ok({"deleted": len(body.ids)})
 
 
@@ -889,6 +893,7 @@ async def convert_quote_to_order(
     await cache_bump_version("quotations:stats")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("reports:predefined:sales")
     return ok(ConvertResponse(
         id=order.id,
         document_no=order.order_no or "",

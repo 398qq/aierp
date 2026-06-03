@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences
+GET,GET /reports/predefined/sales,CatchResponseError('GET /reports/predefined/sales -> 500'),67
+GET,GET /reports/predefined/procurement,CatchResponseError('GET /reports/predefined/procurement -> 500'),29
+GET,GET /finance/reports/pnl,CatchResponseError('GET /finance/reports/pnl -> 500'),71

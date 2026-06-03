@@ -165,7 +165,7 @@ class OperationsUser(_BaseERPUser):
 
 
 class FinanceUser(_BaseERPUser):
-    """Finance: sales orders + customer ledger browsing. Weight: 15%."""
+    """Finance: sales orders + customer ledger + finance/reports dashboards. Weight: 15%."""
 
     weight = 2
 
@@ -192,6 +192,51 @@ class FinanceUser(_BaseERPUser):
     @task(1)
     def list_products(self) -> None:
         self._get("/products?page=1&page_size=20", "GET /products")
+
+    # ----- v5: finance & reports cache traffic -----
+    @task(3)
+    def payment_stats(self) -> None:
+        self._get("/payments/stats", "GET /payments/stats")
+
+    @task(2)
+    def target_stats(self) -> None:
+        self._get("/targets/stats", "GET /targets/stats")
+
+    @task(2)
+    def list_invoices(self) -> None:
+        self._get("/invoices?page=1&page_size=20", "GET /invoices")
+
+    @task(2)
+    def list_payments(self) -> None:
+        self._get("/payments?page=1&page_size=20", "GET /payments")
+
+    @task(2)
+    def list_contracts(self) -> None:
+        self._get("/contracts?page=1&page_size=20", "GET /contracts")
+
+    @task(2)
+    def pnl_report(self) -> None:
+        self._get("/finance/reports/pnl?month=2026-05", "GET /finance/reports/pnl")
+
+    @task(2)
+    def ap_report(self) -> None:
+        self._get("/finance/reports/ap", "GET /finance/reports/ap")
+
+    @task(2)
+    def sales_report(self) -> None:
+        self._get("/reports/predefined/sales?months=12", "GET /reports/predefined/sales")
+
+    @task(1)
+    def ar_report(self) -> None:
+        self._get("/reports/predefined/ar", "GET /reports/predefined/ar")
+
+    @task(1)
+    def inventory_report(self) -> None:
+        self._get("/reports/predefined/inventory", "GET /reports/predefined/inventory")
+
+    @task(1)
+    def procurement_report(self) -> None:
+        self._get("/reports/predefined/procurement?months=12", "GET /reports/predefined/procurement")
 
 
 class AdminUser(_BaseERPUser):
