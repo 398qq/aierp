@@ -85,12 +85,18 @@ def date_format(column, pg_fmt: str) -> ColumnElement:
     pg_fmt uses PostgreSQL to_char style (e.g. 'YYYY-MM', 'YYYYMM').
     Uses ORM-level adaptation so it works the same on SQLite and PostgreSQL.
 
-    Strategy: cast date to text then extract the substring we need.
+    Strategy: cast date/timestamp to text then extract the substring we need.
     'YYYY-MM' → chars 1-7, 'YYYYMM' → chars 1-4 + 6-7, 'YYYY' → chars 1-4.
-    """
-    from sqlalchemy import String, type_coerce
 
-    date_str = type_coerce(column, String)
+    Note: must use ``func.cast(col, String)`` (not ``type_coerce``) so that
+    PostgreSQL generates an explicit ``::text`` / ``CAST(... AS VARCHAR)``
+    cast. Without it, ``substr`` receives a raw ``date`` / ``timestamp``
+    column and raises ``UndefinedFunctionError`` because PostgreSQL has no
+    3-argument ``substr`` overload for those types.
+    """
+    from sqlalchemy import String
+
+    date_str = func.cast(column, String)
     if pg_fmt == "YYYY-MM":
         return func.substr(date_str, 1, 7)
     if pg_fmt == "YYYYMM":

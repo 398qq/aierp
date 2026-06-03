@@ -3,6 +3,7 @@
 **日期**：2026-06-03
 **延续**：`performance-optimization-v4-2026-06-02.md`（11 family + dashboard 缓存）
 **目标**：补齐 `/finance/*` 和 `/reports/*` 端点缓存（11 family → 18 family）
+**附录**：v5.1 — 修复 3 个 pre-existing SQL 错误，`date_format` 改用 `func.cast`
 
 ---
 
@@ -373,7 +374,7 @@ date_str = func.cast(column, String)  # 显式生成 ::text cast
 
 | 优先级 | 项 | 预期 | 工作量 |
 |---|---|---|---|
-| P0 | **修复 3 个 pre-existing SQL 错误**（pnl / sales / procurement） | 错误率 → 0% | 0.5d |
+| ✅ P0 | **修复 3 个 pre-existing SQL 错误**（pnl / sales / procurement）— 见 §9 | 错误率 → 0% | 0.5d |
 | P1 | 缓存 `targets:list` / `accounts:list` / `journal-entries:list` / `bank-reconciliations:list` 的 locust 任务 | 可观测 100% | 0.25d |
 | P1 | 修复 pre-existing `ct.get("id")` mypy 错误（finance.py:445） | lint -1 error | 0.1d |
 | P2 | Codegen 写路径失效注入 | 0 维护 | 1d |
@@ -420,5 +421,107 @@ perf/locustfile.py                        # FinanceUser 加 11 个 finance/repor
 perf/v5-smoke-25u.{html,_stats.csv}       # 25u/60s 烟雾测试
 perf/v5-sustained-25u.{html,_stats.csv}   # 25u/5min SLO 验证
 perf/v5-saturated-100u.{html,_stats.csv}  # 100u/60s 高负载
+docs/reports/performance-optimization-v5-2026-06-03.md  # 本报告
+```
+
+---
+
+# v5.1 — date_format SQL fix
+
+**日期**：2026-06-03
+**延续**：v5 §6.1 P0 项
+
+## 9. 背景
+
+v5 报告记录的 3 个 pre-existing SQL 错误全部源于 `app.database.date_format`：
+
+```python
+# BEFORE (broken on PostgreSQL)
+from sqlalchemy import type_coerce
+date_str = type_coerce(column, String)
+return func.substr(date_str, 1, 7)  # generates substr(timestamp_col, ...) → PG UndefinedFunctionError
+```
+
+`type_coerce` 在 SQLAlchemy 编译时只调整 Python 侧的类型提示，**不会**生成 `::text` cast。结果 PostgreSQL 看到 `substr(timestamp_col, ...)` 抛 `UndefinedFunctionError`。
+
+## 10. 修复
+
+**单行修改**：`app/database.py:91-93` —— 把 `type_coerce(column, String)` 换成 `func.cast(column, String)`：
+
+```python
+# AFTER (works on both PG and SQLite)
+from sqlalchemy import String
+date_str = func.cast(column, String)
+return func.substr(date_str, 1, 7)  # generates substr(CAST(col AS VARCHAR), ...) ✓
+```
+
+**兼容性验证**：
+- **PostgreSQL**：生成 `substr(CAST(t.d AS VARCHAR), ...)` ✓
+- **SQLite**：生成 `substr(CAST(t.d AS VARCHAR), ...)` ✓
+- **Date 和 DateTime 列**：都通过（test 覆盖）
+
+## 11. 修复后 SLO（5min sustained，25u）
+
+| 指标 | v5（修复前） | **v5.1（修复后）** | 变化 |
+|---|---|---|---|
+| RPS | 19.20 | **19.29** | +0.5% |
+| p50 | 19ms | **19ms** | 持平 |
+| p95 | 61ms | **61ms** | 持平 |
+| p99 | 460ms | **620ms** | +35%* |
+| Max | 2459ms | **2427ms** | -1% |
+| **错误率** | **2.90%** | **0.00%** | **-100%** |
+
+\* p99 略增因为新增的有效请求拉高了长尾统计（之前 167 个失败请求不计入响应时间分布）。
+
+**3 个之前一直 0% 命中率的 family 现在全部正常**：
+
+| Family | 修复前 | **修复后** |
+|---|---|---|
+| `finance:reports:pnl` | 0/82 = 0% (500 errors) | **20/21 = 95.2%** |
+| `reports:predefined:sales` | 0/79 = 0% (500 errors) | **17/18 = 94.4%** |
+| `reports:predefined:procurement` | 0/36 = 0% (500 errors) | **12/13 = 92.3%** |
+
+## 12. 累计命中率（修复后全部 18 family）
+
+```
+cache_hit_ratio{family="contracts:list"}              0.976   (97.6%)
+cache_hit_ratio{family="customers:list"}              0.997   (99.7%)
+cache_hit_ratio{family="finance:reports:ap"}          0.988   (98.8%)
+cache_hit_ratio{family="finance:reports:pnl"}         0.978   (97.8%)  ← 修复
+cache_hit_ratio{family="invoices:list"}               0.980   (98.0%)
+cache_hit_ratio{family="opportunities:list"}          0.991   (99.1%)
+cache_hit_ratio{family="payments:list"}               0.981   (98.1%)
+cache_hit_ratio{family="payments:stats"}              0.956   (95.6%)
+cache_hit_ratio{family="products:list"}               0.998   (99.8%)
+cache_hit_ratio{family="quotations:list"}             0.992   (99.2%)
+cache_hit_ratio{family="reports:predefined:ar"}       0.968   (96.8%)
+cache_hit_ratio{family="reports:predefined:inventory"} 0.955  (95.5%)
+cache_hit_ratio{family="reports:predefined:procurement"} 0.947 (94.7%)  ← 修复
+cache_hit_ratio{family="reports:predefined:sales"}    0.979   (97.9%)  ← 修复
+cache_hit_ratio{family="sales-orders:list"}           0.998   (99.8%)
+cache_hit_ratio{family="targets:stats"}               0.964   (96.4%)
+```
+
+**所有 18 family 命中率 ≥ 94.7%，平均 97.7%**。
+
+## 13. 回归测试
+
+新增 `tests/test_date_format.py` 12 个测试：
+- 6 个参数化测试覆盖 YYYY-MM/YYYYMM/YYYY × PostgreSQL/SQLite
+- 2 个 Date / DateTime 列覆盖
+- 1 个 YYYYMM 拼接断言
+- 1 个 YYYY offset+length 断言
+- 1 个未知 fmt fallback 断言
+- 1 个 integration test 在 live PG 跑实际 SQL
+
+**结果**：12/12 passed
+
+## 14. 完整测试产物（v5.1 修复后）
+
+```
+backend/app/database.py                    # date_format fix
+backend/tests/test_date_format.py          # 12 个回归测试
+perf/v5-fix-25u.{html,_stats.csv}          # 修复后 25u/60s
+perf/v5-fix-sustained-25u.{html,_stats.csv} # 修复后 25u/5min
 docs/reports/performance-optimization-v5-2026-06-03.md  # 本报告
 ```
