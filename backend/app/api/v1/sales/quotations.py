@@ -124,7 +124,6 @@ async def get_quotation(
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
         return fail("报价单不存在", 404)
-    result = quote
     if include_ai:
         from app.services.sales_ai_service import enrich_quotation
         ai_data = await enrich_quotation(db, quote)

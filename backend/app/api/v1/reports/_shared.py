@@ -5,8 +5,6 @@ invalidation behavior consistent across bounded contexts
 (templates / predefined / export).
 """
 
-import hashlib
-import json
 
 
 TEMPLATES_LIST_CACHE_TTL = 600

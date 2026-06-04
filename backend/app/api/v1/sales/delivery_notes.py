@@ -65,7 +65,6 @@ async def get_delivery_note(
     note = await svc.get_delivery_note(db, note_id)
     if not note:
         return fail("发货单不存在", 404)
-    result = note
     if include_ai:
         from app.services.sales_ai_service import enrich_delivery_note
         ai_data = await enrich_delivery_note(db, note)

@@ -6,10 +6,9 @@ Redis Streams or RabbitMQ.
 """
 
 import asyncio
-import inspect
 import logging
 from collections import defaultdict
-from typing import Any, Callable, TypeVar, Union, overload
+from typing import Any, Callable, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 

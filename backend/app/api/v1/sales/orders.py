@@ -187,7 +187,6 @@ async def get_sales_order(
     order = await svc.get_sales_order(db, order_id)
     if not order:
         return fail("销售订单不存在", 404)
-    result = order
     if include_ai:
         from app.services.sales_ai_service import enrich_sales_order
         ai_data = await enrich_sales_order(db, order)

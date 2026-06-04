@@ -7,6 +7,7 @@ from app.application.uow import UnitOfWork, get_uow as _get_uow_ctx
 from app.core.security import decode_access_token
 from app.database import get_db
 from app.models.rbac import Role, user_roles_table
+from typing import AsyncGenerator
 
 security_scheme = HTTPBearer(auto_error=False)
 TOKEN_COOKIE_NAME = "aierp_token"
@@ -47,8 +48,6 @@ async def get_current_user(
     roles = [row[0] for row in result.fetchall()]
     return {"user_id": user_id, "username": payload["username"], "roles": roles}
 
-
-from typing import AsyncGenerator
 
 async def get_uow() -> AsyncGenerator[UnitOfWork, None]:
     """FastAPI dependency that yields a UnitOfWork.

@@ -20,7 +20,7 @@ from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.account import BankReconciliation
 from app.models.finance import PaymentRecord
-from app.schemas.common import fail, ok, paginated_ok
+from app.schemas.common import ok, paginated_ok
 from app.api.v1.finance_accounts._shared import (
     BANK_RECONCILIATIONS_LIST_CACHE_TTL,
     _bank_reconciliations_cache_key,
