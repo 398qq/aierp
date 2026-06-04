@@ -129,7 +129,7 @@ async def ar_report(
         )
     )).all()
 
-    aging = {"current": [], "1_30": [], "31_60": [], "61_90": [], "over_90": []}
+    aging: dict[str, list[dict]] = {"current": [], "1_30": [], "31_60": [], "61_90": [], "over_90": []}
     total_ar = 0.0
 
     for inv, cust_name, cust_code in invoices:

@@ -82,7 +82,8 @@ def apply_visibility_filter(
     user_id = user.get("user_id") if isinstance(user, dict) else user.id
     if user_id is None:
         # No user — return empty result
-        return stmt.where(False)
+        from sqlalchemy import false
+        return stmt.where(false())
 
     entity = stmt.column_descriptions[0]["entity"]
     column = getattr(entity, col, None)

@@ -65,8 +65,6 @@ async def reconcile_bank(
 
         match = None
         for p in payments:
-            if p.reconciliation_id:
-                continue
             if abs(float(p.amount) - amount) < 0.01:
                 match = p
                 break

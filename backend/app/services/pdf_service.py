@@ -209,7 +209,7 @@ def _money_upper_cn(value: Any) -> str:
         while integer:
             group_nums.append(integer % 10000)
             integer //= 10000
-        parts = []
+        parts: list[str] = []
         zero_pending = False
         for group_index in range(len(group_nums) - 1, -1, -1):
             group_num = group_nums[group_index]
@@ -329,7 +329,7 @@ def _line_hint(item: Any) -> str:
 
 
 def _item_total(items: list[Any], field: str) -> Decimal:
-    return sum(_as_decimal(getattr(item, field, None)) for item in items)
+    return sum((_as_decimal(getattr(item, field, None)) for item in items), Decimal("0"))
 
 
 def _margin_rate(profit: Decimal, amount: Decimal) -> Decimal:
@@ -439,7 +439,7 @@ def _generate_basic_pdf(quotation: Any, options: dict[str, Any] | None = None) -
     if not (options or {}).get("company_name") and getattr(customer, "name", None):
         pdf_options["company_name"] = str(getattr(customer, "name"))
     items = getattr(quotation, "items", None) or []
-    subtotal = sum(_as_decimal(getattr(item, "total_price", None)) for item in items)
+    subtotal: Decimal = sum((_as_decimal(getattr(item, "total_price", None)) for item in items), Decimal("0"))
     risk_label, next_action = _quote_risk_text(quotation, len(items), subtotal)
     quote_total = _as_decimal(getattr(quotation, "total_amount", None)) or subtotal
 
@@ -515,7 +515,7 @@ def _generate_basic_order_pdf(order: Any, options: dict[str, Any] | None = None)
     if not (options or {}).get("company_name") and getattr(customer, "name", None):
         pdf_options["company_name"] = str(getattr(customer, "name"))
     items = getattr(order, "items", None) or []
-    subtotal = sum(_as_decimal(getattr(item, "total_price", None)) for item in items)
+    subtotal: Decimal = sum((_as_decimal(getattr(item, "total_price", None)) for item in items), Decimal("0"))
     risk_label, next_action = _order_risk_text(order, len(items), subtotal)
     order_total = _as_decimal(getattr(order, "total_amount", None)) or subtotal
 

@@ -129,9 +129,9 @@ async def get_quotation(
         from app.services.sales_ai_service import enrich_quotation
         ai_data = await enrich_quotation(db, quote)
         from app.schemas.sales import QuotationResponse
-        result = QuotationResponse.model_validate(quote).model_dump()
-        result["ai"] = ai_data
-        return ok(result)
+        ai_result: dict = QuotationResponse.model_validate(quote).model_dump()
+        ai_result["ai"] = ai_data
+        return ok(ai_result)
     return ok(quote)
 
 

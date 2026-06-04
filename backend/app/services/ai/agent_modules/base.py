@@ -45,7 +45,7 @@ class BaseAgent(ABC):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": json.dumps(user_context, ensure_ascii=False)},
                 ],
-                schema=schema,
+                output_schema=schema,
                 temperature=temperature,
                 model=model,
             )

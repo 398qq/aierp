@@ -161,7 +161,7 @@ async def post_entry(entry_id: int, request: Request,
     if entry.status != "draft":
         return fail(f"凭证状态为 {entry.status}，无法过账")
     entry.status = "posted"
-    entry.posted_at = datetime.datetime.now(datetime.timezone.utc)
+    entry.posted_at = datetime.datetime.now(datetime.timezone.utc)  # type: ignore[assignment]
     entry.posted_by = current_user["user_id"]
     await db.commit()
     # Posting a journal entry changes the data feeding /finance/reports/pnl

@@ -106,8 +106,8 @@ async def create_purchase_order(body: POCreate, db: AsyncSession = Depends(get_d
         data["expected_date"] = datetime.fromisoformat(data["expected_date"])
 
     if not data.get("order_no"):
-        from app.services.sales_service import _gen_no
-        data["order_no"] = await _gen_no(db, "PO", PurchaseOrder)
+        from app.services.docno import generate_doc_no
+        data["order_no"] = await generate_doc_no(db, "PO", PurchaseOrder, "order_no")
 
     order = PurchaseOrder(**data)
     db.add(order)
@@ -310,7 +310,7 @@ async def create_po_from_restock(
     _user: dict = Depends(get_current_user),
 ):
     """One-click restock: create a purchase order from restock suggestions."""
-    from app.services.sales_service import _gen_no
+    from app.services.docno import generate_doc_no
     from app.models.transaction import PurchaseOrderItem
 
     from app.models.product import Supplier
@@ -320,7 +320,8 @@ async def create_po_from_restock(
     if supplier is None:
         raise HTTPException(404, "供应商不存在")
 
-    po_no = await _gen_no(db, "PO", PurchaseOrder)
+    # Generate PO number
+    po_no = await generate_doc_no(db, "PO", PurchaseOrder, "order_no")
 
     po = PurchaseOrder(
         order_no=po_no,

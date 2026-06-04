@@ -70,9 +70,9 @@ async def get_delivery_note(
         from app.services.sales_ai_service import enrich_delivery_note
         ai_data = await enrich_delivery_note(db, note)
         from app.schemas.sales import DeliveryNoteResponse
-        result = DeliveryNoteResponse.model_validate(note).model_dump()
-        result["ai"] = ai_data
-        return ok(result)
+        ai_result: dict = DeliveryNoteResponse.model_validate(note).model_dump()
+        ai_result["ai"] = ai_data
+        return ok(ai_result)
     return ok(note)
 
 
@@ -132,7 +132,7 @@ async def mark_delivery_note_paid(
     if not note:
         return fail("发货单不存在", 404)
 
-    result = await svc.mark_delivery_note_paid(
+    paid_result = await svc.mark_delivery_note_paid(
         db, note,
         amount=body.amount,
         payment_method=body.payment_method,
@@ -140,13 +140,13 @@ async def mark_delivery_note_paid(
         notes=body.notes,
     )
     return ok({
-        "created": result["created"],
+        "created": paid_result["created"],
         "payment": {
-            "id": result["payment"].id,
-            "amount": float(result["payment"].amount),
-            "status": result["payment"].status,
-            "method": result["payment"].payment_method,
-            "date": result["payment"].payment_date.isoformat() if result["payment"].payment_date else None,
+            "id": paid_result["payment"].id,
+            "amount": float(paid_result["payment"].amount),
+            "status": paid_result["payment"].status,
+            "method": paid_result["payment"].payment_method,
+            "date": paid_result["payment"].payment_date.isoformat() if paid_result["payment"].payment_date else None,
         },
         "delivery_note": {
             "id": note.id,

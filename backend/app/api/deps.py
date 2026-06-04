@@ -48,7 +48,9 @@ async def get_current_user(
     return {"user_id": user_id, "username": payload["username"], "roles": roles}
 
 
-async def get_uow() -> UnitOfWork:
+from typing import AsyncGenerator
+
+async def get_uow() -> AsyncGenerator[UnitOfWork, None]:
     """FastAPI dependency that yields a UnitOfWork.
 
     The UoW wraps a session and auto-commits on success / auto-rolls back

@@ -192,9 +192,9 @@ async def get_sales_order(
         from app.services.sales_ai_service import enrich_sales_order
         ai_data = await enrich_sales_order(db, order)
         from app.schemas.sales import SalesOrderResponse
-        result = SalesOrderResponse.model_validate(order).model_dump()
-        result["ai"] = ai_data
-        return ok(result)
+        ai_result: dict = SalesOrderResponse.model_validate(order).model_dump()
+        ai_result["ai"] = ai_data
+        return ok(ai_result)
     return ok(order)
 
 

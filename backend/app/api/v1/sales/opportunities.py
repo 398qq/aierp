@@ -167,17 +167,17 @@ async def batch_update_opportunities(
     body: OpportunityBatchUpdate,
     db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
 ):
-    count = 0
-    for oid in body.ids:
-        opp = await svc.get_opportunity(db, oid)
-        if opp:
-            updates = {}
-            if body.stage is not None:
-                updates["stage"] = body.stage
-            if body.win_probability is not None:
-                updates["win_probability"] = body.win_probability
-            if updates:
-                await svc.update_opportunity(db, opp, updates)
-                count += 1
-    await _bump_opportunity_caches()
-    return ok({"updated": count})
+        count = 0
+        for oid in body.ids:
+            opp = await svc.get_opportunity(db, oid)
+            if opp:
+                updates: dict[str, object] = {}
+                if body.stage is not None:
+                    updates["stage"] = body.stage
+                if body.win_probability is not None:
+                    updates["win_probability"] = body.win_probability
+                if updates:
+                    await svc.update_opportunity(db, opp, updates)
+                    count += 1
+        await _bump_opportunity_caches()
+        return ok({"updated": count})

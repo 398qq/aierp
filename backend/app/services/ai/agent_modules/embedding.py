@@ -141,7 +141,7 @@ class EmbeddingService(BaseAgent):
         """pgvector cosine-distance search — runs entirely in PostgreSQL."""
         from app.models.customer import Customer
 
-        cond = [Customer.embedding.isnot(None), Customer.deleted_at.is_(None)]
+        cond: list = [Customer.embedding.isnot(None), Customer.deleted_at.is_(None)]
         if exclude_id is not None:
             cond.append(Customer.id != exclude_id)
 
@@ -177,7 +177,7 @@ class EmbeddingService(BaseAgent):
         exclude_id: int | None = None,
     ) -> list[dict]:
         from app.models.product import Supplier
-        cond = [Supplier.embedding.isnot(None), Supplier.deleted_at.is_(None)]
+        cond: list = [Supplier.embedding.isnot(None), Supplier.deleted_at.is_(None)]
         if exclude_id is not None:
             cond.append(Supplier.id != exclude_id)
         result = await db_session.execute(
@@ -361,7 +361,7 @@ class EmbeddingService(BaseAgent):
         # Map member id → its embedding index
         id_to_idx = {r[0]: i for i, r in enumerate(rows)}
 
-        result_clusters = []
+        result_clusters: list[dict] = []
         for j, members in clusters.items():
             centroid = centroids[j]
             dim = len(centroid)
@@ -394,5 +394,5 @@ class EmbeddingService(BaseAgent):
                 "label": f"群组{j + 1} ({common_industry or '未知行业'}·{common_level or '未知等级'})",
             })
 
-        result_clusters.sort(key=lambda x: -x["size"])
+        result_clusters.sort(key=lambda x: -int(x["size"]))
         return {"clusters": result_clusters, "total": len(rows)}

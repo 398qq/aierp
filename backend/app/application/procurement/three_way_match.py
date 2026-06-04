@@ -148,12 +148,12 @@ class MatchSupplierInvoiceUseCase:
                     None,
                 )
                 qty = gr_line.quantity_received if gr_line else po_line.quantity
-                # Allocate invoice total proportionally to PO amount
-                po_subtotal = po_line.quantity * po_line.unit_price
+                # Allocate invoice total proporcionalmente to PO amount
+                po_subtotal = Decimal(str(po_line.quantity)) * Decimal(str(po_line.unit_price))
                 if po_total > 0:
-                    line_amount = inv.amount * (po_subtotal / po_total)
+                    line_amount = Decimal(str(inv.amount)) * (po_subtotal / Decimal(str(po_total)))
                 else:
-                    line_amount = inv.amount / len(po_lines)
+                    line_amount = Decimal(str(inv.amount)) / Decimal(str(len(po_lines)))
                 invoice_lines.append(InvoiceLineSnapshot(
                     product_id=po_line.product_id,
                     quantity=int(qty),

@@ -5,16 +5,20 @@ the consumer to finish. For multi-process or persistent delivery, swap with
 Redis Streams or RabbitMQ.
 """
 
-from collections import defaultdict
-from typing import Any, Callable
 import asyncio
+import inspect
 import logging
+from collections import defaultdict
+from typing import Any, Callable, TypeVar, Union, overload
 
 logger = logging.getLogger(__name__)
 
 
 SyncHandler = Callable[[Any], None]
 AsyncHandler = Callable[[Any], Any]
+Handler = Union[SyncHandler, AsyncHandler]
+
+F = TypeVar("F", bound=Handler)
 
 
 class EventBus:
@@ -27,41 +31,67 @@ class EventBus:
     """
 
     def __init__(self) -> None:
-        self._handlers: dict[type, list[Callable]] = defaultdict(list)
-        self._async_handlers: dict[type, list[Callable]] = defaultdict(list)
+        self._handlers: dict[type, list[SyncHandler]] = defaultdict(list)
+        self._async_handlers: dict[type, list[AsyncHandler]] = defaultdict(list)
 
     def subscribe(
         self,
-        event_type: type | None = None,
-        handler: Callable | None = None,
+        event_type_or_handler: Union[type, Handler, None] = None,
+        handler: Handler | None = None,
     ) -> Any:
-        """Register a handler. Sync handlers run inline; async handlers are awaited.
+        """Register a handler. Three usage patterns:
 
-        Can be called as a decorator @bus.subscribe(event_type) or
-        @bus.subscribe (auto-detect from type annotation).
+        1. ``@bus.subscribe`` (bare decorator — auto-detect event type from
+           the handler's first parameter annotation).
+        2. ``@bus.subscribe(EventType)`` (decorator with explicit type).
+        3. ``bus.subscribe(EventType, handler_fn)`` (imperative call).
         """
         if handler is not None:
-            # Called as @bus.subscribe(EventType) or @bus.subscribe(EventType, handler)
-            actual_handler = handler
-        else:
-            # Called as a decorator @bus.subscribe without args — handler is the
-            # event_type argument, i.e. the decorated function
-            def decorator(func: Callable) -> Callable:
-                evt_t = event_type  # type: ignore[assignment]  # it's actually the func here
-                if evt_t is None:
-                    raise TypeError("@bus.subscribe decorator requires an event type argument")
-                if asyncio.iscoroutinefunction(func):
-                    self._async_handlers[evt_t].append(func)
-                else:
-                    self._handlers[evt_t].append(func)
-                return func
-            return decorator
+            self._register(event_type_or_handler, handler)  # type: ignore[arg-type]
+            return handler
 
-        # Called with explicit args
-        if asyncio.iscoroutinefunction(actual_handler):
-            self._async_handlers[event_type].append(actual_handler)  # type: ignore[arg-type]
+        if event_type_or_handler is None:
+            raise TypeError("@bus.subscribe requires either an event type or a handler function")
+
+        if isinstance(event_type_or_handler, type):
+            return self._make_decorator(event_type_or_handler)
+
+        if callable(event_type_or_handler):
+            evt_t = self._infer_event_type(event_type_or_handler)
+            self._register(evt_t, event_type_or_handler)  # type: ignore[arg-type]
+            return event_type_or_handler
+
+        raise TypeError(f"Unsupported subscribe argument: {event_type_or_handler!r}")
+
+    def _make_decorator(self, event_type: type) -> Callable[[F], F]:
+        def decorator(func: F) -> F:
+            self._register(event_type, func)  # type: ignore[arg-type]
+            return func
+        return decorator
+
+    def _register(self, event_type: Any, handler: Handler) -> None:
+        if event_type is None:
+            raise TypeError("EventBus.subscribe requires an event type")
+        if asyncio.iscoroutinefunction(handler):
+            self._async_handlers[event_type].append(handler)  # type: ignore[arg-type]
         else:
-            self._handlers[event_type].append(actual_handler)  # type: ignore[arg-type]
+            self._handlers[event_type].append(handler)  # type: ignore[arg-type]
+
+    @staticmethod
+    def _infer_event_type(func: Handler) -> type:
+        hints = getattr(func, "__annotations__", {}) or {}
+        if not hints:
+            raise TypeError(
+                f"@bus.subscribe on {func.__name__!r} requires either an event type "
+                "argument or a typed first parameter to infer the event type from"
+            )
+        first_param = next(iter(hints.values()), None)
+        if first_param is None:
+            raise TypeError(f"No parameter annotation on {func.__name__!r}")
+        origin = getattr(first_param, "__origin__", None)
+        if origin is not None:
+            return origin
+        return first_param  # type: ignore[return-value]
 
     async def publish(self, event: Any) -> None:
         """Dispatch an event to all registered handlers (sync + async)."""

@@ -3,8 +3,9 @@
 import asyncio
 import logging
 from decimal import Decimal
+from typing import cast
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.observability.metrics import (
@@ -91,7 +92,7 @@ class InventoryRepository:
                 )
             )
             result = await self.session.execute(stmt)
-            if result.rowcount > 0:
+            if cast(CursorResult, result).rowcount > 0:
                 inventory_reserved_total.inc(product_category="unknown")
                 await self.session.flush()
                 return True
@@ -135,7 +136,7 @@ class InventoryRepository:
                 )
             )
             result = await self.session.execute(stmt)
-            if result.rowcount > 0:
+            if cast(CursorResult, result).rowcount > 0:
                 await self.session.flush()
                 return True
 
@@ -188,7 +189,7 @@ class InventoryRepository:
                 )
             )
             result = await self.session.execute(stmt)
-            if result.rowcount > 0:
+            if cast(CursorResult, result).rowcount > 0:
                 await self.session.flush()
                 return True
 
@@ -243,12 +244,15 @@ class InventoryRepository:
             new_unit_price = inv.unit_price
             if unit_cost is not None:
                 strategy = make_cost_strategy(cost_strategy)
-                new_unit_price = strategy.compute_new_unit_cost(
-                    current_qty=Decimal(str(inv.quantity or 0)),
-                    current_avg_cost=Decimal(str(inv.unit_price or 0)),
-                    incoming_qty=Decimal(qty),
+                current_qty_val: float = float(inv.quantity or 0)
+                current_avg_val: float = float(inv.unit_price or 0)
+                computed_price: Decimal = strategy.compute_new_unit_cost(
+                    current_qty=Decimal(str(current_qty_val)),
+                    current_avg_cost=Decimal(str(current_avg_val)),
+                    incoming_qty=Decimal(str(qty)),
                     incoming_unit_cost=Decimal(str(unit_cost)),
                 )
+                new_unit_price = float(computed_price)
 
             stmt = (
                 update(Inventory)
@@ -263,7 +267,7 @@ class InventoryRepository:
                 )
             )
             result = await self.session.execute(stmt)
-            if result.rowcount > 0:
+            if cast(CursorResult, result).rowcount > 0:
                 inventory_reserved_total.inc(product_category="unknown")
                 await self.session.flush()
                 await self.session.refresh(inv)
