@@ -317,8 +317,14 @@ async def list_products(
     )
     cached_payload = await cache_get_versioned("products:list", cache_key)
     if cached_payload is not None:
+        # Re-wrap the cached inner payload in the standard
+        # {code, msg, data} envelope. The cache stores the raw
+        # {"list":..., "total":...} dict (line ~436) for compactness;
+        # the non-cached path returns ok(payload) which wraps it.
+        # The frontend reads resp.data.data.list, so cache hits
+        # must return the same wrapped shape.
         return JSONResponse(
-            content=json.loads(cached_payload),
+            content=ok(json.loads(cached_payload)),
             headers={"X-Cache": "HIT", "X-Cache-Key": cache_key},
         )
 

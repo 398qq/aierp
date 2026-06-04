@@ -1,7 +1,7 @@
 import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base

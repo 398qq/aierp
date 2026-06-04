@@ -442,8 +442,11 @@ export default function ProductList() {
       const list = (resp.data.data.list || []) as Product[];
       setData(list);
       setTotal(resp.data.data.total || 0);
-    } catch {
-      message.error("加载产品列表失败");
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.error("getProducts failed:", err);
+      message.error(`加载产品列表失败: ${detail}`);
     } finally {
       setLoading(false);
     }
