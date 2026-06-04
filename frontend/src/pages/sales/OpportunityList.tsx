@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Tag, Typography, message } from "antd";
+import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Typography, message } from "antd";
 import type { MenuProps } from "antd";
 import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, deleteOpportunity, getOpportunities } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, stageLabel, statusDot, ERP_STATUS_DOT } from "./salesUi";
+import { StatusTag } from "../../ui";
 
 const STAGE_OPTIONS = [
   { value: "lead", label: "线索" },
@@ -251,7 +252,7 @@ export default function OpportunityList() {
                 width: 110,
                 sorter: (a, b) => (a.stage || "").localeCompare(b.stage || ""),
                 render: (value: string) => (
-                  <Tag color="blue" style={{ margin: 0 }}>{stageLabel[value] || value || "-"}</Tag>
+                  <StatusTag status={value || "-"} color="blue" label={stageLabel[value] || value || "-"} />
                 ),
               },
               {

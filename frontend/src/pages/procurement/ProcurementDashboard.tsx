@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Statistic, Table, Tag, Typography, Spin, Empty, List } from "antd";
+import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty, List } from "antd";
 import { ShoppingCartOutlined, DollarOutlined, ClockCircleOutlined, TruckOutlined } from "@ant-design/icons";
 import client from "../../api/client";
+import { StatusTag } from "../../ui";
 
 interface DashboardData {
   total_po: number; total_amount: number;
@@ -70,9 +71,9 @@ export default function ProcurementDashboard() {
         <Col span={12}>
           <Card title="订单状态分布" size="small">
             {(d?.status_distribution || []).map(s => (
-              <Tag key={s.status} color={statusColors[s.status] || "default"} style={{ margin: 4 }}>
-                {s.status}: {s.count}
-              </Tag>
+              <span key={s.status} style={{ margin: 4, display: "inline-block" }}>
+                <StatusTag status={s.status} color={statusColors[s.status] || "default"} label={`${s.status}: ${s.count}`} />
+              </span>
             ))}
             {(!d?.status_distribution || d.status_distribution.length === 0) && <Empty description="暂无数据" />}
           </Card>
@@ -122,7 +123,7 @@ export default function ProcurementDashboard() {
                       title={item.order_no}
                       description={`¥${item.total_amount.toLocaleString()} | ${item.expected_date?.slice(0, 10)}`}
                     />
-                    <Tag color={statusColors[item.status]}>{item.status}</Tag>
+                    <StatusTag status={item.status} color={statusColors[item.status]} />
                   </List.Item>
                 )}
               />

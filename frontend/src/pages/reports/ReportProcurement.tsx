@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Table, Select, Tag, Typography, Spin, Empty } from "antd";
+import { Card, Row, Col, Table, Select, Typography, Spin, Empty } from "antd";
 import client from "../../api/client";
+import { StatusTag } from "../../ui";
 
 interface MonthlyItem { month: string; count: number; amount: number; }
 interface StatusItem { status: string; count: number; }
@@ -59,7 +60,7 @@ export default function ReportProcurement() {
           <Card title="订单状态汇总" size="small">
             {(data?.status_summary || []).map(s => (
               <div key={s.status} style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
-                <Tag color={statusColors[s.status] || "default"}>{s.status}</Tag>
+                <StatusTag status={s.status} color={statusColors[s.status] || "default"} />
                 <span>{s.count} 单</span>
               </div>
             ))}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Space, Tag, Select, message, Popconfirm } from "antd";
+import { Table, Button, Space, Select, message, Popconfirm } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getTickets, deleteTicket } from "../../api";
 import type { Ticket } from "../../types";
+import { StatusTag } from "../../ui";
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   open: { color: "blue", label: "待处理" },
@@ -72,8 +73,8 @@ export default function TicketList() {
         columns={[
           { title: "工单号", dataIndex: "ticket_no", width: 140, render: (v: string | null, r: Ticket) => <a onClick={() => navigate(`/tickets/${r.id}`)}>{v || `#${r.id}`}</a> },
           { title: "标题", dataIndex: "title", ellipsis: true },
-          { title: "状态", dataIndex: "status", width: 90, render: (v: string) => <Tag color={STATUS_MAP[v]?.color}>{STATUS_MAP[v]?.label || v}</Tag> },
-          { title: "优先级", dataIndex: "priority", width: 70, render: (v: string) => <Tag color={PRIORITY_MAP[v]?.color}>{PRIORITY_MAP[v]?.label || v}</Tag> },
+          { title: "状态", dataIndex: "status", width: 90, render: (v: string) => <StatusTag status={v} color={STATUS_MAP[v]?.color} label={STATUS_MAP[v]?.label} /> },
+          { title: "优先级", dataIndex: "priority", width: 70, render: (v: string) => <StatusTag status={v} color={PRIORITY_MAP[v]?.color} label={PRIORITY_MAP[v]?.label} /> },
           { title: "分类", dataIndex: "category", width: 100, render: (v: string | null) => v || "-" },
           { title: "处理人", dataIndex: "assigned_to", width: 100, render: (v: string | null) => v || "-" },
           { title: "创建时间", dataIndex: "created_at", width: 150, render: (v: string | null) => v ? v.slice(0, 19).replace("T", " ") : "-" },

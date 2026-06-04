@@ -34,6 +34,7 @@ import {
 } from "../../api";
 import type { CustomerAIRecommendationSummary, CustomerAIWorkQueueItem, CustomerAIWorkQueuePage } from "../../types";
 import CustomerModuleShell from "./CustomerModuleShell";
+import { StatusTag } from "../../ui";
 
 type StatusType = "open" | "in_progress" | "done" | "dismissed" | "all";
 
@@ -223,7 +224,7 @@ export default function CustomerAIWorkbench() {
       title: "状态",
       key: "status",
       width: 100,
-      render: (_, r) => <Tag color={STATUS_COLORS[r.status] || "default"}>{STATUS_LABELS[r.status] || r.status}</Tag>,
+      render: (_, r) => <StatusTag status={r.status} color={STATUS_COLORS[r.status] || "default"} label={STATUS_LABELS[r.status] || r.status} />,
     },
     {
       title: "截止",
@@ -379,7 +380,7 @@ export default function CustomerAIWorkbench() {
                     <Typography.Paragraph style={{ marginBottom: 8 }}>{item.reason}</Typography.Paragraph>
                     <Space>
                       <Tag color="blue">优先级 {item.priority_score.toFixed(1)}</Tag>
-                      <Tag color={STATUS_COLORS[item.status] || "default"}>{STATUS_LABELS[item.status] || item.status}</Tag>
+                      <StatusTag status={item.status} color={STATUS_COLORS[item.status] || "default"} label={STATUS_LABELS[item.status] || item.status} />
                       <Tag>截止 {formatDate(item.due_at)}</Tag>
                     </Space>
                   </Card>

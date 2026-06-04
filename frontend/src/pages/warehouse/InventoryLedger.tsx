@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Space, Card, Select, Input, message, Tag } from "antd";
+import { Table, Button, Space, Card, Select, Input, message } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getInventoryTransactions, getWarehouses } from "../../api";
 import type { Warehouse } from "../../types";
+import { StatusTag } from "../../ui";
 
 const TRANSACTION_TYPES = [
   { value: "stock_in", label: "入库" },
@@ -103,7 +104,7 @@ export default function InventoryLedger() {
       dataIndex: "type",
       width: 80,
       render: (v: string) => (
-        <Tag color={TYPE_COLORS[v] || "default"}>{TYPE_LABELS[v] || v}</Tag>
+        <StatusTag status={v} color={TYPE_COLORS[v] || "default"} label={TYPE_LABELS[v] || v} />
       ),
     },
     {

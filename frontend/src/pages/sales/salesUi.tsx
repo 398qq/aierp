@@ -19,6 +19,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getCustomer, getCustomers, getOpportunity, getOpportunities, getProduct, getProducts, getQuotation, getQuotations } from "../../api";
 import type { Customer, Opportunity, Product, Quotation } from "../../types";
+import { StatusTag } from "../../ui";
 
 export const money = (value?: number | null) => `¥${Number(value || 0).toLocaleString()}`;
 
@@ -50,7 +51,7 @@ export const salesStatus: Record<string, { color: string; label: string }> = {
 
 export function SalesStatusTag({ value }: { value?: string | null }) {
   const meta = salesStatus[value || ""] || { color: "default", label: value || "-" };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <StatusTag status={value || "-"} color={meta.color} label={meta.label} />;
 }
 
 export function SalesModuleShell({

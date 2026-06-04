@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Statistic, Table, Tag, Typography, Spin, Empty } from "antd";
+import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty } from "antd";
 import { WarningOutlined, ShopOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import client from "../../api/client";
+import { StatusTag } from "../../ui";
 
 interface InventoryData {
   summary: { total_products: number; low_stock: number; out_of_stock: number };
@@ -36,7 +37,7 @@ export default function ReportInventory() {
     { title: "安全库存", dataIndex: "safety_stock", key: "safety_stock" },
     {
       title: "状态", dataIndex: "status", key: "status",
-      render: (v: string) => <Tag color={statusColors[v] || "default"}>{v}</Tag>,
+      render: (v: string) => <StatusTag status={v} color={statusColors[v] || "default"} />,
     },
   ];
 

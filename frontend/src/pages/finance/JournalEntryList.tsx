@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Space, Tag, Card, Typography, Modal, Descriptions } from "antd";
+import { Table, Button, Card, Typography, Modal, Descriptions } from "antd";
 import { PlusOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
+import { StatusTag } from "../../ui";
 
 interface Entry {
   id: number; entry_no: string; entry_date: string; description: string; status: string; created_at: string;
@@ -37,7 +38,7 @@ export default function JournalEntryList() {
     { title: "摘要", dataIndex: "description", ellipsis: true },
     {
       title: "状态", dataIndex: "status", width: 80,
-      render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
+      render: (v: string) => <StatusTag status={v} color={statusColors[v]} label={statusLabels[v] || v} />,
     },
     { title: "创建时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " ") },
     {

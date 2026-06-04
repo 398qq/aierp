@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Table, Tag, Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
+import { Table, Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
 import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
+import { StatusTag } from "../../ui";
 
 interface ApprovalReq {
   id: number; doc_type: string; doc_id: number;
@@ -70,7 +71,7 @@ export default function ApprovalList() {
     { title: "提交人", dataIndex: "submitter_name", width: 100 },
     {
       title: "状态", dataIndex: "status", width: 80,
-      render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
+      render: (v: string) => <StatusTag status={v} color={statusColors[v]} label={statusLabels[v] || v} />,
     },
     { title: "当前级别", dataIndex: "current_level", width: 80, responsive: ["md"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
     { title: "提交时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " "), responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
@@ -97,7 +98,7 @@ export default function ApprovalList() {
               <Descriptions.Item label="单据类型">{docTypeLabels[detail.doc_type]}</Descriptions.Item>
               <Descriptions.Item label="单据ID">{detail.doc_id}</Descriptions.Item>
               <Descriptions.Item label="提交人">{detail.submitter_name}</Descriptions.Item>
-              <Descriptions.Item label="状态"><Tag color={statusColors[detail.status]}>{statusLabels[detail.status]}</Tag></Descriptions.Item>
+              <Descriptions.Item label="状态"><StatusTag status={detail.status} color={statusColors[detail.status]} label={statusLabels[detail.status]} /></Descriptions.Item>
             </Descriptions>
             {detail.doc_summary && (
               <Descriptions column={1} size="small" bordered>
