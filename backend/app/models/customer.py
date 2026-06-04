@@ -1,7 +1,7 @@
 import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -152,3 +152,76 @@ class LevelRule(TimestampMixin, Base):
     period_days: Mapped[int | None] = mapped_column(nullable=True)  # evaluation period in days
     enabled: Mapped[bool] = mapped_column(default=True)
     priority: Mapped[int] = mapped_column(default=0)
+
+
+# ---------------------------------------------------------------------------
+# Customer AI tables — defined to match the existing PostgreSQL schema.
+# These tables are populated by the AI orchestration layer
+# (app/services/orchestration/*) and the work-queue endpoints in
+# app/api/v1/ai/customer_ai.py. Models were missing on the ORM side
+# even though the tables existed; added in v6.4 to unblock the
+# /ai/customer/work-queue endpoint (HTTP 500 ImportError).
+# ---------------------------------------------------------------------------
+
+
+class CustomerAIRecommendation(TimestampMixin, Base):
+    __tablename__ = "customer_ai_recommendations"
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    snapshot_id: Mapped[int | None] = mapped_column(ForeignKey("customer_ai_snapshot_daily.id"), nullable=True)
+    model_version: Mapped[str] = mapped_column(String(50))
+    action_type: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(String(255))
+    reason: Mapped[str] = mapped_column(Text)
+    confidence: Mapped[float] = mapped_column()
+    priority_score: Mapped[float] = mapped_column()
+    expected_impact: Mapped[float | None] = mapped_column(nullable=True)
+    due_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(20))
+    owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    context_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class CustomerAIFeedback(TimestampMixin, Base):
+    __tablename__ = "customer_ai_feedbacks"
+
+    recommendation_id: Mapped[int] = mapped_column(ForeignKey("customer_ai_recommendations.id", ondelete="CASCADE"))
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    verdict: Mapped[str] = mapped_column(String(20))
+    usefulness: Mapped[int | None] = mapped_column(nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    revenue_impact: Mapped[float | None] = mapped_column(nullable=True)
+    cost_impact: Mapped[float | None] = mapped_column(nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    operator: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class CustomerAISnapshotDaily(TimestampMixin, Base):
+    __tablename__ = "customer_ai_snapshot_daily"
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    snapshot_date: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    health_score: Mapped[float | None] = mapped_column(nullable=True)
+    churn_risk_score: Mapped[float | None] = mapped_column(nullable=True)
+    value_score: Mapped[float | None] = mapped_column(nullable=True)
+    urgency_score: Mapped[float | None] = mapped_column(nullable=True)
+    recency_days: Mapped[int | None] = mapped_column(nullable=True)
+    frequency_90d: Mapped[int | None] = mapped_column(nullable=True)
+    monetary_180d: Mapped[float | None] = mapped_column(nullable=True)
+    overdue_followups: Mapped[int | None] = mapped_column(nullable=True)
+    open_opportunities: Mapped[int | None] = mapped_column(nullable=True)
+    outstanding_amount: Mapped[float | None] = mapped_column(nullable=True)
+    feature_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class CustomerAIAction(TimestampMixin, Base):
+    __tablename__ = "customer_ai_actions"
+
+    recommendation_id: Mapped[int] = mapped_column(ForeignKey("customer_ai_recommendations.id", ondelete="CASCADE"))
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
+    action_type: Mapped[str] = mapped_column(String(50))
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(20))
+    assignee: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    executed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
