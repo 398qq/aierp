@@ -18,7 +18,7 @@ export default function CustomerInsight() {
     (async () => {
       try {
         const resp = await getCustomerInsight(Number(id));
-        setData(resp.data.data);
+        setData(resp);
       } catch { setError("加载失败"); }
       finally { setLoading(false); }
     })();

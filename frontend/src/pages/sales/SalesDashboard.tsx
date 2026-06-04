@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Alert, Button, Card, Col, Empty, List, Row, Space, Spin, Table, Tag, Typography } from "antd";
 import {
   BarChartOutlined,
@@ -163,7 +163,7 @@ export default function SalesDashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
                   <YAxis type="category" dataKey="stage" />
-                  <Tooltip formatter={(v: number, name) => name === "amount" ? money(v) : v} />
+                  <Tooltip formatter={(v, name) => (name === "amount" ? money(Number(v)) : v) as ReactNode} />
                   <Legend />
                   <Bar dataKey="count" name="数量" radius={[0, 4, 4, 0]}>
                     {funnel.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
@@ -181,7 +181,7 @@ export default function SalesDashboard() {
                   <Pie data={funnel.filter((item) => item.amount > 0)} dataKey="amount" nameKey="stage" outerRadius={105} label>
                     {funnel.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => money(v)} />
+                  <Tooltip formatter={(v) => money(Number(v)) as ReactNode} />
                 </PieChart>
               </ResponsiveContainer>
             ) : <Empty description="暂无金额数据" />}

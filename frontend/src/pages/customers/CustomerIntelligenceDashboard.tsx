@@ -193,7 +193,7 @@ export default function CustomerIntelligenceDashboard() {
               <PieChart>
                 <Pie
                   data={rfmData} dataKey="count" nameKey="tier" cx="50%" cy="50%" outerRadius={70}
-                  label={({ tier, count }) => `${tier}: ${count}`}
+                  label={(entry) => { const e = entry as unknown as { tier: string; count: number }; return `${e.tier}: ${e.count}`; }}
                 >
                   {rfmData.map((entry) => (
                     <Cell key={entry.tier} fill={TIER_COLORS[entry.tier] || "#999"} />
@@ -210,7 +210,7 @@ export default function CustomerIntelligenceDashboard() {
               <PieChart>
                 <Pie
                   data={churnData} dataKey="count" nameKey="level" cx="50%" cy="50%" outerRadius={70}
-                  label={({ level, count }) => `${level}: ${count}`}
+                  label={(entry) => { const e = entry as unknown as { level: string; count: number }; return `${e.level}: ${e.count}`; }}
                 >
                   {churnData.map((entry) => (
                     <Cell key={entry.level} fill={CHURN_COLORS[entry.level] || "#999"} />

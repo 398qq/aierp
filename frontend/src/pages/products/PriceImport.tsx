@@ -328,7 +328,7 @@ export default function PriceImport() {
           />
           {headers.length > 0 && (
             <>
-              <Divider orientation="left">原始数据预览</Divider>
+              <Divider titlePlacement="left">原始数据预览</Divider>
               <Table
                 rowKey={(_, i) => String(i)}
                 columns={rawPreviewColumns}

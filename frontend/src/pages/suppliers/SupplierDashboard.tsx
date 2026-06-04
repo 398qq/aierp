@@ -94,7 +94,7 @@ export default function SupplierDashboard() {
           <Card title="供应商类型分布" size="small">
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={s.by_type} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={70} label={({ type, count }) => `${type}: ${count}`}>
+                <Pie data={s.by_type} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={70} label={(entry) => { const e = entry as unknown as { type: string; count: number }; return `${e.type}: ${e.count}`; }}>
                   {s.by_type.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
@@ -118,7 +118,7 @@ export default function SupplierDashboard() {
           <Card title="财务评级分布" size="small">
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={s.by_rating} dataKey="count" nameKey="rating" cx="50%" cy="50%" outerRadius={70} label={({ rating, count }) => `${rating}: ${count}`}>
+                <Pie data={s.by_rating} dataKey="count" nameKey="rating" cx="50%" cy="50%" outerRadius={70} label={(entry) => { const e = entry as unknown as { rating: string; count: number }; return `${e.rating}: ${e.count}`; }}>
                   {s.by_rating.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />

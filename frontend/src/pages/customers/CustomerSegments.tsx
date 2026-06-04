@@ -152,7 +152,7 @@ export default function CustomerSegmentsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value: number) => [value, "客户数"]} />
+                <Tooltip formatter={(value) => [value as number, "客户数"] as [number, string]} />
                 <Bar dataKey="size" name="客户数" radius={[4, 4, 0, 0]}>
                   {chartData.map((entry, i) => (
                     <Cell key={i} fill={entry.fill} />

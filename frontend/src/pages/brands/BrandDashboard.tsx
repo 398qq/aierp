@@ -388,7 +388,7 @@ export default function BrandDashboard() {
               <PieChart>
                 <Pie
                   data={s.by_status} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={60}
-                  label={({ status, count }) => `${STATUS_LABELS[status] || status}: ${count}`}
+                  label={(entry) => { const e = entry as unknown as { status: string; count: number }; return `${STATUS_LABELS[e.status] || e.status}: ${e.count}`; }}
                 >
                   {s.by_status.map((entry) => (
                     <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || "#999"} />
@@ -405,7 +405,7 @@ export default function BrandDashboard() {
               <PieChart>
                 <Pie
                   data={s.by_level} dataKey="count" nameKey="level" cx="50%" cy="50%" outerRadius={60}
-                  label={({ level, count }) => `${level}级: ${count}`}
+                  label={(entry) => { const e = entry as unknown as { level: string; count: number }; return `${e.level}级: ${e.count}`; }}
                 >
                   {s.by_level.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
@@ -436,7 +436,7 @@ export default function BrandDashboard() {
               <PieChart>
                 <Pie
                   data={s.by_risk} dataKey="count" nameKey="level" cx="50%" cy="50%" outerRadius={60}
-                  label={({ level, count }) => `${RISK_LABELS[level] || level}: ${count}`}
+                  label={(entry) => { const e = entry as unknown as { level: string; count: number }; return `${RISK_LABELS[e.level] || e.level}: ${e.count}`; }}
                 >
                   {s.by_risk.map((entry) => (
                     <Cell key={entry.level} fill={RISK_COLORS[entry.level] || "#999"} />
