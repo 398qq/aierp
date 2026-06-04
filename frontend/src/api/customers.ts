@@ -212,9 +212,12 @@ export const getGroupStats = (customerId: number) =>
   client.get<APIResponse<GroupStats>>(`/customers/${customerId}/group-stats`);
 
 
-// Customer Insight
+// Customer Insight — uses zod schema for runtime validation
+import { customerInsightSchema } from "./schemas/customer";
+import { safeGet } from "./schemas";
+
 export const getCustomerInsight = (id: number) =>
-  client.get<APIResponse<import("../types").CustomerInsight>>(`/customers/${id}/insight`);
+  safeGet(`/customers/${id}/insight`, customerInsightSchema);
 
 export const getCustomerQuotationHistory = (customerId: number, status?: string) =>
   client.get<APIResponse<import("../types").CustomerQuotationHistory>>(
