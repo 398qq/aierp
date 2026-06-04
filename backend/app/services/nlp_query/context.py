@@ -1,12 +1,23 @@
-"""Natural-language ERP query — the "ask anything" feature.
+"""Context builders for natural-language ERP queries.
 
-Processes a free-text question, queries relevant ERP data, and returns an
-AI-generated answer with related entities and suggested followups.
+Each builder queries one ERP domain (customers / products / sales / etc.)
+and returns a compact Chinese-language summary string suitable for
+inclusion in an LLM prompt.
+
+Two flavors per domain:
+- Full context  : top-5 detail rows + aggregates (used when the user
+                  explicitly asked about that domain).
+- Summary only  : single count or total (used as a "what's in this
+                  domain" hint when the user asked about something else).
+
+This file holds the SQL. The orchestration layer (service.py) decides
+which builders to call and when.
 """
+
+from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,61 +27,20 @@ from app.models.finance import Invoice
 from app.models.product import Brand, Inventory, Product, Supplier, Warehouse
 from app.models.sales import Opportunity, SalesOrder
 from app.models.transaction import Payment, PurchaseOrder
-from app.services.ai.client import ai_client
-from app.services.ai.prompts import nlp_query_prompt
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Domain keyword patterns (Chinese + English)
-# ---------------------------------------------------------------------------
-DOMAIN_PATTERNS: list[tuple[str, list[str]]] = [
-    ("customers", ["客户", "customer", "流失", "churn", "跟进", "followup",
-                    "信用", "credit", "等级", "level", "联系人", "contact"]),
-    ("products",  ["产品", "product", "型号", "part", "sku", "品牌", "brand",
-                    "分类", "品类", "category", "封装", "package"]),
-    ("sales",     ["销售", "sale", "订单", "order", "商机", "opportunity",
-                    "报价", "quotation", "收入", "revenue", "金额", "amount",
-                    "交付", "delivery"]),
-    ("inventory", ["库存", "inventory", "stock", "采购", "purchase", "po",
-                    "短缺", "shortage", "滞销", "slow", "周转", "turnover",
-                    "仓库", "warehouse"]),
-    ("finance",   ["财务", "finance", "应收", "ar", "应付", "ap", "付款",
-                    "payment", "发票", "invoice", "回款", "欠款", "dso",
-                    "现金", "cash", "对账", "reconciliation"]),
-    ("suppliers", ["供应商", "supplier", "交期", "lead time", "供货",
-                    "采购单", "purchase order"]),
-]
 
 # ---------------------------------------------------------------------------
-# Helpers: domain detection
-# ---------------------------------------------------------------------------
-
-def _detect_domains(query: str) -> list[str]:
-    """Return a list of domain names mentioned in the query, in order of
-    keyword-match count (most hits first)."""
-    qlower = query.lower()
-    scores: dict[str, int] = {}
-    for domain, keywords in DOMAIN_PATTERNS:
-        score = sum(1 for kw in keywords if kw.lower() in qlower)
-        if score > 0:
-            scores[domain] = score
-    # Sort by score descending, then alphabetically
-    return sorted(scores, key=lambda d: (-scores[d], d))
-
-
-# ---------------------------------------------------------------------------
-# Context builders — each returns a compact string summary
+# Full-context builders (per domain)
 # ---------------------------------------------------------------------------
 
 async def _build_customer_context(db: AsyncSession) -> str:
-    # Total count
     total_r = await db.execute(
         select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
     )
     total = total_r.scalar() or 0
 
-    # Top 5 by recent activity (last_contacted_at)
     top_r = await db.execute(
         select(Customer.name, Customer.level, Customer.industry, Customer.last_contacted_at)
         .where(Customer.deleted_at.is_(None))
@@ -79,7 +49,6 @@ async def _build_customer_context(db: AsyncSession) -> str:
     )
     top = top_r.all()
 
-    # Level distribution
     level_r = await db.execute(
         select(Customer.level, func.count(Customer.id))
         .where(Customer.deleted_at.is_(None), Customer.level.isnot(None))
@@ -87,7 +56,6 @@ async def _build_customer_context(db: AsyncSession) -> str:
     )
     levels = {r[0]: r[1] for r in level_r.all()}
 
-    # Recent orders count (last 30 days)
     recent_r = await db.execute(
         select(func.count(SalesOrder.id)).where(
             SalesOrder.created_at >= text("NOW() - INTERVAL '30 days'"),
@@ -115,7 +83,6 @@ async def _build_product_context(db: AsyncSession) -> str:
     )
     total = total_r.scalar() or 0
 
-    # Category distribution
     cat_r = await db.execute(
         select(Product.category, func.count(Product.id))
         .where(Product.deleted_at.is_(None), Product.category.isnot(None))
@@ -124,8 +91,6 @@ async def _build_product_context(db: AsyncSession) -> str:
     )
     cats = {r[0]: r[1] for r in cat_r.all()}
 
-    # Top 5 products (by recent order items would be ideal, but we use total
-    # and brand lookup as a reasonable proxy)
     top_r = await db.execute(
         select(Product.name, Brand.name, Product.category)
         .join(Brand, Product.brand_id == Brand.id, isouter=True)
@@ -135,7 +100,6 @@ async def _build_product_context(db: AsyncSession) -> str:
     )
     top = top_r.all()
 
-    # Brand count
     brand_r = await db.execute(
         select(func.count(Brand.id)).where(Brand.deleted_at.is_(None))
     )
@@ -154,7 +118,6 @@ async def _build_product_context(db: AsyncSession) -> str:
 
 
 async def _build_sales_context(db: AsyncSession) -> str:
-    # This month revenue
     month_r = await db.execute(
         select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
         .where(
@@ -164,7 +127,6 @@ async def _build_sales_context(db: AsyncSession) -> str:
     )
     month_revenue = float(month_r.scalar() or 0)
 
-    # Month order count
     month_cnt_r = await db.execute(
         select(func.count(SalesOrder.id))
         .where(
@@ -174,7 +136,6 @@ async def _build_sales_context(db: AsyncSession) -> str:
     )
     month_orders = month_cnt_r.scalar() or 0
 
-    # Recent 5 orders
     recent_r = await db.execute(
         select(SalesOrder.order_no, SalesOrder.total_amount, SalesOrder.status,
                Customer.name)
@@ -185,7 +146,6 @@ async def _build_sales_context(db: AsyncSession) -> str:
     )
     recent = recent_r.all()
 
-    # Opportunity pipeline
     opp_r = await db.execute(
         select(func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0))
         .where(Opportunity.deleted_at.is_(None))
@@ -193,7 +153,6 @@ async def _build_sales_context(db: AsyncSession) -> str:
     opp_row = opp_r.one()
     opp_count, opp_value = opp_row[0] or 0, float(opp_row[1] or 0)
 
-    # Order status breakdown
     status_r = await db.execute(
         select(SalesOrder.status, func.count(SalesOrder.id))
         .where(SalesOrder.deleted_at.is_(None))
@@ -218,14 +177,11 @@ async def _build_sales_context(db: AsyncSession) -> str:
 
 
 async def _build_inventory_context(db: AsyncSession) -> str:
-    # Total stock value (approximate — we don't have cost per inventory line
-    # stored in the inventory table itself, so we count items)
     total_r = await db.execute(
         select(func.count(Inventory.id)).where(Inventory.quantity > 0)
     )
     total_items = total_r.scalar() or 0
 
-    # Low stock items (quantity <= safety_stock)
     low_r = await db.execute(
         select(Product.name, Inventory.quantity, Inventory.safety_stock,
                Warehouse.name)
@@ -237,7 +193,6 @@ async def _build_inventory_context(db: AsyncSession) -> str:
     )
     low_stock = low_r.all()
 
-    # Warehouse counts
     wh_r = await db.execute(
         select(Warehouse.name, func.count(Inventory.id))
         .join(Inventory, Warehouse.id == Inventory.warehouse_id, isouter=True)
@@ -245,7 +200,6 @@ async def _build_inventory_context(db: AsyncSession) -> str:
     )
     warehouses = {r[0]: r[1] for r in wh_r.all()}
 
-    # Pending POs
     po_r = await db.execute(
         select(func.count(PurchaseOrder.id), func.coalesce(func.sum(PurchaseOrder.total_amount), 0))
         .where(PurchaseOrder.status.in_(["draft", "pending", "confirmed"]),
@@ -270,7 +224,6 @@ async def _build_inventory_context(db: AsyncSession) -> str:
 
 
 async def _build_finance_context(db: AsyncSession) -> str:
-    # AR summary
     ar_r = await db.execute(
         select(
             func.count(Invoice.id),
@@ -282,7 +235,6 @@ async def _build_finance_context(db: AsyncSession) -> str:
     ar_count = ar_row[0] or 0
     ar_total = float(ar_row[1] or 0)
 
-    # Overdue invoices
     overdue_r = await db.execute(
         select(func.count(Invoice.id), func.coalesce(func.sum(Invoice.amount), 0))
         .where(
@@ -294,7 +246,6 @@ async def _build_finance_context(db: AsyncSession) -> str:
     overdue_count = overdue_row[0] or 0
     overdue_total = float(overdue_row[1] or 0)
 
-    # Recent payments (transaction.Payment where type == 'receipt')
     recent_pay_r = await db.execute(
         select(Payment.payment_no, Payment.amount, Payment.method, Payment.paid_at,
                Customer.name)
@@ -305,7 +256,6 @@ async def _build_finance_context(db: AsyncSession) -> str:
     )
     recent_payments = recent_pay_r.all()
 
-    # AP — payments to suppliers (unpaid)
     ap_r = await db.execute(
         select(
             func.count(Payment.id),
@@ -348,7 +298,6 @@ async def _build_supplier_context(db: AsyncSession) -> str:
     )
     top = top_r.all()
 
-    # Pending POs per supplier
     po_r = await db.execute(
         select(Supplier.name, func.count(PurchaseOrder.id),
                func.coalesce(func.sum(PurchaseOrder.total_amount), 0))
@@ -380,100 +329,10 @@ async def _build_supplier_context(db: AsyncSession) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Builder registry — used by the orchestration layer to dispatch by name
 # ---------------------------------------------------------------------------
 
-async def natural_language_query(db: AsyncSession, query: str) -> dict[str, Any]:
-    """Process a natural-language query against the ERP system.
-
-    Smart context selection:
-    - Fewer than 3 characters → no context (probable test/greeting).
-    - Single-domain queries: include that domain's full context + summary
-      counts from all other domains.
-    - Multi-domain or ambiguous queries: include full context from all
-      matched domains + summary from the rest.
-    - Complex queries (long, multi-domain): include everything.
-
-    Returns a dict with ``answer``, ``related_entities``,
-    ``suggested_followups``, ``actions``, and ``confidence``.
-    """
-
-    # ---------- detect domain ----------
-    domains = _detect_domains(query)
-    all_domains = [d for d, _ in DOMAIN_PATTERNS]
-
-    # ---------- build context ----------
-    context: dict[str, str] = {}
-
-    if len(query.strip()) < 3:
-        # Trivial query — skip heavy DB work
-        pass
-    elif len(domains) <= 1:
-        # Single-domain: full context for that domain (or general if none
-        # detected) plus lightweight summary for the rest
-        primary = domains[0] if domains else "general"
-        for d in all_domains:
-            if d == primary or (primary == "general" and len(query) > 10):
-                context[f"{d}_context"] = await _build_context_for(d, db)
-            else:
-                context[f"{d}_context"] = await _build_summary_context_for(d, db)
-    else:
-        # Multi-domain: full context for each detected domain, summary for rest
-        for d in all_domains:
-            if d in domains or len(domains) >= 3:
-                context[f"{d}_context"] = await _build_context_for(d, db)
-            else:
-                context[f"{d}_context"] = await _build_summary_context_for(d, db)
-
-    # ---------- call AI ----------
-    output_schema: dict[str, Any] = {
-        "answer": "string: 中文自然语言回答，清晰直接",
-        "data_summary": "string: 支撑答案的数据摘要，1-2句话",
-        "related_entities": (
-            "list of dicts: {type: string (customer/product/order/opportunity/"
-            "supplier/invoice), id: integer, name: string, relevance: string}"
-        ),
-        "suggested_followups": "list of strings: 建议追问的问题，2-3条",
-        "actions": (
-            "list of dicts: {action: string, type: string, entity: string, "
-            "urgency: string (高/中/低)} — 如果答案暗示了可执行的操作"
-        ),
-        "confidence": "integer 0-100: 回答置信度",
-    }
-
-    try:
-        system_prompt = (
-            "你是一个电子元器件分销ERP系统的智能助手。"
-            "基于提供的ERP数据上下文，用中文自然语言回答用户问题。"
-            "回答应数据驱动、准确、可执行。"
-            "如果数据不足以回答，诚实说明并建议如何获取数据。"
-        )
-        result = await ai_client.chat_structured(
-            [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": nlp_query_prompt(query, context)},
-            ],
-            output_schema,
-            temperature=0.3,
-        )
-        return result
-    except Exception as exc:
-        logger.exception("NLP query failed")
-        return {
-            "answer": f"抱歉，查询处理失败：{exc}",
-            "data_summary": "",
-            "related_entities": [],
-            "suggested_followups": [],
-            "actions": [],
-            "confidence": 0,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Internal: context builder dispatchers
-# ---------------------------------------------------------------------------
-
-_BUILDERS: dict[str, Any] = {
+_BUILDERS = {
     "customers":  _build_customer_context,
     "products":   _build_product_context,
     "sales":      _build_sales_context,
@@ -483,7 +342,8 @@ _BUILDERS: dict[str, Any] = {
 }
 
 
-async def _build_context_for(domain: str, db: AsyncSession) -> str:
+async def build_full_context(domain: str, db: AsyncSession) -> str:
+    """Dispatch to the full-context builder for `domain`."""
     builder = _BUILDERS.get(domain)
     if builder is None:
         return "无数据"
@@ -494,15 +354,15 @@ async def _build_context_for(domain: str, db: AsyncSession) -> str:
         return f"数据获取失败: {exc}"
 
 
-async def _build_summary_context_for(domain: str, db: AsyncSession) -> str:
-    """Lightweight summary — only counts and totals, no detail rows."""
+async def build_summary_context(domain: str, db: AsyncSession) -> str:
+    """Lightweight per-domain summary — only counts and totals, no detail rows."""
     try:
         if domain == "customers":
             r = await db.execute(
                 select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
             )
             return f"客户总数：{r.scalar() or 0}"
-        elif domain == "products":
+        if domain == "products":
             r = await db.execute(
                 select(func.count(Product.id)).where(Product.deleted_at.is_(None))
             )
@@ -510,7 +370,7 @@ async def _build_summary_context_for(domain: str, db: AsyncSession) -> str:
                 select(func.count(Brand.id)).where(Brand.deleted_at.is_(None))
             )
             return f"产品总数：{r.scalar() or 0}，品牌数：{br.scalar() or 0}"
-        elif domain == "sales":
+        if domain == "sales":
             r = await db.execute(
                 select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
                 .where(
@@ -519,24 +379,23 @@ async def _build_summary_context_for(domain: str, db: AsyncSession) -> str:
                 )
             )
             return f"本月销售额：{float(r.scalar() or 0):,.2f}"
-        elif domain == "inventory":
+        if domain == "inventory":
             r = await db.execute(
                 select(func.count(Inventory.id)).where(Inventory.quantity > 0)
             )
             return f"有库存产品项数：{r.scalar() or 0}"
-        elif domain == "finance":
+        if domain == "finance":
             r = await db.execute(
                 select(func.coalesce(func.sum(Invoice.amount), 0))
                 .where(Invoice.status.notin_(["paid", "cancelled"]),
                        Invoice.deleted_at.is_(None))
             )
             return f"应收账款总额：{float(r.scalar() or 0):,.2f}"
-        elif domain == "suppliers":
+        if domain == "suppliers":
             r = await db.execute(
                 select(func.count(Supplier.id)).where(Supplier.deleted_at.is_(None))
             )
             return f"供应商总数：{r.scalar() or 0}"
-        else:
-            return "无数据"
+        return "无数据"
     except Exception as exc:
         return f"数据获取失败: {exc}"

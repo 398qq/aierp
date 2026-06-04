@@ -17,7 +17,7 @@ async def ai_query(
     _user: dict = Depends(get_current_user),
 ):
     """Answer natural language questions about ERP data."""
-    from app.services.nlp_query_service import natural_language_query
+    from app.services.nlp_query import natural_language_query
 
     query_text = data.get("query", "")
     if not query_text:
