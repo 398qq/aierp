@@ -76,8 +76,8 @@ export default function InventoryManage() {
 
   // Load filter options
   useEffect(() => {
-    getWarehouses().then((r) => {
-      if (r.data.code === 0) setWarehouses(r.data.data as Warehouse[]);
+    getWarehouses({ page: 1, page_size: 200 }).then((r) => {
+      if (r.data.code === 0) setWarehouses(r.data.data.list as Warehouse[]);
     }).catch(() => {});
 
     getProducts({ page: 1, page_size: 200 }).then((r) => {

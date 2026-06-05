@@ -95,8 +95,10 @@ export const getProductLifecycle = (productId: number) =>
 
 
 // Warehouses & Inventory
-export const getWarehouses = () =>
-  client.get<APIResponse<Warehouse[]>>("/warehouses");
+// Note: backend returns paginated {list, total, page, page_size};
+// consumers should read .data.list, not .data directly.
+export const getWarehouses = (params?: { page?: number; page_size?: number }) =>
+  client.get<APIResponse<PageData<Warehouse>>>("/warehouses", { params });
 
 export const createWarehouse = (data: { name: string; location?: string; description?: string }) =>
   client.post<APIResponse<{ id: number; name: string; location: string | null; description: string | null }>>("/warehouses", undefined, { params: data });

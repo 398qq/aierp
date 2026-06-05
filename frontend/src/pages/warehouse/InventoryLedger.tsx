@@ -56,8 +56,8 @@ export default function InventoryLedger() {
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
 
   useEffect(() => {
-    getWarehouses().then((r) => {
-      if (r.data.code === 0) setWarehouses(r.data.data as Warehouse[]);
+    getWarehouses({ page: 1, page_size: 200 }).then((r) => {
+      if (r.data.code === 0) setWarehouses(r.data.data.list as Warehouse[]);
     });
   }, []);
 

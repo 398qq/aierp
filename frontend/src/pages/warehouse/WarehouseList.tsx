@@ -28,10 +28,10 @@ export default function WarehouseList() {
   const fetch = async () => {
     setLoading(true);
     try {
-      const resp = await getWarehouses();
+      const resp = await getWarehouses({ page: 1, page_size: 200 });
       if (resp.data.code === 0) {
-        setData(resp.data.data as WarehouseRecord[]);
-        setTotal(resp.data.data.length);
+        setData(resp.data.data.list as WarehouseRecord[]);
+        setTotal(resp.data.data.total);
       }
     } catch {
       message.error("加载仓库失败");
