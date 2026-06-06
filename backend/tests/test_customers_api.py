@@ -419,7 +419,7 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            "app.api.v1.ai.customer.recognition.CustomerAgent.recognize_customer",
             fake_recognize_customer,
         )
 
@@ -502,11 +502,11 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai._extract_business_card_ocr",
+            "app.api.v1.ai.customer._ocr.extract_business_card_ocr",
             fake_extract_business_card_ocr,
         )
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            "app.api.v1.ai.customer.recognition.CustomerAgent.recognize_customer",
             fake_recognize_customer,
         )
 
@@ -559,11 +559,11 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai._extract_business_card_ocr",
+            "app.api.v1.ai.customer._ocr.extract_business_card_ocr",
             fake_extract_business_card_ocr,
         )
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            "app.api.v1.ai.customer.recognition.CustomerAgent.recognize_customer",
             fake_recognize_customer,
         )
 
@@ -623,11 +623,11 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai._extract_business_card_ocr",
+            "app.api.v1.ai.customer._ocr.extract_business_card_ocr",
             fake_extract_business_card_ocr,
         )
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_customer",
+            "app.api.v1.ai.customer.recognition.CustomerAgent.recognize_customer",
             fake_recognize_customer,
         )
 
@@ -647,7 +647,7 @@ class TestCustomers:
     def test_business_card_image_quality_flags_low_quality_image(self):
         from PIL import Image
 
-        from app.api.v1.ai.customer_ai import _analyze_business_card_image_quality
+        from app.api.v1.ai.customer._ocr import _analyze_business_card_image_quality
 
         image = Image.new("RGB", (360, 220), (20, 20, 20))
         quality = _analyze_business_card_image_quality(image)
@@ -663,7 +663,7 @@ class TestCustomers:
 
         pytest.importorskip("cv2")
 
-        from app.api.v1.ai.customer_ai import _opencv_business_card_region_variants
+        from app.api.v1.ai.customer._ocr_regions import _opencv_business_card_region_variants
 
         background = Image.new("RGB", (1200, 800), (80, 80, 80))
         card = Image.new("RGB", (760, 430), "white")
@@ -683,7 +683,7 @@ class TestCustomers:
         assert 360 <= cropped.height <= 500
 
     def test_business_card_ocr_scoring_prefers_field_rich_text(self):
-        from app.api.v1.ai.customer_ai import _merge_card_ocr_results
+        from app.api.v1.ai.customer._ocr_merging import _merge_card_ocr_results
 
         result = _merge_card_ocr_results([
             {
@@ -704,7 +704,7 @@ class TestCustomers:
         assert len(result["candidates"]) == 2
 
     def test_business_card_ocr_merge_keeps_key_fields_from_other_candidates(self):
-        from app.api.v1.ai.customer_ai import _merge_card_ocr_results
+        from app.api.v1.ai.customer._ocr_merging import _merge_card_ocr_results
 
         result = _merge_card_ocr_results([
             {
@@ -729,7 +729,7 @@ class TestCustomers:
     def test_easyocr_result_is_normalized_as_ocr_candidate(self, monkeypatch):
         from PIL import Image
 
-        from app.api.v1.ai import customer_ai
+        from app.api.v1.ai.customer import _ocr_engines as customer_ai
 
         class FakeEasyOCRReader:
             def readtext(self, image, detail=1, paragraph=False):
@@ -744,7 +744,7 @@ class TestCustomers:
 
         monkeypatch.setattr(customer_ai, "_get_easyocr_reader", lambda: FakeEasyOCRReader())
 
-        result = customer_ai._ocr_with_easyocr(Image.new("RGB", (240, 120), "white"))
+        result = customer_ai.ocr_with_easyocr(Image.new("RGB", (240, 120), "white"))
 
         assert result["engine"] == "easyocr"
         assert result["confidence"] == 0.8867
@@ -753,7 +753,7 @@ class TestCustomers:
         assert "zhang@example.com" in result["text"]
 
     def test_business_card_ocr_selection_prefers_easyocr_when_key_fields_match(self):
-        from app.api.v1.ai.customer_ai import _merge_card_ocr_results
+        from app.api.v1.ai.customer._ocr_merging import _merge_card_ocr_results
 
         result = _merge_card_ocr_results([
             {
@@ -776,11 +776,12 @@ class TestCustomers:
 
         from PIL import Image
 
-        from app.api.v1.ai import customer_ai
+        from app.api.v1.ai.customer import _ocr as customer_ai
+        from app.api.v1.ai.customer import _ocr_engines as customer_ocr_engines
 
         calls = []
 
-        monkeypatch.setattr(customer_ai, "_opencv_business_card_region_variants", lambda image: [])
+        monkeypatch.setattr(customer_ocr_engines, "opencv_business_card_region_variants", lambda image: [])
 
         def fake_easyocr(image):
             calls.append("easyocr")
@@ -798,9 +799,9 @@ class TestCustomers:
                 "confidence": 0.9,
             }
 
-        monkeypatch.setattr(customer_ai, "_ocr_with_easyocr", fake_easyocr)
-        monkeypatch.setattr(customer_ai, "_ocr_with_rapidocr", fake_rapidocr)
-        monkeypatch.setattr(customer_ai, "_ocr_with_tesseract", lambda image: {"text": "", "engine": "tesseract", "confidence": 0})
+        monkeypatch.setattr(customer_ocr_engines, "ocr_with_easyocr", fake_easyocr)
+        monkeypatch.setattr(customer_ocr_engines, "ocr_with_rapidocr", fake_rapidocr)
+        monkeypatch.setattr(customer_ocr_engines, "ocr_with_tesseract", lambda image: {"text": "", "engine": "tesseract", "confidence": 0})
 
         image = Image.new("RGB", (900, 500), "white")
         content = io.BytesIO()
@@ -1162,7 +1163,7 @@ class TestCustomerFollowups:
             }
 
         monkeypatch.setattr(
-            "app.api.v1.ai.customer_ai.CustomerAgent.recognize_followup",
+            "app.api.v1.ai.customer.recognition.CustomerAgent.recognize_followup",
             fake_recognize_followup,
         )
 

@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.api.v1.ai.brand_ai import router as brand_ai_router
 from app.api.v1.ai.chat import router as chat_router
 from app.api.v1.ai.contract_ai import router as contract_ai_router
-from app.api.v1.ai.customer_ai import router as customer_ai_router
+from app.api.v1.ai.customer import router as customer_ai_router
 from app.api.v1.ai.finance_ai import router as finance_ai_router
 from app.api.v1.ai.inventory_ai import router as inventory_ai_router
 from app.api.v1.ai.matching_ai import router as matching_ai_router
