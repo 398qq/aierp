@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, message } from "antd";
+import { StatusTag, type StatusTone } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getTicket } from "../../api";
-import { StatusTag, type StatusTone } from "../../ui";
 import type { Ticket } from "../../types";
 
 const STATUS_MAP: Record<string, { tone: StatusTone; label: string }> = {

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty, List } from "antd";
+import { StatusTag } from "../../ui";
 import { ShoppingCartOutlined, DollarOutlined, ClockCircleOutlined, TruckOutlined } from "@ant-design/icons";
 import client from "../../api/client";
-import { StatusTag } from "../../ui";
 
 interface DashboardData {
   total_po: number; total_amount: number;

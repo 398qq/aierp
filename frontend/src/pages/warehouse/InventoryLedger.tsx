@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Card, Select, Input, message } from "antd";
+import { StatusTag } from "../../ui";
 import { ReloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getInventoryTransactions, getWarehouses } from "../../api";
 import type { Warehouse } from "../../types";
-import { StatusTag } from "../../ui";
 
 const TRANSACTION_TYPES = [
   { value: "stock_in", label: "入库" },

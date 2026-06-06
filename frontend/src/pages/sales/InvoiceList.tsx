@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getInvoices, deleteInvoice } from "../../api";
@@ -119,7 +120,7 @@ export default function InvoiceList() {
             render: (v: string) => (
               <>
                 {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
-                <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag>
+                <StatusTag tone={STATUS[v]?.color}>{STATUS[v]?.label || v}</StatusTag>
               </>
             ),
           },

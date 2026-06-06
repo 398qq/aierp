@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Empty, Progress, Space, Spin, Switch, Tag, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, DollarOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { getOpportunity } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
@@ -113,7 +114,7 @@ export default function OpportunityDetail() {
             extra={(
               <Space>
                 <SalesStatusTag value={opp.status} />
-                <Tag color="blue">{stageLabel[opp.stage || ""] || opp.stage || "-"}</Tag>
+                <StatusTag tone="info">{stageLabel[opp.stage || ""] || opp.stage || "-"}</StatusTag>
               </Space>
             )}
           >
@@ -162,7 +163,7 @@ export default function OpportunityDetail() {
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">阶段</Typography.Text>
-                <Tag color="blue">{stageLabel[opp.stage || ""] || opp.stage || "-"}</Tag>
+                <StatusTag tone="info">{stageLabel[opp.stage || ""] || opp.stage || "-"}</StatusTag>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">预计成交</Typography.Text>

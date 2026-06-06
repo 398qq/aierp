@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, Button } from "antd";
+import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, SafetyOutlined, ShopOutlined, AimOutlined, WarningOutlined } from "@ant-design/icons";
 import { orchestrateProduct360 } from "../../api";
 import type { Product360 as Product360Type } from "../../types";
@@ -29,14 +30,14 @@ export default function Product360Page() {
   const scoreColor = data.product_360_score >= 80 ? "#52c41a" : data.product_360_score >= 60 ? "#faad14" : "#ff4d4f";
 
   const actionColumns = [
-    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <Tag>{d}</Tag> },
+    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <StatusTag>{d}</StatusTag> },
     { title: "行动", dataIndex: "action", ellipsis: true },
-    { title: "优先级", dataIndex: "priority", width: 80, render: (p: string) => <Tag color={p === "高" ? "red" : p === "中" ? "orange" : "blue"}>{p}</Tag> },
+    { title: "优先级", dataIndex: "priority", width: 80, render: (p: string) => <StatusTag tone={p === "高" ? "danger" : p === "中" ? "warning" : "info"}>{p}</StatusTag> },
     { title: "预期影响", dataIndex: "expected_impact", width: 100, ellipsis: true },
   ];
 
   const insightColumns = [
-    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <Tag>{d}</Tag> },
+    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <StatusTag>{d}</StatusTag> },
     { title: "发现", dataIndex: "finding", ellipsis: true },
     { title: "影响", dataIndex: "impact", width: 120, ellipsis: true },
     { title: "建议行动", dataIndex: "action", ellipsis: true },
@@ -81,7 +82,7 @@ export default function Product360Page() {
         </Col>
         <Col xs={24} sm={8}>
           <Card title="风险标志">
-            {data.risk_flags?.length ? data.risk_flags.map((f, i) => <Tag color="red" key={i}>{f}</Tag>) : <Text type="secondary">无风险标志</Text>}
+            {data.risk_flags?.length ? data.risk_flags.map((f, i) => <StatusTag tone="danger" key={i}>{f}</StatusTag>) : <Text type="secondary">无风险标志</Text>}
           </Card>
         </Col>
         <Col xs={24} sm={8}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Modal, Form, Input, InputNumber, Select, Switch, message, Card, Popconfirm, Tag } from "antd";
+import { StatusTag } from "../../ui";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
@@ -65,7 +66,7 @@ export default function ApprovalRules() {
     { title: "审批层级", key: "levels", width: 100, render: (_, r) => (r.flow_config || []).length || 1 },
     {
       title: "状态", dataIndex: "enabled", width: 80,
-      render: (v: boolean) => <Tag color={v ? "green" : "default"}>{v ? "启用" : "禁用"}</Tag>,
+      render: (v: boolean) => <StatusTag tone={v ? "success" : "neutral"}>{v ? "启用" : "禁用"}</StatusTag>,
     },
     { title: "创建时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " ") },
     {

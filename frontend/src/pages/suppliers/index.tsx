@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Col, Descriptions, Empty, Form, Input, Modal, Popconfirm, Progress, Row, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import {
   AuditOutlined,
   BankOutlined,
@@ -371,7 +372,7 @@ export default function SupplierList() {
         </Space>
       ),
     },
-    { title: "类型", dataIndex: "supplier_type", width: 100, render: (v) => normalizeSupplierType(v) ? <Tag>{normalizeSupplierType(v)}</Tag> : "-" },
+    { title: "类型", dataIndex: "supplier_type", width: 100, render: (v) => normalizeSupplierType(v) ? <StatusTag>{normalizeSupplierType(v)}</StatusTag> : "-" },
     { title: "联系人", dataIndex: "contact_person", width: 100, render: (v) => v || "-" },
     { title: "电话", dataIndex: "phone", width: 130, render: (v) => v || "-" },
     { title: "邮箱", dataIndex: "email", width: 180, ellipsis: true, render: (v) => v || "-" },
@@ -381,7 +382,7 @@ export default function SupplierList() {
       title: "评级",
       dataIndex: "financial_rating",
       width: 90,
-      render: (v) => v ? <Tag color="green">{v}</Tag> : <Tag>未评级</Tag>,
+      render: (v) => v ? <StatusTag tone="success">{v}</StatusTag> : <StatusTag>未评级</StatusTag>,
     },
     {
       title: "完整度",
@@ -665,7 +666,7 @@ export default function SupplierList() {
               >
                 <span className="supplier-task-main">
                   <span style={{ fontWeight: task === item.key ? 600 : 400 }}>{item.label}</span>
-                  <Tag color={item.color}>{item.count}</Tag>
+                  <StatusTag tone={item.color}>{item.count}</StatusTag>
                 </span>
                 <span className="supplier-task-note">{item.note}</span>
               </button>
@@ -718,7 +719,7 @@ export default function SupplierList() {
           {selectedCount > 0 && (
             <div className="supplier-batch-bar">
               <Space wrap>
-                <Tag color="blue">已选 {selectedCount} 家供应商</Tag>
+                <StatusTag tone="info">已选 {selectedCount} 家供应商</StatusTag>
                 <Popconfirm title={`确定删除选中的 ${selectedCount} 个供应商?`} onConfirm={handleBatchDelete}>
                   <Button danger icon={<DeleteOutlined />} loading={batchDeleting}>批量删除</Button>
                 </Popconfirm>
@@ -762,7 +763,7 @@ export default function SupplierList() {
                 <BankOutlined />
                 <Text strong>供应商上下文</Text>
               </Space>
-              {activeAction && <Tag color={activeAction.color}>{activeAction.label}</Tag>}
+              {activeAction && <StatusTag tone={activeAction.color}>{activeAction.label}</StatusTag>}
             </div>
             {!activeSupplier ? (
               <div className="supplier-panel-body">
@@ -775,12 +776,12 @@ export default function SupplierList() {
                     <a style={{ fontWeight: 600 }} onClick={() => navigate(`/suppliers/${activeSupplier.id}`)}>{activeSupplier.name}</a>
                     <div className="supplier-context-note">{normalizeSupplierType(activeSupplier.supplier_type) || "未分类"} · {activeSupplier.region || "未维护区域"}</div>
                   </div>
-                  {activeSupplier.financial_rating && <Tag color="green">{activeSupplier.financial_rating}</Tag>}
+                  {activeSupplier.financial_rating && <StatusTag tone="success">{activeSupplier.financial_rating}</StatusTag>}
                 </div>
                 <Space size={[4, 6]} wrap style={{ marginTop: 10 }}>
-                  {activeSupplier.contact_person && <Tag>{activeSupplier.contact_person}</Tag>}
-                  {activeSupplier.phone && <Tag color="blue">{activeSupplier.phone}</Tag>}
-                  {activeSupplier.email && <Tag color="cyan">{activeSupplier.email}</Tag>}
+                  {activeSupplier.contact_person && <StatusTag>{activeSupplier.contact_person}</StatusTag>}
+                  {activeSupplier.phone && <StatusTag tone="info">{activeSupplier.phone}</StatusTag>}
+                  {activeSupplier.email && <StatusTag tone="info">{activeSupplier.email}</StatusTag>}
                 </Space>
                 <div className="supplier-context-score">
                   <div>
@@ -795,7 +796,7 @@ export default function SupplierList() {
                 <div className="supplier-context-action">
                   <Text strong>建议动作</Text>
                   <div style={{ marginTop: 6 }}>
-                    {activeAction && <Tag color={activeAction.color}>{activeAction.label}</Tag>}
+                    {activeAction && <StatusTag tone={activeAction.color}>{activeAction.label}</StatusTag>}
                   </div>
                   <div className="supplier-context-note" style={{ marginTop: 6 }}>{activeAction?.note}</div>
                 </div>
@@ -828,10 +829,10 @@ export default function SupplierList() {
             </div>
             <div className="supplier-panel-body">
               <Space size={[4, 6]} wrap>
-                <Tag>{TASK_LABELS[task]}</Tag>
-                {supplierType && <Tag color="blue">类型：{supplierType}</Tag>}
-                {search.trim() && <Tag color="cyan">搜索：{search.trim()}</Tag>}
-                <Tag>显示 {visibleData.length}</Tag>
+                <StatusTag>{TASK_LABELS[task]}</StatusTag>
+                {supplierType && <StatusTag tone="info">类型：{supplierType}</StatusTag>}
+                {search.trim() && <StatusTag tone="info">搜索：{search.trim()}</StatusTag>}
+                <StatusTag>显示 {visibleData.length}</StatusTag>
               </Space>
             </div>
           </div>

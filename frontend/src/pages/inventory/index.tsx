@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button, Select } from "antd";
+import { StatusTag } from "../../ui";
 import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined, ShoppingCartOutlined, DownloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast, createPOFromRestock, getSuppliers, batchAdjustInventory } from "../../api";
@@ -174,12 +175,12 @@ export default function InventoryList() {
       render: (v, r) => <a onClick={() => navigate(`/products/${r.product_id}`)}>{String(v || `#${r.product_id}`)}</a>,
     },
     { title: "SKU", dataIndex: "sku", key: "sku", width: 100 },
-    { title: "分类", dataIndex: "category", key: "cat", width: 60, render: (v) => v ? <Tag>{v}</Tag> : null },
+    { title: "分类", dataIndex: "category", key: "cat", width: 60, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "品牌", dataIndex: "brand_name", key: "brand", width: 80 },
     { title: "在库", dataIndex: "quantity", key: "qty", width: 60 },
     {
       title: "已锁", dataIndex: "locked_quantity", key: "locked", width: 50,
-      render: (v: number) => v > 0 ? <Tag color="orange">{v}</Tag> : <Text type="secondary">0</Text>,
+      render: (v: number) => v > 0 ? <StatusTag tone="warning">{v}</StatusTag> : <Text type="secondary">0</Text>,
     },
     {
       title: "可用", key: "available", width: 60,
@@ -209,10 +210,10 @@ export default function InventoryList() {
       render: (_: unknown, r) => {
         const avail = (r.quantity || 0) - (r.locked_quantity || 0);
         const safe = r.safety_stock || 0;
-        if (r.quantity === 0) return <Tag color="red">缺货</Tag>;
-        if (avail <= 0) return <Tag color="orange">已锁</Tag>;
-        if (avail <= safe) return <Tag color="orange">低库存</Tag>;
-        return <Tag color="green">正常</Tag>;
+        if (r.quantity === 0) return <StatusTag tone="danger">缺货</StatusTag>;
+        if (avail <= 0) return <StatusTag tone="warning">已锁</StatusTag>;
+        if (avail <= safe) return <StatusTag tone="warning">低库存</StatusTag>;
+        return <StatusTag tone="success">正常</StatusTag>;
       },
     },
     {
@@ -282,15 +283,15 @@ export default function InventoryList() {
                     <a onClick={() => navigate(`/products/${s.product_id}`)}>
                       {String(s.sku || "")} {String(s.name || "")}
                     </a>
-                    <Tag style={{ marginLeft: 8 }}>{String(s.category || "")}</Tag>
+                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
                   </span>
                   <Space>
                     <Text type="secondary">月均消耗: {String(s.monthly_rate)}</Text>
                     <Text>库存: {String(s.current_qty)}</Text>
-                    <Tag color="blue">建议补: {String(s.suggested_order)}</Tag>
-                    <Tag color={s.urgency === "紧急" ? "red" : s.urgency === "建议" ? "orange" : "default"}>
+                    <StatusTag tone="info">建议补: {String(s.suggested_order)}</StatusTag>
+                    <StatusTag tone={s.urgency === "紧急" ? "danger" : s.urgency === "建议" ? "warning" : "neutral"}>
                       {String(s.urgency)}
-                    </Tag>
+                    </StatusTag>
                   </Space>
                 </Space>
               </List.Item>
@@ -316,7 +317,7 @@ export default function InventoryList() {
                     <a onClick={() => navigate(`/products/${s.product_id}`)}>
                       {String(s.sku || "")} {String(s.name || "")}
                     </a>
-                    <Tag style={{ marginLeft: 8 }}>{String(s.category || "")}</Tag>
+                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
                   </span>
                   <Space>
                     <Text>库存: {String(s.quantity)} (仓库 #{String(s.warehouse_id)})</Text>
@@ -388,7 +389,7 @@ export default function InventoryList() {
             </p>
             <p>
               <Text strong>在库: </Text>
-              <Tag>{adjustProduct.quantity}</Tag>
+              <StatusTag>{adjustProduct.quantity}</StatusTag>
               <Text type="secondary"> | 已锁: {adjustProduct.locked_quantity || 0}</Text>
               <Text type="secondary"> | 可用: {(adjustProduct.quantity || 0) - (adjustProduct.locked_quantity || 0)}</Text>
               <Text type="secondary"> | 安全库存: {adjustProduct.safety_stock}</Text>
@@ -521,7 +522,7 @@ export default function InventoryList() {
                 title: "趋势", dataIndex: "trend", width: 80,
                 render: (t: string) => {
                   const color = t === "上升" ? "green" : t === "下降" || t === "衰退" ? "red" : t === "新增长" ? "blue" : "default";
-                  return <Tag color={color}>{t}</Tag>;
+                  return <StatusTag tone={color}>{t}</StatusTag>;
                 },
               },
               {
@@ -531,12 +532,12 @@ export default function InventoryList() {
                   const suggested = Number(v) || 0;
                   const gap = suggested - current;
                   const color = gap > 10 ? "red" : gap > 0 ? "orange" : "green";
-                  return <Tag color={color}>{suggested}{gap > 0 ? ` (+${gap})` : ""}</Tag>;
+                  return <StatusTag tone={color}>{suggested}{gap > 0 ? ` (+${gap})` : ""}</StatusTag>;
                 },
               },
               {
                 title: "置信度", dataIndex: "confidence", width: 70,
-                render: (c: string) => <Tag color={c === "高" ? "green" : c === "中" ? "orange" : "red"}>{c}</Tag>,
+                render: (c: string) => <StatusTag tone={c === "高" ? "success" : c === "中" ? "warning" : "danger"}>{c}</StatusTag>,
               },
               { title: "交货期(天)", dataIndex: "lead_time_days", width: 80 },
             ]}

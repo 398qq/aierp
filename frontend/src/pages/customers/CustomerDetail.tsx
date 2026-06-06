@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber, Divider } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
 import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, generateDefaultCustomerTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
@@ -242,7 +243,7 @@ export default function CustomerDetail() {
                 <div className="customer-detail-title">
                   <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/customers")}>返回列表</Button>
                   <Typography.Title level={4} style={{ margin: 0 }}>{customer.name}</Typography.Title>
-                  <Tag color={getLevelColor(customer.level)}>等级 {customer.level || "-"}</Tag>
+                  <StatusTag tone={getLevelColor(customer.level)}>等级 {customer.level || "-"}</StatusTag>
                   <CustomerHealthBadge value={customer.health_score} />
                 </div>
               )}
@@ -273,7 +274,7 @@ export default function CustomerDetail() {
                     {customerTags.length === 0 ? (
                       <Typography.Text type="secondary">暂无标签</Typography.Text>
                     ) : customerTags.map((t) => (
-                      <Tag key={t.id} color={t.color || "blue"} closable onClose={() => handleUnlinkTag(t.id)}>{t.name}</Tag>
+                      <StatusTag key={t.id} tone={t.color || "info"} closable onClose={() => handleUnlinkTag(t.id)}>{t.name}</StatusTag>
                     ))}
                   </div>
                 </section>
@@ -287,7 +288,7 @@ export default function CustomerDetail() {
                     {nextOpenFollowUp ? (
                       <Space direction="vertical" size={5} style={{ width: "100%" }}>
                         <Space wrap>
-                          <Tag color={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</Tag>
+                          <StatusTag tone={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</StatusTag>
                           <FollowUpStatusTag status={nextOpenFollowUp.status} />
                           <FollowUpMethodTag method={nextOpenFollowUp.method} />
                           <FollowUpPriorityTag priority={nextOpenFollowUp.priority} />
@@ -305,7 +306,7 @@ export default function CustomerDetail() {
                       return (
                         <div className="customer-detail-follow-item" key={item.id}>
                           <Space wrap size={6}>
-                            <Tag color={due.color}>{due.text}</Tag>
+                            <StatusTag tone={due.color}>{due.text}</StatusTag>
                             <FollowUpMethodTag method={item.method} />
                             <Typography.Text type="secondary">{formatShortDateTime(item.planned_at)}</Typography.Text>
                           </Space>
@@ -322,7 +323,7 @@ export default function CustomerDetail() {
                 <aside className="customer-detail-panel is-action">
                   <div className="customer-detail-panel-title">
                     <Typography.Text strong>行动区</Typography.Text>
-                    <Tag color={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</Tag>
+                    <StatusTag tone={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</StatusTag>
                   </div>
                   <div className="customer-detail-action-grid">
                     <Button type="primary" icon={<PhoneOutlined />} onClick={() => { setEditingFollowUp(null); setFollowupModalOpen(true); }}>新增跟进</Button>
@@ -393,7 +394,7 @@ export default function CustomerDetail() {
                           ]}
                         >
                           <Descriptions column={3} size="small">
-                            <Descriptions.Item label="姓名">{c.name}{c.is_primary && <Tag color="gold" style={{ marginLeft: 4 }}>主要</Tag>}</Descriptions.Item>
+                            <Descriptions.Item label="姓名">{c.name}{c.is_primary && <StatusTag tone="processing" style={{ marginLeft: 4 }}>主要</StatusTag>}</Descriptions.Item>
                             <Descriptions.Item label="职位">{c.title || "-"}</Descriptions.Item>
                             <Descriptions.Item label="角色">{c.role || "-"}</Descriptions.Item>
                             <Descriptions.Item label="邮箱">{c.email || "-"}</Descriptions.Item>
@@ -430,7 +431,7 @@ export default function CustomerDetail() {
                         >
                           <Descriptions column={3} size="small">
                             <Descriptions.Item label="提醒状态">
-                              <Tag color={getFollowUpDueMeta(f).color}>{getFollowUpDueMeta(f).text}</Tag>
+                              <StatusTag tone={getFollowUpDueMeta(f).color}>{getFollowUpDueMeta(f).text}</StatusTag>
                             </Descriptions.Item>
                             <Descriptions.Item label="方式"><FollowUpMethodTag method={f.method} /></Descriptions.Item>
                             <Descriptions.Item label="状态"><FollowUpStatusTag status={f.status} /></Descriptions.Item>
@@ -502,10 +503,10 @@ export default function CustomerDetail() {
                   <Table size="small" dataSource={recResult.recommendations} rowKey="product_name" pagination={false}
                     columns={[
                       { title: "产品", dataIndex: "product_name", width: 180 },
-                      { title: "品牌", dataIndex: "brand", width: 120, render: (v: string) => <Tag>{v}</Tag> },
+                      { title: "品牌", dataIndex: "brand", width: 120, render: (v: string) => <StatusTag>{v}</StatusTag> },
                       { title: "推荐原因", dataIndex: "reason" },
                       { title: "预计价值", dataIndex: "estimated_potential", width: 180 },
-                      { title: "优先级", dataIndex: "priority", width: 80, render: (v: string) => <Tag color={v === "高" ? "red" : v === "中" ? "blue" : "default"}>{v}</Tag> },
+                      { title: "优先级", dataIndex: "priority", width: 80, render: (v: string) => <StatusTag tone={v === "高" ? "danger" : v === "中" ? "info" : "neutral"}>{v}</StatusTag> },
                     ]}
                   />
                   <Card size="small" type="inner" style={{ marginTop: 12, background: "#fffbe6" }}>
@@ -558,7 +559,7 @@ function CustomerOverview({
               <div style={{ border: "1px solid #f0f0f0", borderRadius: 6, padding: 10 }}>
                 <Space direction="vertical" size={4}>
                   <Space wrap>
-                    <Tag color={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</Tag>
+                    <StatusTag tone={getFollowUpDueMeta(nextOpenFollowUp).color}>{getFollowUpDueMeta(nextOpenFollowUp).text}</StatusTag>
                     <FollowUpStatusTag status={nextOpenFollowUp.status} />
                     <FollowUpMethodTag method={nextOpenFollowUp.method} />
                     <FollowUpPriorityTag priority={nextOpenFollowUp.priority} />
@@ -602,7 +603,7 @@ function CustomerOverview({
                   <List.Item.Meta
                     title={(
                       <Space wrap>
-                        <Tag color={getFollowUpDueMeta(item).color}>{getFollowUpDueMeta(item).text}</Tag>
+                        <StatusTag tone={getFollowUpDueMeta(item).color}>{getFollowUpDueMeta(item).text}</StatusTag>
                         <FollowUpStatusTag status={item.status} />
                         <FollowUpMethodTag method={item.method} />
                         <span>{formatShortDateTime(item.planned_at)}</span>
@@ -865,7 +866,7 @@ function CustomerProfile({ customerId }: { customerId: number }) {
         <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic title="生命周期" value={stats.lifecycle}
-              prefix={<Tag color={LIFECYCLE_COLORS[stats.lifecycle] || "default"} style={{ fontSize: 16 }}>{stats.lifecycle}</Tag>} />
+              prefix={<StatusTag tone={LIFECYCLE_COLORS[stats.lifecycle] || "neutral"} style={{ fontSize: 16 }}>{stats.lifecycle}</StatusTag>} />
             <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>创建 {stats.created_days} 天</div>
           </Card>
         </Col>
@@ -976,7 +977,7 @@ function TagManageModal({
         {customerTags.length > 0 && (
           <div>
             <div style={{ marginBottom: 8, fontWeight: 500 }}>当前标签</div>
-            {customerTags.map((t) => <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>)}
+            {customerTags.map((t) => <StatusTag key={t.id} tone={t.color || "info"}>{t.name}</StatusTag>)}
           </div>
         )}
         <div>
@@ -989,9 +990,9 @@ function TagManageModal({
           {available.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有更多可用的标签" />}
           <Space wrap>
             {available.map((t) => (
-              <Tag key={t.id} color={t.color || "default"} style={{ cursor: "pointer" }} onClick={() => onLink(t.id)}>
+              <StatusTag key={t.id} tone={t.color || "neutral"} style={{ cursor: "pointer" }} onClick={() => onLink(t.id)}>
                 + {t.name}
-              </Tag>
+              </StatusTag>
             ))}
           </Space>
         </div>
@@ -1047,7 +1048,7 @@ function ChangeLogPanel({ customerId }: { customerId: number }) {
         children: (
           <div>
             <Space size={4}>
-              <Tag color={ACTION_COLORS[l.action]}>{ACTION_LABELS[l.action] || l.action}</Tag>
+              <StatusTag tone={ACTION_COLORS[l.action]}>{ACTION_LABELS[l.action] || l.action}</StatusTag>
               {l.field_name && <Typography.Text strong>{l.field_name}</Typography.Text>}
             </Space>
             {l.summary && <div style={{ marginTop: 2, fontSize: 13 }}>{l.summary}</div>}
@@ -1116,7 +1117,7 @@ function GroupPanel({ customerId, customerName }: { customerId: number; customer
       <Card size="small" title={`子公司 (${children.length})`}>
         {children.length === 0 ? <Empty description="暂无子公司" /> : (
           <List dataSource={children} renderItem={(c) => (
-            <List.Item extra={<Tag color={c.level === "A" ? "red" : "default"}>{c.level}</Tag>}>
+            <List.Item extra={<StatusTag tone={c.level === "A" ? "danger" : "neutral"}>{c.level}</StatusTag>}>
               <List.Item.Meta
                 title={<a onClick={() => window.open(`/customers/${c.id}`, '_self')}>{c.name}</a>}
                 description={`${c.industry || "-"} · ${c.region || "-"} · ${c.contact_person || "无联系人"}`}
@@ -1164,7 +1165,7 @@ function SimilarCustomersPanel({ customerId }: { customerId: number }) {
             <a href={`/customers/${r.id}`}>{name}</a>
           ),
         },
-        { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <Tag>{v || "-"}</Tag> },
+        { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <StatusTag>{v || "-"}</StatusTag> },
         { title: "区域", dataIndex: "region", key: "region" },
         {
           title: "相似度", dataIndex: "similarity", key: "similarity",
@@ -1241,10 +1242,10 @@ function VisitPanel({ customerId }: { customerId: number }) {
           >
             <Row gutter={8}>
               <Col span={6}><Typography.Text strong>{v.title || "无标题"}</Typography.Text></Col>
-              <Col span={4}><Tag>{TYPE[v.type as string] || v.type}</Tag></Col>
-              <Col span={4}><Tag color={STATUS[v.status as string]?.color}>{STATUS[v.status as string]?.label || v.status}</Tag></Col>
+              <Col span={4}><StatusTag>{TYPE[v.type as string] || v.type}</StatusTag></Col>
+              <Col span={4}><StatusTag tone={STATUS[v.status as string]?.color}>{STATUS[v.status as string]?.label || v.status}</StatusTag></Col>
               <Col span={4}>{v.visit_date?.slice(0, 10) || "-"}</Col>
-              <Col span={6}>{v.stage && <Tag color="blue">{v.stage}</Tag>}</Col>
+              <Col span={6}>{v.stage && <StatusTag tone="info">{v.stage}</StatusTag>}</Col>
             </Row>
             {v.content && <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ marginTop: 8, fontSize: 13 }}>{v.content}</Typography.Paragraph>}
           </Card>

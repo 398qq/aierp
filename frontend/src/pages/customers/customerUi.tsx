@@ -1,4 +1,5 @@
 import { Tag } from "antd";
+import { StatusTag } from "../../ui";
 
 export const FOLLOW_UP_METHOD_OPTIONS = [
   { value: "phone", label: "电话拜访" },
@@ -61,20 +62,20 @@ export function getLevelColor(level?: string | null) {
 
 export function FollowUpMethodTag({ method }: { method?: string | null }) {
   const meta = FOLLOW_UP_METHOD_META[method || ""] || { label: method || "-", color: "default" };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <StatusTag tone={meta.color}>{meta.label}</StatusTag>;
 }
 
 export function FollowUpStatusTag({ status }: { status?: string | null }) {
   const meta = FOLLOW_UP_STATUS_META[status || ""] || { label: status || "-", color: "default" };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <StatusTag tone={meta.color}>{meta.label}</StatusTag>;
 }
 
 export function FollowUpPriorityTag({ priority }: { priority?: string | null }) {
   if (!priority) return <>-</>;
   const meta = FOLLOW_UP_PRIORITY_META[priority] || { label: priority, color: "default" };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <StatusTag tone={meta.color}>{meta.label}</StatusTag>;
 }
 
 export function CustomerHealthBadge({ value }: { value?: number | null }) {
-  return <Tag color={getHealthColor(value)}>{value != null ? `${value}` : "-"}</Tag>;
+  return <StatusTag tone={getHealthColor(value)}>{value != null ? `${value}` : "-"}</StatusTag>;
 }

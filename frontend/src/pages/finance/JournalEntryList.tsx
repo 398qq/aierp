@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Card, Typography, Modal, Descriptions } from "antd";
+import { StatusTag } from "../../ui";
 import { PlusOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
-import { StatusTag } from "../../ui";
 
 interface Entry {
   id: number; entry_no: string; entry_date: string; description: string; status: string; created_at: string;

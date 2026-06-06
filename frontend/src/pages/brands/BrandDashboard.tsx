@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Row, Col, Statistic, Table, Tag, Spin, Button, Space, Typography, Alert, List, Progress } from "antd";
+import { StatusTag } from "../../ui";
 import {
   BankOutlined, AlertOutlined, RiseOutlined,
   PieChartOutlined, RightOutlined, ReloadOutlined, CarOutlined, WarningOutlined,
@@ -101,11 +102,11 @@ export default function BrandDashboard() {
     },
     {
       title: "风险等级", dataIndex: "risk_level", key: "risk_level", width: 80,
-      render: (v: string) => v ? <Tag color={RISK_COLORS[v] || "default"}>{RISK_LABELS[v] || v}</Tag> : "-",
+      render: (v: string) => v ? <StatusTag tone={RISK_COLORS[v] || "neutral"}>{RISK_LABELS[v] || v}</StatusTag> : "-",
     },
     {
       title: "生命周期", dataIndex: "lifecycle_stage", key: "lifecycle_stage", width: 80,
-      render: (v: string) => v ? <Tag color={LC_COLORS[v] || "default"}>{LC_LABELS[v] || v.toUpperCase()}</Tag> : "-",
+      render: (v: string) => v ? <StatusTag tone={LC_COLORS[v] || "neutral"}>{LC_LABELS[v] || v.toUpperCase()}</StatusTag> : "-",
     },
     {
       title: "操作", key: "action", width: 70,
@@ -313,13 +314,13 @@ export default function BrandDashboard() {
         <div className="brand-operation-queue">
           <div className="brand-queue-title">
             <Text strong>待办队列</Text>
-            <Tag color={urgentCount > 0 ? "orange" : "green"}>{urgentCount} 待处理</Tag>
+            <StatusTag tone={urgentCount > 0 ? "warning" : "success"}>{urgentCount} 待处理</StatusTag>
           </div>
           <div className="brand-queue-list">
             {operationQueue.map((item) => (
               <div key={item.key} className="brand-queue-item" onClick={() => navigate(item.path)}>
                 <Text title={item.reason}>{item.label}</Text>
-                <Tag color={item.color}>{item.count}</Tag>
+                <StatusTag tone={item.color}>{item.count}</StatusTag>
               </div>
             ))}
           </div>
@@ -415,7 +416,7 @@ export default function BrandDashboard() {
           </Card>
         </Col>
         <Col xs={24} md={12} xl={6}>
-          <Card className="brand-chart-card" title="生命周期分布" size="small" extra={s.eol_nrnd_count > 0 ? <Tag color="orange">{s.eol_nrnd_count} 风险</Tag> : <Tag color="green">正常</Tag>}>
+          <Card className="brand-chart-card" title="生命周期分布" size="small" extra={s.eol_nrnd_count > 0 ? <StatusTag tone="warning">{s.eol_nrnd_count} 风险</StatusTag> : <StatusTag tone="success">正常</StatusTag>}>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={s.by_lifecycle}>
                 <XAxis dataKey="stage" fontSize={11} tickFormatter={(value) => LC_LABELS[value] || value} />
@@ -431,7 +432,7 @@ export default function BrandDashboard() {
           </Card>
         </Col>
         <Col xs={24} md={12} xl={6}>
-          <Card className="brand-chart-card" title="风险等级分布" size="small" extra={s.high_risk_count > 0 ? <Tag color="red">{s.high_risk_count} 高风险</Tag> : <Tag color="green">低风险</Tag>}>
+          <Card className="brand-chart-card" title="风险等级分布" size="small" extra={s.high_risk_count > 0 ? <StatusTag tone="danger">{s.high_risk_count} 高风险</StatusTag> : <StatusTag tone="success">低风险</StatusTag>}>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
@@ -469,7 +470,7 @@ export default function BrandDashboard() {
                 renderItem={(item: EolAlert) => (
                   <List.Item style={{ padding: "4px 0" }}>
                     <List.Item.Meta
-                      avatar={<Tag color={item.severity === "critical" ? "red" : "orange"}>{item.lifecycle_stage.toUpperCase()}</Tag>}
+                      avatar={<StatusTag tone={item.severity === "critical" ? "danger" : "warning"}>{item.lifecycle_stage.toUpperCase()}</StatusTag>}
                       title={<a onClick={() => navigate(`/brands/${item.brand_id}`)}>{item.brand_name}</a>}
                       description={
                         <span style={{ fontSize: 12 }}>

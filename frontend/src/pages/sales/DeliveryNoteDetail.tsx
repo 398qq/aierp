@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, message, Popconfirm, Space, Spin, Switch, Table, Tag, Tooltip, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CheckCircleOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
 import { getDeliveryNote, getPayments, markDeliveryNotePaid, updateDeliveryNote } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
@@ -187,7 +188,7 @@ export default function DeliveryNoteDetail() {
                         completed: { color: "green", label: "已收款" },
                         overdue: { color: "red", label: "逾期" },
                       };
-                      return <Tag color={m[v]?.color}>{m[v]?.label || v}</Tag>;
+                      return <StatusTag tone={m[v]?.color}>{m[v]?.label || v}</StatusTag>;
                     },
                   },
                 ]}

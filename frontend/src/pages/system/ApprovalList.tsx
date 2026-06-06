@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
+import { StatusTag } from "../../ui";
 import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
-import { StatusTag } from "../../ui";
 
 interface ApprovalReq {
   id: number; doc_type: string; doc_id: number;

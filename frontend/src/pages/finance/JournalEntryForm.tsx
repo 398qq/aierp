@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, Form, Input, DatePicker, Button, Space, InputNumber, Select, message, Table, Tag } from "antd";
+import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 import dayjs from "dayjs";
@@ -122,9 +123,9 @@ export default function JournalEntryForm() {
                 <Space>
                   <span>借方合计: <strong>¥{totalDebit.toLocaleString()}</strong></span>
                   <span>贷方合计: <strong>¥{totalCredit.toLocaleString()}</strong></span>
-                  <Tag color={Math.abs(diff) < 0.01 ? "green" : "red"}>
+                  <StatusTag tone={Math.abs(diff) < 0.01 ? "success" : "danger"}>
                     {Math.abs(diff) < 0.01 ? "借贷平衡" : `差额: ¥${diff.toLocaleString()}`}
-                  </Tag>
+                  </StatusTag>
                 </Space>
               );
             })()}

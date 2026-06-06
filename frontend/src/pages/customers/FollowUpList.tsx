@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { TablePaginationConfig } from "antd/es/table/interface";

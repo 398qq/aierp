@@ -18,6 +18,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { StatusTag } from "../../ui";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -34,7 +35,6 @@ import {
 } from "../../api";
 import type { CustomerAIRecommendationSummary, CustomerAIWorkQueueItem, CustomerAIWorkQueuePage } from "../../types";
 import CustomerModuleShell from "./CustomerModuleShell";
-import { StatusTag } from "../../ui";
 
 type StatusType = "open" | "in_progress" | "done" | "dismissed" | "all";
 
@@ -203,7 +203,7 @@ export default function CustomerAIWorkbench() {
       key: "priority_score",
       width: 100,
       sorter: (a, b) => a.priority_score - b.priority_score,
-      render: (v: number) => <Tag color={v >= 75 ? "red" : v >= 60 ? "orange" : "blue"}>{v.toFixed(1)}</Tag>,
+      render: (v: number) => <StatusTag tone={v >= 75 ? "danger" : v >= 60 ? "warning" : "info"}>{v.toFixed(1)}</StatusTag>,
     },
     {
       title: "评分拆解",
@@ -224,7 +224,7 @@ export default function CustomerAIWorkbench() {
       title: "状态",
       key: "status",
       width: 100,
-      render: (_, r) => <StatusTag status={r.status} color={STATUS_COLORS[r.status] || "default"} label={STATUS_LABELS[r.status] || r.status} />,
+      render: (_, r) => <StatusTag status={r.status} tone={STATUS_COLORS[r.status] || "neutral"} label={STATUS_LABELS[r.status] || r.status} />,
     },
     {
       title: "截止",
@@ -379,9 +379,9 @@ export default function CustomerAIWorkbench() {
                   <Card key={item.id} size="small" type="inner" title={item.title}>
                     <Typography.Paragraph style={{ marginBottom: 8 }}>{item.reason}</Typography.Paragraph>
                     <Space>
-                      <Tag color="blue">优先级 {item.priority_score.toFixed(1)}</Tag>
-                      <StatusTag status={item.status} color={STATUS_COLORS[item.status] || "default"} label={STATUS_LABELS[item.status] || item.status} />
-                      <Tag>截止 {formatDate(item.due_at)}</Tag>
+                      <StatusTag tone="info">优先级 {item.priority_score.toFixed(1)}</StatusTag>
+                      <StatusTag status={item.status} tone={STATUS_COLORS[item.status] || "neutral"} label={STATUS_LABELS[item.status] || item.status} />
+                      <StatusTag>截止 {formatDate(item.due_at)}</StatusTag>
                     </Space>
                   </Card>
                 ))}

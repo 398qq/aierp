@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, Row, Col, Statistic, Table, Tag, Typography, Spin, Empty } from "antd";
+import { StatusTag } from "../../ui";
 import { DollarOutlined, WarningOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 
@@ -40,7 +41,7 @@ export default function ReportAR() {
     { title: "客户", dataIndex: "customer", key: "customer" },
     { title: "金额", dataIndex: "amount", key: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
     { title: "账龄(天)", dataIndex: "age_days", key: "age_days" },
-    { title: "状态", dataIndex: "status", key: "status", render: (v: string) => <Tag>{v}</Tag> },
+    { title: "状态", dataIndex: "status", key: "status", render: (v: string) => <StatusTag>{v}</StatusTag> },
     { title: "发票日期", dataIndex: "invoice_date", key: "invoice_date", render: (v: string | null) => v?.slice(0, 10) || "-" },
   ];
 
@@ -56,7 +57,7 @@ export default function ReportAR() {
           <Col span={3} key={key}>
             <Card size="small">
               <Statistic
-                title={<Tag color={agingColors[key]}>{agingLabels[key]}</Tag>}
+                title={<StatusTag tone={agingColors[key]}>{agingLabels[key]}</StatusTag>}
                 value={val.count}
                 suffix={`笔 / ¥${val.amount.toLocaleString()}`}
                 valueStyle={{ fontSize: 16 }}
@@ -68,7 +69,7 @@ export default function ReportAR() {
 
       {Object.entries(d?.details || {}).map(([key, items]) => (
         items.length > 0 && (
-          <Card key={key} title={<Tag color={agingColors[key]}>{agingLabels[key]} ({items.length}笔)</Tag>} size="small" style={{ marginBottom: 16 }}>
+          <Card key={key} title={<StatusTag tone={agingColors[key]}>{agingLabels[key]} ({items.length}笔)</StatusTag>} size="small" style={{ marginBottom: 16 }}>
             <Table rowKey="invoice_id" columns={detailColumns} dataSource={items} pagination={false} size="small" />
           </Card>
         )

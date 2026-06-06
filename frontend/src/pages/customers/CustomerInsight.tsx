@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, Descriptions, Tag, Spin, Alert, Row, Col, List, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useParams } from "react-router-dom";
 import { getCustomerInsight } from "../../api";
@@ -91,7 +92,7 @@ export default function CustomerInsight() {
               <Descriptions.Item label="活跃商机">{data.opportunity_summary.active}</Descriptions.Item>
               <Descriptions.Item label="已赢单">{data.opportunity_summary.won}</Descriptions.Item>
               <Descriptions.Item label="成交概率">
-                <Tag color={data.opportunity_summary.win_probability >= 50 ? "green" : "orange"}>{data.opportunity_summary.win_probability}%</Tag>
+                <StatusTag tone={data.opportunity_summary.win_probability >= 50 ? "success" : "warning"}>{data.opportunity_summary.win_probability}%</StatusTag>
               </Descriptions.Item>
             </Descriptions>
           </Card>

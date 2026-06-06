@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, Select, Table, Typography, Spin, Alert, Button, Space, Row, Col } from "antd";
+import { StatusTag } from "../../ui";
 import { TrophyOutlined, SwapOutlined, DashboardOutlined } from "@ant-design/icons";
 import { compareSuppliers, getSuppliers } from "../../api";
 import type { SupplierComparison } from "../../types";
-import { StatusTag } from "../../ui";
 
 const { Title, Text } = Typography;
 

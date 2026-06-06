@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Tag, message, Card, Popconfirm } from "antd";
+import { StatusTag } from "../../ui";
 import { CheckOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getNotifications, markNotificationsRead } from "../../api";
 import type { NotificationItem } from "../../types";
@@ -69,13 +70,13 @@ export default function NotificationList() {
         columns={[
           {
             title: "类型", dataIndex: "type", width: 80,
-            render: (v: string) => <Tag color={TYPE[v]?.color}>{TYPE[v]?.label || v}</Tag>,
+            render: (v: string) => <StatusTag tone={TYPE[v]?.color}>{TYPE[v]?.label || v}</StatusTag>,
           },
           { title: "标题", dataIndex: "title", ellipsis: true },
           { title: "内容", dataIndex: "content", ellipsis: true, render: (v: string | null) => v || "-" },
           {
             title: "状态", dataIndex: "is_read", width: 80,
-            render: (v: boolean) => v ? <Tag>已读</Tag> : <Tag color="blue">未读</Tag>,
+            render: (v: boolean) => v ? <StatusTag>已读</StatusTag> : <StatusTag tone="info">未读</StatusTag>,
           },
           {
             title: "时间", dataIndex: "created_at", width: 160,

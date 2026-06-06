@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand } from "../../api";
@@ -207,7 +208,7 @@ export default function BrandDetail() {
       title: "名称", dataIndex: "name", width: 200,
       render: (v, r) => <a onClick={() => navigate(`/products/${r.id}`)}>{v}</a>,
     },
-    { title: "分类", dataIndex: "category", width: 100, render: (v) => v ? <Tag>{v}</Tag> : null },
+    { title: "分类", dataIndex: "category", width: 100, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "封装", dataIndex: "package_type", width: 100 },
     { title: "单位", dataIndex: "unit", width: 60 },
   ];
@@ -217,11 +218,11 @@ export default function BrandDetail() {
   const riskScore = Math.round(brand.risk_score ?? 0);
   const missingFields = brand.missing_fields || [];
   const statusLabel = brand.status === "active" ? "启用" : brand.status === "inactive" ? "停用" : brand.status === "frozen" ? "冻结" : brand.status;
-  const statusColor = brand.status === "active" ? "green" : brand.status === "inactive" ? "orange" : "red";
+  const statusTone = brand.status === "active" ? "success" : brand.status === "inactive" ? "warning" : "danger";
   const typeLabel = brand.brand_type === "own_brand" ? "自有品牌" : brand.brand_type === "agency" ? "代理品牌" : brand.brand_type === "oem" ? "OEM" : brand.brand_type || "未分类";
-  const lifecycleColor = brand.lifecycle_stage === "active" ? "green" : brand.lifecycle_stage === "nrnd" ? "orange" : brand.lifecycle_stage === "eol" ? "red" : "default";
+  const lifecycleTone = brand.lifecycle_stage === "active" ? "success" : brand.lifecycle_stage === "nrnd" ? "warning" : brand.lifecycle_stage === "eol" ? "danger" : "neutral";
   const riskLabel = brand.risk_level === "low" ? "低" : brand.risk_level === "medium" ? "中" : brand.risk_level === "high" ? "高" : brand.risk_level === "critical" ? "严重" : "未评估";
-  const riskColor = brand.risk_level === "low" ? "green" : brand.risk_level === "medium" ? "orange" : brand.risk_level === "high" ? "red" : brand.risk_level === "critical" ? "purple" : "default";
+  const riskTone = brand.risk_level === "low" ? "success" : brand.risk_level === "medium" ? "warning" : brand.risk_level === "high" ? "danger" : brand.risk_level === "critical" ? "danger" : "neutral";
   const nextAction = getBrandNextAction(brand);
   const aiTasks = getBrandAiTasks(brand);
   const taskActions: Record<string, () => void | Promise<void>> = {
@@ -372,12 +373,12 @@ export default function BrandDetail() {
             <Title level={3}>{brand.name}</Title>
             <Space wrap size={6}>
               {brand.name_cn && <Text type="secondary">{brand.name_cn}</Text>}
-              {brand.code && <Tag>{brand.code}</Tag>}
-              <Tag color={statusColor}>{statusLabel}</Tag>
-              <Tag color="blue">{typeLabel}</Tag>
-              {brand.level && <Tag color={brand.level === "A" ? "red" : brand.level === "B" ? "blue" : "default"}>{brand.level}级</Tag>}
-              {brand.lifecycle_stage && <Tag color={lifecycleColor}>{brand.lifecycle_stage.toUpperCase()}</Tag>}
-              {brand.is_automotive && <Tag color="geekblue">车规</Tag>}
+              {brand.code && <StatusTag>{brand.code}</StatusTag>}
+              <StatusTag tone={statusTone}>{statusLabel}</StatusTag>
+              <StatusTag tone="info">{typeLabel}</StatusTag>
+              {brand.level && <StatusTag tone={brand.level === "A" ? "danger" : brand.level === "B" ? "info" : "neutral"}>{brand.level}级</StatusTag>}
+              {brand.lifecycle_stage && <StatusTag tone={lifecycleTone}>{brand.lifecycle_stage.toUpperCase()}</StatusTag>}
+              {brand.is_automotive && <StatusTag tone="info">车规</StatusTag>}
             </Space>
             <div style={{ marginTop: 8 }}>
               <Text type="secondary">{brand.description || brand.product_lines || "暂无品牌介绍"}</Text>
@@ -395,14 +396,14 @@ export default function BrandDetail() {
           <Col xs={24} sm={12} lg={6}>
             <div className="brand-detail-metric">
               <Text type="secondary" className="brand-detail-metric-label">建议动作</Text>
-              <Tag color={nextAction.color}>{nextAction.label}</Tag>
+              <StatusTag tone={nextAction.color}>{nextAction.label}</StatusTag>
             </div>
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <div className="brand-detail-metric">
               <Text type="secondary" className="brand-detail-metric-label">风险评分</Text>
               <Space>
-                <Tag color={riskColor}>{riskLabel}</Tag>
+                <StatusTag tone={riskTone}>{riskLabel}</StatusTag>
                 <Progress percent={riskScore} size="small" style={{ width: 96 }} status={riskScore >= 70 ? "exception" : "normal"} />
               </Space>
             </div>
@@ -412,7 +413,7 @@ export default function BrandDetail() {
               <Text type="secondary" className="brand-detail-metric-label">资料完整度</Text>
               <Space>
                 <Progress percent={completionScore} size="small" style={{ width: 96 }} status={completionScore < 50 ? "exception" : completionScore < 80 ? "normal" : "success"} />
-                {missingFields.length > 0 && <Tag color="gold">缺 {missingFields.length} 项</Tag>}
+                {missingFields.length > 0 && <StatusTag tone="processing">缺 {missingFields.length} 项</StatusTag>}
               </Space>
             </div>
           </Col>
@@ -420,8 +421,8 @@ export default function BrandDetail() {
             <div className="brand-detail-metric">
               <Text type="secondary" className="brand-detail-metric-label">产品覆盖</Text>
               <Space>
-                <Tag color={productCount > 0 ? "blue" : "orange"}>{productCount} 个产品</Tag>
-                {brand.authorization_status === "unauthorized" && <Tag color="red">未授权</Tag>}
+                <StatusTag tone={productCount > 0 ? "info" : "warning"}>{productCount} 个产品</StatusTag>
+                {brand.authorization_status === "unauthorized" && <StatusTag tone="danger">未授权</StatusTag>}
               </Space>
             </div>
           </Col>
@@ -439,12 +440,12 @@ export default function BrandDetail() {
               <div>
                 <div className="brand-ai-task-head">
                   <Text strong className="brand-ai-task-title">{task.title}</Text>
-                  <Tag color={task.priority === "high" ? "red" : task.priority === "medium" ? "orange" : "blue"}>{task.priority === "high" ? "高" : task.priority === "medium" ? "中" : "低"}</Tag>
+                  <StatusTag tone={task.priority === "high" ? "danger" : task.priority === "medium" ? "warning" : "info"}>{task.priority === "high" ? "高" : task.priority === "medium" ? "中" : "低"}</StatusTag>
                 </div>
                 <Text type="secondary" className="brand-ai-task-reason">{task.reason}</Text>
               </div>
               <div className="brand-ai-task-foot">
-                <Tag>{task.statusText}</Tag>
+                <StatusTag>{task.statusText}</StatusTag>
                 <Button
                   size="small"
                   type={task.priority === "high" ? "primary" : "default"}
@@ -467,15 +468,15 @@ export default function BrandDetail() {
           <Descriptions.Item label="中文名">{brand.name_cn || "-"}</Descriptions.Item>
           <Descriptions.Item label="简称">{brand.short_name || "-"}</Descriptions.Item>
           <Descriptions.Item label="状态">
-            <Tag color={brand.status === "active" ? "green" : brand.status === "inactive" ? "orange" : "red"}>
+            <StatusTag tone={brand.status === "active" ? "success" : brand.status === "inactive" ? "warning" : "danger"}>
               {brand.status === "active" ? "启用" : brand.status === "inactive" ? "停用" : brand.status === "frozen" ? "冻结" : brand.status}
-            </Tag>
+            </StatusTag>
           </Descriptions.Item>
           <Descriptions.Item label="类型">
             {brand.brand_type === "own_brand" ? "自有品牌" : brand.brand_type === "agency" ? "代理品牌" : brand.brand_type === "oem" ? "OEM" : brand.brand_type || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="分类">{brand.category || "-"}</Descriptions.Item>
-          <Descriptions.Item label="产品数"><Tag color="blue">{brand.product_count || products.length}</Tag></Descriptions.Item>
+          <Descriptions.Item label="产品数"><StatusTag tone="info">{brand.product_count || products.length}</StatusTag></Descriptions.Item>
           <Descriptions.Item label="Logo">{brand.logo ? <a href={brand.logo} target="_blank" rel="noopener noreferrer">查看</a> : "-"}</Descriptions.Item>
           <Descriptions.Item label="官网">
             {brand.website ? <a href={brand.website} target="_blank" rel="noopener noreferrer">{brand.website}</a> : "-"}
@@ -485,7 +486,7 @@ export default function BrandDetail() {
 
         <Descriptions bordered column={3} size="small" title="商业信息" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="品牌等级">
-            {brand.level ? <Tag color={brand.level === "A" ? "red" : brand.level === "B" ? "blue" : "default"}>{brand.level}级</Tag> : "-"}
+            {brand.level ? <StatusTag tone={brand.level === "A" ? "danger" : brand.level === "B" ? "info" : "neutral"}>{brand.level}级</StatusTag> : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="品牌定位">
             {brand.positioning === "high" ? "高端" : brand.positioning === "mid" ? "中端" : brand.positioning === "low" ? "低端" : brand.positioning || "-"}
@@ -498,19 +499,19 @@ export default function BrandDetail() {
         <Descriptions bordered column={3} size="small" title="供应链信息" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="原厂">{brand.manufacturer_name || "-"}</Descriptions.Item>
           <Descriptions.Item label="授权状态">
-            {brand.authorization_status === "authorized" ? <Tag color="green">已授权</Tag> : brand.authorization_status === "unauthorized" ? <Tag color="red">未授权</Tag> : brand.authorization_status || "-"}
+            {brand.authorization_status === "authorized" ? <StatusTag tone="success">已授权</StatusTag> : brand.authorization_status === "unauthorized" ? <StatusTag tone="danger">未授权</StatusTag> : brand.authorization_status || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="生命周期">
-            {brand.lifecycle_stage ? <Tag color={brand.lifecycle_stage === "active" ? "green" : brand.lifecycle_stage === "nrnd" ? "orange" : "red"}>{brand.lifecycle_stage.toUpperCase()}</Tag> : "-"}
+            {brand.lifecycle_stage ? <StatusTag tone={brand.lifecycle_stage === "active" ? "success" : brand.lifecycle_stage === "nrnd" ? "warning" : "danger"}>{brand.lifecycle_stage.toUpperCase()}</StatusTag> : "-"}
           </Descriptions.Item>
-          <Descriptions.Item label="车规">{brand.is_automotive ? <Tag color="blue">是</Tag> : "否"}</Descriptions.Item>
+          <Descriptions.Item label="车规">{brand.is_automotive ? <StatusTag tone="info">是</StatusTag> : "否"}</Descriptions.Item>
           <Descriptions.Item label="MOQ">{brand.moq ?? "-"}</Descriptions.Item>
           <Descriptions.Item label="交期">{brand.lead_time_days ? `${brand.lead_time_days}天` : "-"}</Descriptions.Item>
           <Descriptions.Item label="风险等级">
-            {brand.risk_level ? <Tag color={brand.risk_level === "low" ? "green" : brand.risk_level === "medium" ? "orange" : brand.risk_level === "high" ? "red" : "red"}>{brand.risk_level === "low" ? "低" : brand.risk_level === "medium" ? "中" : brand.risk_level === "high" ? "高" : "严重"}</Tag> : "-"}
+            {brand.risk_level ? <StatusTag tone={brand.risk_level === "low" ? "success" : brand.risk_level === "medium" ? "warning" : brand.risk_level === "high" ? "danger" : "danger"}>{brand.risk_level === "low" ? "低" : brand.risk_level === "medium" ? "中" : brand.risk_level === "high" ? "高" : "严重"}</StatusTag> : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="RoHS">
-            {brand.rohs_status ? <Tag color={brand.rohs_status === "compliant" ? "green" : "red"}>{brand.rohs_status === "compliant" ? "合规" : brand.rohs_status === "non_compliant" ? "不合规" : brand.rohs_status === "exempt" ? "豁免" : brand.rohs_status}</Tag> : "-"}
+            {brand.rohs_status ? <StatusTag tone={brand.rohs_status === "compliant" ? "success" : "danger"}>{brand.rohs_status === "compliant" ? "合规" : brand.rohs_status === "non_compliant" ? "不合规" : brand.rohs_status === "exempt" ? "豁免" : brand.rohs_status}</StatusTag> : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="关联供应商">{brand.supplier_id ?? "-"}</Descriptions.Item>
         </Descriptions>
@@ -531,7 +532,7 @@ export default function BrandDetail() {
           <Row gutter={[12, 12]}>
             <Col span={6}>
               <Card size="small" type="inner"><Text type="secondary">市场地位</Text>
-                <div><Tag color="blue">{profile.market_position}</Tag></div>
+                <div><StatusTag tone="info">{profile.market_position}</StatusTag></div>
               </Card>
             </Col>
             <Col span={6}>
@@ -541,27 +542,27 @@ export default function BrandDetail() {
             </Col>
             <Col span={6}>
               <Card size="small" type="inner"><Text type="secondary">采购难度</Text>
-                <div><Tag color={profile.procurement_difficulty.includes("容易") ? "green" : profile.procurement_difficulty.includes("中等") ? "orange" : "red"}>{profile.procurement_difficulty}</Tag></div>
+                <div><StatusTag tone={profile.procurement_difficulty.includes("容易") ? "success" : profile.procurement_difficulty.includes("中等") ? "warning" : "danger"}>{profile.procurement_difficulty}</StatusTag></div>
               </Card>
             </Col>
             <Col span={6}>
               <Card size="small" type="inner"><Text type="secondary">价格定位</Text>
-                <div><Tag color={profile.price_positioning === "高端" ? "purple" : profile.price_positioning === "中端" ? "blue" : "green"}>{profile.price_positioning}</Tag></div>
+                <div><StatusTag tone={profile.price_positioning === "高端" ? "info" : profile.price_positioning === "中端" ? "info" : "success"}>{profile.price_positioning}</StatusTag></div>
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="技术优势">
-                <List size="small" dataSource={profile.technology_advantages} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.technology_advantages} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="竞争优势">
-                <List size="small" dataSource={profile.competitive_advantages} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="green">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.competitive_advantages} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="success">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="竞争对手">
-                <List size="small" dataSource={profile.key_competitors} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="orange">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.key_competitors} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="warning">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={12}>
@@ -589,7 +590,7 @@ export default function BrandDetail() {
           <Row gutter={[12, 12]}>
             <Col span={6}>
               <Card size="small" type="inner"><Text type="secondary">产品线完整度</Text>
-                <div><Tag color={portfolio.portfolio_strength === "完整" ? "green" : portfolio.portfolio_strength === "较全" ? "blue" : "orange"}>{portfolio.portfolio_strength}</Tag></div>
+                <div><StatusTag tone={portfolio.portfolio_strength === "完整" ? "success" : portfolio.portfolio_strength === "较全" ? "info" : "warning"}>{portfolio.portfolio_strength}</StatusTag></div>
               </Card>
             </Col>
             <Col span={6}>
@@ -598,23 +599,23 @@ export default function BrandDetail() {
             <Col span={12}>
               <Card size="small" type="inner" title="分类分析">
                 {portfolio.category_analysis?.map((c, i) => (
-                  <Tag key={i} style={{ marginBottom: 4 }}>{c.category}: {c.count}个 ({c.pct}%) — {c.assessment}</Tag>
+                  <StatusTag key={i} style={{ marginBottom: 4 }}>{c.category}: {c.count}个 ({c.pct}%) — {c.assessment}</StatusTag>
                 ))}
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="增长方向">
-                <List size="small" dataSource={portfolio.growth_areas} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="green">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={portfolio.growth_areas} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="success">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="产品线缺口">
-                <List size="small" dataSource={portfolio.gap_analysis} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="orange">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={portfolio.gap_analysis} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="warning">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="交叉销售机会">
-                <List size="small" dataSource={portfolio.cross_sell_opportunities} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={portfolio.cross_sell_opportunities} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
           </Row>
@@ -627,9 +628,9 @@ export default function BrandDetail() {
           <Table size="small" dataSource={similarBrands} rowKey="id" pagination={false}
             columns={[
               { title: "品牌", key: "name", width: 150, render: (_: unknown, r: SimilarBrand) => <a onClick={() => navigate(`/brands/${r.id}`)}>{r.name}{r.name_cn ? ` (${r.name_cn})` : ""}</a> },
-              { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <Tag>{v}</Tag> : null },
+              { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <StatusTag>{v}</StatusTag> : null },
               { title: "产品数", dataIndex: "product_count", width: 80 },
-              { title: "共同分类", dataIndex: "shared_categories", width: 80, render: (v: number) => <Tag color="blue">{v}</Tag> },
+              { title: "共同分类", dataIndex: "shared_categories", width: 80, render: (v: number) => <StatusTag tone="info">{v}</StatusTag> },
             ]}
           />
         </Card>
@@ -646,12 +647,12 @@ export default function BrandDetail() {
             </Col>
             <Col span={6}>
               <Card size="small" type="inner"><Text type="secondary">健康等级</Text>
-                <div><Tag color={health.health_label === "优秀" ? "green" : health.health_label === "良好" ? "blue" : health.health_label === "一般" ? "orange" : "red"}>{health.health_label}</Tag></div>
+                <div><StatusTag tone={health.health_label === "优秀" ? "success" : health.health_label === "良好" ? "info" : health.health_label === "一般" ? "warning" : "danger"}>{health.health_label}</StatusTag></div>
               </Card>
             </Col>
             <Col span={6}>
               <Card size="small" type="inner"><Text type="secondary">趋势</Text>
-                <div><Tag color={health.trend_direction === "上升" ? "green" : health.trend_direction === "稳定" ? "blue" : "red"}>{health.trend_direction}</Tag></div>
+                <div><StatusTag tone={health.trend_direction === "上升" ? "success" : health.trend_direction === "稳定" ? "info" : "danger"}>{health.trend_direction}</StatusTag></div>
               </Card>
             </Col>
             <Col span={6}>
@@ -675,7 +676,7 @@ export default function BrandDetail() {
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="风险信号">
-                <List size="small" dataSource={health.risk_signals} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="red">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={health.risk_signals} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="danger">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={24}>
@@ -696,7 +697,7 @@ export default function BrandDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Text type="secondary">综合风险评分</Text>
                 <Progress type="circle" percent={risk.risk_score} size={80} status={risk.risk_score > 70 ? "exception" : risk.risk_score > 40 ? "normal" : "success"} />
-                <div style={{ marginTop: 8 }}><Tag color={risk.risk_level === "低" ? "green" : risk.risk_level === "中" ? "orange" : risk.risk_level === "高" ? "red" : "#f5222d"}>{risk.risk_level}</Tag></div>
+                <div style={{ marginTop: 8 }}><StatusTag tone={risk.risk_level === "低" ? "success" : risk.risk_level === "中" ? "warning" : risk.risk_level === "高" ? "danger" : "danger"}>{risk.risk_level}</StatusTag></div>
               </Card>
             </Col>
             <Col span={10}>
@@ -711,7 +712,7 @@ export default function BrandDetail() {
               <Card size="small" type="inner" title="主要风险">
                 <List size="small" dataSource={risk.top_risks} renderItem={(s: string, i: number) => (
                   <List.Item style={{ padding: '2px 0' }}>
-                    <Tag color={i === 0 ? "red" : i === 1 ? "orange" : "gold"}>{i + 1}. {s}</Tag>
+                    <StatusTag tone={i === 0 ? "danger" : i === 1 ? "warning" : "processing"}>{i + 1}. {s}</StatusTag>
                   </List.Item>
                 )} />
               </Card>
@@ -719,7 +720,7 @@ export default function BrandDetail() {
             <Col span={24}>
               <Card size="small" type="inner" style={{ background: "#fffbe6" }}>
                 <Text strong>缓解建议：</Text>
-                <List size="small" dataSource={risk.mitigation_suggestions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={risk.mitigation_suggestions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
           </Row>
@@ -744,7 +745,7 @@ export default function BrandDetail() {
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="价格优化建议">
-                <List size="small" dataSource={supplierMatrix.price_optimization} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={supplierMatrix.price_optimization} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             {supplierMatrix.supplier_details && supplierMatrix.supplier_details.length > 0 && (
@@ -766,7 +767,7 @@ export default function BrandDetail() {
               <Col span={24}>
                 <Card size="small" type="inner" title="单源风险产品" style={{ background: "#fff2e8" }}>
                   {supplierMatrix.single_source_products.map((p, i) => (
-                    <Tag key={i} color="red" style={{ marginBottom: 4 }}>{p.product_name} → {p.supplier} | ¥{p.cost_price} | {p.risk_reason}</Tag>
+                    <StatusTag key={i} tone="danger" style={{ marginBottom: 4 }}>{p.product_name} → {p.supplier} | ¥{p.cost_price} | {p.risk_reason}</StatusTag>
                   ))}
                 </Card>
               </Col>
@@ -775,7 +776,7 @@ export default function BrandDetail() {
               <Col span={24}>
                 <Card size="small" type="inner" title="备选供应商建议">
                   {supplierMatrix.backup_recommendations.map((r, i) => (
-                    <Tag key={i} color="green" style={{ marginBottom: 4 }}>{r.current} → {r.recommended} | {r.reason}</Tag>
+                    <StatusTag key={i} tone="success" style={{ marginBottom: 4 }}>{r.current} → {r.recommended} | {r.reason}</StatusTag>
                   ))}
                 </Card>
               </Col>
@@ -805,7 +806,7 @@ export default function BrandDetail() {
                     },
                     { title: "推荐度", dataIndex: "overlap_score", width: 100, render: (v: number) => <Progress percent={v} size="small" /> },
                     { title: "原因", dataIndex: "reason" },
-                    { title: "优先级", dataIndex: "priority", width: 80, render: (v: string) => <Tag color={v === "高" ? "red" : v === "中" ? "blue" : "default"}>{v}</Tag> },
+                    { title: "优先级", dataIndex: "priority", width: 80, render: (v: string) => <StatusTag tone={v === "高" ? "danger" : v === "中" ? "info" : "neutral"}>{v}</StatusTag> },
                   ]}
                 />
               </Col>
@@ -816,7 +817,7 @@ export default function BrandDetail() {
                   <Table size="small" dataSource={recommendations.co_purchase_raw} rowKey="id" pagination={false}
                     columns={[
                       { title: "品牌", key: "name", width: 180, render: (_: unknown, r) => <a onClick={() => navigate(`/brands/${r.id}`)}>{r.name}{r.name_cn ? ` (${r.name_cn})` : ""}</a> },
-                      { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <Tag>{v}</Tag> : null },
+                      { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <StatusTag>{v}</StatusTag> : null },
                       { title: "共同客户", dataIndex: "shared_customers", width: 100 },
                       { title: "共同产品", dataIndex: "shared_products", width: 100 },
                     ]}
@@ -826,12 +827,12 @@ export default function BrandDetail() {
             )}
             <Col span={12}>
               <Card size="small" type="inner" title="交叉销售策略">
-                <List size="small" dataSource={recommendations.cross_sell_strategies} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={recommendations.cross_sell_strategies} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={6}>
               <Card size="small" type="inner" title="目标行业">
-                <List size="small" dataSource={recommendations.target_industries} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag>{s}</Tag></List.Item>} />
+                <List size="small" dataSource={recommendations.target_industries} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag>{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={6}>
@@ -859,7 +860,7 @@ export default function BrandDetail() {
                     columns={[
                       { title: "产品", dataIndex: "product_name", width: 160, render: (v: string) => <Typography.Text strong>{v}</Typography.Text> },
                       { title: "销售额", dataIndex: "revenue", width: 100, render: (v: number) => `¥${v.toLocaleString()}` },
-                      { title: "毛利率", dataIndex: "margin_pct", width: 80, render: (v: number) => <Tag color="green">{v}%</Tag> },
+                      { title: "毛利率", dataIndex: "margin_pct", width: 80, render: (v: number) => <StatusTag tone="success">{v}%</StatusTag> },
                       { title: "增幅", dataIndex: "growth", width: 80 },
                       { title: "建议", dataIndex: "recommendation" },
                     ]}
@@ -871,20 +872,20 @@ export default function BrandDetail() {
               <Col span={10}>
                 <Card size="small" type="inner" title="问题产品" style={{ background: "#fff2e8" }}>
                   {perf.problem_products.map((p, i) => (
-                    <Tag key={i} color="orange" style={{ marginBottom: 4 }}>{p.product_name}: {p.issue} → {p.suggestion}</Tag>
+                    <StatusTag key={i} tone="warning" style={{ marginBottom: 4 }}>{p.product_name}: {p.issue} → {p.suggestion}</StatusTag>
                   ))}
                 </Card>
               </Col>
             )}
             <Col span={12}>
               <Card size="small" type="inner" title="聚焦建议">
-                <List size="small" dataSource={perf.focus_recommendations} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={perf.focus_recommendations} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             {perf.phase_out_candidates.length > 0 && (
               <Col span={12}>
                 <Card size="small" type="inner" title="淘汰候选" style={{ background: "#fff1f0" }}>
-                  <List size="small" dataSource={perf.phase_out_candidates} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="red">{s}</Tag></List.Item>} />
+                  <List size="small" dataSource={perf.phase_out_candidates} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="danger">{s}</StatusTag></List.Item>} />
                 </Card>
               </Col>
             )}
@@ -925,19 +926,19 @@ export default function BrandDetail() {
               <Col span={12}>
                 <Card size="small" type="inner" title="待开发行业" style={{ background: "#fffbe6" }}>
                   {penetration.untapped_industries.map((u, i) => (
-                    <Tag key={i} color="orange" style={{ marginBottom: 4 }}>{u.industry}: {u.potential_customers}潜在客户 → {u.strategy}</Tag>
+                    <StatusTag key={i} tone="warning" style={{ marginBottom: 4 }}>{u.industry}: {u.potential_customers}潜在客户 → {u.strategy}</StatusTag>
                   ))}
                 </Card>
               </Col>
             )}
             <Col span={12}>
               <Card size="small" type="inner" title="留存策略">
-                <List size="small" dataSource={penetration.retention_strategy} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={penetration.retention_strategy} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="扩展策略">
-                <List size="small" dataSource={penetration.expansion_strategy} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="green">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={penetration.expansion_strategy} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="success">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
           </Row>
@@ -952,7 +953,7 @@ export default function BrandDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">所处阶段</Typography.Text>
                 <div style={{ marginTop: 8 }}>
-                  <Tag color={lifecycle.lifecycle_stage === "成长期" ? "green" : lifecycle.lifecycle_stage === "成熟期" ? "blue" : lifecycle.lifecycle_stage === "衰退期" ? "red" : "orange"} style={{ fontSize: 16, padding: '4px 16px' }}>{lifecycle.lifecycle_stage}</Tag>
+                  <StatusTag tone={lifecycle.lifecycle_stage === "成长期" ? "success" : lifecycle.lifecycle_stage === "成熟期" ? "info" : lifecycle.lifecycle_stage === "衰退期" ? "danger" : "warning"} style={{ fontSize: 16, padding: '4px 16px' }}>{lifecycle.lifecycle_stage}</StatusTag>
                 </div>
                 <div style={{ marginTop: 8 }}><Typography.Text style={{ fontSize: 12 }}>置信度 {lifecycle.stage_confidence}%</Typography.Text></div>
               </Card>
@@ -974,14 +975,14 @@ export default function BrandDetail() {
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="关键行动">
-                <List size="small" dataSource={lifecycle.key_actions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={lifecycle.key_actions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             {lifecycle.risk_signals.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" style={{ background: "#fff2e8" }}>
                   <Typography.Text strong>风险信号：</Typography.Text>
-                  {lifecycle.risk_signals.map((s, i) => <Tag key={i} color="red" style={{ marginLeft: 8 }}>{s}</Tag>)}
+                  {lifecycle.risk_signals.map((s, i) => <StatusTag key={i} tone="danger" style={{ marginLeft: 8 }}>{s}</StatusTag>)}
                 </Card>
               </Col>
             )}
@@ -997,7 +998,7 @@ export default function BrandDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">价格趋势</Typography.Text>
                 <div style={{ marginTop: 8 }}>
-                  <Tag color={priceTrends.price_trend === "上涨" ? "red" : priceTrends.price_trend === "下降" ? "green" : "blue"} style={{ fontSize: 16 }}>{priceTrends.price_trend}</Tag>
+                  <StatusTag tone={priceTrends.price_trend === "上涨" ? "danger" : priceTrends.price_trend === "下降" ? "success" : "info"} style={{ fontSize: 16 }}>{priceTrends.price_trend}</StatusTag>
                 </div>
               </Card>
             </Col>
@@ -1019,13 +1020,13 @@ export default function BrandDetail() {
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="优化建议">
-                <List size="small" dataSource={priceTrends.optimization_suggestions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={priceTrends.optimization_suggestions} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             {priceTrends.pricing_issues.length > 0 && (
               <Col span={12}>
                 <Card size="small" type="inner" title="定价问题" style={{ background: "#fff2e8" }}>
-                  <List size="small" dataSource={priceTrends.pricing_issues} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="orange">{s}</Tag></List.Item>} />
+                  <List size="small" dataSource={priceTrends.pricing_issues} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="warning">{s}</StatusTag></List.Item>} />
                 </Card>
               </Col>
             )}
@@ -1082,10 +1083,10 @@ export default function BrandDetail() {
             <Card size="small" style={{ marginTop: 12 }} title="替换分析">
               <Descriptions column={2} size="small">
                 <Descriptions.Item label="替换可行性">
-                  <Tag color={comparison.switching_feasibility === "容易" ? "green" : comparison.switching_feasibility === "中等" ? "orange" : "red"}>{comparison.switching_feasibility}</Tag>
+                  <StatusTag tone={comparison.switching_feasibility === "容易" ? "success" : comparison.switching_feasibility === "中等" ? "warning" : "danger"}>{comparison.switching_feasibility}</StatusTag>
                 </Descriptions.Item>
                 <Descriptions.Item label="推荐策略">
-                  <Tag color="blue">{comparison.recommended_strategy}</Tag>
+                  <StatusTag tone="info">{comparison.recommended_strategy}</StatusTag>
                 </Descriptions.Item>
                 <Descriptions.Item label="注意事项" span={2}>
                   <List size="small" dataSource={comparison.switching_notes} renderItem={(s: string) => <List.Item style={{ padding: '2px 0' }}>{s}</List.Item>} />

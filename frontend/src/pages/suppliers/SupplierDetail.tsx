@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, Modal, Input, InputNumber, message, Switch, Typography, Popconfirm, Progress, Badge, List, Col, Row } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined, PieChartOutlined, FileTextOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getSupplier, getSupplierProducts, linkSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation } from "../../api";
@@ -168,7 +169,7 @@ export default function SupplierDetail() {
         </a>
       ),
     },
-    { title: "分类", dataIndex: "category", width: 80, render: (v) => v ? <Tag>{v}</Tag> : null },
+    { title: "分类", dataIndex: "category", width: 80, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "品牌", dataIndex: "brand_name", width: 80 },
     { title: "封装", dataIndex: "package_type", width: 80 },
     {
@@ -180,7 +181,7 @@ export default function SupplierDetail() {
     { title: "SPQ", dataIndex: "spq", width: 60 },
     {
       title: "首选", dataIndex: "is_preferred", width: 60,
-      render: (v) => v ? <Tag color="green">是</Tag> : null,
+      render: (v) => v ? <StatusTag tone="success">是</StatusTag> : null,
     },
     {
       title: "操作", key: "action", width: 60,
@@ -261,7 +262,7 @@ export default function SupplierDetail() {
               { title: "成本价", dataIndex: "cost_price", width: 80 },
               { title: "交期", dataIndex: "lead_time_days", width: 60 },
               { title: "MOQ", dataIndex: "moq", width: 60 },
-              { title: "置信度", dataIndex: "confidence", width: 80, render: (v: number) => <Tag color={v > 80 ? "green" : v > 50 ? "orange" : "red"}>{v}%</Tag> },
+              { title: "置信度", dataIndex: "confidence", width: 80, render: (v: number) => <StatusTag tone={v > 80 ? "success" : v > 50 ? "warning" : "danger"}>{v}%</StatusTag> },
               { title: "理由", dataIndex: "match_reason", ellipsis: true },
             ]}
             pagination={false}
@@ -298,7 +299,7 @@ export default function SupplierDetail() {
                   }}
                   onClick={() => setLinkForm({ ...linkForm, product_id: p.id })}
                 >
-                  [{p.sku || "-"}] {p.name} <Tag>{p.category || "-"}</Tag>
+                  [{p.sku || "-"}] {p.name} <StatusTag>{p.category || "-"}</StatusTag>
                 </div>
               ))}
             </div>
@@ -351,7 +352,7 @@ export default function SupplierDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">等级</Typography.Text>
                 <div style={{ marginTop: 8 }}>
-                  <Tag color={scorecard.tier === "A" || scorecard.tier === "优秀" ? "green" : scorecard.tier === "B" || scorecard.tier === "良好" ? "blue" : scorecard.tier === "C" ? "orange" : "red"} style={{ fontSize: 16, padding: "4px 16px" }}>{scorecard.tier}</Tag>
+                  <StatusTag tone={scorecard.tier === "A" || scorecard.tier === "优秀" ? "success" : scorecard.tier === "B" || scorecard.tier === "良好" ? "info" : scorecard.tier === "C" ? "warning" : "danger"} style={{ fontSize: 16, padding: "4px 16px" }}>{scorecard.tier}</StatusTag>
                 </div>
               </Card>
             </Col>
@@ -370,19 +371,19 @@ export default function SupplierDetail() {
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="优势">
-                <List size="small" dataSource={scorecard.strengths} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="green">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={scorecard.strengths} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="success">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="待改善">
-                <List size="small" dataSource={scorecard.weaknesses} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="orange">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={scorecard.weaknesses} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="warning">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             {scorecard.recommendations.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" style={{ background: "#fffbe6" }}>
                   <Typography.Text strong>建议：</Typography.Text>
-                  <List size="small" dataSource={scorecard.recommendations} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="blue">{s}</Tag></List.Item>} />
+                  <List size="small" dataSource={scorecard.recommendations} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
                 </Card>
               </Col>
             )}
@@ -401,7 +402,7 @@ export default function SupplierDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">延迟风险</Typography.Text>
                 <div style={{ marginTop: 8 }}>
-                  <Tag color={delayPred.delay_risk === "低" || delayPred.delay_risk === "low" ? "green" : delayPred.delay_risk === "中" || delayPred.delay_risk === "medium" ? "orange" : "red"} style={{ fontSize: 16, padding: "4px 16px" }}>{delayPred.delay_risk}</Tag>
+                  <StatusTag tone={delayPred.delay_risk === "低" || delayPred.delay_risk === "low" ? "success" : delayPred.delay_risk === "中" || delayPred.delay_risk === "medium" ? "warning" : "danger"} style={{ fontSize: 16, padding: "4px 16px" }}>{delayPred.delay_risk}</StatusTag>
                 </div>
               </Card>
             </Col>
@@ -421,12 +422,12 @@ export default function SupplierDetail() {
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="风险因素">
-                <List size="small" dataSource={delayPred.risk_factors} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="red">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={delayPred.risk_factors} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="danger">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="缓解措施">
-                <List size="small" dataSource={delayPred.mitigation} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={delayPred.mitigation} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             {delayPred.alternative_suggestion && (
@@ -451,7 +452,7 @@ export default function SupplierDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">紧急程度</Typography.Text>
                 <div style={{ marginTop: 8 }}>
-                  <Badge status={alternatives.urgency === "紧急" || alternatives.urgency === "高" ? "error" : alternatives.urgency === "中" ? "warning" : "success"} text={<Tag color={alternatives.urgency === "紧急" || alternatives.urgency === "高" ? "red" : alternatives.urgency === "中" ? "orange" : "blue"}>{alternatives.urgency}</Tag>} />
+                  <Badge status={alternatives.urgency === "紧急" || alternatives.urgency === "高" ? "error" : alternatives.urgency === "中" ? "warning" : "success"} text={<StatusTag tone={alternatives.urgency === "紧急" || alternatives.urgency === "高" ? "danger" : alternatives.urgency === "中" ? "warning" : "info"}>{alternatives.urgency}</StatusTag>} />
                 </div>
               </Card>
             </Col>
@@ -469,7 +470,7 @@ export default function SupplierDetail() {
                       { title: "产品线", dataIndex: "product_lines", ellipsis: true },
                       { title: "匹配度", dataIndex: "score", width: 80, render: (v: number) => <Progress percent={v} size="small" /> },
                       { title: "优势", dataIndex: "advantage" },
-                      { title: "切换成本", dataIndex: "switch_cost", width: 100, render: (v: string) => <Tag color={v === "低" ? "green" : v === "中" ? "orange" : "red"}>{v}</Tag> },
+                      { title: "切换成本", dataIndex: "switch_cost", width: 100, render: (v: string) => <StatusTag tone={v === "低" ? "success" : v === "中" ? "warning" : "danger"}>{v}</StatusTag> },
                     ]}
                   />
                 </Card>
@@ -478,7 +479,7 @@ export default function SupplierDetail() {
             {alternatives.diversification_strategy.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" title="分散策略" style={{ background: "#f6ffed" }}>
-                  <List size="small" dataSource={alternatives.diversification_strategy} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="blue">{s}</Tag></List.Item>} />
+                  <List size="small" dataSource={alternatives.diversification_strategy} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
                 </Card>
               </Col>
             )}
@@ -497,7 +498,7 @@ export default function SupplierDetail() {
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">价格状态</Typography.Text>
                 <div style={{ marginTop: 8 }}>
-                  <Tag color={priceVariance.price_status === "正常" ? "green" : priceVariance.price_status === "偏高" ? "orange" : "red"} style={{ fontSize: 16, padding: "4px 16px" }}>{priceVariance.price_status}</Tag>
+                  <StatusTag tone={priceVariance.price_status === "正常" ? "success" : priceVariance.price_status === "偏高" ? "warning" : "danger"} style={{ fontSize: 16, padding: "4px 16px" }}>{priceVariance.price_status}</StatusTag>
                 </div>
               </Card>
             </Col>
@@ -521,7 +522,7 @@ export default function SupplierDetail() {
                       { title: "产品", dataIndex: "product_name", width: 180 },
                       { title: "当前价", dataIndex: "current_price", width: 100, render: (v: number) => `¥${v.toFixed(4)}` },
                       { title: "期望价", dataIndex: "expected_price", width: 100, render: (v: number) => `¥${v.toFixed(4)}` },
-                      { title: "偏差", dataIndex: "variance_pct", width: 80, render: (v: number) => <Tag color={v > 20 ? "red" : v > 10 ? "orange" : "blue"}>{v}%</Tag> },
+                      { title: "偏差", dataIndex: "variance_pct", width: 80, render: (v: number) => <StatusTag tone={v > 20 ? "danger" : v > 10 ? "warning" : "info"}>{v}%</StatusTag> },
                       { title: "原因", dataIndex: "reason" },
                     ]}
                   />
@@ -530,12 +531,12 @@ export default function SupplierDetail() {
             )}
             <Col span={12}>
               <Card size="small" type="inner" title="成本节约机会">
-                <List size="small" dataSource={priceVariance.cost_saving_opportunities} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="green">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={priceVariance.cost_saving_opportunities} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="success">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="谈判要点">
-                <List size="small" dataSource={priceVariance.negotiation_points} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="blue">{s}</Tag></List.Item>} />
+                <List size="small" dataSource={priceVariance.negotiation_points} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
               </Card>
             </Col>
           </Row>
@@ -560,7 +561,7 @@ export default function SupplierDetail() {
               </Col>
               <Col span={12}>
                 <Card size="small" title="优势点">
-                  <List size="small" dataSource={negotiation.leverage_points} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><Tag color="blue">{s}</Tag></List.Item>} />
+                  <List size="small" dataSource={negotiation.leverage_points} renderItem={(s: string) => <List.Item style={{ padding: "2px 0" }}><StatusTag tone="info">{s}</StatusTag></List.Item>} />
                 </Card>
               </Col>
             </Row>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Card, Descriptions, Tag, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
 import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
@@ -255,24 +256,24 @@ export default function ProductDetail() {
             </Col>
             <Col span={8}>
               <Card size="small" type="inner"><Text type="secondary">生命周期</Text>
-                <div><Tag color={profile.lifecycle_stage.includes('EOL') ? 'red' : profile.lifecycle_stage.includes('NRND') ? 'orange' : profile.lifecycle_stage.includes('成熟') ? 'blue' : 'green'}>{profile.lifecycle_stage}</Tag>
+                <div><StatusTag tone={profile.lifecycle_stage.includes('EOL') ? 'red' : profile.lifecycle_stage.includes('NRND') ? 'orange' : profile.lifecycle_stage.includes('成熟') ? 'blue' : 'green'}>{profile.lifecycle_stage}</StatusTag>
                 <Text type="secondary"> 置信度 {profile.lifecycle_score}%</Text></div>
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner"><Text type="secondary">利润空间 / 需求</Text>
-                <div><Tag color={profile.margin_potential === '高' ? 'green' : profile.margin_potential === '中' ? 'blue' : 'orange'}>{profile.margin_potential}</Tag>
-                <Tag>{profile.demand_stability}</Tag></div>
+                <div><StatusTag tone={profile.margin_potential === '高' ? 'green' : profile.margin_potential === '中' ? 'blue' : 'orange'}>{profile.margin_potential}</StatusTag>
+                <StatusTag>{profile.demand_stability}</StatusTag></div>
               </Card>
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="典型应用">
-                <List size="small" dataSource={profile.typical_applications} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag>{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.typical_applications} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag>{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={12}>
               <Card size="small" type="inner" title="竞品">
-                <List size="small" dataSource={profile.competitor_products} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="orange">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.competitor_products} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="warning">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={8}>
@@ -282,12 +283,12 @@ export default function ProductDetail() {
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="核心卖点">
-                <List size="small" dataSource={profile.key_selling_points} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="green">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.key_selling_points} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="success">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" type="inner" title="风险因素" style={{ borderColor: '#ff4d4f' }}>
-                <List size="small" dataSource={profile.risk_factors} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><Tag color="red">{i}</Tag></List.Item>} />
+                <List size="small" dataSource={profile.risk_factors} renderItem={(i: string) => <List.Item style={{ padding: '2px 0' }}><StatusTag tone="danger">{i}</StatusTag></List.Item>} />
               </Card>
             </Col>
           </Row>
@@ -313,7 +314,7 @@ export default function ProductDetail() {
             <Card size="small">
               <Text type="secondary">状态</Text>
               <div>
-                <Tag color={lowStock ? "red" : "green"}>{lowStock ? "库存不足" : "正常"}</Tag>
+                <StatusTag tone={lowStock ? "danger" : "success"}>{lowStock ? "库存不足" : "正常"}</StatusTag>
               </div>
             </Card>
           </Col>
@@ -326,7 +327,7 @@ export default function ProductDetail() {
             renderItem={(i) => (
               <List.Item>
                 <Space>
-                  <Tag>仓库 #{i.warehouse_id}</Tag>
+                  <StatusTag>仓库 #{i.warehouse_id}</StatusTag>
                   <Text>库存: {i.quantity}</Text>
                   <Text type="secondary">安全库存: {i.safety_stock}</Text>
                   <Progress
@@ -355,12 +356,12 @@ export default function ProductDetail() {
                     <a onClick={() => navigate(`/products/${s.id}`)}>
                       {String(s.sku || "")} {String(s.name || "")}
                     </a>
-                    <Tag style={{ marginLeft: 8 }}>{String(s.category || "")}</Tag>
-                    {s.brand_name ? <Tag color="blue">{String(s.brand_name)}</Tag> : null}
+                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
+                    {s.brand_name ? <StatusTag tone="info">{String(s.brand_name)}</StatusTag> : null}
                   </span>
-                  <Tag color={Number(s.similarity) > 0.8 ? "green" : "orange"}>
+                  <StatusTag tone={Number(s.similarity) > 0.8 ? "success" : "warning"}>
                     相似度 {(Number(s.similarity) * 100).toFixed(0)}%
-                  </Tag>
+                  </StatusTag>
                 </Space>
               </List.Item>
             )}
@@ -375,9 +376,9 @@ export default function ProductDetail() {
             size="small" dataSource={associations} rowKey="product_id" pagination={false}
             columns={[
               { title: "产品", key: "product", width: 200, render: (_: unknown, r: ProductAssociation) => <a onClick={() => navigate(`/products/${r.product_id}`)}>{r.sku ? `[${r.sku}] ` : ''}{r.name}</a> },
-              { title: "分类", dataIndex: "category", width: 80, render: (v: string) => v ? <Tag>{v}</Tag> : null },
+              { title: "分类", dataIndex: "category", width: 80, render: (v: string) => v ? <StatusTag>{v}</StatusTag> : null },
               { title: "品牌", dataIndex: "brand_name", width: 80 },
-              { title: "共同购买次数", dataIndex: "co_purchase_count", width: 100, render: (v: number) => <Tag color="blue">{v}</Tag> },
+              { title: "共同购买次数", dataIndex: "co_purchase_count", width: 100, render: (v: number) => <StatusTag tone="info">{v}</StatusTag> },
               { title: "共同数量", dataIndex: "co_quantity", width: 80 },
             ]}
           />
@@ -398,7 +399,7 @@ export default function ProductDetail() {
               { title: "交期(天)", dataIndex: "lead_time_days", width: 80 },
               { title: "MOQ", dataIndex: "moq", width: 60 },
               { title: "SPQ", dataIndex: "spq", width: 60 },
-              { title: "首选", dataIndex: "is_preferred", width: 60, render: (v: boolean) => v ? <Tag color="green">是</Tag> : null },
+              { title: "首选", dataIndex: "is_preferred", width: 60, render: (v: boolean) => v ? <StatusTag tone="success">是</StatusTag> : null },
             ]}
           />
         ) : (
@@ -438,7 +439,7 @@ export default function ProductDetail() {
               <Card size="small">
                 <Text type="secondary">成本供应商</Text>
                 {(benchmark.supplier_costs.suppliers || []).slice(0, 2).map((s: Record<string, unknown>, i: number) => (
-                  <div key={i}><Tag>{String(s.name)}</Tag> ¥{Number(s.cost_price).toFixed(4)}</div>
+                  <div key={i}><StatusTag>{String(s.name)}</StatusTag> ¥{Number(s.cost_price).toFixed(4)}</div>
                 ))}
               </Card>
             </Col>
@@ -452,7 +453,7 @@ export default function ProductDetail() {
               <Descriptions.Item label="价格范围">¥{(aiPrice.price_range as number[])?.[0]?.toFixed(4)} ~ ¥{(aiPrice.price_range as number[])?.[1]?.toFixed(4)}</Descriptions.Item>
               <Descriptions.Item label="预估利润率">{(aiPrice.margin_pct as number)?.toFixed(1)}%</Descriptions.Item>
               <Descriptions.Item label="谈判底价">¥{(aiPrice.negotiation_floor as number)?.toFixed(4)}</Descriptions.Item>
-              <Descriptions.Item label="置信度"><Tag color={aiPrice.confidence === "high" ? "green" : aiPrice.confidence === "medium" ? "orange" : "red"}>{String(aiPrice.confidence)}</Tag></Descriptions.Item>
+              <Descriptions.Item label="置信度"><StatusTag tone={aiPrice.confidence === "high" ? "success" : aiPrice.confidence === "medium" ? "warning" : "danger"}>{String(aiPrice.confidence)}</StatusTag></Descriptions.Item>
               <Descriptions.Item label="向上销售" span={2}>{String(aiPrice.upsell_suggestion || "无")}</Descriptions.Item>
               <Descriptions.Item label="定价理由" span={4}>{String(aiPrice.rationale)}</Descriptions.Item>
             </Descriptions>
@@ -479,7 +480,7 @@ export default function ProductDetail() {
             </Col>
             <Col span={6}>
               <Card size="small"><Text type="secondary">交期风险</Text>
-                <div><Tag color={procurement.delivery_risk === '低' ? 'green' : procurement.delivery_risk === '中' ? 'orange' : 'red'}>{procurement.delivery_risk}</Tag></div>
+                <div><StatusTag tone={procurement.delivery_risk === '低' ? 'green' : procurement.delivery_risk === '中' ? 'orange' : 'red'}>{procurement.delivery_risk}</StatusTag></div>
               </Card>
             </Col>
             <Col span={6}>
@@ -517,7 +518,7 @@ export default function ProductDetail() {
             <Col span={4}>
               <Card size="small" type="inner">
                 <Text type="secondary">阶段</Text>
-                <div><Tag color={lifecycle.lifecycle_stage === 'EOL' ? 'red' : lifecycle.lifecycle_stage === 'NRND' ? 'orange' : lifecycle.lifecycle_stage === '活跃' ? 'green' : 'blue'}>{lifecycle.lifecycle_stage}</Tag></div>
+                <div><StatusTag tone={lifecycle.lifecycle_stage === 'EOL' ? 'red' : lifecycle.lifecycle_stage === 'NRND' ? 'orange' : lifecycle.lifecycle_stage === '活跃' ? 'green' : 'blue'}>{lifecycle.lifecycle_stage}</StatusTag></div>
               </Card>
             </Col>
             <Col span={4}>
@@ -540,7 +541,7 @@ export default function ProductDetail() {
             <Col span={4}>
               <Card size="small" type="inner">
                 <Text type="secondary">备货策略</Text>
-                <div><Tag color={lifecycle.stock_strategy.includes('紧急') ? 'red' : lifecycle.stock_strategy.includes('不备') ? 'default' : 'blue'}>{lifecycle.stock_strategy}</Tag></div>
+                <div><StatusTag tone={lifecycle.stock_strategy.includes('紧急') ? 'red' : lifecycle.stock_strategy.includes('不备') ? 'default' : 'blue'}>{lifecycle.stock_strategy}</StatusTag></div>
               </Card>
             </Col>
             <Col span={4}>
@@ -551,7 +552,7 @@ export default function ProductDetail() {
           </Row>
           {lifecycle.warning_signals?.length > 0 && (
             <Card size="small" type="inner" style={{ marginTop: 12 }} title="风险信号">
-              {lifecycle.warning_signals.map((s: string, i: number) => <Tag key={i} color="red" style={{ marginBottom: 4 }}>{s}</Tag>)}
+              {lifecycle.warning_signals.map((s: string, i: number) => <StatusTag key={i} tone="danger" style={{ marginBottom: 4 }}>{s}</StatusTag>)}
             </Card>
           )}
           {lifecycle.migration_path && (
@@ -569,14 +570,14 @@ export default function ProductDetail() {
             <div style={{ marginBottom: 12 }}>
               <Text strong>直替代（pin-to-pin 兼容）：</Text>
               <List size="small" dataSource={substitutes.direct_substitutes as string[]}
-                renderItem={(s) => <List.Item><Tag color="green">{s}</Tag></List.Item>} />
+                renderItem={(s) => <List.Item><StatusTag tone="success">{s}</StatusTag></List.Item>} />
             </div>
           )}
           {(substitutes.functional_substitutes as string[])?.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <Text strong>功能替代：</Text>
               <List size="small" dataSource={substitutes.functional_substitutes as string[]}
-                renderItem={(s) => <List.Item><Tag color="blue">{s}</Tag></List.Item>} />
+                renderItem={(s) => <List.Item><StatusTag tone="info">{s}</StatusTag></List.Item>} />
             </div>
           )}
           {((substitutes.verification_notes as string[])?.length > 0) && (
@@ -597,8 +598,8 @@ export default function ProductDetail() {
               renderItem={(item) => (
                 <List.Item>
                   <Space>
-                    <Tag color="blue">{item.customer_name}</Tag>
-                    <Tag color={item.priority === "高" ? "red" : item.priority === "中" ? "orange" : "default"}>{item.priority}优先级</Tag>
+                    <StatusTag tone="info">{item.customer_name}</StatusTag>
+                    <StatusTag tone={item.priority === "高" ? "danger" : item.priority === "中" ? "warning" : "neutral"}>{item.priority}优先级</StatusTag>
                     <Text type="secondary">{item.reason}</Text>
                     {item.estimated_potential && <Text type="secondary">— {item.estimated_potential}</Text>}
                   </Space>

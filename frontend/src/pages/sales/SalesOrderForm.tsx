@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
 import dayjs from "dayjs";
@@ -173,7 +174,7 @@ export default function SalesOrderForm() {
             <Card
               size="small"
               title={<span style={sectionTitleStyle}><FileDoneOutlined /> 单据抬头</span>}
-              extra={<Tag color="processing">销售订单</Tag>}
+              extra={<StatusTag tone="processing">销售订单</StatusTag>}
               style={{ borderColor: "#d9e2ec" }}
             >
               <div style={{
@@ -190,8 +191,8 @@ export default function SalesOrderForm() {
                   <Typography.Text type="secondary">客户、来源报价、订单号、日期和交期在抬头集中维护</Typography.Text>
                 </div>
                 <Space wrap>
-                  <Tag color="blue">订单执行</Tag>
-                  <Tag color={deliveryRisk.color}>{deliveryRisk.text}</Tag>
+                  <StatusTag tone="info">订单执行</StatusTag>
+                  <StatusTag tone={deliveryRisk.color}>{deliveryRisk.text}</StatusTag>
                 </Space>
               </div>
 
@@ -232,8 +233,8 @@ export default function SalesOrderForm() {
               title={<span style={sectionTitleStyle}><CalculatorOutlined /> 订单明细</span>}
               extra={(
                 <Space size={8}>
-                  <Tag color={summary.itemCount > 0 ? "blue" : "red"}>{summary.itemCount} 行</Tag>
-                  <Tag>数量 {summary.quantity}</Tag>
+                  <StatusTag tone={summary.itemCount > 0 ? "info" : "danger"}>{summary.itemCount} 行</StatusTag>
+                  <StatusTag>数量 {summary.quantity}</StatusTag>
                 </Space>
               )}
               style={{ borderColor: "#d9e2ec" }}
@@ -379,7 +380,7 @@ export default function SalesOrderForm() {
             <Card
               size="small"
               title="单据控制台"
-              extra={<Tag color={deliveryRisk.color}>{deliveryRisk.text}</Tag>}
+              extra={<StatusTag tone={deliveryRisk.color}>{deliveryRisk.text}</StatusTag>}
               style={{ borderColor: "#d9e2ec" }}
             >
               <Space direction="vertical" size={14} style={{ width: "100%" }}>
@@ -395,9 +396,9 @@ export default function SalesOrderForm() {
                   </div>
                   <div>
                     <div style={labelTextStyle}>执行状态</div>
-                    <Tag color={watchedStatus === "confirmed" ? "blue" : watchedStatus === "cancelled" ? "red" : "default"} style={{ margin: 0 }}>
+                    <StatusTag tone={watchedStatus === "confirmed" ? "info" : watchedStatus === "cancelled" ? "danger" : "neutral"} style={{ margin: 0 }}>
                       {STATUS_OPTIONS.find((item) => item.value === watchedStatus)?.label || watchedStatus || "待确认"}
-                    </Tag>
+                    </StatusTag>
                   </div>
                   <div>
                     <div style={labelTextStyle}>交付计划</div>

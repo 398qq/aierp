@@ -12,11 +12,11 @@ Follows the ERP Operational Screens design (DESIGN.md):
 
 import { useEffect, useState } from "react";
 import { Table, Button, Drawer, Form, InputNumber, Space, App as AntdApp } from "antd";
+import { StatusTag } from "../../ui";
 import type { ColumnsType } from "antd/es/table";
 
 import { PageHeader } from "@/ui/PageHeader";
 import { SearchBar } from "@/ui/SearchBar";
-import { StatusTag } from "@/ui/StatusTag";
 import { EmptyState } from "@/ui/EmptyState";
 import { ErrorBoundary } from "@/ui/ErrorBoundary";
 

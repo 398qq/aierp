@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, Select, message, Popconfirm } from "antd";
+import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getTickets, deleteTicket } from "../../api";
 import type { Ticket } from "../../types";
-import { StatusTag } from "../../ui";
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   open: { color: "blue", label: "待处理" },

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import {
   ArrowLeftOutlined,
   CarOutlined,

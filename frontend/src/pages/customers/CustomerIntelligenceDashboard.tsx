@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Row, Col, Statistic, Table, Tag, Spin, Button, Space, Typography, Alert, Progress, ProgressProps } from "antd";
+import { StatusTag } from "../../ui";
 import {
   TeamOutlined, AlertOutlined, RiseOutlined, WarningOutlined,
   ReloadOutlined, StopOutlined, CheckCircleOutlined,
@@ -91,7 +92,7 @@ export default function CustomerIntelligenceDashboard() {
     },
     {
       title: "风险等级", key: "risk_level", width: 80,
-      render: (v: string) => <Tag color={CHURN_COLORS[v] || "default"}>{v}</Tag>,
+      render: (v: string) => <StatusTag tone={CHURN_COLORS[v] || "neutral"}>{v}</StatusTag>,
     },
     {
       title: "操作", key: "action", width: 70,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, Button } from "antd";
+import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, SafetyOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { getCustomer360 } from "../../api";
 import type { Customer360 as Customer360Type } from "../../types";
@@ -29,14 +30,14 @@ export default function Customer360Page() {
   const scoreColor = data.customer_360_score >= 80 ? "#52c41a" : data.customer_360_score >= 60 ? "#faad14" : "#ff4d4f";
 
   const actionColumns = [
-    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <Tag>{d}</Tag> },
+    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <StatusTag>{d}</StatusTag> },
     { title: "行动", dataIndex: "action", ellipsis: true },
-    { title: "优先级", dataIndex: "priority", width: 80, render: (p: string) => <Tag color={p === "高" ? "red" : p === "中" ? "orange" : "blue"}>{p}</Tag> },
+    { title: "优先级", dataIndex: "priority", width: 80, render: (p: string) => <StatusTag tone={p === "高" ? "danger" : p === "中" ? "warning" : "info"}>{p}</StatusTag> },
     { title: "预期影响", dataIndex: "expected_impact", width: 100, ellipsis: true },
   ];
 
   const insightColumns = [
-    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <Tag>{d}</Tag> },
+    { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <StatusTag>{d}</StatusTag> },
     { title: "发现", dataIndex: "finding", ellipsis: true },
     { title: "影响", dataIndex: "impact", width: 120, ellipsis: true },
     { title: "建议行动", dataIndex: "action", ellipsis: true },

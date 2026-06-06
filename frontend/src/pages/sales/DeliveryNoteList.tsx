@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments } from "../../api";
@@ -225,8 +226,8 @@ export default function DeliveryNoteList() {
               title: "回款", width: 100,
               render: (_: unknown, record: DeliveryNote) => {
                 const ps = paymentMap[record.id];
-                if (!ps) return <Tag>--</Tag>;
-                return <Tag color={PAYMENT_STATUS[ps.status]?.color}>{PAYMENT_STATUS[ps.status]?.label}</Tag>;
+                if (!ps) return <StatusTag>--</StatusTag>;
+                return <StatusTag tone={PAYMENT_STATUS[ps.status]?.color}>{PAYMENT_STATUS[ps.status]?.label}</StatusTag>;
               },
             },
             {

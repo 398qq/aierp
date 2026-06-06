@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button, Card, Empty, Input, Select, Space, Statistic, Tag, Tooltip, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import {
   AimOutlined,
   AppstoreOutlined,
@@ -19,7 +20,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getCustomer, getCustomers, getOpportunity, getOpportunities, getProduct, getProducts, getQuotation, getQuotations } from "../../api";
 import type { Customer, Opportunity, Product, Quotation } from "../../types";
-import { StatusTag } from "../../ui";
 
 export const money = (value?: number | null) => `¥${Number(value || 0).toLocaleString()}`;
 

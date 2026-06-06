@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, List } from "antd";
+import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, AimOutlined, WarningOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { orchestrateGlobal360 } from "../../api";
 import type { Global360 as Global360Type } from "../../types";
-import { StatusTag } from "../../ui";
 
 const { Title, Text } = Typography;
 

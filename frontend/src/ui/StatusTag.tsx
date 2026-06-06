@@ -39,8 +39,10 @@ const humanize = (s: string) =>
   s.replace(HUMANIZE_RE, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 export interface StatusTagProps {
-  status: string;
-  tone?: StatusTone;
+  status?: string;
+  /** Semantic tone (preferred). May also accept a raw antd color name
+   *  as a back-compat escape hatch for legacy `*_COLORS` maps. */
+  tone?: StatusTone | string;
   color?: string;
   label?: ReactNode;
   children?: ReactNode;
@@ -48,10 +50,17 @@ export interface StatusTagProps {
   onClick?: (e: MouseEvent<HTMLElement>) => void;
   icon?: ReactNode;
   className?: string;
+  closable?: boolean;
+  onClose?: (e: MouseEvent<HTMLElement>) => void | Promise<void>;
 }
 
-export function StatusTag({ status, tone, color, label, children, ...rest }: StatusTagProps) {
-  const resolved = color ?? (tone ? TONE_TO_COLOR[tone] : "default");
+export function StatusTag({ status = "", tone, color, label, children, ...rest }: StatusTagProps) {
+  // Back-compat: if `tone` is a known StatusTone, look up the antd color.
+  // If it's a raw antd color name (e.g. "red"), use it directly.
+  const toneColor = typeof tone === "string" && tone in TONE_TO_COLOR
+    ? TONE_TO_COLOR[tone as StatusTone]
+    : (tone as string | undefined);
+  const resolved = color ?? toneColor ?? "default";
   const text = label ?? children ?? humanize(status);
   return <Tag color={resolved} {...rest}>{text}</Tag>;
 }

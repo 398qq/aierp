@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
+import { StatusTag } from "../../ui";
 import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats } from "../../api";
@@ -297,7 +298,7 @@ export default function BrandList() {
 
   const getBrandAction = (brand: Brand) => {
     const action = getBrandNextAction(brand);
-    return <Tag color={action.color}>{action.label}</Tag>;
+    return <StatusTag tone={action.color}>{action.label}</StatusTag>;
   };
 
   const columns: ColumnsType<Brand> = [
@@ -310,25 +311,25 @@ export default function BrandList() {
     { title: "中文名", dataIndex: "name_cn", width: 100, render: (v) => v || "-" },
     {
       title: "状态", dataIndex: "status", width: 70,
-      render: (v) => <Tag color={statusColor[v] || "default"}>{statusLabel[v] || v}</Tag>,
+      render: (v) => <StatusTag tone={statusColor[v] || "neutral"}>{statusLabel[v] || v}</StatusTag>,
     },
     {
       title: "类型", dataIndex: "brand_type", width: 70,
-      render: (v) => v ? <Tag>{typeLabel[v] || v}</Tag> : "-",
+      render: (v) => v ? <StatusTag>{typeLabel[v] || v}</StatusTag> : "-",
     },
     {
       title: "等级", dataIndex: "level", width: 60,
-      render: (v) => v ? <Tag color={levelColor[v]}>{v}级</Tag> : "-",
+      render: (v) => v ? <StatusTag tone={levelColor[v]}>{v}级</StatusTag> : "-",
     },
     {
       title: "生命周期", dataIndex: "lifecycle_stage", width: 80,
-      render: (v) => v ? <Tag color={lcTagColor[v] || "default"}>{v.toUpperCase()}</Tag> : "-",
+      render: (v) => v ? <StatusTag tone={lcTagColor[v] || "neutral"}>{v.toUpperCase()}</StatusTag> : "-",
     },
     {
       title: "风险", dataIndex: "risk_level", width: 70,
       render: (v, r) => v ? (
         <Space size={4}>
-          <Tag color={riskTagColor[v] || "default"}>{v === "low" ? "低" : v === "medium" ? "中" : v === "high" ? "高" : "严重"}</Tag>
+          <StatusTag tone={riskTagColor[v] || "neutral"}>{v === "low" ? "低" : v === "medium" ? "中" : v === "high" ? "高" : "严重"}</StatusTag>
           {r.risk_score != null && <Progress percent={r.risk_score} size="small" style={{ width: 40 }} showInfo={false} status={r.risk_score > 70 ? "exception" : "normal"} />}
         </Space>
       ) : "-",
@@ -347,15 +348,15 @@ export default function BrandList() {
     },
     {
       title: "车规", dataIndex: "is_automotive", width: 55,
-      render: (v) => v ? <Tag color="blue" style={{padding: "0 4px"}}>车规</Tag> : <Text type="secondary">-</Text>,
+      render: (v) => v ? <StatusTag tone="info" style={{padding: "0 4px"}}>车规</StatusTag> : <Text type="secondary">-</Text>,
     },
     {
       title: "授权", dataIndex: "authorization_status", width: 70,
-      render: (v) => v ? <Tag color={v === "authorized" ? "green" : v === "unauthorized" ? "red" : "default"}>{v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}</Tag> : "-",
+      render: (v) => v ? <StatusTag tone={v === "authorized" ? "success" : v === "unauthorized" ? "danger" : "neutral"}>{v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}</StatusTag> : "-",
     },
     {
       title: "产品", dataIndex: "product_count", width: 55,
-      render: (v) => v != null && v > 0 ? <Text style={{ fontSize: 12 }}>{v}</Text> : <Tag color="orange">未铺货</Tag>,
+      render: (v) => v != null && v > 0 ? <Text style={{ fontSize: 12 }}>{v}</Text> : <StatusTag tone="warning">未铺货</StatusTag>,
     },
     {
       title: "建议", key: "next_action", width: 90,
@@ -767,7 +768,7 @@ export default function BrandList() {
               >
                 <div className="brand-task-main">
                   <Text strong>{item.label}</Text>
-                  <Tag color={item.color}>{item.count}</Tag>
+                  <StatusTag tone={item.color}>{item.count}</StatusTag>
                 </div>
                 <div className="brand-task-note">{item.note}</div>
               </div>
@@ -783,7 +784,7 @@ export default function BrandList() {
           <Space>
             品牌列表
             {selectedRowKeys.length > 0 && (
-              <Tag color="blue">{selectedRowKeys.length} 已选</Tag>
+              <StatusTag tone="info">{selectedRowKeys.length} 已选</StatusTag>
             )}
           </Space>
         }
@@ -842,9 +843,9 @@ export default function BrandList() {
             {activeFilterTags.length > 0 ? (
               <Space wrap>
                 {activeFilterTags.map((item) => (
-                  <Tag key={item.key} color="blue" closable onClose={item.onClose}>
+                  <StatusTag key={item.key} tone="info" closable onClose={item.onClose}>
                     {item.label}
-                  </Tag>
+                  </StatusTag>
                 ))}
               </Space>
             ) : (
@@ -857,7 +858,7 @@ export default function BrandList() {
             {total > 0 ? `显示 ${startIndex}-${endIndex} / 共 ${total} 个品牌` : "暂无品牌数据"}
           </Text>
           <Space wrap size={6}>
-            {sort !== "created_at_desc" && <Tag color="geekblue">排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}</Tag>}
+            {sort !== "created_at_desc" && <StatusTag tone="info">排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}</StatusTag>}
             {hasCustomView && <Button size="small" onClick={resetFilters}>清空视图</Button>}
           </Space>
         </div>
@@ -896,7 +897,7 @@ export default function BrandList() {
         <aside className="brand-context-panel">
           <div className="brand-panel-head">
             <Text strong>品牌上下文</Text>
-            {activeBrand && <Tag color={activeBrandAction?.color}>{activeBrandAction?.label}</Tag>}
+            {activeBrand && <StatusTag tone={activeBrandAction?.color}>{activeBrandAction?.label}</StatusTag>}
           </div>
           {activeBrand ? (
             <div className="brand-context-body">
@@ -905,13 +906,13 @@ export default function BrandList() {
                   <a onClick={() => navigate(`/brands/${activeBrand.id}`)}>{activeBrand.name}</a>
                   <div className="brand-context-note">{activeBrand.name_cn || activeBrand.code || "未补充中文名/编码"}</div>
                 </div>
-                {activeBrand.level && <Tag color={levelColor[activeBrand.level]}>{activeBrand.level}级</Tag>}
+                {activeBrand.level && <StatusTag tone={levelColor[activeBrand.level]}>{activeBrand.level}级</StatusTag>}
               </div>
               <Space wrap size={6}>
-                {activeBrand.status && <Tag color={statusColor[activeBrand.status] || "default"}>{statusLabel[activeBrand.status] || activeBrand.status}</Tag>}
-                {activeBrand.brand_type && <Tag>{typeLabel[activeBrand.brand_type] || activeBrand.brand_type}</Tag>}
-                {activeBrand.lifecycle_stage && <Tag color={lcTagColor[activeBrand.lifecycle_stage] || "default"}>{activeBrand.lifecycle_stage.toUpperCase()}</Tag>}
-                {activeBrand.is_automotive && <Tag color="blue">车规</Tag>}
+                {activeBrand.status && <StatusTag tone={statusColor[activeBrand.status] || "neutral"}>{statusLabel[activeBrand.status] || activeBrand.status}</StatusTag>}
+                {activeBrand.brand_type && <StatusTag>{typeLabel[activeBrand.brand_type] || activeBrand.brand_type}</StatusTag>}
+                {activeBrand.lifecycle_stage && <StatusTag tone={lcTagColor[activeBrand.lifecycle_stage] || "neutral"}>{activeBrand.lifecycle_stage.toUpperCase()}</StatusTag>}
+                {activeBrand.is_automotive && <StatusTag tone="info">车规</StatusTag>}
               </Space>
               <div className="brand-context-score">
                 <div>
@@ -934,7 +935,7 @@ export default function BrandList() {
               <div className="brand-context-action">
                 <Text strong>建议动作</Text>
                 <div style={{ marginTop: 6 }}>
-                  {activeBrandAction && <Tag color={activeBrandAction.color}>{activeBrandAction.label}</Tag>}
+                  {activeBrandAction && <StatusTag tone={activeBrandAction.color}>{activeBrandAction.label}</StatusTag>}
                 </div>
                 <div className="brand-context-note" style={{ marginTop: 6 }}>
                   {activeBrand.missing_fields?.length
@@ -1187,23 +1188,23 @@ export default function BrandList() {
             </div>
             <div className="brand-ai-plan-item">
               <Text type="secondary" className="brand-ai-plan-label">风险复核</Text>
-              <Tag color={batchAiSummary.highRisk > 0 ? "red" : "green"}>{batchAiSummary.highRisk}</Tag>
+              <StatusTag tone={batchAiSummary.highRisk > 0 ? "danger" : "success"}>{batchAiSummary.highRisk}</StatusTag>
             </div>
             <div className="brand-ai-plan-item">
               <Text type="secondary" className="brand-ai-plan-label">生命周期处理</Text>
-              <Tag color={batchAiSummary.lifecycleRisk > 0 ? "orange" : "green"}>{batchAiSummary.lifecycleRisk}</Tag>
+              <StatusTag tone={batchAiSummary.lifecycleRisk > 0 ? "warning" : "success"}>{batchAiSummary.lifecycleRisk}</StatusTag>
             </div>
             <div className="brand-ai-plan-item">
               <Text type="secondary" className="brand-ai-plan-label">资料补全</Text>
-              <Tag color={batchAiSummary.missingData > 0 ? "gold" : "green"}>{batchAiSummary.missingData}</Tag>
+              <StatusTag tone={batchAiSummary.missingData > 0 ? "processing" : "success"}>{batchAiSummary.missingData}</StatusTag>
             </div>
             <div className="brand-ai-plan-item">
               <Text type="secondary" className="brand-ai-plan-label">铺货规划</Text>
-              <Tag color={batchAiSummary.noProducts > 0 ? "blue" : "green"}>{batchAiSummary.noProducts}</Tag>
+              <StatusTag tone={batchAiSummary.noProducts > 0 ? "info" : "success"}>{batchAiSummary.noProducts}</StatusTag>
             </div>
             <div className="brand-ai-plan-item">
               <Text type="secondary" className="brand-ai-plan-label">授权核验</Text>
-              <Tag color={batchAiSummary.unauthorized > 0 ? "volcano" : "green"}>{batchAiSummary.unauthorized}</Tag>
+              <StatusTag tone={batchAiSummary.unauthorized > 0 ? "volcano" : "success"}>{batchAiSummary.unauthorized}</StatusTag>
             </div>
           </div>
           <Alert

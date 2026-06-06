@@ -31,6 +31,7 @@ import {
   Typography,
   Upload,
 } from "antd";
+import { StatusTag } from "../../ui";
 import {
   BellOutlined,
   BulbOutlined,
@@ -1167,8 +1168,8 @@ export default function CustomerList() {
         <Space direction="vertical" size={2}>
           <Space size={6} wrap>
             <Typography.Link strong onClick={() => navigate(`/customers/${r.id}`)}>{text}</Typography.Link>
-            {r.level && <Tag color={getLevelColor(r.level)} style={{ marginInlineEnd: 0 }}>{r.level}</Tag>}
-            {overdueCustomerIds.has(r.id) && <Tag color="red" style={{ marginInlineEnd: 0 }}>逾期</Tag>}
+            {r.level && <StatusTag tone={getLevelColor(r.level)} style={{ marginInlineEnd: 0 }}>{r.level}</StatusTag>}
+            {overdueCustomerIds.has(r.id) && <StatusTag tone="danger" style={{ marginInlineEnd: 0 }}>逾期</StatusTag>}
           </Space>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {[r.code, r.short_name].filter(Boolean).join(" / ") || "-"}
@@ -1188,7 +1189,7 @@ export default function CustomerList() {
       width: 120,
       sorter: true,
       sortOrder: sortBy === "industry" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => (v ? <Tag>{v}</Tag> : "-"),
+      render: (v: string | null) => (v ? <StatusTag>{v}</StatusTag> : "-"),
     },
     {
       title: "等级",
@@ -1198,7 +1199,7 @@ export default function CustomerList() {
       align: "center",
       sorter: true,
       sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => <Tag color={getLevelColor(v)} style={{ marginInlineEnd: 0 }}>{v || "-"}</Tag>,
+      render: (v: string | null) => <StatusTag tone={getLevelColor(v)} style={{ marginInlineEnd: 0 }}>{v || "-"}</StatusTag>,
     },
     {
       title: "区域",
@@ -1216,7 +1217,7 @@ export default function CustomerList() {
       width: 90,
       sorter: true,
       sortOrder: sortBy === "credit_level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => v ? <Tag>{v}</Tag> : "-",
+      render: (v: string | null) => v ? <StatusTag>{v}</StatusTag> : "-",
     },
     {
       title: "健康/风险",
@@ -1224,10 +1225,10 @@ export default function CustomerList() {
       width: 130,
       render: (_: unknown, row: Customer) => (
         <Space size={4} wrap>
-          <Tag color={getHealthColor(row.health_score)}>
+          <StatusTag tone={getHealthColor(row.health_score)}>
             {row.health_score != null ? `${row.health_score}` : "-"}
-          </Tag>
-          {overdueCustomerIds.has(row.id) && <Tag color="red">逾期</Tag>}
+          </StatusTag>
+          {overdueCustomerIds.has(row.id) && <StatusTag tone="danger">逾期</StatusTag>}
         </Space>
       ),
     },
@@ -1247,7 +1248,7 @@ export default function CustomerList() {
         return (
           <Space direction="vertical" size={0}>
             <Space size={4}>
-              <Tag color={color}>{label}</Tag>
+              <StatusTag tone={color}>{label}</StatusTag>
               <FollowUpMethodTag method={next.method} />
             </Space>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(next.planned_at)}</Typography.Text>
@@ -1266,9 +1267,9 @@ export default function CustomerList() {
         return (
           <Space size={[4, 4]} wrap>
             {items.slice(0, 2).map((t) => (
-              <Tag key={t.id} color={t.color || "blue"}>{t.name}</Tag>
+              <StatusTag key={t.id} tone={t.color || "info"}>{t.name}</StatusTag>
             ))}
-            {items.length > 2 && <Tag>+{items.length - 2}</Tag>}
+            {items.length > 2 && <StatusTag>+{items.length - 2}</StatusTag>}
           </Space>
         );
       },
@@ -1943,7 +1944,7 @@ export default function CustomerList() {
               >
                 <span className="customer-ai-task-main">
                   <Typography.Text strong={smartTask === item.key}>{item.label}</Typography.Text>
-                  <Tag color={item.color}>{item.count}</Tag>
+                  <StatusTag tone={item.color}>{item.count}</StatusTag>
                 </span>
                 <span className="customer-ai-task-note">{item.note}</span>
               </button>
@@ -1960,9 +1961,9 @@ export default function CustomerList() {
             </div>
             <div className="customer-ai-context-body">
               <Space size={[4, 6]} wrap>
-                <Tag color={reminderCounts.overdue > 0 ? "red" : "default"}>逾期 {reminderCounts.overdue}</Tag>
-                <Tag color={reminderCounts.today > 0 ? "orange" : "default"}>今日 {reminderCounts.today}</Tag>
-                <Tag color={reminderCounts.upcoming > 0 ? "blue" : "default"}>未来 {reminderCounts.upcoming}</Tag>
+                <StatusTag tone={reminderCounts.overdue > 0 ? "danger" : "neutral"}>逾期 {reminderCounts.overdue}</StatusTag>
+                <StatusTag tone={reminderCounts.today > 0 ? "warning" : "neutral"}>今日 {reminderCounts.today}</StatusTag>
+                <StatusTag tone={reminderCounts.upcoming > 0 ? "info" : "neutral"}>未来 {reminderCounts.upcoming}</StatusTag>
               </Space>
               <div className="customer-ai-context-note">{formatReminderRefreshTime(reminderRefreshedAt)}</div>
               <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue} style={{ marginTop: 8 }}>
@@ -1989,7 +1990,7 @@ export default function CustomerList() {
                   <Space size={6}>
                     <UserOutlined />
                     <span>客户列表</span>
-                    <Tag>{overdueOnly ? tableData.length : total}</Tag>
+                    <StatusTag>{overdueOnly ? tableData.length : total}</StatusTag>
                   </Space>
                 ),
               },
@@ -1999,9 +2000,9 @@ export default function CustomerList() {
                   <Space size={6}>
                     <PhoneOutlined />
                     <span>全局跟进</span>
-                    <Tag color={(globalFollowUpCounts.overdue || 0) > 0 ? "red" : "blue"}>
+                    <StatusTag tone={(globalFollowUpCounts.overdue || 0) > 0 ? "danger" : "info"}>
                       {globalFollowUpCounts.all ?? globalFollowUpTotal}
-                    </Tag>
+                    </StatusTag>
                   </Space>
                 ),
               },
@@ -2151,7 +2152,7 @@ export default function CustomerList() {
             <div className="customer-active-filters">
               <Typography.Text type="secondary">筛选</Typography.Text>
               {activeFilterItems.map((item) => (
-                <Tag
+                <StatusTag
                   key={item.key}
                   closable
                   onClose={(event) => {
@@ -2160,7 +2161,7 @@ export default function CustomerList() {
                   }}
                 >
                   {item.label}
-                </Tag>
+                </StatusTag>
               ))}
               <Button size="small" type="link" onClick={resetFilters}>清除</Button>
             </div>
@@ -2171,9 +2172,9 @@ export default function CustomerList() {
       {selectedRowKeys.length > 0 && (
         <div className="customer-batch-bar">
           <Space wrap>
-            <Tag color="blue">已选 {selectedRowKeys.length} 个客户</Tag>
-            <Tag color="red">A级 {selectedA}</Tag>
-            <Tag color="orange">逾期跟进 {selectedOverdue}</Tag>
+            <StatusTag tone="info">已选 {selectedRowKeys.length} 个客户</StatusTag>
+            <StatusTag tone="danger">A级 {selectedA}</StatusTag>
+            <StatusTag tone="warning">逾期跟进 {selectedOverdue}</StatusTag>
             <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个客户?`} onConfirm={handleBatchDelete}>
               <Button danger icon={<DeleteOutlined />}>批量删除</Button>
             </Popconfirm>
@@ -2192,9 +2193,9 @@ export default function CustomerList() {
             <Typography.Text type="secondary">
               {overdueOnly ? tableData.length : total} 条
             </Typography.Text>
-            <Tag color="purple">{SMART_TASK_LABELS[activeSmartTask]}</Tag>
-            {activeFilterItems.length > 0 && <Tag color="blue">已筛选</Tag>}
-            {overdueOnly && <Tag color="red">仅逾期</Tag>}
+            <StatusTag tone="info">{SMART_TASK_LABELS[activeSmartTask]}</StatusTag>
+            {activeFilterItems.length > 0 && <StatusTag tone="info">已筛选</StatusTag>}
+            {overdueOnly && <StatusTag tone="danger">仅逾期</StatusTag>}
           </div>
         )}
         extra={(
@@ -2212,7 +2213,7 @@ export default function CustomerList() {
                 <div className="customer-board-column-head">
                   <div>
                     <Space size={6}>
-                      <Tag color={getLevelColor(column.stage === "未分级" ? null : column.stage)}>{column.stage}</Tag>
+                      <StatusTag tone={getLevelColor(column.stage === "未分级" ? null : column.stage)}>{column.stage}</StatusTag>
                       <Typography.Text strong>{column.customers.length}</Typography.Text>
                     </Space>
                     <div className="customer-board-column-meta">
@@ -2252,15 +2253,15 @@ export default function CustomerList() {
                           >
                             {customer.name}
                           </Typography.Link>
-                          <Tag color={priority >= 75 ? "red" : priority >= 60 ? "orange" : "blue"}>{priority}</Tag>
+                          <StatusTag tone={priority >= 75 ? "danger" : priority >= 60 ? "warning" : "info"}>{priority}</StatusTag>
                         </div>
                         <div className="customer-board-card-meta">
                           {[customer.industry, customer.region, customer.owner].filter(Boolean).join(" / ") || "暂无画像信息"}
                         </div>
                         <Space size={[4, 6]} wrap style={{ marginTop: 7 }}>
-                          {customer.health_score != null && <Tag color={getHealthColor(customer.health_score)}>健康 {customer.health_score}</Tag>}
-                          {next && <Tag color={getReminderDueMeta(next).color}>{getReminderDueMeta(next).text}</Tag>}
-                          {overdue && <Tag color="red">逾期</Tag>}
+                          {customer.health_score != null && <StatusTag tone={getHealthColor(customer.health_score)}>健康 {customer.health_score}</StatusTag>}
+                          {next && <StatusTag tone={getReminderDueMeta(next).color}>{getReminderDueMeta(next).text}</StatusTag>}
+                          {overdue && <StatusTag tone="danger">逾期</StatusTag>}
                         </Space>
                         <div className="customer-board-card-meta">
                           {getCustomerSuggestedAction(customer, next)}
@@ -2344,11 +2345,11 @@ export default function CustomerList() {
               title={(
                 <div className="customer-table-title">
                   <Typography.Text strong>客户跟进全局集合</Typography.Text>
-                  <Tag>总计 {globalFollowUpCounts.all ?? globalFollowUpTotal}</Tag>
-                  <Tag color="red">逾期 {globalFollowUpCounts.overdue || 0}</Tag>
-                  <Tag color="orange">今日 {globalFollowUpCounts.today || 0}</Tag>
-                  <Tag color="blue">未来 {globalFollowUpCounts.upcoming || 0}</Tag>
-                  <Tag color="green">已完成 {globalFollowUpCounts.closed || 0}</Tag>
+                  <StatusTag>总计 {globalFollowUpCounts.all ?? globalFollowUpTotal}</StatusTag>
+                  <StatusTag tone="danger">逾期 {globalFollowUpCounts.overdue || 0}</StatusTag>
+                  <StatusTag tone="warning">今日 {globalFollowUpCounts.today || 0}</StatusTag>
+                  <StatusTag tone="info">未来 {globalFollowUpCounts.upcoming || 0}</StatusTag>
+                  <StatusTag tone="success">已完成 {globalFollowUpCounts.closed || 0}</StatusTag>
                 </div>
               )}
               extra={(
@@ -2416,7 +2417,7 @@ export default function CustomerList() {
                             <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
                               {item.customer_name}
                             </Typography.Link>
-                            <Tag color={due.color}>{due.text}</Tag>
+                            <StatusTag tone={due.color}>{due.text}</StatusTag>
                             <FollowUpStatusTag status={item.status} />
                             <FollowUpMethodTag method={item.method} />
                             <FollowUpPriorityTag priority={item.priority} />
@@ -2450,7 +2451,7 @@ export default function CustomerList() {
                 <BulbOutlined />
                 <Typography.Text strong>AI上下文</Typography.Text>
               </Space>
-              {contextCustomer && <Tag color={getLevelColor(contextCustomer.level)}>{contextCustomer.level || "-"}</Tag>}
+              {contextCustomer && <StatusTag tone={getLevelColor(contextCustomer.level)}>{contextCustomer.level || "-"}</StatusTag>}
             </div>
             {!contextCustomer ? (
               <div className="customer-ai-context-body">
@@ -2472,9 +2473,9 @@ export default function CustomerList() {
                   <div className="customer-ai-score-value">{contextPriorityScore}</div>
                 </div>
                 <Space size={[4, 6]} wrap>
-                  {contextCustomer.health_score != null && <Tag color={getHealthColor(contextCustomer.health_score)}>健康 {contextCustomer.health_score}</Tag>}
-                  {contextNextFollowUp && <Tag color={getReminderDueMeta(contextNextFollowUp).color}>{getReminderDueMeta(contextNextFollowUp).text}</Tag>}
-                  {contextCustomer.owner && <Tag>负责人 {contextCustomer.owner}</Tag>}
+                  {contextCustomer.health_score != null && <StatusTag tone={getHealthColor(contextCustomer.health_score)}>健康 {contextCustomer.health_score}</StatusTag>}
+                  {contextNextFollowUp && <StatusTag tone={getReminderDueMeta(contextNextFollowUp).color}>{getReminderDueMeta(contextNextFollowUp).text}</StatusTag>}
+                  {contextCustomer.owner && <StatusTag>负责人 {contextCustomer.owner}</StatusTag>}
                 </Space>
                 <div className="customer-ai-action-box">
                   <Typography.Text strong>推荐下一步</Typography.Text>
@@ -2548,8 +2549,8 @@ export default function CustomerList() {
                         <div className="customer-ai-product-item" key={`${item.product_name}-${item.brand}`}>
                           <Space size={4} wrap>
                             <Typography.Text strong>{item.product_name}</Typography.Text>
-                            {item.brand && <Tag>{item.brand}</Tag>}
-                            {item.priority && <Tag color={item.priority === "高" ? "red" : item.priority === "中" ? "orange" : "blue"}>{item.priority}</Tag>}
+                            {item.brand && <StatusTag>{item.brand}</StatusTag>}
+                            {item.priority && <StatusTag tone={item.priority === "高" ? "danger" : item.priority === "中" ? "warning" : "info"}>{item.priority}</StatusTag>}
                           </Space>
                           <div className="customer-ai-context-note">{item.reason || item.estimated_potential || "-"}</div>
                         </div>
@@ -2653,8 +2654,8 @@ export default function CustomerList() {
                           <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
                             {item.customer_name}
                           </Typography.Link>
-                          <Tag color={due.color}>{due.text}</Tag>
-                          {item.priority && <Tag>{item.priority}</Tag>}
+                          <StatusTag tone={due.color}>{due.text}</StatusTag>
+                          {item.priority && <StatusTag>{item.priority}</StatusTag>}
                           {item.owner && <Typography.Text type="secondary">{item.owner}</Typography.Text>}
                         </Space>
                       )}
@@ -2727,7 +2728,7 @@ export default function CustomerList() {
                   title={(
                     <Space>
                       <Typography.Text>{pair.customer_a.name}</Typography.Text>
-                      <Tag color="orange">相似 {(pair.similarity * 100).toFixed(0)}%</Tag>
+                      <StatusTag tone="warning">相似 {(pair.similarity * 100).toFixed(0)}%</StatusTag>
                       <Typography.Text>{pair.customer_b.name}</Typography.Text>
                     </Space>
                   )}
@@ -2781,7 +2782,7 @@ export default function CustomerList() {
                 </a>
               ),
             },
-            { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <Tag>{v || "-"}</Tag> },
+            { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <StatusTag>{v || "-"}</StatusTag> },
             { title: "区域", dataIndex: "region", key: "region", render: (v: string) => v || "-" },
             { title: "相似度", dataIndex: "similarity", key: "similarity", render: (v: number) => `${(v * 100).toFixed(1)}%` },
           ]}
@@ -2836,10 +2837,10 @@ export default function CustomerList() {
         ) : (
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Space wrap>
-              <Tag color={getLevelColor(detailCustomer.level)}>等级 {detailCustomer.level || "-"}</Tag>
-              <Tag>行业 {detailCustomer.industry || "-"}</Tag>
-              <Tag>区域 {detailCustomer.region || "-"}</Tag>
-              <Tag color={getHealthColor(detailCustomer.health_score)}>健康度 {detailCustomer.health_score ?? "-"}</Tag>
+              <StatusTag tone={getLevelColor(detailCustomer.level)}>等级 {detailCustomer.level || "-"}</StatusTag>
+              <StatusTag>行业 {detailCustomer.industry || "-"}</StatusTag>
+              <StatusTag>区域 {detailCustomer.region || "-"}</StatusTag>
+              <StatusTag tone={getHealthColor(detailCustomer.health_score)}>健康度 {detailCustomer.health_score ?? "-"}</StatusTag>
             </Space>
 
             <Descriptions bordered size="small" column={2}>

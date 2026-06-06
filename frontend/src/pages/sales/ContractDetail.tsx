@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, AuditOutlined, EditOutlined } from "@ant-design/icons";
 import { getContract } from "../../api";
 import type { Contract } from "../../types";
@@ -94,7 +95,7 @@ export default function ContractDetail() {
           <Card
             title="合同信息"
             size="small"
-            extra={<Tag color={STATUS[ct.status]?.color}>{STATUS[ct.status]?.label || ct.status}</Tag>}
+            extra={<StatusTag tone={STATUS[ct.status]?.color}>{STATUS[ct.status]?.label || ct.status}</StatusTag>}
           >
             <Descriptions column={2} size="small">
               <Descriptions.Item label="合同号">{ct.contract_no || `#${ct.id}`}</Descriptions.Item>

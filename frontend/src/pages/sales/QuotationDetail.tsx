@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import {
   ArrowLeftOutlined,
   CopyOutlined,
@@ -353,7 +354,7 @@ export default function QuotationDetail() {
             extra={(
               <Space>
                 <SalesStatusTag value={quote.status} />
-                <Tag color={due.color}>{due.text}</Tag>
+                <StatusTag tone={due.color}>{due.text}</StatusTag>
               </Space>
             )}
           >

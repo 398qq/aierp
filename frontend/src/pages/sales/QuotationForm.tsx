@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { getQuotation, createQuotation, updateQuotation } from "../../api";
 import dayjs from "dayjs";
@@ -190,7 +191,7 @@ export default function QuotationForm() {
             <Card
               size="small"
               title={<span style={sectionTitleStyle}><FileDoneOutlined /> 单据抬头</span>}
-              extra={<Tag color={summary.itemCount > 0 ? "processing" : "default"}>销售报价单</Tag>}
+              extra={<StatusTag tone={summary.itemCount > 0 ? "processing" : "neutral"}>销售报价单</StatusTag>}
               style={{ borderColor: "#d9e2ec" }}
             >
               <div style={{
@@ -207,8 +208,8 @@ export default function QuotationForm() {
                   <Typography.Text type="secondary">客户、商机、报价号、有效期在抬头集中维护</Typography.Text>
                 </div>
                 <Space wrap>
-                  <Tag color="blue">含税报价</Tag>
-                  <Tag color="cyan">税率 {formatPercent(COST_TAX_RATE * 100)}</Tag>
+                  <StatusTag tone="info">含税报价</StatusTag>
+                  <StatusTag tone="info">税率 {formatPercent(COST_TAX_RATE * 100)}</StatusTag>
                 </Space>
               </div>
 
@@ -260,8 +261,8 @@ export default function QuotationForm() {
               title={<span style={sectionTitleStyle}><CalculatorOutlined /> 报价明细</span>}
               extra={(
                 <Space size={8}>
-                  <Tag color={summary.itemCount > 0 ? "blue" : "red"}>{summary.itemCount} 行</Tag>
-                  <Tag>数量 {summary.quantity}</Tag>
+                  <StatusTag tone={summary.itemCount > 0 ? "info" : "danger"}>{summary.itemCount} 行</StatusTag>
+                  <StatusTag>数量 {summary.quantity}</StatusTag>
                 </Space>
               )}
               style={{ borderColor: "#d9e2ec" }}
@@ -311,7 +312,7 @@ export default function QuotationForm() {
                               </Typography.Text>
                             </Table.Summary.Cell>
                             <Table.Summary.Cell index={9}>
-                              <Tag color={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</Tag>
+                              <StatusTag tone={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</StatusTag>
                             </Table.Summary.Cell>
                             <Table.Summary.Cell index={10} />
                             <Table.Summary.Cell index={11} />
@@ -434,9 +435,9 @@ export default function QuotationForm() {
                                 const totalPrice = toNumber(item.total_price);
                                 const margin = totalPrice ? (toNumber(item.sales_profit) / totalPrice) * 100 : 0;
                                 return (
-                                  <Tag color={margin >= 0 ? "green" : "red"} style={{ margin: 0 }}>
+                                  <StatusTag tone={margin >= 0 ? "success" : "danger"} style={{ margin: 0 }}>
                                     {formatPercent(margin)}
-                                  </Tag>
+                                  </StatusTag>
                                 );
                               }}
                             </Form.Item>
@@ -500,7 +501,7 @@ export default function QuotationForm() {
             <Card
               size="small"
               title="单据控制台"
-              extra={<Tag color={marginColor}>毛利率 {formatPercent(marginRate)}</Tag>}
+              extra={<StatusTag tone={marginColor}>毛利率 {formatPercent(marginRate)}</StatusTag>}
               style={{ borderColor: "#d9e2ec" }}
             >
               <Space direction="vertical" size={14} style={{ width: "100%" }}>
@@ -530,7 +531,7 @@ export default function QuotationForm() {
                   </div>
                   <div>
                     <div style={labelTextStyle}>综合毛利率</div>
-                    <Tag color={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</Tag>
+                    <StatusTag tone={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</StatusTag>
                   </div>
                 </div>
                 <Form.Item name="total_amount" hidden>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Modal, Space, Spin, Table, Tag, Tooltip, Typography, InputNumber, message } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, DollarOutlined, EditOutlined, CheckCircleOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { getPurchaseOrder, receivePurchaseOrder } from "../../api";
 import client from "../../api/client";
@@ -137,7 +138,7 @@ export default function PurchaseOrderDetail() {
           <Card
             size="small"
             title="采购订单信息"
-            extra={<Tag color={STATUS[po.status]?.color}>{STATUS[po.status]?.label || po.status}</Tag>}
+            extra={<StatusTag tone={STATUS[po.status]?.color}>{STATUS[po.status]?.label || po.status}</StatusTag>}
           >
             <Descriptions column={2} size="small" bordered>
               <Descriptions.Item label="订单号">{po.order_no || "-"}</Descriptions.Item>
@@ -224,7 +225,7 @@ export default function PurchaseOrderDetail() {
               <Divider style={{ margin: "6px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">状态</Typography.Text>
-                <Tag color={STATUS[po.status]?.color}>{STATUS[po.status]?.label || po.status}</Tag>
+                <StatusTag tone={STATUS[po.status]?.color}>{STATUS[po.status]?.label || po.status}</StatusTag>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">供应商</Typography.Text>

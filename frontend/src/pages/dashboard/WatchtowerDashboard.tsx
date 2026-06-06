@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, Col, Row, Statistic, Tag, Typography, Spin, Alert, Table, List, Button, Space } from "antd";
+import { StatusTag } from "../../ui";
 import { WarningOutlined, SafetyOutlined, AlertOutlined, ThunderboltOutlined, ReloadOutlined } from "@ant-design/icons";
 import { getWatchtowerScan } from "../../api";
 
@@ -72,7 +73,7 @@ export default function WatchtowerDashboard() {
   );
 
   const anomalyColumns = [
-    { title: "领域", dataIndex: "domainLabel", width: 100, render: (d: string) => <Tag>{d}</Tag> },
+    { title: "领域", dataIndex: "domainLabel", width: 100, render: (d: string) => <StatusTag>{d}</StatusTag> },
     { title: "名称", dataIndex: "name", ellipsis: true, render: (n: unknown) => n || "-" },
     { title: "详情", dataIndex: "signal", ellipsis: true, render: (s: unknown) => s || JSON.stringify(s) || "-" },
   ];
@@ -102,15 +103,15 @@ export default function WatchtowerDashboard() {
         </Col>
         <Col xs={24} sm={6}>
           <Card title="异常领域">
-            {data.risk_areas?.length ? data.risk_areas.map((a, i) => <Tag color="red" key={i}>{a}</Tag>) : <Tag color="green">无</Tag>}
+            {data.risk_areas?.length ? data.risk_areas.map((a, i) => <StatusTag tone="danger" key={i}>{a}</StatusTag>) : <StatusTag tone="success">无</StatusTag>}
           </Card>
         </Col>
         <Col xs={24} sm={6}>
           <Card title="领域分布">
             {anomalyEntries.length > 0 ? anomalyEntries.map(([domain, items]) => (
-              <Tag key={domain} color={items.length > 5 ? "red" : "orange"}>
+              <StatusTag key={domain} tone={items.length > 5 ? "danger" : "warning"}>
                 {domainLabels[domain] || domain}: {items.length}
-              </Tag>
+              </StatusTag>
             )) : <Text type="secondary">暂无异常</Text>}
           </Card>
         </Col>

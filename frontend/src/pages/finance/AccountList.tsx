@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Table, Card, Tag, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
 
@@ -31,7 +32,7 @@ export default function AccountList() {
     { title: "名称", dataIndex: "name", width: 180 },
     {
       title: "类型", dataIndex: "type", width: 80,
-      render: (v: string) => <Tag color={typeColors[v]}>{typeLabels[v] || v}</Tag>,
+      render: (v: string) => <StatusTag tone={typeColors[v]}>{typeLabels[v] || v}</StatusTag>,
     },
     { title: "说明", dataIndex: "description", ellipsis: true },
   ];

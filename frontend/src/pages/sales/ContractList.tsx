@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Upload, message } from "antd";
+import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
@@ -112,7 +113,7 @@ export default function ContractList() {
             render: (v: string) => (
               <>
                 {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
-                <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag>
+                <StatusTag tone={STATUS[v]?.color}>{STATUS[v]?.label || v}</StatusTag>
               </>
             ),
           },

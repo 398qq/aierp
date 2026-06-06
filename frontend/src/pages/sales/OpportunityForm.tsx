@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Slider, Space, Statistic, Tag, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import { getOpportunity, createOpportunity, updateOpportunity } from "../../api";
 import dayjs from "dayjs";
@@ -159,9 +160,9 @@ export default function OpportunityForm() {
                 <Statistic title="预计金额" value={Number(watchedAmount || 0)} prefix="¥" precision={2} />
                 <Statistic title="加权金额" value={weightedAmount} prefix="¥" precision={2} />
                 <Space wrap>
-                  <Tag color="blue">{stageLabel[watchedStage || "lead"] || watchedStage || "线索"}</Tag>
-                  <Tag color={Number(watchedWin || 0) >= 50 ? "green" : "orange"}>赢率 {Number(watchedWin || 0)}%</Tag>
-                  <Tag>{money(weightedAmount)}</Tag>
+                  <StatusTag tone="info">{stageLabel[watchedStage || "lead"] || watchedStage || "线索"}</StatusTag>
+                  <StatusTag tone={Number(watchedWin || 0) >= 50 ? "success" : "warning"}>赢率 {Number(watchedWin || 0)}%</StatusTag>
+                  <StatusTag>{money(weightedAmount)}</StatusTag>
                 </Space>
                 <Alert
                   showIcon

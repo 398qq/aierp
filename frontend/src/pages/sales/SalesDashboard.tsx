@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Alert, Button, Card, Col, Empty, List, Row, Space, Spin, Table, Tag, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import {
   BarChartOutlined,
   ExclamationCircleOutlined,
@@ -218,7 +219,7 @@ export default function SalesDashboard() {
                     <List.Item.Meta
                       title={(
                         <Space>
-                          <Tag color={ALERT_TYPE[item.type]?.color}>{ALERT_TYPE[item.type]?.label || item.type}</Tag>
+                          <StatusTag tone={ALERT_TYPE[item.type]?.color}>{ALERT_TYPE[item.type]?.label || item.type}</StatusTag>
                           <Typography.Text>{item.title}</Typography.Text>
                         </Space>
                       )}
@@ -245,7 +246,7 @@ export default function SalesDashboard() {
                 { title: "商机", dataIndex: "title", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/opportunities/${r.id}`)}>{v}</a> },
                 { title: "阶段", dataIndex: "stage", width: 78, render: (v: string) => {
                   const stageColors: Record<string, string> = { lead: "default", qualification: "blue", proposal: "purple", negotiation: "orange", closed_won: "green", closed_lost: "red" };
-                  return <Tag color={stageColors[v] || "default"} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{stageLabel[v] || v || "-"}</Tag>;
+                  return <StatusTag tone={stageColors[v] || "neutral"} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{stageLabel[v] || v || "-"}</StatusTag>;
                 }},
                 { title: "金额", dataIndex: "amount", width: 90, render: money },
               ]}
@@ -281,8 +282,8 @@ export default function SalesDashboard() {
                 { title: "交付", dataIndex: "delivery_date", width: 86, render: (v: string | null) => {
                   if (!v) return "-";
                   const diff = Math.ceil((new Date(v).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-                  if (diff < 0) return <Tag color="red" style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>逾期{-diff}天</Tag>;
-                  if (diff <= 7) return <Tag color="orange" style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{diff}天内</Tag>;
+                  if (diff < 0) return <StatusTag tone="danger" style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>逾期{-diff}天</StatusTag>;
+                  if (diff <= 7) return <StatusTag tone="warning" style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{diff}天内</StatusTag>;
                   return shortDate(v);
                 }},
                 { title: "金额", dataIndex: "total_amount", width: 90, render: money },

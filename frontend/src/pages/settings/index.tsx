@@ -3,9 +3,9 @@ import {
   Card, Descriptions, Typography, Tabs, Table, Button, Modal, Form, Input, InputNumber,
   Select, Switch, Space, message, Popconfirm, Badge,
 } from "antd";
+import { StatusTag, type StatusTone } from "../../ui";
 import { PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
-import { StatusTag, type StatusTone } from "../../ui";
 import {
   getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule,
   getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts,

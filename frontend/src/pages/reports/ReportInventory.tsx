@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty } from "antd";
+import { StatusTag } from "../../ui";
 import { WarningOutlined, ShopOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import client from "../../api/client";
-import { StatusTag } from "../../ui";
 
 interface InventoryData {
   summary: { total_products: number; low_stock: number; out_of_stock: number };

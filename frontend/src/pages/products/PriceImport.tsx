@@ -13,6 +13,7 @@ import {
   Alert,
   Divider,
 } from "antd";
+import { StatusTag } from "../../ui";
 import { CloudUploadOutlined, InboxOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import type { UploadFile, UploadProps } from "antd/es/upload/interface";
 import readXlsxFile from "read-excel-file/browser";
@@ -288,7 +289,7 @@ export default function PriceImport() {
                   onChange={(val) => setFieldMapping((prev) => ({ ...prev, [field]: val }))}
                   options={headers.map((h) => ({ value: h, label: h }))}
                 />
-                {fieldMapping[field] && <Tag color="green">已映射</Tag>}
+                {fieldMapping[field] && <StatusTag tone="success">已映射</StatusTag>}
               </div>
             ))}
           </Space>

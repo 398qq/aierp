@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, Upload, message } from "antd";
+import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
@@ -192,7 +193,7 @@ export default function SalesOrderList() {
           <Space size={8} wrap>
             <Typography.Text strong>销售订单单据</Typography.Text>
             <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
-            {selected.length > 0 && <Tag color="blue">已选 {selected.length}</Tag>}
+            {selected.length > 0 && <StatusTag tone="info">已选 {selected.length}</StatusTag>}
           </Space>
         )}
       >

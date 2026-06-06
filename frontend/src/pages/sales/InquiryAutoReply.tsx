@@ -4,6 +4,7 @@ import {
   Card, Form, Input, Button, Space, Tag, Table, Typography,
   message, Spin, Alert, Badge, Row, Col, Modal,
 } from "antd";
+import { StatusTag, type StatusTone } from "../../ui";
 import {
   SendOutlined, HistoryOutlined, CheckCircleOutlined,
   WarningOutlined, ExclamationCircleOutlined, FileTextOutlined,
@@ -11,7 +12,6 @@ import {
 import { inquiryAutoReply, getInquiries, createQuotationFromInquiry, type InquiryAutoReplyResponse, type InquiryRecord, type InquiryMatchedProduct, type InquiryAlternative } from "../../api";
 import dayjs from "dayjs";
 import { CustomerSelect, SalesModuleShell } from "./salesUi";
-import { StatusTag, type StatusTone } from "../../ui";
 
 const { TextArea } = Input;
 const { Paragraph } = Typography;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Col, Row, Spin, Table, Tag, Typography, Empty, Slider, Space } from "antd";
+import { StatusTag } from "../../ui";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { getCustomerSegments } from "../../api";
 import type { SegmentCluster } from "../../types";
@@ -42,14 +43,14 @@ export default function CustomerSegmentsPage() {
     : 0;
 
   const columns = [
-    { title: "聚类", dataIndex: "label", key: "label", render: (_: string, r: SegmentCluster, i: number) => <Tag color={COLORS[i % COLORS.length]}>{r.label}</Tag> },
+    { title: "聚类", dataIndex: "label", key: "label", render: (_: string, r: SegmentCluster, i: number) => <StatusTag tone={COLORS[i % COLORS.length]}>{r.label}</StatusTag> },
     { title: "客户数", dataIndex: "size", key: "size", sorter: (a: SegmentCluster, b: SegmentCluster) => a.size - b.size },
     { title: "平均相似度", dataIndex: "avg_similarity", key: "avg_similarity", render: (v: number) => (v * 100).toFixed(1) + "%" },
-    { title: "常见行业", dataIndex: "common_industry", key: "common_industry", render: (v: string) => <Tag>{v || "-"}</Tag> },
-    { title: "常见等级", dataIndex: "common_level", key: "common_level", render: (v: string) => <Tag>{v || "-"}</Tag> },
+    { title: "常见行业", dataIndex: "common_industry", key: "common_industry", render: (v: string) => <StatusTag>{v || "-"}</StatusTag> },
+    { title: "常见等级", dataIndex: "common_level", key: "common_level", render: (v: string) => <StatusTag>{v || "-"}</StatusTag> },
     {
       title: "样本客户", dataIndex: "sample_names", key: "sample_names",
-      render: (names: string[]) => names?.slice(0, 5).map((n, i) => <Tag key={i} style={{ marginBottom: 2 }}>{n}</Tag>),
+      render: (names: string[]) => names?.slice(0, 5).map((n, i) => <StatusTag key={i} style={{ marginBottom: 2 }}>{n}</StatusTag>),
     },
   ];
 

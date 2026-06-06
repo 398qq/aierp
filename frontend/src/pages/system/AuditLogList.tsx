@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Table, Card, Tag, Select, Input, Space, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import { SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
@@ -49,7 +50,7 @@ export default function AuditLogList() {
     { title: "用户", dataIndex: "username", width: 100 },
     {
       title: "操作", dataIndex: "action", width: 100,
-      render: (v: string) => <Tag color={actionColors[v] || "default"}>{v}</Tag>,
+      render: (v: string) => <StatusTag tone={actionColors[v] || "neutral"}>{v}</StatusTag>,
     },
     {
       title: "资源类型", dataIndex: "resource_type", width: 100,

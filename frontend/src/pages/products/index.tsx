@@ -25,6 +25,7 @@ import {
   Tooltip,
   message,
 } from "antd";
+import { StatusTag } from "../../ui";
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -899,7 +900,7 @@ export default function ProductList() {
       sorter: true,
       render: (text: string, r: Product) => <a onClick={() => openDetail(r)}>{text}</a>,
     },
-    { title: "分类", dataIndex: "category", key: "category", width: 100, render: (v: string) => (v ? <Tag>{v}</Tag> : "-") },
+    { title: "分类", dataIndex: "category", key: "category", width: 100, render: (v: string) => (v ? <StatusTag>{v}</StatusTag> : "-") },
     { title: "封装", dataIndex: "package_type", key: "package_type", width: 100, render: (v: string | null) => v || "-" },
     { title: "规格", dataIndex: "specs", key: "specs", width: 220, ellipsis: true, render: (v: string | null) => v || "-" },
     { title: "单位", dataIndex: "unit", key: "unit", width: 80, render: (v: string | null) => v || "-" },
@@ -927,9 +928,9 @@ export default function ProductList() {
       width: 110,
       render: (_: unknown, r: Product) => {
         const state = getStockState(r);
-        if (state === "out") return <Tag color="red">缺货</Tag>;
-        if (state === "low") return <Tag color="orange">低库存</Tag>;
-        return <Tag color="green">在库</Tag>;
+        if (state === "out") return <StatusTag tone="danger">缺货</StatusTag>;
+        if (state === "low") return <StatusTag tone="warning">低库存</StatusTag>;
+        return <StatusTag tone="success">在库</StatusTag>;
       },
     },
     { title: "库存", dataIndex: "quantity", key: "quantity", width: 90, align: "right", render: (v: number | null) => v != null ? v : 0 },
@@ -1180,7 +1181,7 @@ export default function ProductList() {
             <div className="product-health-title">
               <InboxOutlined />
               <span>产品管理工作台</span>
-              {statsLoading && <Tag>刷新中</Tag>}
+              {statsLoading && <StatusTag>刷新中</StatusTag>}
             </div>
             <div className="product-health-note">
               统一处理产品主数据、库存、供应商、价格和 AI 选型动作，优先消除缺货、低库存与资料缺口。
@@ -1245,7 +1246,7 @@ export default function ProductList() {
               >
                 <span className="product-task-main">
                   <span style={{ fontWeight: productTask === item.key ? 600 : 400 }}>{item.label}</span>
-                  <Tag color={item.color}>{item.count}</Tag>
+                  <StatusTag tone={item.color}>{item.count}</StatusTag>
                 </span>
                 <span className="product-task-note">{item.note}</span>
               </button>
@@ -1258,10 +1259,10 @@ export default function ProductList() {
             </div>
             <div className="product-command-body">
               <Space size={[4, 6]} wrap>
-                <Tag color="green">在库 {stats.in_stock_count}</Tag>
-                <Tag color="orange">低库存 {stats.low_stock_count}</Tag>
-                <Tag color="red">缺货 {stats.out_of_stock_count}</Tag>
-                <Tag>待完善 {stats.pending_completion_count}</Tag>
+                <StatusTag tone="success">在库 {stats.in_stock_count}</StatusTag>
+                <StatusTag tone="warning">低库存 {stats.low_stock_count}</StatusTag>
+                <StatusTag tone="danger">缺货 {stats.out_of_stock_count}</StatusTag>
+                <StatusTag>待完善 {stats.pending_completion_count}</StatusTag>
               </Space>
             </div>
           </div>
@@ -1421,10 +1422,10 @@ export default function ProductList() {
       {selectedRowKeys.length > 0 && !aiSearchMode && (
         <div className="product-batch-bar">
           <Space wrap>
-            <Tag color="blue">已选 {selectedRowKeys.length} 个产品</Tag>
-            <Tag>在库 {selectedMetrics.inStock}</Tag>
-            <Tag color="orange">低库存 {selectedMetrics.lowStock}</Tag>
-            <Tag color="red">缺货 {selectedMetrics.outOfStock}</Tag>
+            <StatusTag tone="info">已选 {selectedRowKeys.length} 个产品</StatusTag>
+            <StatusTag>在库 {selectedMetrics.inStock}</StatusTag>
+            <StatusTag tone="warning">低库存 {selectedMetrics.lowStock}</StatusTag>
+            <StatusTag tone="danger">缺货 {selectedMetrics.outOfStock}</StatusTag>
             <Button icon={<SettingOutlined />} onClick={() => { setBatchTaskType("update"); setBatchTaskConfirm(false); batchEditForm.resetFields(); setBatchTaskModalOpen(true); }}>批量任务面板</Button>
             <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
           </Space>
@@ -1518,9 +1519,9 @@ export default function ProductList() {
                 <span style={{ fontWeight: 600 }}>产品上下文</span>
               </Space>
               {contextProduct && (
-                <Tag color={contextStockState === "out" ? "red" : contextStockState === "low" ? "orange" : "green"}>
+                <StatusTag tone={contextStockState === "out" ? "danger" : contextStockState === "low" ? "warning" : "success"}>
                   {contextStockState === "out" ? "缺货" : contextStockState === "low" ? "低库存" : "在库"}
-                </Tag>
+                </StatusTag>
               )}
             </div>
             {!contextProduct ? (
@@ -1541,12 +1542,12 @@ export default function ProductList() {
                   <div className="product-context-score-value">{contextPriorityScore}</div>
                 </div>
                 <Space size={[4, 6]} wrap>
-                  <Tag color={contextStockState === "out" ? "red" : contextStockState === "low" ? "orange" : "green"}>
+                  <StatusTag tone={contextStockState === "out" ? "danger" : contextStockState === "low" ? "warning" : "success"}>
                     可用 {getAvailableQty(contextProduct)}
-                  </Tag>
-                  <Tag>安全库存 {contextProduct.safety_stock ?? "-"}</Tag>
-                  <Tag>供应商 {contextProduct.supplier_count ?? 0}</Tag>
-                  <Tag>完整度 {contextProduct.completion_score ?? 0}%</Tag>
+                  </StatusTag>
+                  <StatusTag>安全库存 {contextProduct.safety_stock ?? "-"}</StatusTag>
+                  <StatusTag>供应商 {contextProduct.supplier_count ?? 0}</StatusTag>
+                  <StatusTag>完整度 {contextProduct.completion_score ?? 0}%</StatusTag>
                 </Space>
                 <div className="product-context-action">
                   <span style={{ fontWeight: 600 }}>推荐动作</span>
@@ -1678,10 +1679,10 @@ export default function ProductList() {
           )}
 
           {batchTaskType === "delete" && (
-            <Tag color="red">该任务将删除 {selectedRowKeys.length} 条产品记录（软删除）</Tag>
+            <StatusTag tone="danger">该任务将删除 {selectedRowKeys.length} 条产品记录（软删除）</StatusTag>
           )}
           {batchTaskType === "export" && (
-            <Tag color="blue">将导出 {selectedRowKeys.length} 条已选产品记录</Tag>
+            <StatusTag tone="info">将导出 {selectedRowKeys.length} 条已选产品记录</StatusTag>
           )}
 
           <Checkbox checked={batchTaskConfirm} onChange={(e) => setBatchTaskConfirm(e.target.checked)}>
@@ -1792,7 +1793,7 @@ export default function ProductList() {
                   <List.Item>
                     <Space split={<span>|</span>} size={4}>
                       <span>{row.order_no || "-"}</span>
-                      <Tag>{row.status || "-"}</Tag>
+                      <StatusTag>{row.status || "-"}</StatusTag>
                       <span>数量 {row.quantity || 0}</span>
                       <span>单价 {row.unit_price != null ? `¥${Number(row.unit_price).toFixed(2)}` : "-"}</span>
                       <span>{formatDateTime(row.created_at || null)}</span>

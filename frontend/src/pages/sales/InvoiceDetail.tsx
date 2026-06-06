@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
 import { getInvoice } from "../../api";
 import type { Invoice } from "../../types";
@@ -87,7 +88,7 @@ export default function InvoiceDetail() {
           <Card
             title="发票信息"
             size="small"
-            extra={<Tag color={STATUS[inv.status]?.color}>{STATUS[inv.status]?.label || inv.status}</Tag>}
+            extra={<StatusTag tone={STATUS[inv.status]?.color}>{STATUS[inv.status]?.label || inv.status}</StatusTag>}
           >
             <Descriptions column={2} size="small">
               <Descriptions.Item label="金额">{money(inv.amount)}</Descriptions.Item>
@@ -125,7 +126,7 @@ export default function InvoiceDetail() {
               <Divider style={{ margin: "6px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">状态</Typography.Text>
-                <Tag color={STATUS[inv.status]?.color}>{STATUS[inv.status]?.label || inv.status}</Tag>
+                <StatusTag tone={STATUS[inv.status]?.color}>{STATUS[inv.status]?.label || inv.status}</StatusTag>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">开票日期</Typography.Text>
