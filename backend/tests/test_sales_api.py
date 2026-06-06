@@ -236,6 +236,46 @@ class TestQuotations:
         assert resp.status_code == 200
         assert resp.json()["data"]["id"] == quo_id
 
+    async def test_quotation_response_includes_customer_name(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict,
+    ):
+        """Quotation response must include denormalized customer_name to avoid N+1."""
+        # Create a quotation tied to a real customer
+        customer_name = test_customer["name"]
+        c = await async_client.post(
+            "/api/v1/quotations", headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "draft", "total_amount": 5000,
+                "items": [{"product_name": "Chip-X", "quantity": 1, "unit_price": 100, "total_price": 100}],
+            },
+        )
+        assert c.status_code == 201, c.text
+        quo_id = c.json()["data"]["id"]
+
+        # List endpoint
+        list_resp = await async_client.get("/api/v1/quotations", headers=auth_headers)
+        assert list_resp.status_code == 200
+        items = list_resp.json()["data"]["list"]
+        match = next((q for q in items if q["id"] == quo_id), None)
+        assert match is not None, "newly created quotation not in list"
+        assert match.get("customer_id") == test_customer["id"]
+        assert match.get("customer_name") == customer_name, (
+            f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
+        )
+
+        # Detail endpoint
+        detail_resp = await async_client.get(f"/api/v1/quotations/{quo_id}", headers=auth_headers)
+        assert detail_resp.status_code == 200
+        detail = detail_resp.json()["data"]
+        assert detail.get("customer_name") == customer_name
+
+        # Update endpoint
+        upd_resp = await async_client.put(
+            f"/api/v1/quotations/{quo_id}", headers=auth_headers, json={"status": "sent"},
+        )
+        assert upd_resp.status_code == 200
+        assert upd_resp.json()["data"].get("customer_name") == customer_name
+
     async def test_update_quotation(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(
             "/api/v1/quotations", headers=auth_headers,
@@ -429,6 +469,37 @@ class TestSalesOrders:
         resp = await async_client.get(f"/api/v1/sales-orders/{order_id}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["data"]["id"] == order_id
+
+    async def test_sales_order_response_includes_customer_name(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict,
+    ):
+        """Sales order response must include denormalized customer_name."""
+        customer_name = test_customer["name"]
+        create_resp = await async_client.post(
+            "/api/v1/sales-orders", headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"], "status": "pending",
+                "items": [{"product_name": "X", "quantity": 1, "unit_price": 100, "total_price": 100}],
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        order_id = create_resp.json()["data"]["id"]
+
+        # List
+        list_resp = await async_client.get("/api/v1/sales-orders", headers=auth_headers)
+        assert list_resp.status_code == 200
+        items = list_resp.json()["data"]["list"]
+        match = next((o for o in items if o["id"] == order_id), None)
+        assert match is not None, "newly created order not in list"
+        assert match.get("customer_id") == test_customer["id"]
+        assert match.get("customer_name") == customer_name, (
+            f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
+        )
+
+        # Detail
+        detail_resp = await async_client.get(f"/api/v1/sales-orders/{order_id}", headers=auth_headers)
+        assert detail_resp.status_code == 200
+        assert detail_resp.json()["data"].get("customer_name") == customer_name
 
     async def test_update_sales_order(self, async_client: AsyncClient, auth_headers: dict, test_customer: dict):
         c = await async_client.post(
