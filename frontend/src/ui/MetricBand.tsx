@@ -19,6 +19,7 @@ import { ArrowDownOutlined, ArrowUpOutlined } from "@ant-design/icons";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { StatusTag, type StatusTone } from "./StatusTag";
+import { brand } from "../design-tokens";
 
 export interface MetricItem {
   label: string;
@@ -88,7 +89,7 @@ const cardGridStyle = { gridColumn: `span ${6}` } as const;
 // should compose MetricBands with different `items` lengths.
 
 const rowStyle = { display: "flex", alignItems: "flex-start", gap: 12, padding: 12 } as const;
-const iconStyle = { flex: "0 0 auto", color: "var(--ant-color-primary, #1677ff)" } as const;
+const iconStyle = { flex: "0 0 auto", color: "var(--ant-color-primary, " + brand.primary + ")" } as const;
 const bodyStyle = { flex: 1, minWidth: 0 } as const;
 const labelStyle = { color: "var(--ant-color-text-secondary)", fontSize: 12, marginBottom: 4 } as const;
 const valueRowStyle = { display: "flex", alignItems: "baseline", gap: 4 } as const;

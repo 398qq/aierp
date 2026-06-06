@@ -1112,6 +1112,28 @@ export interface Global360 {
   strategic_recommendations: { recommendation: string; domain: string; priority: string; rationale?: string }[];
   kpi_health: { kpi: string; current: string; target: string; status: string }[];
   focus_areas: string[];
+  /** New in 2026-06: AI-generated insights (or heuristic fallback). */
+  insights?: Omit<Global360, "data" | "insights" | "ai_available" | "last_error">;
+  /** New in 2026-06: raw aggregated data (always returned, even if AI fails). */
+  data?: {
+    sales?: { mtd_revenue: number; qtd_revenue: number; ytd_revenue: number;
+              top_products_30d: { id: number; name: string; sku: string; revenue: number }[];
+              top_customers_30d: { id: number; name: string; revenue: number }[] };
+    customer?: { total_customers: number; new_customers_30d: number;
+                active_customers_30d: number; activity_rate_pct: number };
+    supply_chain?: { pending_po_count: number; pending_po_amount: number;
+                     low_stock_product_count: number; out_of_stock_product_count: number;
+                     top_suppliers_30d: { id: number; name: string; total: number }[] };
+    finance?: { total_ar: number; open_invoice_count: number; overdue_ar: number;
+                total_ap: number; receipts_mtd: number; payments_mtd: number; net_cash_flow_mtd: number };
+    ticket?: { open_tickets: number; avg_resolution_hours: number | null;
+               hotspot_categories: { category: string; count: number }[] };
+    anomalies?: { message?: string };
+  };
+  /** New in 2026-06: false when AI failed and insights are heuristic. */
+  ai_available?: boolean;
+  /** New in 2026-06: error message if AI failed. */
+  last_error?: string | null;
   context?: Record<string, unknown>;
 }
 
@@ -1170,7 +1192,9 @@ export interface Quotation {
   id: number;
   quotation_no: string | null;
   customer_id: number;
+  customer_name?: string | null;
   opportunity_id: number | null;
+  opportunity_title?: string | null;
   title: string | null;
   total_amount: number;
   status: string;
@@ -1180,6 +1204,58 @@ export interface Quotation {
   updated_at: string | null;
   items: QuotationItem[];
   ai?: QuotationAI | null;
+}
+
+export interface SalesOrder {
+  id: number;
+  order_no: string | null;
+  customer_id: number;
+  customer_name?: string | null;
+  quotation_id: number | null;
+  quotation_no?: string | null;
+  total_amount: number;
+  status: string;
+  order_date: string | null;
+  delivery_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  items: SalesOrderItem[];
+  ai?: SalesOrderAI | null;
+}
+
+export interface DeliveryNote {
+  id: number;
+  delivery_no: string | null;
+  sales_order_id: number;
+  sales_order_no?: string | null;
+  customer_id: number;
+  customer_name?: string | null;
+  status: string;
+  delivery_date: string | null;
+  received_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  items: DeliveryNoteItem[];
+  ai?: DeliveryNoteAI | null;
+}
+
+export interface Invoice {
+  id: number;
+  invoice_no: string | null;
+  sales_order_id: number;
+  sales_order_no?: string | null;
+  customer_id: number;
+  customer_name?: string | null;
+  amount: number;
+  tax_amount: number;
+  invoice_date: string | null;
+  invoice_type: string;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface QuotationStats {
@@ -1364,4 +1440,51 @@ export interface CustomerQuotationHistory {
     conversion_rate: number;
     total_won_amount: number;
   };
+}
+
+// --- Commission ---
+
+export type CommissionStatus =
+  | "draft"
+  | "pending_approval"
+  | "approved"
+  | "paid"
+  | "rejected"
+  | "cancelled";
+
+export interface Commission {
+  id: number;
+  commission_no: string | null;
+  sales_order_id: number;
+  sales_user_id: number;
+  customer_id: number | null;
+  base_amount: number;
+  rate: number;
+  commission_amount: number;
+  paid_amount: number;
+  status: CommissionStatus;
+  approved_by: number | null;
+  approved_at: string | null;
+  paid_at: string | null;
+  period: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CommissionCreate {
+  sales_order_id: number;
+  sales_user_id: number;
+  base_amount?: number;
+  rate?: number;
+  period?: string | null;
+  notes?: string | null;
+}
+
+export interface CommissionUpdate {
+  base_amount?: number;
+  rate?: number;
+  period?: string | null;
+  notes?: string | null;
+  status?: CommissionStatus;
 }
