@@ -332,6 +332,133 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
         "anomalies_overview": anomalies_overview,
     }
 
+    # --- Raw aggregated data — ALWAYS returned, even when AI fails ---
+    raw_data = {
+        "sales": json.loads(sales_overview),
+        "customer": json.loads(customer_overview),
+        "supply_chain": json.loads(supply_chain_overview),
+        "finance": json.loads(finance_overview),
+        "ticket": json.loads(ticket_overview),
+        "anomalies": json.loads(anomalies_overview),
+    }
+
+    # --- Heuristic baseline (used when AI fails) ---
+    sales_parsed = json.loads(sales_overview)
+    customer_parsed = json.loads(customer_overview)
+    finance_parsed = json.loads(finance_overview)
+    supply_parsed = json.loads(supply_chain_overview)
+    ticket_parsed = json.loads(ticket_overview)
+
+    # Compute a baseline health score from raw metrics so the dashboard
+    # always has SOMETHING to display even when the AI provider is down.
+    mtd_rev = sales_parsed.get("mtd_revenue", 0) or 0
+    ytd_rev = sales_parsed.get("ytd_revenue", 0) or 0
+    overdue = finance_parsed.get("overdue_ar", 0) or 0
+    open_inv = finance_parsed.get("open_invoice_count", 0) or 0
+    low_stock = supply_parsed.get("low_stock_product_count", 0) or 0
+    open_tickets = ticket_parsed.get("open_tickets", 0) or 0
+    total_cust = customer_parsed.get("total_customers", 0) or 0
+    new_cust = customer_parsed.get("new_customers_30d", 0) or 0
+
+    score = 50
+    score += 10 if mtd_rev > 0 else -10
+    score += 10 if ytd_rev > mtd_rev * 3 else -5
+    score += 5 if new_cust >= max(1, total_cust * 0.05) else -5
+    score -= 10 if overdue > ytd_rev * 0.1 else 0
+    score -= 5 if open_tickets > 20 else 0
+    score -= 5 if low_stock > 10 else 0
+    score = max(0, min(100, score))
+
+    baseline_summary = (
+        f"MTD 营收 ¥{mtd_rev:,.0f}，YTD 营收 ¥{ytd_rev:,.0f}。"
+        f"活跃客户 {total_cust} 家（30 天新增 {new_cust}），"
+        f"{open_inv} 张未收发票（含逾期 ¥{overdue:,.0f}），"
+        f"{open_tickets} 个待处理工单，{low_stock} 个低库存预警。"
+    )
+    if score < 60:
+        baseline_summary += "⚠️ 整体健康度低于 60，建议优先处理应收账款与库存预警。"
+
+    heuristic_insights = {
+        "enterprise_health_score": score,
+        "executive_summary": baseline_summary,
+        "top_opportunities": [],
+        "top_risks": [
+            {"area": "财务", "description": f"逾期应收账款 ¥{overdue:,.0f}", "severity": "高" if overdue > ytd_rev * 0.1 else "中"}
+            if overdue > 0 else None,
+            {"area": "供应链", "description": f"{low_stock} 个产品库存低于安全水位", "severity": "中" if low_stock > 0 else "低"}
+            if low_stock > 0 else None,
+            {"area": "客户成功", "description": f"{open_tickets} 个工单待处理", "severity": "中" if open_tickets > 5 else "低"}
+            if open_tickets > 0 else None,
+        ],
+        "cross_domain_correlations": [],
+        "strategic_recommendations": [
+            {"recommendation": "跟进逾期应收，提高现金回收", "domain": "财务", "priority": "高", "rationale": f"逾期金额 ¥{overdue:,.0f}"} if overdue > 0 else None,
+            {"recommendation": "补货预警产品，避免断货影响订单", "domain": "供应链", "priority": "中", "rationale": f"{low_stock} 个 SKU 触发预警"} if low_stock > 0 else None,
+        ],
+        "kpi_health": [
+            {"kpi": "MTD 营收", "current": f"¥{mtd_rev:,.0f}", "target": "—", "status": "达标" if mtd_rev > 0 else "低于"},
+            {"kpi": "活跃客户", "current": str(total_cust), "target": "—", "status": "达标" if total_cust > 0 else "低于"},
+            {"kpi": "未收发票", "current": str(open_inv), "target": "0", "status": "达标" if open_inv == 0 else "低于"},
+            {"kpi": "待处理工单", "current": str(open_tickets), "target": "<5", "status": "达标" if open_tickets < 5 else "低于"},
+        ],
+        "focus_areas": ["应收账款", "库存预警"] if overdue > 0 or low_stock > 0 else ["客户活跃"],
+    }
+    # Drop None entries
+    heuristic_insights["top_risks"] = [r for r in heuristic_insights["top_risks"] if r is not None]  # type: ignore[union-attr,attr-defined]
+    heuristic_insights["strategic_recommendations"] = [r for r in heuristic_insights["strategic_recommendations"] if r is not None]  # type: ignore[union-attr,attr-defined]
+
+    # --- AI Output Schema ---
+    output_schema = {
+        "enterprise_health_score": "integer 0-100",
+        "executive_summary": "string, 2-3 sentence ejecutivo summary",
+        "top_opportunities": [
+            {"area": "string", "description": "string", "potential_value": "number"}
+        ],
+        "top_risks": [
+            {"area": "string", "description": "string", "severity": "string"}
+        ],
+        "cross_domain_correlations": [
+            {"domains": "string", "finding": "string"}
+        ],
+        "strategic_recommendations": [
+            {"recommendation": "string", "domain": "string", "priority": "string"}
+        ],
+        "kpi_health": [
+            {"kpi": "string", "current": "string", "target": "string", "status": "string"}
+        ],
+        "focus_areas": ["string"],
+    }
+
+    ai_insights: dict | None = None
+    last_error: str | None = None
+    try:
+        ai_insights = await ai_client.chat_structured(
+            [
+                {"role": "system", "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。"},
+                {"role": "user", "content": orchestrate_global_prompt(ai_input)},
+            ],
+            output_schema,
+            max_tokens=16384,
+        )
+        for key, default_val in heuristic_insights.items():
+            if key not in ai_insights:
+                ai_insights[key] = default_val
+    except Exception as e:
+        last_error = f"{type(e).__name__}: {str(e)[:200]}"
+        logger.error(f"Global 360 AI orquestrate failed: {last_error}")
+        ai_insights = None  # frontend can detect and use heuristic fallback
+
+    if ai_insights is None:
+        ai_insights = heuristic_insights
+
+    return {
+        "scanned_at": now.isoformat(),
+        "data": raw_data,
+        "insights": ai_insights,
+        "ai_available": last_error is None,
+        "last_error": last_error,
+    }
+
     # --- AI Output Schema ---
     output_schema = {
         "enterprise_health_score": "integer 0-100",
