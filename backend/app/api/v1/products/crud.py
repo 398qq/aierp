@@ -4,6 +4,7 @@ Read paths (list, stats, detail, sales) live in ``list.py``; bulk price
 import lives in ``pricing.py``. The split keeps each module under the
 500-line AGENTS.md limit and groups endpoints by mutation direction.
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,43 +26,125 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/products", tags=["products"])
 
 # Cache key version — bump to invalidate all entries after schema change
-PRODUCTS_LIST_CACHE_VERSION = "v1"
+PRODUCTS_LIST_CACHE_VERSION = "v2"
 
 
 # --- Schemas ---
 
 
 class ProductCreate(BaseModel):
+    # 基础标识
     sku: str | None = None
     name: str = Field(min_length=1, max_length=255)
+    mpn: str | None = None
+    barcode: str | None = None
+    hs_code: str | None = None
+    origin_country: str | None = None
+    # 归属
     brand_id: int | None = None
     category: str | None = None
     package_type: str | None = None
+    # 电子属性
+    package_case: str | None = None
+    pin_count: int | None = None
+    voltage_rating: str | None = None
+    tolerance_pct: str | None = None
+    temperature_range: str | None = None
+    power_rating: str | None = None
+    # 规格
     specs: str | None = None
     unit: str | None = None
+    # 物理属性
+    length_mm: float | None = None
+    width_mm: float | None = None
+    height_mm: float | None = None
+    gross_weight_g: float | None = None
+    net_weight_g: float | None = None
+    # 商务属性
+    tax_rate: float | None = None
+    currency: str = "CNY"
+    standard_cost: float | None = None
+    list_price: float | None = None
+    wholesale_price: float | None = None
+    # 生命周期与合规
+    lifecycle_status: str | None = None
+    eol_date: str | None = None
+    alternative_mpn: str | None = None
+    rohs_compliant: bool = True
+    reach_compliant: bool = False
+    esd_sensitive: bool = False
+    msl_level: str | None = None
+    # 文档
+    datasheet_url: str | None = None
+    rohs_cert_url: str | None = None
+    reach_cert_url: str | None = None
+    # 备注
     notes: str | None = None
     image_url: str | None = None
 
 
 class ProductUpdate(BaseModel):
+    # 基础标识
     sku: str | None = None
     name: str | None = Field(None, min_length=1, max_length=255)
+    mpn: str | None = None
+    barcode: str | None = None
+    hs_code: str | None = None
+    origin_country: str | None = None
+    # 归属
     brand_id: int | None = None
     category: str | None = None
     package_type: str | None = None
+    # 电子属性
+    package_case: str | None = None
+    pin_count: int | None = None
+    voltage_rating: str | None = None
+    tolerance_pct: str | None = None
+    temperature_range: str | None = None
+    power_rating: str | None = None
+    # 规格
     specs: str | None = None
     unit: str | None = None
+    # 物理属性
+    length_mm: float | None = None
+    width_mm: float | None = None
+    height_mm: float | None = None
+    gross_weight_g: float | None = None
+    net_weight_g: float | None = None
+    # 商务属性
+    tax_rate: float | None = None
+    currency: str | None = None
+    standard_cost: float | None = None
+    list_price: float | None = None
+    wholesale_price: float | None = None
+    # 生命周期与合规
+    lifecycle_status: str | None = None
+    eol_date: str | None = None
+    alternative_mpn: str | None = None
+    rohs_compliant: bool | None = None
+    reach_compliant: bool | None = None
+    esd_sensitive: bool | None = None
+    msl_level: str | None = None
+    # 文档
+    datasheet_url: str | None = None
+    rohs_cert_url: str | None = None
+    reach_cert_url: str | None = None
+    # 备注
     notes: str | None = None
     image_url: str | None = None
 
 
-
 @router.post("", status_code=201)
-async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_product(
+    body: ProductCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     product = Product(**body.model_dump())
     db.add(product)
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
+
     after_product_save(product.id)
     await cache_bump_version("products:list")
     await cache_bump_version("dashboard:kpi")
@@ -69,8 +152,15 @@ async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.put("/{product_id}")
-async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(select(Product).where(Product.id == product_id, Product.deleted_at.is_(None)))
+async def update_product(
+    product_id: int,
+    body: ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Product).where(Product.id == product_id, Product.deleted_at.is_(None))
+    )
     product = result.scalar_one_or_none()
     if product is None:
         return fail("Product not found", 404)
@@ -78,6 +168,7 @@ async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession 
         setattr(product, key, val)
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
+
     after_product_save(product.id)
     await cache_bump_version("products:list")
     await cache_bump_version("dashboard:kpi")
@@ -85,8 +176,14 @@ async def update_product(product_id: int, body: ProductUpdate, db: AsyncSession 
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    result = await db.execute(select(Product).where(Product.id == product_id, Product.deleted_at.is_(None)))
+async def delete_product(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Product).where(Product.id == product_id, Product.deleted_at.is_(None))
+    )
     product = result.scalar_one_or_none()
     if product is None:
         return fail("Product not found", 404)
@@ -98,7 +195,11 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _u
 
 
 @router.post("/batch-delete")
-async def batch_delete_products(body: dict, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def batch_delete_products(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     ids: list[int] = body.get("ids", [])
     if not ids:
         return fail("No product IDs provided", 400)
@@ -114,21 +215,63 @@ async def batch_delete_products(body: dict, db: AsyncSession = Depends(get_db), 
 
 
 @router.patch("/batch")
-async def batch_update_products(body: dict, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def batch_update_products(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     ids: list[int] = body.get("ids", [])
     if not ids:
         return fail("No product IDs provided", 400)
-    allowed = {"brand_id", "category", "package_type", "specs", "unit", "notes"}
+    allowed = {
+        "brand_id",
+        "category",
+        "package_type",
+        "package_case",
+        "pin_count",
+        "specs",
+        "unit",
+        "notes",
+        "mpn",
+        "barcode",
+        "hs_code",
+        "origin_country",
+        "voltage_rating",
+        "tolerance_pct",
+        "temperature_range",
+        "power_rating",
+        "length_mm",
+        "width_mm",
+        "height_mm",
+        "gross_weight_g",
+        "net_weight_g",
+        "tax_rate",
+        "currency",
+        "standard_cost",
+        "list_price",
+        "wholesale_price",
+        "lifecycle_status",
+        "eol_date",
+        "alternative_mpn",
+        "rohs_compliant",
+        "reach_compliant",
+        "esd_sensitive",
+        "msl_level",
+        "datasheet_url",
+        "rohs_cert_url",
+        "reach_cert_url",
+    }
     updates = {k: v for k, v in body.items() if k in allowed and v is not None}
     if not updates:
         return fail("No valid fields to update", 400)
     await db.execute(
-        update(Product).where(Product.id.in_(ids), Product.deleted_at.is_(None)).values(**updates)
+        update(Product)
+        .where(Product.id.in_(ids), Product.deleted_at.is_(None))
+        .values(**updates)
     )
     await cache_bump_version("products:list")
     await cache_bump_version("dashboard:kpi")
     return ok({"updated": len(ids), "fields": list(updates.keys())})
-
 
 
 __all__ = ["router"]

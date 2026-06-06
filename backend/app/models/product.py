@@ -1,6 +1,14 @@
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    Boolean, CheckConstraint, DateTime, DECIMAL, Float, ForeignKey, Integer, String, Text,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    DECIMAL,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,38 +28,58 @@ class Brand(TimestampMixin, Base):
     name_cn: Mapped[str | None] = mapped_column(String(255), nullable=True)
     short_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     logo: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    brand_type: Mapped[str | None] = mapped_column(String(50), nullable=True)  # own_brand / agency / oem
-    status: Mapped[str] = mapped_column(String(20), default="active")  # active / inactive / frozen
+    brand_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # own_brand / agency / oem
+    status: Mapped[str] = mapped_column(
+        String(20), default="active"
+    )  # active / inactive / frozen
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- 商业参数 ---
     level: Mapped[str | None] = mapped_column(String(10), nullable=True)  # A / B / C
-    positioning: Mapped[str | None] = mapped_column(String(50), nullable=True)  # high / mid / low
+    positioning: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # high / mid / low
     owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
     product_lines: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_markets: Mapped[str | None] = mapped_column(Text, nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # --- 供应链参数 ---
-    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    supplier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suppliers.id"), nullable=True
+    )
     manufacturer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    authorization_status: Mapped[str | None] = mapped_column(String(50), nullable=True)  # authorized / unauthorized / unknown
-    lifecycle_stage: Mapped[str | None] = mapped_column(String(50), nullable=True)  # active / nrnd / eol
+    authorization_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # authorized / unauthorized / unknown
+    lifecycle_stage: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # active / nrnd / eol
     is_automotive: Mapped[bool] = mapped_column(Boolean, default=False)
     moq: Mapped[int | None] = mapped_column(Integer, nullable=True)
     lead_time_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    risk_level: Mapped[str | None] = mapped_column(String(50), nullable=True)  # low / medium / high / critical
-    rohs_status: Mapped[str | None] = mapped_column(String(50), nullable=True)  # compliant / non_compliant / exempt / unknown
+    risk_level: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # low / medium / high / critical
+    rohs_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # compliant / non_compliant / exempt / unknown
 
     # --- AI 参数 ---
     ai_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     alternative_brands: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
     products = relationship("Product", back_populates="brand", lazy="selectin")
@@ -60,21 +88,104 @@ class Brand(TimestampMixin, Base):
 class Product(TimestampMixin, Base):
     __tablename__ = "products"
 
+    # ── 基础标识 ──
     sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
+    mpn: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # Manufacturer Part Number
+    barcode: Mapped[str | None] = mapped_column(String(50), nullable=True)  # UPC / EAN
+    hs_code: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # HS 海关编码
+    origin_country: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 原产国
+
+    # ── 归属 ──
     brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id"), nullable=True)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     package_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # ── 电子属性 ──
+    package_case: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 封装类型 QFN-48 / SOT-23
+    pin_count: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 引脚数
+    voltage_rating: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 电压规格
+    tolerance_pct: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 容差 ±1%
+    temperature_range: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 工作温度
+    power_rating: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 功率
+
+    # ── 规格文本 ──
     specs: Mapped[str | None] = mapped_column(Text, nullable=True)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # ── 物理属性 ──
+    length_mm: Mapped[float | None] = mapped_column(DECIMAL(10, 3), nullable=True)
+    width_mm: Mapped[float | None] = mapped_column(DECIMAL(10, 3), nullable=True)
+    height_mm: Mapped[float | None] = mapped_column(DECIMAL(10, 3), nullable=True)
+    gross_weight_g: Mapped[float | None] = mapped_column(DECIMAL(12, 3), nullable=True)
+    net_weight_g: Mapped[float | None] = mapped_column(DECIMAL(12, 3), nullable=True)
+
+    # ── 商务属性 ──
+    tax_rate: Mapped[float | None] = mapped_column(
+        DECIMAL(5, 2), nullable=True
+    )  # 税率 %
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")  # 币种
+    standard_cost: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )  # 标准成本
+    list_price: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )  # 列表价
+    wholesale_price: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )  # 批发价
+
+    # ── 生命周期与合规 ──
+    lifecycle_status: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # active / nrnd / eol / obsolete
+    eol_date: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # EOL 日期
+    alternative_mpn: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # 替代型号 MPN
+    rohs_compliant: Mapped[bool] = mapped_column(Boolean, default=True)
+    reach_compliant: Mapped[bool] = mapped_column(Boolean, default=False)
+    esd_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+    msl_level: Mapped[str | None] = mapped_column(
+        String(5), nullable=True
+    )  # 湿度敏感等级
+
+    # ── 文档 ──
+    datasheet_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    rohs_cert_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reach_cert_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # ── 备注与向量 ──
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
 
     brand = relationship("Brand", back_populates="products", lazy="selectin")
-    quotation_items = relationship("QuotationItem", back_populates="product", lazy="selectin")
-    sales_order_items = relationship("SalesOrderItem", back_populates="product", lazy="selectin")
-    delivery_note_items = relationship("DeliveryNoteItem", back_populates="product", lazy="selectin")
+    quotation_items = relationship(
+        "QuotationItem", back_populates="product", lazy="selectin"
+    )
+    sales_order_items = relationship(
+        "SalesOrderItem", back_populates="product", lazy="selectin"
+    )
+    delivery_note_items = relationship(
+        "DeliveryNoteItem", back_populates="product", lazy="selectin"
+    )
 
 
 class Supplier(TimestampMixin, Base):
@@ -94,10 +205,16 @@ class Supplier(TimestampMixin, Base):
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     financial_rating: Mapped[str | None] = mapped_column(String(10), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
-    supplier_products = relationship("SupplierProduct", foreign_keys="SupplierProduct.supplier_id", lazy="selectin")
+    supplier_products = relationship(
+        "SupplierProduct", foreign_keys="SupplierProduct.supplier_id", lazy="selectin"
+    )
 
 
 class Warehouse(TimestampMixin, Base):
@@ -106,8 +223,12 @@ class Warehouse(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100))
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
 
 class Inventory(TimestampMixin, Base):
@@ -118,10 +239,16 @@ class Inventory(TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(default=0)
     safety_stock: Mapped[int] = mapped_column(default=0)
     locked_quantity: Mapped[int] = mapped_column(default=0)
-    unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True, default=None)
+    unit_price: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True, default=None
+    )
     version: Mapped[int] = mapped_column(default=0, nullable=False)
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
 
 class InventoryBatchORM(TimestampMixin, Base):
@@ -133,7 +260,9 @@ class InventoryBatchORM(TimestampMixin, Base):
 
     __tablename__ = "inventory_batches"
     __table_args__ = (
-        UniqueConstraint("product_id", "warehouse_id", "batch_no", name="uq_inv_batch_pkey"),
+        UniqueConstraint(
+            "product_id", "warehouse_id", "batch_no", name="uq_inv_batch_pkey"
+        ),
         CheckConstraint("quantity >= 0", name="ck_inv_batch_qty_nonneg"),
     )
 
@@ -146,9 +275,15 @@ class InventoryBatchORM(TimestampMixin, Base):
     received_date: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow
     )
-    expiry_date: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    manufacture_date: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    expiry_date: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    manufacture_date: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    supplier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suppliers.id"), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(20), default="available")
     rohs_compliant: Mapped[bool] = mapped_column(Boolean, default=True)
     msl_level: Mapped[str | None] = mapped_column(String(5), nullable=True)
@@ -165,11 +300,15 @@ class InventoryTransaction(TimestampMixin, Base):
 
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
-    type: Mapped[str] = mapped_column(String(20))  # stock_in, stock_out, adjust, transfer
+    type: Mapped[str] = mapped_column(
+        String(20)
+    )  # stock_in, stock_out, adjust, transfer
     quantity: Mapped[int] = mapped_column()
     before_qty: Mapped[int | None] = mapped_column(nullable=True)
     after_qty: Mapped[int | None] = mapped_column(nullable=True)
-    reference_type: Mapped[str | None] = mapped_column(String(50), nullable=True)  # purchase, sales_order, manual
+    reference_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # purchase, sales_order, manual
     reference_id: Mapped[int | None] = mapped_column(nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -185,5 +324,9 @@ class SupplierProduct(TimestampMixin, Base):
     spq: Mapped[int | None] = mapped_column(nullable=True)  # standard package quantity
     is_preferred: Mapped[bool] = mapped_column(default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )

@@ -9,6 +9,7 @@ Holds the catalog browse experience:
 Write paths (create / update / delete / batch) live in ``crud.py``;
 bulk price import lives in ``pricing.py``.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/products", tags=["products"])
 # Cache TTL for /products list (5 minutes — list view tolerates slight staleness)
 PRODUCTS_LIST_CACHE_TTL = 300
 # Cache key version — bump to invalidate all entries after schema change
-PRODUCTS_LIST_CACHE_VERSION = "v1"
+PRODUCTS_LIST_CACHE_VERSION = "v2"
 
 
 def _inventory_metrics_subquery():
@@ -44,7 +45,9 @@ def _inventory_metrics_subquery():
             Inventory.product_id.label("product_id"),
             func.count(Inventory.id).label("inventory_location_count"),
             func.coalesce(func.sum(Inventory.quantity), 0).label("quantity"),
-            func.coalesce(func.sum(Inventory.locked_quantity), 0).label("locked_quantity"),
+            func.coalesce(func.sum(Inventory.locked_quantity), 0).label(
+                "locked_quantity"
+            ),
             func.coalesce(func.sum(available_expr), 0).label("available"),
             func.min(Inventory.safety_stock).label("safety_stock"),
             func.max(Inventory.unit_price).label("unit_price"),
@@ -76,7 +79,9 @@ def _sales_metrics_subquery():
             SalesOrderItem.product_id.label("product_id"),
             func.max(SalesOrderItem.created_at).label("last_sale_at"),
         )
-        .where(SalesOrderItem.deleted_at.is_(None), SalesOrderItem.product_id.is_not(None))
+        .where(
+            SalesOrderItem.deleted_at.is_(None), SalesOrderItem.product_id.is_not(None)
+        )
         .group_by(SalesOrderItem.product_id)
         .subquery()
     )
@@ -85,11 +90,15 @@ def _sales_metrics_subquery():
 def _product_completion(p: Product) -> tuple[int, list[str]]:
     fields = [
         ("SKU", p.sku),
+        ("MPN", p.mpn),
         ("品牌", p.brand_id),
         ("分类", p.category),
         ("封装", p.package_type),
+        ("封装类型", p.package_case),
         ("规格", p.specs),
         ("单位", p.unit),
+        ("HS编码", p.hs_code),
+        ("原产国", p.origin_country),
     ]
     completed = sum(1 for _, value in fields if value not in (None, ""))
     missing = [label for label, value in fields if value in (None, "")]
@@ -122,10 +131,52 @@ def _product_row(
     if p.brand:
         brand_name = p.brand.name or p.brand.short_name or p.brand.name_cn
     return {
-        "id": p.id, "sku": p.sku, "name": p.name, "brand_id": p.brand_id,
+        "id": p.id,
+        "sku": p.sku,
+        "name": p.name,
+        "mpn": p.mpn,
+        "barcode": p.barcode,
+        "hs_code": p.hs_code,
+        "origin_country": p.origin_country,
+        "brand_id": p.brand_id,
         "brand_name": brand_name,
-        "category": p.category, "package_type": p.package_type,
-        "specs": p.specs, "unit": p.unit, "notes": p.notes,
+        "category": p.category,
+        "package_type": p.package_type,
+        "package_case": p.package_case,
+        "pin_count": p.pin_count,
+        "voltage_rating": p.voltage_rating,
+        "tolerance_pct": p.tolerance_pct,
+        "temperature_range": p.temperature_range,
+        "power_rating": p.power_rating,
+        "specs": p.specs,
+        "unit": p.unit,
+        "length_mm": float(p.length_mm) if p.length_mm is not None else None,
+        "width_mm": float(p.width_mm) if p.width_mm is not None else None,
+        "height_mm": float(p.height_mm) if p.height_mm is not None else None,
+        "gross_weight_g": float(p.gross_weight_g)
+        if p.gross_weight_g is not None
+        else None,
+        "net_weight_g": float(p.net_weight_g) if p.net_weight_g is not None else None,
+        "tax_rate": float(p.tax_rate) if p.tax_rate is not None else None,
+        "currency": p.currency,
+        "standard_cost": float(p.standard_cost)
+        if p.standard_cost is not None
+        else None,
+        "list_price": float(p.list_price) if p.list_price is not None else None,
+        "wholesale_price": float(p.wholesale_price)
+        if p.wholesale_price is not None
+        else None,
+        "lifecycle_status": p.lifecycle_status,
+        "eol_date": str(p.eol_date) if p.eol_date else None,
+        "alternative_mpn": p.alternative_mpn,
+        "rohs_compliant": p.rohs_compliant,
+        "reach_compliant": p.reach_compliant,
+        "esd_sensitive": p.esd_sensitive,
+        "msl_level": p.msl_level,
+        "datasheet_url": p.datasheet_url,
+        "rohs_cert_url": p.rohs_cert_url,
+        "reach_cert_url": p.reach_cert_url,
+        "notes": p.notes,
         "image_url": p.image_url,
         "quantity": int(quantity or 0),
         "available": int(available or 0),
@@ -138,7 +189,9 @@ def _product_row(
         "completion_score": completion_score,
         "missing_fields": missing_fields,
         "last_sale_at": str(last_sale_at) if last_sale_at else None,
-        "inventory_updated_at": str(inventory_updated_at) if inventory_updated_at else None,
+        "inventory_updated_at": str(inventory_updated_at)
+        if inventory_updated_at
+        else None,
         "created_at": str(p.created_at) if p.created_at else None,
     }
 
@@ -155,10 +208,14 @@ async def products_stats_summary(
         select(
             Product.id,
             Product.brand_id,
+            Product.mpn,
             Product.category,
             Product.package_type,
+            Product.package_case,
             Product.specs,
             Product.unit,
+            Product.hs_code,
+            Product.origin_country,
             inv_subq.c.available,
             inv_subq.c.safety_stock,
             sales_subq.c.last_sale_at,
@@ -172,48 +229,74 @@ async def products_stats_summary(
     cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
 
     total = (await db.execute(select(func.count()).select_from(base))).scalar() or 0
-    in_stock_count = (await db.execute(
-        select(func.count()).select_from(base).where(base.c.available > 0)
-    )).scalar() or 0
-    out_of_stock_count = (await db.execute(
-        select(func.count()).select_from(base).where((base.c.available <= 0) | (base.c.available.is_(None)))
-    )).scalar() or 0
-    low_stock_count = (await db.execute(
-        select(func.count()).select_from(base).where(
-            base.c.available > 0,
-            base.c.available <= func.coalesce(base.c.safety_stock, 0),
+    in_stock_count = (
+        await db.execute(
+            select(func.count()).select_from(base).where(base.c.available > 0)
         )
-    )).scalar() or 0
-    pending_completion_count = (await db.execute(
-        select(func.count()).select_from(base).where(
-            or_(
-                base.c.brand_id.is_(None),
-                base.c.category.is_(None),
-                base.c.category == "",
-                base.c.package_type.is_(None),
-                base.c.package_type == "",
-                base.c.specs.is_(None),
-                base.c.specs == "",
-                base.c.unit.is_(None),
-                base.c.unit == "",
+    ).scalar() or 0
+    out_of_stock_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(base)
+            .where((base.c.available <= 0) | (base.c.available.is_(None)))
+        )
+    ).scalar() or 0
+    low_stock_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(base)
+            .where(
+                base.c.available > 0,
+                base.c.available <= func.coalesce(base.c.safety_stock, 0),
             )
         )
-    )).scalar() or 0
-    stale_30d_count = (await db.execute(
-        select(func.count()).select_from(base).where(
-            (base.c.last_sale_at.is_(None)) | (base.c.last_sale_at < cutoff_30d)
+    ).scalar() or 0
+    pending_completion_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(base)
+            .where(
+                or_(
+                    base.c.brand_id.is_(None),
+                    base.c.mpn.is_(None),
+                    base.c.mpn == "",
+                    base.c.category.is_(None),
+                    base.c.category == "",
+                    base.c.package_type.is_(None),
+                    base.c.package_type == "",
+                    base.c.package_case.is_(None),
+                    base.c.package_case == "",
+                    base.c.specs.is_(None),
+                    base.c.specs == "",
+                    base.c.unit.is_(None),
+                    base.c.unit == "",
+                    base.c.hs_code.is_(None),
+                    base.c.hs_code == "",
+                    base.c.origin_country.is_(None),
+                    base.c.origin_country == "",
+                )
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
+    stale_30d_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(base)
+            .where((base.c.last_sale_at.is_(None)) | (base.c.last_sale_at < cutoff_30d))
+        )
+    ).scalar() or 0
 
-    return ok({
-        "total": total,
-        "in_stock_count": in_stock_count,
-        "out_of_stock_count": out_of_stock_count,
-        "low_stock_count": low_stock_count,
-        "pending_completion_count": pending_completion_count,
-        "stale_30d_count": stale_30d_count,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    })
+    return ok(
+        {
+            "total": total,
+            "in_stock_count": in_stock_count,
+            "out_of_stock_count": out_of_stock_count,
+            "low_stock_count": low_stock_count,
+            "pending_completion_count": pending_completion_count,
+            "stale_30d_count": stale_30d_count,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
 
 @router.get("")
@@ -224,19 +307,35 @@ async def list_products(
     q: str | None = None,
     category: str | None = None,
     brand_id: int | None = None,
-    scene: str | None = Query(None, description="all | in_stock | out_of_stock | low_stock | pending_completion | stale_30d"),
-    stock_status: str | None = Query(None, description="in_stock | out_of_stock | low_stock"),
-    sort: str | None = Query(None, description="name_asc | name_desc | created_at_asc | created_at_desc"),
+    scene: str | None = Query(
+        None,
+        description="all | in_stock | out_of_stock | low_stock | pending_completion | stale_30d",
+    ),
+    stock_status: str | None = Query(
+        None, description="in_stock | out_of_stock | low_stock"
+    ),
+    sort: str | None = Query(
+        None, description="name_asc | name_desc | created_at_asc | created_at_desc"
+    ),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
     effective_stock_status = stock_status
-    if not effective_stock_status and scene in {"in_stock", "out_of_stock", "low_stock"}:
+    if not effective_stock_status and scene in {
+        "in_stock",
+        "out_of_stock",
+        "low_stock",
+    }:
         effective_stock_status = scene
 
     cache_key = _products_cache_key(
-        page=page, page_size=page_size, q=q, category=category,
-        brand_id=brand_id, scene=scene, stock_status=effective_stock_status,
+        page=page,
+        page_size=page_size,
+        q=q,
+        category=category,
+        brand_id=brand_id,
+        scene=scene,
+        stock_status=effective_stock_status,
         sort=sort,
     )
     cached_payload = await cache_get_versioned("products:list", cache_key)
@@ -283,6 +382,10 @@ async def list_products(
             or_(
                 Product.name.ilike(like),
                 Product.sku.ilike(like),
+                Product.mpn.ilike(like),
+                Product.barcode.ilike(like),
+                Product.package_case.ilike(like),
+                Product.alternative_mpn.ilike(like),
                 Product.category.ilike(like),
                 Product.package_type.ilike(like),
                 Product.specs.ilike(like),
@@ -298,7 +401,9 @@ async def list_products(
     if effective_stock_status == "in_stock":
         base = base.where(inv_subq.c.available > 0)
     elif effective_stock_status == "out_of_stock":
-        base = base.where((inv_subq.c.available <= 0) | (inv_subq.c.available.is_(None)))
+        base = base.where(
+            (inv_subq.c.available <= 0) | (inv_subq.c.available.is_(None))
+        )
     elif effective_stock_status == "low_stock":
         base = base.where(
             inv_subq.c.available > 0,
@@ -309,19 +414,30 @@ async def list_products(
         base = base.where(
             or_(
                 Product.brand_id.is_(None),
+                Product.mpn.is_(None),
+                Product.mpn == "",
                 Product.category.is_(None),
                 Product.category == "",
                 Product.package_type.is_(None),
                 Product.package_type == "",
+                Product.package_case.is_(None),
+                Product.package_case == "",
                 Product.specs.is_(None),
                 Product.specs == "",
                 Product.unit.is_(None),
                 Product.unit == "",
+                Product.hs_code.is_(None),
+                Product.hs_code == "",
+                Product.origin_country.is_(None),
+                Product.origin_country == "",
             )
         )
     elif scene == "stale_30d":
         cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
-        base = base.where((sales_subq.c.last_sale_at.is_(None)) | (sales_subq.c.last_sale_at < cutoff_30d))
+        base = base.where(
+            (sales_subq.c.last_sale_at.is_(None))
+            | (sales_subq.c.last_sale_at < cutoff_30d)
+        )
 
     if sort == "name_asc":
         order_col = Product.name.asc()
@@ -332,10 +448,16 @@ async def list_products(
     else:
         order_col = Product.created_at.desc()
 
-    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(order_col, Product.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).all()
+    total = (
+        await db.execute(select(func.count()).select_from(base.subquery()))
+    ).scalar() or 0
+    rows = (
+        await db.execute(
+            base.order_by(order_col, Product.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
 
     items = [
         _product_row(
@@ -364,7 +486,12 @@ async def list_products(
         ) in rows
     ]
     payload = {"list": items, "total": total, "page": page, "page_size": page_size}
-    await cache_set_versioned("products:list", cache_key, json.dumps(payload, default=str), PRODUCTS_LIST_CACHE_TTL)
+    await cache_set_versioned(
+        "products:list",
+        cache_key,
+        json.dumps(payload, default=str),
+        PRODUCTS_LIST_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -376,7 +503,11 @@ def _products_cache_key(**parts: object) -> str:
 
 
 @router.get("/{product_id}")
-async def get_product(product_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def get_product(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     inv_subq = _inventory_metrics_subquery()
     sales_subq = _sales_metrics_subquery()
     supplier_subq = _supplier_metrics_subquery()
@@ -413,58 +544,115 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db), _user
         supplier_count,
         last_sale_at,
     ) = row
-    return ok(_product_row(
-        product,
-        inventory_location_count=inventory_location_count,
-        quantity=quantity,
-        available=available,
-        locked_quantity=locked_quantity,
-        safety_stock=safety_stock,
-        unit_price=unit_price,
-        supplier_count=supplier_count,
-        last_sale_at=last_sale_at,
-        inventory_updated_at=inventory_updated_at,
-    ))
+    return ok(
+        _product_row(
+            product,
+            inventory_location_count=inventory_location_count,
+            quantity=quantity,
+            available=available,
+            locked_quantity=locked_quantity,
+            safety_stock=safety_stock,
+            unit_price=unit_price,
+            supplier_count=supplier_count,
+            last_sale_at=last_sale_at,
+            inventory_updated_at=inventory_updated_at,
+        )
+    )
 
 
 @router.get("/{product_id}/sales")
-async def get_product_sales(product_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.models.sales import Quotation, QuotationItem, SalesOrder, SalesOrderItem, DeliveryNote, DeliveryNoteItem
+async def get_product_sales(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.models.sales import (
+        Quotation,
+        QuotationItem,
+        SalesOrder,
+        SalesOrderItem,
+        DeliveryNote,
+        DeliveryNoteItem,
+    )
 
-    qi_rows = (await db.execute(
-        select(QuotationItem, Quotation).join(Quotation, QuotationItem.quotation_id == Quotation.id)
-        .where(QuotationItem.product_id == product_id, Quotation.deleted_at.is_(None), QuotationItem.deleted_at.is_(None))
-        .order_by(Quotation.id.desc()).limit(5)
-    )).all()
-    quotations = [{
-        "id": q.id, "quotation_no": q.quotation_no, "customer_id": q.customer_id,
-        "status": q.status, "total_amount": float(q.total_amount),
-        "quantity": qi.quantity, "unit_price": float(qi.unit_price) if qi.unit_price else None,
-        "created_at": str(q.created_at),
-    } for qi, q in qi_rows]
+    qi_rows = (
+        await db.execute(
+            select(QuotationItem, Quotation)
+            .join(Quotation, QuotationItem.quotation_id == Quotation.id)
+            .where(
+                QuotationItem.product_id == product_id,
+                Quotation.deleted_at.is_(None),
+                QuotationItem.deleted_at.is_(None),
+            )
+            .order_by(Quotation.id.desc())
+            .limit(5)
+        )
+    ).all()
+    quotations = [
+        {
+            "id": q.id,
+            "quotation_no": q.quotation_no,
+            "customer_id": q.customer_id,
+            "status": q.status,
+            "total_amount": float(q.total_amount),
+            "quantity": qi.quantity,
+            "unit_price": float(qi.unit_price) if qi.unit_price else None,
+            "created_at": str(q.created_at),
+        }
+        for qi, q in qi_rows
+    ]
 
-    soi_rows = (await db.execute(
-        select(SalesOrderItem, SalesOrder).join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
-        .where(SalesOrderItem.product_id == product_id, SalesOrder.deleted_at.is_(None), SalesOrderItem.deleted_at.is_(None))
-        .order_by(SalesOrder.id.desc()).limit(5)
-    )).all()
-    orders = [{
-        "id": o.id, "order_no": o.order_no, "customer_id": o.customer_id,
-        "status": o.status, "total_amount": float(o.total_amount),
-        "quantity": soi.quantity, "unit_price": float(soi.unit_price) if soi.unit_price else None,
-        "created_at": str(o.created_at),
-    } for soi, o in soi_rows]
+    soi_rows = (
+        await db.execute(
+            select(SalesOrderItem, SalesOrder)
+            .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+            .where(
+                SalesOrderItem.product_id == product_id,
+                SalesOrder.deleted_at.is_(None),
+                SalesOrderItem.deleted_at.is_(None),
+            )
+            .order_by(SalesOrder.id.desc())
+            .limit(5)
+        )
+    ).all()
+    orders = [
+        {
+            "id": o.id,
+            "order_no": o.order_no,
+            "customer_id": o.customer_id,
+            "status": o.status,
+            "total_amount": float(o.total_amount),
+            "quantity": soi.quantity,
+            "unit_price": float(soi.unit_price) if soi.unit_price else None,
+            "created_at": str(o.created_at),
+        }
+        for soi, o in soi_rows
+    ]
 
-    dni_rows = (await db.execute(
-        select(DeliveryNoteItem, DeliveryNote).join(DeliveryNote, DeliveryNoteItem.delivery_note_id == DeliveryNote.id)
-        .where(DeliveryNoteItem.product_id == product_id, DeliveryNote.deleted_at.is_(None), DeliveryNoteItem.deleted_at.is_(None))
-        .order_by(DeliveryNote.id.desc()).limit(5)
-    )).all()
-    deliveries = [{
-        "id": d.id, "delivery_no": d.delivery_no, "customer_id": d.customer_id,
-        "status": d.status, "quantity": dni.quantity,
-        "created_at": str(d.created_at),
-    } for dni, d in dni_rows]
+    dni_rows = (
+        await db.execute(
+            select(DeliveryNoteItem, DeliveryNote)
+            .join(DeliveryNote, DeliveryNoteItem.delivery_note_id == DeliveryNote.id)
+            .where(
+                DeliveryNoteItem.product_id == product_id,
+                DeliveryNote.deleted_at.is_(None),
+                DeliveryNoteItem.deleted_at.is_(None),
+            )
+            .order_by(DeliveryNote.id.desc())
+            .limit(5)
+        )
+    ).all()
+    deliveries = [
+        {
+            "id": d.id,
+            "delivery_no": d.delivery_no,
+            "customer_id": d.customer_id,
+            "status": d.status,
+            "quantity": dni.quantity,
+            "created_at": str(d.created_at),
+        }
+        for dni, d in dni_rows
+    ]
 
     return ok({"quotations": quotations, "orders": orders, "deliveries": deliveries})
 

@@ -1,9 +1,36 @@
 // Product & Inventory
 export interface Product {
-  id: number; sku: string | null; name: string; brand_id: number | null;
-  brand_name: string | null;
-  category: string | null; package_type: string | null; specs: string | null;
-  unit: string | null; notes: string | null; image_url: string | null;
+  id: number; sku: string | null; name: string;
+  // 基础标识
+  mpn: string | null; barcode: string | null;
+  hs_code: string | null; origin_country: string | null;
+  // 归属
+  brand_id: number | null; brand_name: string | null;
+  category: string | null; package_type: string | null;
+  // 电子属性
+  package_case: string | null; pin_count: number | null;
+  voltage_rating: string | null; tolerance_pct: string | null;
+  temperature_range: string | null; power_rating: string | null;
+  // 规格
+  specs: string | null; unit: string | null;
+  // 物理属性
+  length_mm: number | null; width_mm: number | null;
+  height_mm: number | null; gross_weight_g: number | null;
+  net_weight_g: number | null;
+  // 商务属性
+  tax_rate: number | null; currency: string;
+  standard_cost: number | null; list_price: number | null;
+  wholesale_price: number | null;
+  // 生命周期与合规
+  lifecycle_status: string | null; eol_date: string | null;
+  alternative_mpn: string | null;
+  rohs_compliant: boolean; reach_compliant: boolean;
+  esd_sensitive: boolean; msl_level: string | null;
+  // 文档
+  datasheet_url: string | null;
+  rohs_cert_url: string | null; reach_cert_url: string | null;
+  // 备注
+  notes: string | null; image_url: string | null;
   created_at: string;
   // Inventory (joined from API)
   quantity?: number | null;
