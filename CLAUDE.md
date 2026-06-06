@@ -234,3 +234,64 @@ Frontend (Ant Design 6) → axios (withCredentials) → FastAPI /api/v1/* → Se
 - Validate input at system boundaries
 - ALWAYS run tests after code changes: `make test`
 - ALWAYS verify build succeeds before committing: `make lint`
+
+---
+
+## Engineering Bottom Lines (Non-negotiable)
+
+When implementing ERP features, prioritize **operational correctness** over visual novelty. Every change is part of a business workflow with: status transitions, permissions, auditability, reporting impact, data consistency.
+
+### Backend
+
+1. **State machine is mandatory.** Every business object (`Opportunity`, `Quotation`, `SalesOrder`, `DeliveryNote`, `Invoice`, `PurchaseOrder`, `Receiving`, `Payment`) has an explicit `status` / `stage` field with an `Enum` class — never magic strings. Define transition rules in a single function `assert_can_transition(obj, from_status, to_status)`.
+2. **Soft delete everywhere.** All models inherit `TimestampMixin` (already in `models/base.py`). Base query helpers must filter `deleted_at IS NULL` by default; raw `.execute()` with a `SELECT` is a code-review red flag.
+3. **Service layer owns business logic.** Route handlers stay thin: parse → call service → return schema. No DB queries, no business rules in routes. No `HTTPException` in services — raise `AppError(code, msg)` and let the global handler convert.
+4. **Decimal for money, never float.** `from decimal import Decimal`; convert at the boundary (`Decimal(str(value))`). Database column is `NUMERIC(18, 4)`. Tests assert exact decimal equality.
+5. **Document totals must reconcile.** `SalesOrder.total == sum(line.subtotal) - discount + tax`. Same for `Invoice`, `Quotation`, `PurchaseOrder`. Add a test that mutates one line and asserts the recompute fires.
+6. **Slow dependencies get bounded calls.** AI client, OCR, PDF import, payment gateway, external logistics: explicit `timeout`, `tenacity` retry (3 attempts, exponential backoff), and a safe fallback (cached value, default response, queue for later). Never `await client.call(...)` without a timeout.
+7. **RBAC at every route.** `@router.post(...)` declares `permissions=["customer.create"]`. Service receives `current_user` and re-checks for object-level permissions (data scope by team/region/owner). Field-level (e.g. `cost_price` hidden from sales role) handled at the schema layer.
+8. **Audit fields populated automatically.** `created_by`, `updated_by`, `approved_by` via a SQLAlchemy event listener that reads from `request_context`. Don't ask callers to pass them.
+9. **Request ID end-to-end.** Middleware generates UUID, stores in `contextvars`, includes in: log lines, error responses, slow-query logs, AI call metadata, db transactions. No orphan log lines without a `request_id`.
+
+### Frontend
+
+1. **Pages import from `@/ui`, never inline.** `<PageHeader>`, `<StatusTag>`, `<SearchBar>`, `<MetricBand>`, `<EmptyState>`, `<ErrorBoundary>` — already in `frontend/src/ui/`. New patterns extend this library, not pages.
+2. **API layer is one file.** All endpoints in `frontend/src/api/index.ts` with typed request/response. No `axios.get(...)` in components. If a page needs a new endpoint, add it to `api/index.ts` first.
+3. **Async states are explicit.** Every data table/page has: `<EmptyState>` for no data, `<Spin>` for loading, error toast (via `message.error`) for failure. Half-rendered lists are a bug.
+4. **Tables are dense and scannable.** Fixed-height rows (40–48px), 6+ columns fit on 1440px wide, right-align numerics with `tnum` feature, status column uses `<StatusTag>`, action column stays ≤ 3 buttons + "more" dropdown. No marketing-style cards for data lists.
+5. **Forms go in Drawer, not Modal.** Modal ≤ 4 fields. Drawer for 5+ fields or multi-section forms. Multi-page wizards for ≥ 3 logical steps. Submit button always reachable without scrolling on 1080p.
+6. **Permission-aware rendering.** Buttons wrapped in `<Authorized permission="...">`. If absent, the user shouldn't even see the button — server still re-checks. Test by logging in as a sales-only user and confirming admin actions are invisible.
+7. **Money and quantities are typed components.** Use `<MoneyCell>` (or `<Typography.Text type="success|danger">` with `tnum`) — never raw string concatenation. Negative red, currency symbol prefix, thousands separator.
+8. **Lazy-load every page.** `App.tsx` uses `React.lazy()` for all `pages/*/index.tsx` entries. Bundle per route ≤ 200KB gzipped.
+9. **Error boundary per page.** `<ErrorBoundary>` wraps every lazy-loaded page; failures show a recovery UI, not a white screen.
+
+### Code Style
+
+- **Backend**: snake_case modules, PascalCase classes, `test_*.py` files. Domain behavior in `services/`. Schema-first API contracts. Type hints on every function signature (params + return).
+- **Frontend**: PascalCase components/pages, camelCase functions/hooks, `@/*` alias for `frontend/src/*`. No inline `style={{ color: '#1890ff' }}` — use `theme.useToken()` or `frontend/src/design-tokens.ts`.
+- **Files ≤ 500 lines** (AGENTS.md rule). Extract a helper before adding a 4th concern to a file.
+
+### Testing Expectations
+
+- **Backend**: pytest `asyncio_mode=auto`. Unit tests for state machines, decimal math, RBAC checks. Integration tests for full CRUD + auth. Mark with `@pytest.mark.unit` / `@pytest.mark.integration`. SQLite (aiosqlite) + pgvector→Text patch in `conftest.py` is the established pattern.
+- **Frontend**: Vitest + Testing Library. Snapshot tests for layout primitives, interaction tests for forms, render tests for permission gating.
+- **Coverage target**: ≥ 80% on `services/`, `models/`, `ui/`. Lower on boilerplate OK.
+- **For perf or timeout fixes**: capture before/after timings in the commit message and PR.
+
+### Commit & PR
+
+- Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`, `perf:`. Chinese summaries are common and acceptable.
+- Keep commits scoped (one logical change). Don't mix refactor + feature.
+- PR description: user-visible change → validation performed (`make test`, `make lint`, screenshots for UI) → issues/docs linked → migration/secret/config notes.
+
+### Anti-Patterns to Refuse
+
+- `datetime.now()` in business logic → inject a `Clock` interface (testable, replayable).
+- `float` for money → `Decimal` always.
+- `String` column for status → `Enum` (Python) + `VARCHAR` with `CHECK` constraint in DB.
+- Hardcoded role check `if user.role == "admin"` → use `permission` system.
+- Inline `<Tag color="green">` for status → `<StatusTag tone="success">`.
+- New page without `<ErrorBoundary>` → bug.
+- `await` on AI call without `timeout` → production outage waiting to happen.
+- `try/except: pass` → silent failure. Log or re-raise.
+- `commit()` outside the session-dep lifecycle → leaks. Always go through `get_db()`.

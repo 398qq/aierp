@@ -485,3 +485,268 @@ Product UI composites use `srcset` with art-direction crops at major breakpoints
 5. Default body to `{typography.body-md}` (15px); use `{typography.body-tabular}` for any money / numeric cell.
 6. Apply `ss01` globally on the body; apply `tnum` per-element on numeric content.
 7. The gradient mesh is non-negotiable on marketing heroes — bare-canvas heroes break the brand.
+
+---
+
+## ERP Operational Screens (App Shell, Not Marketing)
+
+The marketing design above is for landing pages, public inquiry portal, and the `brands/` showcase. The **operational app** (customers, sales, inventory, finance, procurement, reports) follows a different rule set: dense, scan-friendly, fast to operate under time pressure.
+
+> When in doubt, mimic Linear / Notion data tables / Stripe Dashboard, not Stripe Marketing.
+
+### Page Skeleton (every operational page)
+
+```
+┌─ Breadcrumb ──────────────────────────────────────────────────┐
+│  销售 / 销售订单 / SO-2026-0421                                │
+├───────────────────────────────────────────────────────────────┤
+│  <PageHeader title="销售订单" description="..." actions={...} />│
+├───────────────────────────────────────────────────────────────┤
+│  <SearchBar filters={...} onReset={...} /> [+ 新建] [导入]    │
+├───────────────────────────────────────────────────────────────┤
+│  <Table rowSelection columns={...} dataSource={rows} />        │
+│  Batch actions bar appears when ≥ 1 row selected               │
+├───────────────────────────────────────────────────────────────┤
+│  <Pagination total={N} current={page} pageSize={size} />       │
+└───────────────────────────────────────────────────────────────┘
+```
+
+**No hero sections, no gradient mesh, no display-xxl.** The app shell is plain `#ffffff` canvas on a `#f6f9fc` workspace background. Brand color is reserved for primary CTAs only.
+
+### Layout Tokens (operational screens)
+
+| Token | Value | Use |
+|---|---|---|
+| `app.canvas` | `#ffffff` | Card / panel background |
+| `app.workspace` | `#f6f9fc` | Page background (the "off-white behind cards") |
+| `app.sider` | `#1c1e54` | Left navigation (dark navy, brand-dark-900) |
+| `app.header` | `#ffffff` | Top bar (h=56px, hairline bottom) |
+| `app.content.maxWidth` | `1440px` | Centered on wide monitors |
+| `app.content.padding` | `24px` | Breathing room around content |
+| `app.card.padding` | `16px` | Inside cards / panels |
+| `app.row.height` | `44px` | Default table row height |
+| `app.row.height.compact` | `36px` | For ≥ 10 rows visible without scroll |
+| `app.row.height.comfort` | `52px` | For forms in Drawer |
+
+### Typography (operational screens override the marketing tiers)
+
+- **Page title**: 20px / weight 600 (handled by `<PageHeader>`)
+- **Section title**: 16px / weight 600
+- **Body / table cell**: 14px / weight 400
+- **Helper / caption**: 12px / weight 400, `ink-mute` color
+- **Money / quantity / date**: 14px, **`font-feature-settings: "tnum"`** mandatory
+- **NO thin (300) weight on operational UI** — that breaks the editorial "marketing" mood and hurts scan speed.
+
+### Color Usage (operational)
+
+- **Primary CTA** (filled button): `colors.primary` `#533afd` — max 1 per page band
+- **Status tags**: semantic only (`<StatusTag tone="success|warning|danger|info|processing|neutral">`)
+- **Money positive**: `#10b981` (green-500)
+- **Money negative / loss / overdue**: `#ef4444` (red-500)
+- **Frozen / disabled**: `ink-mute` + opacity 0.5
+- **Hairline / divider**: `colors.hairline` `#e3e8ee` — 1px borders, never thicker
+- **Hover background**: `colors.canvas-soft` `#f6f9fc`
+- **Selected row**: `primary` at 8% opacity
+
+### Component Patterns (operational)
+
+#### 1. Data Table (most-used pattern)
+
+```tsx
+<Table<T>
+  rowKey="id"
+  size="middle"            // 44px row height
+  rowSelection={{ ... }}   // batch actions
+  scroll={{ x: 1200 }}     // horizontal scroll on narrow viewports
+  sticky
+  columns={[
+    { title: '名称', dataIndex: 'name', fixed: 'left', width: 200 },
+    { title: '金额', dataIndex: 'amount', align: 'right',
+      render: (v) => <MoneyCell value={v} /> },
+    { title: '状态', dataIndex: 'status', width: 100,
+      render: (v) => <StatusTag status={v} /> },
+    { title: '操作', width: 120, fixed: 'right',
+      render: (_, row) => <RowActions row={row} /> },
+  ]}
+  pagination={{ ... }}
+/>
+```
+
+Rules:
+- 数量、金额、日期列必须 `align: 'right'`，等宽数字字体
+- 操作列固定在右侧，宽度 ≤ 140px
+- 名称列固定在左侧
+- 状态列宽 100px，使用 `<StatusTag>`
+- 行高 44px（`size="middle"`）
+- ≥ 100 行启用虚拟滚动（antd v5 自带）
+
+#### 2. Filter Bar
+
+```tsx
+<SearchBar
+  fields={[
+    { name: 'name', label: '客户名称', type: 'input' },
+    { name: 'status', label: '状态', type: 'select', options: [...] },
+    { name: 'dateRange', label: '创建时间', type: 'dateRange' },
+    { name: 'owner', label: '负责人', type: 'userSelect' },
+  ]}
+  onSearch={...}
+  onReset={...}
+/>
+```
+
+- 字段数 ≤ 4 一行；超过则第 5+ 折叠到"更多"抽屉
+- 默认显示"重置"和"搜索"按钮；按 Enter 触发搜索
+
+#### 3. Drawer Form (新建 / 编辑)
+
+```tsx
+<Drawer
+  title={isEdit ? '编辑客户' : '新建客户'}
+  open={open}
+  width={isEdit ? 720 : 560}
+  onClose={onClose}
+  footer={<FormFooter onCancel={onClose} onSubmit={form.submit} loading={saving} />}
+>
+  <Form layout="vertical" form={form} onFinish={onSubmit}>
+    {/* 字段 */}
+  </Form>
+</Drawer>
+```
+
+Rules:
+- ≤ 4 字段用 Modal
+- 5–15 字段用 Drawer，width 560 (新建) / 720 (编辑)
+- > 15 字段或分步骤用 Steps + Drawer
+- 提交按钮始终固定在 Drawer 底部 footer
+- 必填字段加 `*`，不靠 placeholder 区分
+
+#### 4. Detail Page Tabs
+
+```tsx
+<Tabs
+  items={[
+    { key: 'basic', label: '基本信息', children: <BasicInfo data={customer} /> },
+    { key: 'contacts', label: `联系人 (${contacts.length})`, children: <ContactsList /> },
+    { key: 'orders', label: `订单 (${ordersCount})`, children: <OrdersTab customerId={id} /> },
+    { key: 'followups', label: '跟进记录', children: <FollowUpsTab /> },
+    { key: 'audit', label: '操作日志', children: <AuditLog entityType="customer" entityId={id} /> },
+  ]}
+/>
+```
+
+Rules:
+- 默认 Tab = 基本信息
+- 关系型 Tab 标题后跟数量 `(N)`，> 0 时高亮
+- 操作日志 Tab 放最后
+- 每个 Tab 都是独立 lazy-loaded 模块
+
+#### 5. Money Cell (强制统一)
+
+```tsx
+<MoneyCell value={amount} currency="CNY" signed />
+// ¥ 1,234.56      (正)
+// -¥ 1,234.56     (负，红色)
+```
+
+- 总是右对齐
+- 总是 `tnum`
+- 负数必须红色（`<Typography.Text type="danger">` 或 `style={{ color: '#ef4444' }}`）
+- 货币符号前置，无空格
+- 0 显示 `¥ 0.00`，不显示 `—`（避免和空数据混淆）
+
+#### 6. Status Tag (统一语义)
+
+| 业务语义 | tone | 颜色 |
+|---|---|---|
+| 完成、已支付、已签收 | `success` | green |
+| 进行中、待处理 | `processing` | gold |
+| 警告、即将到期 | `warning` | orange |
+| 失败、已取消、已拒绝、超期 | `danger` | red |
+| 草稿、待提交 | `info` | blue |
+| 归档、停用 | `neutral` | default |
+
+不要用 raw `color="purple"` 这种自由发挥。
+
+#### 7. Empty / Loading / Error
+
+- **Loading**: `<Spin size="small" />` 居中卡片内，或骨架屏（> 3 行表格用）
+- **Empty**: `<EmptyState title="还没有客户" description="新建第一个客户开始" action={<Button type="primary" onClick={onNew}>+ 新建客户</Button>} />`
+- **Error**: 卡片内 `<Result status="error" title="加载失败" extra={<Button onClick={retry}>重试</Button>} />`
+- 任意状态切换都要有过渡，不要直接闪烁
+
+#### 8. Batch Operations
+
+选中行 ≥ 1 时，表格上方出现批量操作栏：
+
+```tsx
+<Affix offsetTop={56}>
+  <Alert
+    banner
+    message={`已选 ${selected.length} 项`}
+    type="info"
+    showIcon
+    action={
+      <Space>
+        <Button onClick={batchAssign}>批量分配</Button>
+        <Button onClick={batchTag}>批量打标签</Button>
+        <Button onClick={batchExport}>导出</Button>
+        <Button danger onClick={batchDelete}>删除</Button>
+        <Button type="text" onClick={clearSelection}>取消</Button>
+      </Space>
+    }
+  />
+</Affix>
+```
+
+#### 9. Permission-Gated Button
+
+```tsx
+<Authorized permission="customer.delete">
+  <Button danger onClick={onDelete}>删除</Button>
+</Authorized>
+```
+
+没有权限 → 不渲染。后端必须 re-check。
+
+#### 10. Status Flow Visualization (商机/订单看板)
+
+- 列 = 阶段（潜在 → 询价 → 报价 → 谈判 → 成单 / 丢单）
+- 卡片 = 商机
+- 拖拽切换阶段，调用 `PATCH /opportunities/{id}` 触发状态机校验
+- 失败的拖拽回弹并 toast 显示不允许的转移
+
+### Spacing Scale (atomic, use these only)
+
+`4 · 8 · 12 · 16 · 24 · 32 · 48 · 64`
+
+Padding / margin / gap: 禁止 5 / 7 / 13 / 17。
+
+### Border Radius (semantic, not free)
+
+| 形状 | 值 | 用在 |
+|---|---|---|
+| pill | 999 | 按钮、tag |
+| card | 8 | 卡片、Drawer、Modal |
+| input | 6 | Input、Select、DatePicker |
+| tag | 4 | 小标签、徽章 |
+| none | 0 | 表格内单元格 |
+
+### Don'ts (operational screens)
+
+- 不要 hero section / 全屏渐变背景
+- 不要 thin (300) 字重
+- 不要超过 3 个填充主色按钮
+- 不要 modal 装 8+ 字段
+- 不要 inline `<input>`，必须 `<Form.Item>`
+- 不要硬编码 `#1890ff` `#52c41a` `#f5222d` —— 用 token
+- 不要在表格里渲染 markdown / 富文本
+- 不要给操作列加 icon-only 按钮（无障碍 + 难发现），图标 + 文字
+
+### Implementation
+
+- Tokens 在 `frontend/src/design-tokens.ts`（与 antd `ConfigProvider.theme` 合并）
+- 全局样式在 `frontend/src/styles/globals.css`（reset + 字体 feature）
+- 复杂组件在 `frontend/src/ui/`（每个文件 < 100 行）
+- 业务组件在 `frontend/src/components/<domain>/`
+- 页面在 `frontend/src/pages/<domain>/<Page>.tsx`，按需拆出 `_components/` 子目录
