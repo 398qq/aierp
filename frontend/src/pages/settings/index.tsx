@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   Card, Descriptions, Typography, Tabs, Table, Button, Modal, Form, Input, InputNumber,
-  Select, Switch, Tag, Space, message, Popconfirm, Badge,
+  Select, Switch, Space, message, Popconfirm, Badge,
 } from "antd";
 import { PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
+import { StatusTag, type StatusTone } from "../../ui";
 import {
   getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule,
   getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts,
@@ -19,12 +20,12 @@ const { Title, Text } = Typography;
 const RULE_TYPE_LABELS: Record<string, string> = {
   no_order: "长期未下单", credit_over: "信用额度使用率", order_drop: "订单下降", ar_overdue: "应收逾期",
 };
-const SEVERITY_COLORS: Record<string, string> = { info: "blue", warning: "orange", critical: "red" };
+const SEVERITY_TONES: Record<string, StatusTone> = { info: "info", warning: "warning", critical: "danger" };
 const CONDITION_LABELS: Record<string, string> = {
   revenue: "累计营收", order_count: "订单数", no_order_days: "未下单天数",
 };
 const OPERATOR_LABELS: Record<string, string> = { ">": ">", "<": "<", ">=": ">=", "<=": "<=" };
-const LEVEL_COLORS: Record<string, string> = { A: "red", B: "orange", C: "blue", D: "default" };
+const LEVEL_TONES: Record<string, StatusTone> = { A: "danger", B: "warning", C: "info", D: "neutral" };
 
 export default function Settings() {
   const username = useAuthStore((s) => s.username);
@@ -186,7 +187,7 @@ export default function Settings() {
     { title: "阈值金额", dataIndex: "threshold_amount", width: 90 },
     {
       title: "严重级别", dataIndex: "severity", width: 90,
-      render: (v: string) => <Tag color={SEVERITY_COLORS[v]}>{v}</Tag>,
+      render: (v: string) => <StatusTag status={v} tone={SEVERITY_TONES[v] || "neutral"} />,
     },
     {
       title: "启用", dataIndex: "enabled", width: 60,
@@ -214,13 +215,13 @@ export default function Settings() {
     { title: "规则名称", dataIndex: "rule_name", width: 120 },
     {
       title: "严重级别", dataIndex: "severity", width: 80,
-      render: (v: string) => <Tag color={SEVERITY_COLORS[v]}>{v}</Tag>,
+      render: (v: string) => <StatusTag status={v} tone={SEVERITY_TONES[v] || "neutral"} />,
     },
     { title: "预警消息", dataIndex: "message", ellipsis: true },
     { title: "时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19) },
     {
       title: "状态", dataIndex: "is_read", width: 70,
-      render: (v: boolean) => v ? <Tag color="default">已读</Tag> : <Badge status="processing" text="未读" />,
+      render: (v: boolean) => v ? <StatusTag status="已读" tone="neutral" /> : <Badge status="processing" text="未读" />,
     },
     {
       title: "操作", key: "actions", width: 80,
@@ -234,7 +235,7 @@ export default function Settings() {
     { title: "名称", dataIndex: "name", width: 160 },
     {
       title: "目标等级", dataIndex: "target_level", width: 80,
-      render: (v: string) => <Tag color={LEVEL_COLORS[v]}>{v}</Tag>,
+      render: (v: string) => <StatusTag status={v} tone={LEVEL_TONES[v] || "neutral"} />,
     },
     { title: "条件", dataIndex: "condition_type", width: 100, render: (v: string) => CONDITION_LABELS[v] || v },
     { title: "运算符", dataIndex: "operator", width: 60, render: (v: string) => OPERATOR_LABELS[v] || v },

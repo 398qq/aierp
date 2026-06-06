@@ -4,6 +4,7 @@ import {
   TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined, SettingOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
+import { StatusTag } from "../../ui";
 import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360, getDailyReport, getKpi, getWidgets, saveWidgets } from "../../api";
 import type { DashboardStats, DashboardWidget, Visit, CustomerLog, Global360, OverdueFollowUp, DailyReport, KpiData } from "../../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -113,13 +114,13 @@ export default function Dashboard() {
       <Space wrap style={{ marginBottom: 16 }}>
         <Text type="secondary">AI 问答建议：</Text>
         {["本月销售趋势如何？", "哪些客户有流失风险？", "库存周转率最高的产品？", "逾期付款情况？", "供应商准时交付率排名？"].map((q) => (
-          <Tag key={q} color="processing" style={{ cursor: "pointer" }}
+          <StatusTag key={q} status={q} tone="processing" style={{ cursor: "pointer" }}
             onClick={() => {
               const btn = document.querySelector<HTMLElement>('[class*="floating"]') || document.querySelector('[style*="fixed"][style*="bottom"]');
               if (btn) btn.click();
             }}>
             {q}
-          </Tag>
+          </StatusTag>
         ))}
       </Space>
 
@@ -254,7 +255,7 @@ export default function Dashboard() {
               { title: "客户", dataIndex: "customer_name", ellipsis: true },
               { title: "跟进方式", dataIndex: "method", width: 80 },
               { title: "计划时间", dataIndex: "planned_at", width: 100, render: (v: string) => v?.slice(0, 10) },
-              { title: "逾期天数", dataIndex: "overdue_days", width: 80, render: (v: number) => <Tag color="red">{v}天</Tag> },
+              { title: "逾期天数", dataIndex: "overdue_days", width: 80, render: (v: number) => <StatusTag status={`${v}天`} tone="danger" /> },
               { title: "负责人", dataIndex: "owner", width: 80 },
             ]}
             pagination={false}
@@ -276,7 +277,13 @@ export default function Dashboard() {
               { title: "日期", dataIndex: "visit_date", width: 100, render: (v: string) => v?.slice(0, 10) },
               {
                 title: "状态", dataIndex: "status", width: 80,
-                render: (v: string) => <Tag color={v === "completed" ? "green" : v === "cancelled" ? "red" : "blue"}>{v === "planned" ? "计划中" : v === "completed" ? "已完成" : "已取消"}</Tag>,
+                render: (v: string) => (
+                  <StatusTag
+                    status={v}
+                    tone={v === "completed" ? "success" : v === "cancelled" ? "danger" : "info"}
+                    label={v === "planned" ? "计划中" : v === "completed" ? "已完成" : "已取消"}
+                  />
+                ),
               },
             ]}
             pagination={false}
@@ -343,7 +350,7 @@ export default function Dashboard() {
                   <div style={{ marginTop: 12 }}>
                     <Typography.Text strong style={{ marginRight: 8 }}>重点关注：</Typography.Text>
                     {global360.focus_areas.map((area, i) => (
-                      <Tag key={i} color="blue" style={{ marginBottom: 4 }}>{area}</Tag>
+                      <StatusTag key={i} status={area} tone="info" style={{ marginBottom: 4 }} />
                     ))}
                   </div>
                 )}
@@ -421,7 +428,10 @@ export default function Dashboard() {
                         {
                           title: "严重程度", dataIndex: "severity", width: 90,
                           render: (v: string) => (
-                            <Tag color={v.includes("高") || v === "high" ? "red" : v.includes("中") || v === "medium" ? "orange" : "blue"}>{v}</Tag>
+                            <StatusTag
+                              status={v}
+                              tone={v.includes("高") || v === "high" ? "danger" : v.includes("中") || v === "medium" ? "warning" : "info"}
+                            />
                           ),
                         },
                         { title: "可能性", dataIndex: "probability", width: 80 },
@@ -445,7 +455,11 @@ export default function Dashboard() {
                           <List.Item.Meta
                             title={
                               <span>
-                                <Tag color={r.priority === "高" || r.priority === "high" ? "red" : r.priority === "中" || r.priority === "medium" ? "orange" : "blue"} style={{ marginRight: 8 }}>{r.priority}</Tag>
+                                <StatusTag
+                                  status={r.priority}
+                                  tone={r.priority === "高" || r.priority === "high" ? "danger" : r.priority === "中" || r.priority === "medium" ? "warning" : "info"}
+                                  color="default"
+                                />
                                 <Tag style={{ marginRight: 8 }}>{r.domain}</Tag>
                                 <Typography.Text strong>{r.recommendation}</Typography.Text>
                               </span>
@@ -503,9 +517,10 @@ export default function Dashboard() {
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={18}>
                 <Paragraph style={{ fontSize: 14, margin: 0 }}>
-                  <Tag color={dailyReport.mood === "良好" ? "green" : dailyReport.mood === "需关注" ? "red" : "orange"}>
-                    {dailyReport.mood}
-                  </Tag>
+                  <StatusTag
+                    status={dailyReport.mood}
+                    tone={dailyReport.mood === "良好" ? "success" : dailyReport.mood === "需关注" ? "danger" : "warning"}
+                  />
                   {dailyReport.ai_summary}
                 </Paragraph>
                 {dailyReport.top_action && (
