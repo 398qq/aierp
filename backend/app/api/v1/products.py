@@ -11,6 +11,8 @@ from app.api.v1.products import (
     crud_router,
     inventories_router,
     inventory_router,
+    list_router,
+    pricing_router,
     suppliers_router,
     warehouses_router,
 )
@@ -20,17 +22,18 @@ from app.api.v1.products.crud import (
     BatchAdjustItem,
     InventoryCreate,
     InventoryUpdate,
-    PriceImportBody,
-    PriceImportItem,
     ProductCreate,
     ProductUpdate,
     SupplierProductLink,
 )
+from app.api.v1.products.pricing import PriceImportBody, PriceImportItem
 
 # Main router — no prefix here; sub-routers already have their own prefixes
 # so paths resolve correctly when mounted at /products
 router = APIRouter()
+router.include_router(list_router)
 router.include_router(crud_router)
+router.include_router(pricing_router)
 router.include_router(inventories_router)
 router.include_router(inventory_router)
 
@@ -38,6 +41,8 @@ __all__ = [
     "router",
     "brands_router",
     "crud_router",
+    "list_router",
+    "pricing_router",
     "inventories_router",
     "inventory_router",
     "suppliers_router",
