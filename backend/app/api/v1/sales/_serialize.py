@@ -20,6 +20,7 @@ Why explicit eager loading (not joinedload):
 - We follow the same pattern for consistency.
 """
 
+from decimal import Decimal
 from sqlalchemy import inspect as _inspect
 from sqlalchemy import select
 
@@ -31,6 +32,19 @@ def _is_loaded(obj, attr: str) -> bool:
     lazy-loads (which fail in aiosqlite).
     """
     return attr not in _inspect(obj).unloaded
+
+
+def _money(value) -> float | None:
+    """Coerce a DB-side ``NUMERIC(18, 4)`` value to a float for JSON output.
+
+    Goes through ``str(value)`` so the DB's full 4-dp precision is
+    preserved across the ORM → Python boundary instead of being
+    truncated by ``float(decimal)``. ``None`` and missing values pass
+    through as ``None`` so the JSON contract stays "null for empty".
+    """
+    if value is None:
+        return None
+    return float(Decimal(str(value)))
 
 
 def serialize_quotation(quote) -> dict:
@@ -52,7 +66,7 @@ def serialize_quotation(quote) -> dict:
         "opportunity_id": quote.opportunity_id,
         "opportunity_title": opportunity_title,
         "title": quote.title,
-        "total_amount": float(quote.total_amount or 0),
+        "total_amount": _money(quote.total_amount),
         "status": quote.status,
         "valid_until": quote.valid_until.isoformat() if quote.valid_until else None,
         "notes": quote.notes,
@@ -69,11 +83,11 @@ def _serialize_quotation_item(it) -> dict:
         "product_id": it.product_id,
         "product_name": it.product_name,
         "quantity": it.quantity,
-        "unit_price": float(it.unit_price) if it.unit_price is not None else None,
-        "total_price": float(it.total_price) if it.total_price is not None else None,
-        "cost_price": float(it.cost_price) if it.cost_price is not None else None,
-        "untaxed_cost": float(it.untaxed_cost) if it.untaxed_cost is not None else None,
-        "taxed_cost": float(it.taxed_cost) if it.taxed_cost is not None else None,
+        "unit_price": _money(it.unit_price),
+        "total_price": _money(it.total_price),
+        "cost_price": _money(it.cost_price),
+        "untaxed_cost": _money(it.untaxed_cost),
+        "taxed_cost": _money(it.taxed_cost),
         "sales_profit": float(it.sales_profit) if it.sales_profit is not None else None,
         "notes": it.notes,
     }
@@ -97,7 +111,7 @@ def serialize_sales_order(order) -> dict:
         "customer_name": customer_name,
         "quotation_id": order.quotation_id,
         "quotation_no": quotation_no,
-        "total_amount": float(order.total_amount or 0),
+        "total_amount": _money(order.total_amount),
         "status": order.status,
         "order_date": order.order_date.isoformat() if order.order_date else None,
         "delivery_date": order.delivery_date.isoformat() if order.delivery_date else None,
@@ -115,8 +129,8 @@ def _serialize_sales_order_item(it) -> dict:
         "product_id": it.product_id,
         "product_name": it.product_name,
         "quantity": it.quantity,
-        "unit_price": float(it.unit_price) if it.unit_price is not None else None,
-        "total_price": float(it.total_price) if it.total_price is not None else None,
+        "unit_price": _money(it.unit_price),
+        "total_price": _money(it.total_price),
         "notes": it.notes,
     }
 
@@ -174,8 +188,8 @@ def serialize_invoice(inv) -> dict:
         "sales_order_no": inv.sales_order.order_no if inv.sales_order else None,
         "customer_id": inv.customer_id,
         "customer_name": inv.customer.name if inv.customer else None,
-        "amount": float(inv.amount or 0),
-        "tax_amount": float(inv.tax_amount or 0),
+        "amount": _money(inv.amount),
+        "tax_amount": _money(inv.tax_amount),
         "invoice_date": inv.invoice_date.isoformat() if inv.invoice_date else None,
         "invoice_type": inv.invoice_type,
         "status": inv.status,

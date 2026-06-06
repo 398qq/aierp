@@ -14,6 +14,7 @@ AI enrichment and pipeline hooks live in
 import io
 import json
 import logging
+from decimal import Decimal
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Query
@@ -118,7 +119,7 @@ def _serialize_quotation(quote) -> dict:
         "opportunity_id": quote.opportunity_id,
         "opportunity_title": quote.opportunity.title if quote.opportunity else None,
         "title": quote.title,
-        "total_amount": float(quote.total_amount or 0),
+        "total_amount": float(Decimal(str(quote.total_amount or 0))),
         "status": quote.status,
         "valid_until": quote.valid_until.isoformat() if quote.valid_until else None,
         "notes": quote.notes,
@@ -131,9 +132,9 @@ def _serialize_quotation(quote) -> dict:
                 "product_id": it.product_id,
                 "product_name": it.product_name,
                 "quantity": it.quantity,
-                "unit_price": float(it.unit_price) if it.unit_price is not None else None,
-                "total_price": float(it.total_price) if it.total_price is not None else None,
-                "cost_price": float(it.cost_price) if it.cost_price is not None else None,
+                "unit_price": float(Decimal(str(it.unit_price))) if it.unit_price is not None else None,
+                "total_price": float(Decimal(str(it.total_price))) if it.total_price is not None else None,
+                "cost_price": float(Decimal(str(it.cost_price))) if it.cost_price is not None else None,
                 "untaxed_cost": float(it.untaxed_cost) if it.untaxed_cost is not None else None,
                 "taxed_cost": float(it.taxed_cost) if it.taxed_cost is not None else None,
                 "sales_profit": float(it.sales_profit) if it.sales_profit is not None else None,
