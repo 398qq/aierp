@@ -118,6 +118,10 @@ GEMINI.md
 AGENTS.local.md
 CLAUDE.local.md
 
+# Performance test artifacts
+perf/*.csv
+perf/*.html
+
 # Backups / pre-existing dev artifacts
 DESIGN.md.linear.bak
 .codex/

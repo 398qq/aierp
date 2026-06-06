@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -79,6 +79,25 @@ test-frontend-cov: ## Run frontend tests with coverage
 security-check: ## Run dependency vulnerability checks
 	cd $(BACKEND_DIR) && pip-audit -r requirements.txt
 	cd $(FRONTEND_DIR) && npm audit --audit-level=high
+
+# ---------------------------------------------------------------------------
+# Version bump & release
+# ---------------------------------------------------------------------------
+version: ## Show current version
+	@grep -E 'VERSION.*:.*str' backend/app/config.py | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'
+
+bump-patch: ## Bump patch version (2.0.0 → 2.0.1)
+	@./scripts/bump-version.sh patch
+
+bump-minor: ## Bump minor version (2.0.0 → 2.1.0)
+	@./scripts/bump-version.sh minor
+
+bump-major: ## Bump major version (2.0.0 → 3.0.0)
+	@./scripts/bump-version.sh major
+
+release: build lint test ## Full release build (build + lint + test)
+	@echo "All checks passed. Ready to bump version."
+	@echo "Run: make bump-patch  (or bump-minor / bump-major)"
 
 # ---------------------------------------------------------------------------
 # Performance baseline (Locust)
