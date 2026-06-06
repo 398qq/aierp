@@ -6,6 +6,7 @@ import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlin
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { DeliveryNote, PaymentRecord } from "../../types";
+import { Link } from "react-router-dom";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const PAYMENT_STATUS: Record<string, { color: string; label: string }> = {
@@ -205,7 +206,8 @@ export default function DeliveryNoteList() {
                 </div>
               ),
             },
-            { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
+            { title: "客户", dataIndex: "customer_name", width: 180, render: (v: string | null | undefined, r: DeliveryNote) =>
+              v ? <Link to={`/customers/${r.customer_id}`}>{v}</Link> : <CustomerLink id={r.customer_id} /> },
             {
               title: "状态", dataIndex: "status", width: 110,
               sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),

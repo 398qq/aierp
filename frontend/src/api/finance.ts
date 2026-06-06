@@ -1,7 +1,7 @@
 import client from "./client";
 import type {
   AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
-  ChurnRisk, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
+  ChurnRisk, Commission, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
   DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
   FollowUp, FollowUpRecognition, FollowUpReminder, GlobalFollowUp,
   Global360, GroupStats,
@@ -99,3 +99,32 @@ export const importContractPDF = (file: File) => {
 
 // ============================================================
 
+
+// ============================================================
+// Commission
+// ============================================================
+
+export const getCommissions = (params: Record<string, unknown> = {}) =>
+  client.get<APIResponse<PageData<Commission>>>("/finance/commissions", { params });
+
+export const getCommission = (id: number) =>
+  client.get<APIResponse<Commission>>(`/finance/commissions/${id}`);
+
+export const createCommission = (data: Partial<Commission>) =>
+  client.post<APIResponse<Commission>>("/finance/commissions", data);
+
+export const updateCommission = (id: number, data: Partial<Commission>) =>
+  client.patch<APIResponse<Commission>>(`/finance/commissions/${id}`, data);
+
+export const deleteCommission = (id: number) =>
+  client.delete<APIResponse>(`/finance/commissions/${id}`);
+
+export const transitionCommission = (
+  id: number,
+  to: Commission["status"],
+  reason: string = "",
+) =>
+  client.post<APIResponse<Commission>>(`/finance/commissions/${id}/transition`, {
+    to,
+    reason,
+  });

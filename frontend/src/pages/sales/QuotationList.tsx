@@ -299,7 +299,13 @@ export default function QuotationList() {
                       </div>
                       <div className="erp-cell-secondary">
                         <Space size={6} wrap>
-                          <CustomerLink id={record.customer_id} />
+                          {record.customer_name
+                            ? (
+                              <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>
+                                {record.customer_name}
+                              </Typography.Link>
+                            )
+                            : <CustomerLink id={record.customer_id} />}
                           {record.title && value && <span>{record.title}</span>}
                         </Space>
                       </div>

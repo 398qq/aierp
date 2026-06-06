@@ -6,6 +6,7 @@ import zhCN from "antd/locale/zh_CN";
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
+import { antdTheme } from "./design-tokens";
 
 // Lazy-loaded pages — code splitting for faster initial load
 const Dashboard = lazy(() => import("./pages/dashboard/index"));
@@ -87,6 +88,7 @@ const AccountList = lazy(() => import("./pages/finance/AccountList"));
 const JournalEntryList = lazy(() => import("./pages/finance/JournalEntryList"));
 const JournalEntryForm = lazy(() => import("./pages/finance/JournalEntryForm"));
 const ProfitLoss = lazy(() => import("./pages/finance/ProfitLoss"));
+const CommissionList = lazy(() => import("./pages/finance/CommissionList"));
 const ReportAP = lazy(() => import("./pages/reports/ReportAP"));
 const ImportExport = lazy(() => import("./pages/import-export/index"));
 
@@ -109,7 +111,7 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <ConfigProvider locale={zhCN} theme={{ token: { colorPrimary: "#1677ff" } }}>
+    <ConfigProvider locale={zhCN} theme={antdTheme}>
       <AntdApp>
         <BrowserRouter>
           <Routes>
@@ -172,6 +174,7 @@ export default function App() {
               <Route path="/finance/journal-entries/new" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
               <Route path="/finance/journal-entries/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
               <Route path="/finance/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
+              <Route path="/finance/commissions" element={<Suspense fallback={<PageLoader />}><CommissionList /></Suspense>} />
               <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
               <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
               <Route path="/sales" element={<Navigate to="/sales/dashboard" replace />} />

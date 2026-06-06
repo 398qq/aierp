@@ -219,7 +219,9 @@ export default function SalesOrderList() {
                   </div>
                   <div className="erp-cell-secondary">
                     <Space size={8}>
-                      <CustomerLink id={record.customer_id} />
+                      {record.customer_name
+                        ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{record.customer_name}</Typography.Link>
+                        : <CustomerLink id={record.customer_id} />}
                       <span>产品行 {record.items?.length || 0}</span>
                     </Space>
                   </div>

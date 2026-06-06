@@ -23,9 +23,15 @@ export default function Global360Page() {
   if (error) return <Alert type="error" message={error} style={{ margin: 24 }} />;
   if (!data) return null;
 
-  const scoreColor = (data.enterprise_health_score ?? 0) >= 80 ? "#52c41a" : (data.enterprise_health_score ?? 0) >= 60 ? "#faad14" : "#ff4d4f";
+  // Backend response shape (new in 2026-06):
+  //   { scanned_at, data: {raw aggregations}, insights: {ai insights},
+  //     ai_available, last_error }
+  const insights = data.insights ?? data as any;
+  const raw = data.data;
 
-  const opportunityColumns = [
+  const scoreColor = (insights.enterprise_health_score ?? 0) >= 80 ? "#52c41a" : (insights.enterprise_health_score ?? 0) >= 60 ? "#faad14" : "#ff4d4f";
+
+  const oportunidadColumns = [
     { title: "领域", dataIndex: "area", width: 80, render: (a: string) => <Tag>{a}</Tag> },
     { title: "描述", dataIndex: "description", ellipsis: true },
     { title: "潜在价值", dataIndex: "potential_value", width: 100, render: (v: number) => v ? `¥${v.toLocaleString()}` : "-" },
@@ -57,10 +63,20 @@ export default function Global360Page() {
     <div style={{ padding: 24 }}>
       <Title level={4}><PieChartOutlined /> AI 全局企业洞察</Title>
 
+      {data.ai_available === false && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="AI 智能分析暂不可用 — 以下为基于实时业务数据的启发式分析"
+          description={data.last_error ? `AI 报错：${data.last_error.slice(0, 200)}` : undefined}
+        />
+      )}
+
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={6}>
           <Card>
-            <Progress type="circle" percent={data.enterprise_health_score} strokeColor={scoreColor} size={120} />
+            <Progress type="circle" percent={insights.enterprise_health_score} strokeColor={scoreColor} size={120} />
             <div style={{ textAlign: "center", marginTop: 8 }}>
               <Text strong>企业健康分</Text>
             </div>
@@ -68,32 +84,32 @@ export default function Global360Page() {
         </Col>
         <Col xs={24} sm={18}>
           <Card title="执行摘要">
-            <Text>{data.executive_summary}</Text>
-            {data.focus_areas?.length > 0 && (
+            <Text>{insights.executive_summary}</Text>
+            {insights.focus_areas?.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <Text strong>重点关注领域: </Text>
-                {data.focus_areas.map((f, i) => <Tag color="blue" key={i}>{f}</Tag>)}
+                {insights.focus_areas.map((f: string, i: number) => <Tag color="blue" key={i}>{f}</Tag>)}
               </div>
             )}
           </Card>
         </Col>
       </Row>
 
-      {data.kpi_health?.length > 0 && (
+      {insights.kpi_health?.length > 0 && (
         <Card title="KPI 健康看板" style={{ marginBottom: 24 }}>
-          <Table columns={kpiColumns} dataSource={data.kpi_health} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+          <Table columns={kpiColumns} dataSource={insights.kpi_health} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
         </Card>
       )}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Card title={<><RiseOutlined /> 顶部机会</>}>
-            <Table columns={opportunityColumns} dataSource={data.top_opportunities} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+            <Table columns={oportunidadColumns} dataSource={insights.top_opportunities} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
           </Card>
         </Col>
         <Col span={12}>
           <Card title={<><WarningOutlined /> 顶部风险</>}>
-            <Table columns={riskColumns} dataSource={data.top_risks} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+            <Table columns={riskColumns} dataSource={insights.top_risks} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
           </Card>
         </Col>
       </Row>
@@ -101,8 +117,8 @@ export default function Global360Page() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={24}>
           <Card title={<><ThunderboltOutlined /> 跨领域关联</>}>
-            {data.cross_domain_correlations?.length > 0 ? (
-              <List size="small" dataSource={data.cross_domain_correlations} renderItem={(item) => (
+            {insights.cross_domain_correlations?.length > 0 ? (
+              <List size="small" dataSource={insights.cross_domain_correlations} renderItem={(item: any) => (
                 <List.Item>
                   <Tag color="purple">{item.domains}</Tag>
                   <Text>{item.finding}</Text>
@@ -115,8 +131,16 @@ export default function Global360Page() {
       </Row>
 
       <Card title="战略建议">
-        <Table columns={recoColumns} dataSource={data.strategic_recommendations} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+        <Table columns={recoColumns} dataSource={insights.strategic_recommendations} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
       </Card>
+
+      {raw && (
+        <Card title="原始数据快照" style={{ marginTop: 24 }} size="small">
+          <pre style={{ fontSize: 12, maxHeight: 320, overflow: "auto" }}>
+            {JSON.stringify(raw, null, 2)}
+          </pre>
+        </Card>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   UploadOutlined,
   IssuesCloseOutlined,
   HeartOutlined,
+  TrophyOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 import { getUnreadCount, naturalLanguageQuery } from "../api";
@@ -74,7 +75,7 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/system/roles", "/system/approvals", "/system/approval-rules", "/system/audit-logs", "/procurement/dashboard", "/reports/sales", "/reports/ar", "/reports/inventory", "/reports/procurement", "/reports/ap", "/finance/accounts", "/finance/journal-entries", "/finance/pnl", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets", "/data/import-export"];
+  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/ai/chat", "/settings", "/system/users", "/system/roles", "/system/approvals", "/system/approval-rules", "/system/audit-logs", "/procurement/dashboard", "/reports/sales", "/reports/ar", "/reports/inventory", "/reports/procurement", "/reports/ap", "/finance/accounts", "/finance/journal-entries", "/finance/pnl", "/finance/commissions", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets", "/data/import-export"];
   const selectedKey = menuKeys
     .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0] || location.pathname;
@@ -169,6 +170,7 @@ export default function MainLayout() {
         { key: "/finance/accounts", icon: <FileTextOutlined />, label: "会计科目" },
         { key: "/finance/journal-entries", icon: <ProfileOutlined />, label: "记账凭证" },
         { key: "/finance/pnl", icon: <PieChartOutlined />, label: "损益表" },
+        { key: "/finance/commissions", icon: <TrophyOutlined />, label: "佣金管理" },
         { key: "/reports/ap", icon: <DollarOutlined />, label: "应付账款" },
       ],
     },

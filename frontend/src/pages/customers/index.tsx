@@ -403,7 +403,7 @@ export default function CustomerList() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
   const [detailStats, setDetailStats] = useState<CustomerStats | null>(null);
-  const [smartTask, setSmartTask] = useState<SmartTaskKey>("today");
+  const [smartTask, setSmartTask] = useState<SmartTaskKey>("all");
   const [activeViewPreset, setActiveViewPreset] = useState("today");
   const [contextCustomerId, setContextCustomerId] = useState<number | null>(null);
   const [productRecLoading, setProductRecLoading] = useState(false);

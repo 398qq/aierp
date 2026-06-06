@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
@@ -108,7 +108,8 @@ export default function InvoiceList() {
               </div>
             ),
           },
-          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
+          { title: "客户", dataIndex: "customer_name", width: 180, render: (v: string | null | undefined, r: Invoice) =>
+            v ? <Link to={`/customers/${r.customer_id}`}>{v}</Link> : <CustomerLink id={r.customer_id} /> },
           { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (v: number) => money(v) },
           { title: "税额", dataIndex: "tax_amount", width: 100, align: "right", sorter: (a, b) => (a.tax_amount || 0) - (b.tax_amount || 0), render: (v: number) => money(v) },
           { title: "类型", dataIndex: "invoice_type", width: 100 },
