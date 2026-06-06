@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getSuppliers, getProducts, createPurchaseOrder, getPurchaseOrder, updatePurchaseOrder } from "../../api";
@@ -166,7 +167,7 @@ export default function PurchaseOrderForm() {
             <Card
               size="small"
               title={<span style={sectionTitleStyle}><CalculatorOutlined /> 采购单据</span>}
-              extra={<Tag color="processing">采购订单</Tag>}
+              extra={<StatusTag status="采购订单" tone="processing" />}
               style={{ borderColor: "#d9e2ec" }}
             >
               <div style={{
@@ -209,7 +210,7 @@ export default function PurchaseOrderForm() {
               title={<span style={sectionTitleStyle}><CalculatorOutlined /> 采购明细</span>}
               extra={(
                 <Space size={8}>
-                  <Tag color={summary.itemCount > 0 ? "blue" : "red"}>{summary.itemCount} 行</Tag>
+                  <StatusTag status={`${summary.itemCount} 行`} tone={summary.itemCount > 0 ? "info" : "danger"} />
                   <Tag>数量 {summary.quantity}</Tag>
                 </Space>
               )}

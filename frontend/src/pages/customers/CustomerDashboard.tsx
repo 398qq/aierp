@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Tag, Typography } from "antd";
+import { StatusTag } from "../../ui";
 import {
   AlertOutlined,
   CheckCircleOutlined,
@@ -98,7 +99,7 @@ export default function CustomerDashboard() {
         key: "today",
         title: "今日待跟进",
         value: reminderCounts.today,
-        color: "orange",
+        tone: "warning" as const,
         action: "查看任务",
         onClick: () => navigate("/customers"),
       },
@@ -106,7 +107,7 @@ export default function CustomerDashboard() {
         key: "overdue",
         title: "逾期未跟进",
         value: reminderCounts.overdue,
-        color: "red",
+        tone: "danger" as const,
         action: "处理逾期",
         onClick: () => navigate("/customers"),
       },
@@ -114,7 +115,7 @@ export default function CustomerDashboard() {
         key: "stale",
         title: "A类长期未联系",
         value: aiStats?.stale_high_value ?? 0,
-        color: "gold",
+        tone: "processing" as const,
         action: "查看智能分析",
         onClick: () => navigate("/customers/intelligence"),
       },
@@ -122,7 +123,7 @@ export default function CustomerDashboard() {
         key: "churn",
         title: "高流失风险",
         value: aiStats?.high_churn_count ?? 0,
-        color: "red",
+        tone: "danger" as const,
         action: "生成建议",
         onClick: () => navigate("/customers/workbench"),
       },
@@ -306,7 +307,7 @@ export default function CustomerDashboard() {
                 <div className="customer-dashboard-action" key={item.key}>
                   <div className="customer-dashboard-action-head">
                     <Text type="secondary">{item.title}</Text>
-                    <Tag color={item.color}>{item.value}</Tag>
+                    <StatusTag status={String(item.value)} tone={item.tone} />
                   </div>
                   <div className="customer-dashboard-action-value">{item.value}</div>
                   <Button size="small" type="link" style={{ padding: 0, marginTop: 8 }} onClick={item.onClick}>
@@ -337,9 +338,10 @@ export default function CustomerDashboard() {
                       title={(
                         <Space wrap size={6}>
                           <Text strong>{item.customer_name}</Text>
-                          <Tag color={item.due_bucket === "overdue" ? "red" : "orange"}>
-                            {item.due_bucket === "overdue" ? `逾期 ${item.overdue_days} 天` : "今日"}
-                          </Tag>
+                          <StatusTag
+                            status={item.due_bucket === "overdue" ? `逾期 ${item.overdue_days} 天` : "今日"}
+                            tone={item.due_bucket === "overdue" ? "danger" : "warning"}
+                          />
                         </Space>
                       )}
                       description={(
@@ -437,9 +439,9 @@ export default function CustomerDashboard() {
                 />
               </div>
               <Space wrap>
-                <Tag color="orange">从未联系 {aiStats?.never_contacted ?? "-"}</Tag>
-                <Tag color="gold">沉默高价值 {aiStats?.stale_high_value ?? "-"}</Tag>
-                <Tag color="blue">活跃30天 {aiStats?.active_30d ?? "-"}</Tag>
+                <StatusTag status={`从未联系 ${aiStats?.never_contacted ?? "-"}`} tone="warning" />
+                <StatusTag status={`沉默高价值 ${aiStats?.stale_high_value ?? "-"}`} tone="processing" />
+                <StatusTag status={`活跃30天 ${aiStats?.active_30d ?? "-"}`} tone="info" />
               </Space>
               <Button block icon={<RobotOutlined />} onClick={() => navigate("/customers/intelligence")}>
                 查看客户智能分析

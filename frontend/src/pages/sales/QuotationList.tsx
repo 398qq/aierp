@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from "antd";
+import { StatusTag, type StatusTone } from "../../ui";
 import type { MenuProps } from "antd";
 import {
   CopyOutlined,
@@ -40,16 +41,16 @@ const SCENE_LABELS: Record<QuoteScene, string> = {
 };
 
 const getDueMeta = (validUntil?: string | null, status?: string) => {
-  if (!validUntil || status === "won" || status === "lost") return { text: "-", color: "default", scene: "normal" };
+  if (!validUntil || status === "won" || status === "lost") return { text: "-", tone: "neutral" as StatusTone, scene: "normal" };
   const due = new Date(validUntil).getTime();
-  if (Number.isNaN(due)) return { text: shortDate(validUntil), color: "default", scene: "normal" };
+  if (Number.isNaN(due)) return { text: shortDate(validUntil), tone: "neutral" as StatusTone, scene: "normal" };
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diffDays = Math.ceil((due - today.getTime()) / (24 * 60 * 60 * 1000));
-  if (diffDays < 0) return { text: `已过期 ${Math.abs(diffDays)} 天`, color: "red", scene: "expired" };
-  if (diffDays === 0) return { text: "今日到期", color: "red", scene: "expiring" };
-  if (diffDays <= 7) return { text: `${diffDays} 天后到期`, color: "orange", scene: "expiring" };
-  return { text: shortDate(validUntil), color: "blue", scene: "normal" };
+  if (diffDays < 0) return { text: `已过期 ${Math.abs(diffDays)} 天`, tone: "danger" as StatusTone, scene: "expired" };
+  if (diffDays === 0) return { text: "今日到期", tone: "danger" as StatusTone, scene: "expiring" };
+  if (diffDays <= 7) return { text: `${diffDays} 天后到期`, tone: "warning" as StatusTone, scene: "expiring" };
+  return { text: shortDate(validUntil), tone: "info" as StatusTone, scene: "normal" };
 };
 
 export default function QuotationList() {
@@ -249,7 +250,7 @@ export default function QuotationList() {
           <Space size={8} wrap>
             <Typography.Text strong>报价单据</Typography.Text>
             <Typography.Text type="secondary">{visibleData.length} / {total} 张</Typography.Text>
-            {selected.length > 0 && <Tag color="blue">已选 {selected.length}</Tag>}
+            {selected.length > 0 && <StatusTag status={`已选 ${selected.length}`} tone="info" />}
           </Space>
         )}
       >
@@ -264,7 +265,7 @@ export default function QuotationList() {
             label: (
               <Space size={6}>
                 <span>{SCENE_LABELS[key]}</span>
-                {sceneCount(key) !== undefined && <Tag color={key === "expired" ? "red" : key === "expiring" ? "orange" : "default"}>{sceneCount(key)}</Tag>}
+                {sceneCount(key) !== undefined && <StatusTag status={String(sceneCount(key))} tone={key === "expired" ? "danger" : key === "expiring" ? "warning" : "neutral"} />}
               </Space>
             ),
           }))}
@@ -338,7 +339,7 @@ export default function QuotationList() {
               sorter: (a, b) => (a.valid_until || "").localeCompare(b.valid_until || ""),
               render: (value: string | null, record: Quotation) => {
                 const due = getDueMeta(value, record.status);
-                return <Tag color={due.color}>{due.text}</Tag>;
+                return <StatusTag status={due.text} tone={due.tone} />;
               },
             },
             {
@@ -356,10 +357,10 @@ export default function QuotationList() {
               width: 100,
               render: (_: unknown, record: Quotation) => {
                 const due = getDueMeta(record.valid_until, record.status);
-                if (record.status === "draft") return <Tag icon={<SendOutlined />} color="blue">发送报价</Tag>;
-                if (record.status === "sent" && due.scene === "expired") return <Tag color="red">重新报价</Tag>;
-                if (record.status === "sent") return <Tag icon={<FileDoneOutlined />} color="green">跟进转单</Tag>;
-                if (record.status === "won") return <Tag color="green">订单执行</Tag>;
+                if (record.status === "draft") return <StatusTag status="发送报价" tone="info" icon={<SendOutlined />} />;
+                if (record.status === "sent" && due.scene === "expired") return <StatusTag status="重新报价" tone="danger" />;
+                if (record.status === "sent") return <StatusTag status="跟进转单" tone="success" icon={<FileDoneOutlined />} />;
+                if (record.status === "won") return <StatusTag status="订单执行" tone="success" />;
                 return <Tag>复盘原因</Tag>;
               },
             },

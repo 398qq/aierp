@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
+import { Table, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
+import { StatusTag, type StatusTone } from "../../ui";
 import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
@@ -9,10 +10,10 @@ import type { PurchaseOrder } from "../../types";
 import dayjs from "dayjs";
 import { ErpExportButton, MetricBand, SalesModuleShell, shortDate } from "./salesUi";
 
-const STATUS: Record<string, { color: string; label: string }> = {
-  draft: { color: "default", label: "草稿" },
-  received: { color: "green", label: "已收货" },
-  cancelled: { color: "red", label: "已取消" },
+const STATUS: Record<string, { tone: StatusTone; label: string }> = {
+  draft: { tone: "neutral", label: "草稿" },
+  received: { tone: "success", label: "已收货" },
+  cancelled: { tone: "danger", label: "已取消" },
 };
 
 export default function PurchaseOrderList() {
@@ -131,7 +132,7 @@ export default function PurchaseOrderList() {
     },
     {
       title: "状态", dataIndex: "status", width: 80,
-      render: (s: string) => <Tag color={STATUS[s]?.color}>{STATUS[s]?.label || s}</Tag>,
+      render: (s: string) => <StatusTag status={s} tone={STATUS[s]?.tone || "neutral"} label={STATUS[s]?.label || s} />,
     },
     {
       title: "金额", dataIndex: "total_amount", width: 120,
@@ -275,7 +276,7 @@ export default function PurchaseOrderList() {
           <Space size={8} wrap>
             <Typography.Text strong>采购订单单据</Typography.Text>
             <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
-            {selected.length > 0 && <Tag color="blue">已选 {selected.length}</Tag>}
+            {selected.length > 0 && <StatusTag status={`已选 ${selected.length}`} tone="info" />}
           </Space>
         )}
       >

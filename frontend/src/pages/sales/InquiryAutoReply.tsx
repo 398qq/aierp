@@ -11,6 +11,7 @@ import {
 import { inquiryAutoReply, getInquiries, createQuotationFromInquiry, type InquiryAutoReplyResponse, type InquiryRecord, type InquiryMatchedProduct, type InquiryAlternative } from "../../api";
 import dayjs from "dayjs";
 import { CustomerSelect, SalesModuleShell } from "./salesUi";
+import { StatusTag, type StatusTone } from "../../ui";
 
 const { TextArea } = Input;
 const { Paragraph } = Typography;
@@ -27,21 +28,19 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
     icon = <ExclamationCircleOutlined />;
   }
   return (
-    <Tag color={color} icon={icon} style={{ fontWeight: 600 }}>
-      {pct}%
-    </Tag>
+    <StatusTag status={`${pct}%`} color={color} icon={icon} style={{ fontWeight: 600 }} />
   );
 }
 
 function StockStatusTag({ status }: { status: string }) {
-  const map: Record<string, { color: string; text: string }> = {
-    in_stock: { color: "green", text: "有货" },
-    low_stock: { color: "orange", text: "库存不足" },
-    out_of_stock: { color: "red", text: "缺货" },
-    discontinued: { color: "default", text: "停产" },
+  const map: Record<string, { tone: StatusTone; text: string }> = {
+    in_stock: { tone: "success", text: "有货" },
+    low_stock: { tone: "warning", text: "库存不足" },
+    out_of_stock: { tone: "danger", text: "缺货" },
+    discontinued: { tone: "neutral", text: "停产" },
   };
-  const { color = "default", text } = map[status] || { color: "default", text: status };
-  return <Tag color={color}>{text}</Tag>;
+  const { tone = "neutral", text } = map[status] || { tone: "neutral" as const, text: status };
+  return <StatusTag status={text} tone={tone} />;
 }
 
 export default function InquiryAutoReply() {
@@ -179,8 +178,8 @@ export default function InquiryAutoReply() {
       key: "status",
       width: 80,
       render: (v: string) => {
-        const colorMap: Record<string, string> = { processed: "green", pending: "orange", failed: "red" };
-        return <Tag color={colorMap[v] || "default"}>{v}</Tag>;
+        const toneMap: Record<string, StatusTone> = { processed: "success", pending: "warning", failed: "danger" };
+        return <StatusTag status={v} tone={toneMap[v] || "neutral"} />;
       },
     },
     {

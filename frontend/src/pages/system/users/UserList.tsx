@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Space, Tag, Select, Input, message, Popconfirm, Card, Modal, Checkbox, Spin } from "antd";
+import { Table, Button, Space, Select, Input, message, Popconfirm, Card, Modal, Checkbox, Spin } from "antd";
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getUsers, deleteUser } from "../../../api";
 import client from "../../../api/client";
 import UserForm from "./UserForm";
+import { StatusTag, type StatusTone } from "../../../ui";
 
 const ROLE_OPTIONS = [
   { label: "管理员", value: "admin" },
@@ -14,8 +15,8 @@ const ROLE_OPTIONS = [
   { label: "财务", value: "finance" },
 ];
 
-const roleColor: Record<string, string> = {
-  admin: "red", sales: "blue", purchase: "green", warehouse: "orange", finance: "purple",
+const roleColor: Record<string, StatusTone> = {
+  admin: "danger", sales: "info", purchase: "success", warehouse: "warning", finance: "info",
 };
 
 const roleLabel: Record<string, string> = {
@@ -103,11 +104,11 @@ export default function UserList() {
     { title: "用户名", dataIndex: "username", width: 120 },
     {
       title: "角色", dataIndex: "role", width: 80,
-      render: (v: string) => <Tag color={roleColor[v] || "default"}>{roleLabel[v] || v}</Tag>,
+      render: (v: string) => <StatusTag status={roleLabel[v] || v} tone={roleColor[v] || "neutral"} />,
     },
     {
       title: "状态", dataIndex: "is_active", width: 60,
-      render: (v: boolean) => <Tag color={v ? "green" : "red"}>{v ? "启用" : "禁用"}</Tag>,
+      render: (v: boolean) => <StatusTag status={v ? "启用" : "禁用"} tone={v ? "success" : "danger"} />,
     },
     {
       title: "创建时间", dataIndex: "created_at", width: 100,

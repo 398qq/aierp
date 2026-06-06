@@ -19,7 +19,7 @@ The optional `label` overrides the displayed text; if omitted the
 */
 
 import { Tag } from "antd";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 
 export type StatusTone = "success" | "warning" | "danger" | "info" | "neutral" | "processing";
 
@@ -45,7 +45,9 @@ export interface StatusTagProps {
   label?: ReactNode;
   children?: ReactNode;
   style?: CSSProperties;
-  onClick?: (e: React.MouseEvent<HTMLElement>) => void;
+  onClick?: (e: MouseEvent<HTMLElement>) => void;
+  icon?: ReactNode;
+  className?: string;
 }
 
 export function StatusTag({ status, tone, color, label, children, ...rest }: StatusTagProps) {

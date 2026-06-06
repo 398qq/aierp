@@ -3,6 +3,7 @@ import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Aler
 import { PieChartOutlined, RiseOutlined, AimOutlined, WarningOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { orchestrateGlobal360 } from "../../api";
 import type { Global360 as Global360Type } from "../../types";
+import { StatusTag } from "../../ui";
 
 const { Title, Text } = Typography;
 
@@ -41,7 +42,7 @@ export default function Global360Page() {
   const riskColumns = [
     { title: "领域", dataIndex: "area", width: 80, render: (a: string) => <Tag>{a}</Tag> },
     { title: "描述", dataIndex: "description", ellipsis: true },
-    { title: "严重程度", dataIndex: "severity", width: 80, render: (s: string) => <Tag color={s === "高" ? "red" : s === "中" ? "orange" : "blue"}>{s}</Tag> },
+    { title: "严重程度", dataIndex: "severity", width: 80, render: (s: string) => <StatusTag status={s} tone={s === "高" ? "danger" : s === "中" ? "warning" : "info"} /> },
     { title: "缓解措施", dataIndex: "mitigation", width: 120, ellipsis: true },
   ];
 
@@ -49,13 +50,13 @@ export default function Global360Page() {
     { title: "KPI", dataIndex: "kpi", width: 120 },
     { title: "当前值", dataIndex: "current", width: 100 },
     { title: "目标值", dataIndex: "target", width: 100 },
-    { title: "状态", dataIndex: "status", width: 80, render: (s: string) => <Tag color={s === "达标" ? "green" : s === "低于" ? "red" : "orange"}>{s}</Tag> },
+    { title: "状态", dataIndex: "status", width: 80, render: (s: string) => <StatusTag status={s} tone={s === "达标" ? "success" : s === "低于" ? "danger" : "warning"} /> },
   ];
 
   const recoColumns = [
     { title: "领域", dataIndex: "domain", width: 80, render: (d: string) => <Tag>{d}</Tag> },
     { title: "建议", dataIndex: "recommendation", ellipsis: true },
-    { title: "优先级", dataIndex: "priority", width: 80, render: (p: string) => <Tag color={p === "高" ? "red" : p === "中" ? "orange" : "blue"}>{p}</Tag> },
+    { title: "优先级", dataIndex: "priority", width: 80, render: (p: string) => <StatusTag status={p} tone={p === "高" ? "danger" : p === "中" ? "warning" : "info"} /> },
     { title: "理由", dataIndex: "rationale", ellipsis: true },
   ];
 
@@ -88,7 +89,7 @@ export default function Global360Page() {
             {insights.focus_areas?.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <Text strong>重点关注领域: </Text>
-                {insights.focus_areas.map((f: string, i: number) => <Tag color="blue" key={i}>{f}</Tag>)}
+                {insights.focus_areas.map((f: string, i: number) => <StatusTag status={f} tone="info" key={i} />)}
               </div>
             )}
           </Card>
@@ -120,7 +121,7 @@ export default function Global360Page() {
             {insights.cross_domain_correlations?.length > 0 ? (
               <List size="small" dataSource={insights.cross_domain_correlations} renderItem={(item: any) => (
                 <List.Item>
-                  <Tag color="purple">{item.domains}</Tag>
+                  <StatusTag status={item.domains} tone="info" />
                   <Text>{item.finding}</Text>
                   {item.significance && <Tag style={{ marginLeft: 8 }}>{item.significance}</Tag>}
                 </List.Item>

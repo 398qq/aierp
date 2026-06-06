@@ -3,19 +3,20 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Tag, Spin, Alert, Empty, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { getTicket } from "../../api";
+import { StatusTag, type StatusTone } from "../../ui";
 import type { Ticket } from "../../types";
 
-const STATUS_MAP: Record<string, { color: string; label: string }> = {
-  open: { color: "blue", label: "待处理" },
-  in_progress: { color: "orange", label: "处理中" },
-  resolved: { color: "green", label: "已解决" },
-  closed: { color: "default", label: "已关闭" },
+const STATUS_MAP: Record<string, { tone: StatusTone; label: string }> = {
+  open: { tone: "info", label: "待处理" },
+  in_progress: { tone: "warning", label: "处理中" },
+  resolved: { tone: "success", label: "已解决" },
+  closed: { tone: "neutral", label: "已关闭" },
 };
 
-const PRIORITY_MAP: Record<string, { color: string; label: string }> = {
-  low: { color: "green", label: "低" },
-  medium: { color: "orange", label: "中" },
-  high: { color: "red", label: "高" },
+const PRIORITY_MAP: Record<string, { tone: StatusTone; label: string }> = {
+  low: { tone: "success", label: "低" },
+  medium: { tone: "warning", label: "中" },
+  high: { tone: "danger", label: "高" },
 };
 
 export default function TicketDetail() {
@@ -49,10 +50,10 @@ export default function TicketDetail() {
         <Descriptions column={2} size="small">
           <Descriptions.Item label="工单号">{ticket.ticket_no || `-`}</Descriptions.Item>
           <Descriptions.Item label="状态">
-            <Tag color={STATUS_MAP[ticket.status]?.color}>{STATUS_MAP[ticket.status]?.label || ticket.status}</Tag>
+            <StatusTag status={ticket.status} tone={STATUS_MAP[ticket.status]?.tone || "neutral"} label={STATUS_MAP[ticket.status]?.label || ticket.status} />
           </Descriptions.Item>
           <Descriptions.Item label="优先级">
-            <Tag color={PRIORITY_MAP[ticket.priority]?.color}>{PRIORITY_MAP[ticket.priority]?.label || ticket.priority}</Tag>
+            <StatusTag status={ticket.priority} tone={PRIORITY_MAP[ticket.priority]?.tone || "neutral"} label={PRIORITY_MAP[ticket.priority]?.label || ticket.priority} />
           </Descriptions.Item>
           <Descriptions.Item label="分类">{ticket.category || "-"}</Descriptions.Item>
           <Descriptions.Item label="处理人">{ticket.assigned_to || "-"}</Descriptions.Item>

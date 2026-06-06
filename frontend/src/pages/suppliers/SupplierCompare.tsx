@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Card, Select, Table, Tag, Typography, Spin, Alert, Button, Space, Row, Col } from "antd";
+import { Card, Select, Table, Typography, Spin, Alert, Button, Space, Row, Col } from "antd";
 import { TrophyOutlined, SwapOutlined, DashboardOutlined } from "@ant-design/icons";
 import { compareSuppliers, getSuppliers } from "../../api";
 import type { SupplierComparison } from "../../types";
+import { StatusTag } from "../../ui";
 
 const { Title, Text } = Typography;
 
@@ -56,10 +57,10 @@ export default function SupplierComparePage() {
   };
 
   const rankColumns = [
-    { title: "排名", dataIndex: "rank", width: 60, render: (r: number | undefined) => r != null ? <Tag color={r === 1 ? "gold" : r === 2 ? "blue" : "default"}>{r}</Tag> : "-" },
+    { title: "排名", dataIndex: "rank", width: 60, render: (r: number | undefined) => r != null ? <StatusTag status={String(r)} tone={r === 1 ? "processing" : r === 2 ? "info" : "neutral"} /> : "-" },
     { title: "供应商", dataIndex: "supplier_name" },
     { title: "总分", dataIndex: "total_score", render: (s: number | undefined) => s != null ? s.toFixed(1) : "-" },
-    { title: "等级", dataIndex: "tier", render: (t: string) => <Tag color={t === "A" ? "green" : t === "B" ? "blue" : t === "C" ? "orange" : "red"}>{t}</Tag> },
+    { title: "等级", dataIndex: "tier", render: (t: string) => <StatusTag status={t} tone={t === "A" ? "success" : t === "B" ? "info" : t === "C" ? "warning" : "danger"} /> },
   ];
 
   const matrixColumns = data?.comparison_matrix?.[0]?.scores
@@ -140,7 +141,7 @@ export default function SupplierComparePage() {
                 {displayBestInCategory.map((b, i) => (
                   <div key={i} style={{ marginBottom: 8 }}>
                     <Text strong>{b.category}: </Text>
-                    <Tag color="green">{b.winner}</Tag>
+                    <StatusTag status={String(b.winner)} tone="success" />
                     <Text type="secondary"> — {b.reason}</Text>
                   </div>
                 ))}
