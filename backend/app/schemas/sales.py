@@ -41,7 +41,9 @@ class OpportunityUpdate(BaseModel):
 class OpportunityResponse(BaseModel):
     id: int
     customer_id: int
+    customer_name: str | None = None
     product_id: int | None = None
+    product_name: str | None = None
     title: str
     description: str | None = None
     status: str
@@ -145,7 +147,9 @@ class QuotationResponse(BaseModel):
     id: int
     quotation_no: str | None = None
     customer_id: int
+    customer_name: str | None = None
     opportunity_id: int | None = None
+    opportunity_title: str | None = None
     title: str | None = None
     total_amount: float
     status: str
@@ -220,7 +224,9 @@ class SalesOrderResponse(BaseModel):
     id: int
     order_no: str | None = None
     customer_id: int
+    customer_name: str | None = None
     quotation_id: int | None = None
+    quotation_no: str | None = None
     total_amount: float
     status: str
     order_date: datetime | None = None
@@ -293,7 +299,9 @@ class DeliveryNoteResponse(BaseModel):
     id: int
     delivery_no: str | None = None
     sales_order_id: int
+    sales_order_no: str | None = None
     customer_id: int
+    customer_name: str | None = None
     status: str
     delivery_date: datetime | None = None
     received_date: datetime | None = None

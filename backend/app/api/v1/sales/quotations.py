@@ -28,6 +28,7 @@ from app.api.v1.sales._shared import (
     _quotations_cache_key,
 )
 from app.database import get_db
+from app.models.sales import Quotation
 from app.schemas.common import fail, ok
 from app.schemas.sales import (
     BatchDeleteRequest,
@@ -48,6 +49,52 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["sales:quotation"])
 
 
+async def _reload_quotation_for_serialize(db: AsyncSession, quote_id: int) -> dict:
+    """Re-fetch a Quotation with customer + opportunity + items eagerly loaded,
+    so the response can include `customer_name` and the items list without
+    triggering async lazy-loads.
+
+    The project's aiosqlite test setup doesn't support async lazy loading
+    (see conftest note), so we explicitly assign related objects to the
+    ORM instance — matching the pattern used by the PDF endpoint.
+    """
+    from app.models.customer import Customer
+    from app.models.sales import Opportunity, QuotationItem
+    quote_result = await db.execute(
+        select(Quotation).where(Quotation.id == quote_id, Quotation.deleted_at.is_(None))
+    )
+    quote = quote_result.scalar_one_or_none()
+    if not quote:
+        return {}
+    # Eager-load related entities
+    if quote.customer_id:
+        cust = (await db.execute(select(Customer).where(Customer.id == quote.customer_id))).scalar_one_or_none()
+        quote.customer = cust
+    else:
+        quote.customer = None
+    if quote.opportunity_id:
+        opp = (await db.execute(select(Opportunity).where(Opportunity.id == quote.opportunity_id))).scalar_one_or_none()
+        quote.opportunity = opp
+    else:
+        quote.opportunity = None
+    items_result = await db.execute(
+        select(QuotationItem)
+        .where(QuotationItem.quotation_id == quote.id, QuotationItem.deleted_at.is_(None))
+    )
+    quote.items = list(items_result.scalars().all())
+    return _serialize_quotation(quote)
+
+
+def _serialize_quotations(quotes: list) -> list[dict]:
+    """Serialize a list of Quotation ORM objects to JSON-safe dicts.
+
+    Assumes the caller has already eager-loaded customer, opportunity, and
+    items on each Quotation (via joinedload). If not, the missing attributes
+    will be `None` in the output.
+    """
+    return [_serialize_quotation(q) for q in quotes]
+
+
 async def _bump_quotation_caches() -> None:
     """Bump all caches affected by quotation writes."""
     await cache_bump_version("quotations:list")
@@ -55,6 +102,46 @@ async def _bump_quotation_caches() -> None:
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("reports:predefined:sales")
+
+
+def _serialize_quotation(quote) -> dict:
+    """Convert a Quotation ORM to a JSON-safe dict with denormalized customer_name.
+
+    Avoids the N+1 problem: the caller must `selectinload(Quotation.customer)`
+    and `selectinload(Quotation.opportunity)` before invoking this.
+    """
+    return {
+        "id": quote.id,
+        "quotation_no": quote.quotation_no,
+        "customer_id": quote.customer_id,
+        "customer_name": quote.customer.name if quote.customer else None,
+        "opportunity_id": quote.opportunity_id,
+        "opportunity_title": quote.opportunity.title if quote.opportunity else None,
+        "title": quote.title,
+        "total_amount": float(quote.total_amount or 0),
+        "status": quote.status,
+        "valid_until": quote.valid_until.isoformat() if quote.valid_until else None,
+        "notes": quote.notes,
+        "created_at": quote.created_at.isoformat() if quote.created_at else None,
+        "updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
+        "items": [
+            {
+                "id": it.id,
+                "quotation_id": it.quotation_id,
+                "product_id": it.product_id,
+                "product_name": it.product_name,
+                "quantity": it.quantity,
+                "unit_price": float(it.unit_price) if it.unit_price is not None else None,
+                "total_price": float(it.total_price) if it.total_price is not None else None,
+                "cost_price": float(it.cost_price) if it.cost_price is not None else None,
+                "untaxed_cost": float(it.untaxed_cost) if it.untaxed_cost is not None else None,
+                "taxed_cost": float(it.taxed_cost) if it.taxed_cost is not None else None,
+                "sales_profit": float(it.sales_profit) if it.sales_profit is not None else None,
+                "notes": it.notes,
+            }
+            for it in (quote.items or [])
+        ],
+    }
 
 
 @router.get("/quotations")
@@ -83,15 +170,53 @@ async def list_quotations(
         return ok(result)
 
     response.headers["X-Cache"] = "MISS"
-    result = await svc.list_quotations(
+    raw = await svc.list_quotations(
         db, page=page, page_size=page_size, customer_id=customer_id,
         status=status, q=q, sort_by=sort_by, sort_order=sort_order,
     )
+    # Eager-load customer + opportunity + items on every Quotation in the
+    # page so the response can include customer_name without triggering
+    # async lazy-loads. We use a separate IN query instead of joinedload
+    # to avoid cartesian explosion on large pages.
+    from app.models.customer import Customer
+    from app.models.sales import Opportunity, Quotation, QuotationItem
+    from typing import cast
+    quotes = cast(list[Quotation], list(raw["list"]))
+    custs: dict[int, Customer] = {}
+    opps: dict[int, Opportunity] = {}
+    if quotes:
+        quote_ids = [q.id for q in quotes]
+        cust_ids = list({q.customer_id for q in quotes if q.customer_id})
+        opp_ids = list({q.opportunity_id for q in quotes if q.opportunity_id})
+        items_by_q: dict[int, list[QuotationItem]] = {qid: [] for qid in quote_ids}
+        if cust_ids:
+            cust_rows = (await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))).scalars().all()
+            custs = {c.id: c for c in cust_rows}
+        if opp_ids:
+            opp_rows = (await db.execute(select(Opportunity).where(Opportunity.id.in_(opp_ids)))).scalars().all()
+            opps = {o.id: o for o in opp_rows}
+        item_rows = (await db.execute(
+            select(QuotationItem)
+            .where(QuotationItem.quotation_id.in_(quote_ids), QuotationItem.deleted_at.is_(None))
+        )).scalars().all()
+        for it in item_rows:
+            items_by_q.setdefault(it.quotation_id, []).append(it)
+        for q in quotes:  # type: ignore[union-attr,assignment]
+            # Only assign non-None to many-to-one relationships to avoid
+            # clearing NOT NULL FK columns when the related row is missing.
+            if (c := custs.get(q.customer_id)) is not None:  # type: ignore[union-attr]
+                q.customer = c  # type: ignore[union-attr]
+            if (o := opps.get(q.opportunity_id)) is not None:  # type: ignore[union-attr]
+                q.opportunity = o  # type: ignore[union-attr]
+            q.items = items_by_q.get(q.id, [])  # type: ignore[union-attr]
+    serialized_list = _serialize_quotations(quotes)
+    result = {**raw, "list": serialized_list}
     if include_ai and result["list"]:
+        # enrich_quotation_list expects ORM objects; pass quotes
         from app.services.sales_ai_service import enrich_quotation_list
-        ai_map = await enrich_quotation_list(db, result["list"])
+        ai_map = await enrich_quotation_list(db, quotes)
         result["ai"] = ai_map
-    await cache_set_versioned('quotations:list', cache_key, json.dumps(result, default=str), QUOTATIONS_LIST_CACHE_TTL)
+    await cache_set_versioned('quotations:list', cache_key, json.dumps(result), QUOTATIONS_LIST_CACHE_TTL)
     return ok(result)
 
 
@@ -131,7 +256,7 @@ async def get_quotation(
         ai_result: dict = QuotationResponse.model_validate(quote).model_dump()
         ai_result["ai"] = ai_data
         return ok(ai_result)
-    return ok(quote)
+    return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
 @router.post("/quotations/{quote_id}/duplicate", status_code=201)
@@ -161,7 +286,7 @@ async def update_quotation_status(
     except ValueError as e:
         return fail(str(e), 400)
     await _bump_quotation_caches()
-    return ok(quote)
+    return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
 @router.get("/quotations/{quote_id}/pdf")
@@ -236,7 +361,7 @@ async def create_quotation(
     from app.services.sales_ai_pipeline import after_quotation_save
     after_quotation_save(quote.id)
     await _bump_quotation_caches()
-    return ok(quote)
+    return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
 @router.put("/quotations/{quote_id}")
@@ -254,7 +379,7 @@ async def update_quotation(
     from app.services.sales_ai_pipeline import after_quotation_save
     after_quotation_save(quote.id)
     await _bump_quotation_caches()
-    return ok(quote)
+    return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
 @router.delete("/quotations/{quote_id}")

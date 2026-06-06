@@ -138,7 +138,9 @@ class InvoiceResponse(BaseModel):
     id: int
     invoice_no: str | None = None
     sales_order_id: int
+    sales_order_no: str | None = None
     customer_id: int
+    customer_name: str | None = None
     amount: float
     tax_amount: float
     invoice_date: str | None = None
@@ -189,3 +191,42 @@ class PaymentStats(BaseModel):
     total_overdue: float = 0
     by_method: dict[str, float] = {}
     monthly: list[dict] = []
+
+
+# --- Commission ---
+
+class CommissionCreate(BaseModel):
+    sales_order_id: int
+    sales_user_id: int
+    base_amount: float = Field(default=0, ge=0)
+    rate: float = Field(default=0, ge=0, le=1)
+    period: str | None = None
+    notes: str | None = None
+
+
+class CommissionUpdate(BaseModel):
+    base_amount: float | None = Field(default=None, ge=0)
+    rate: float | None = Field(default=None, ge=0, le=1)
+    period: str | None = None
+    notes: str | None = None
+    status: str | None = None
+
+
+class CommissionRead(BaseModel):
+    id: int
+    commission_no: str | None
+    sales_order_id: int
+    sales_user_id: int
+    customer_id: int | None
+    base_amount: float
+    rate: float
+    commission_amount: float
+    paid_amount: float
+    status: str
+    approved_by: int | None
+    approved_at: datetime | None
+    paid_at: datetime | None
+    period: str | None
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime

@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.finance import Contract, Invoice, PaymentRecord, SalesTarget
+from app.domain.shared.errors import InvalidStateTransition, NotFoundError
+from app.models.finance import Commission, Contract, Invoice, PaymentRecord, SalesTarget
 from app.models.sales import SalesOrder
 from app.services.docno import generate_doc_no
 
@@ -279,4 +280,127 @@ async def target_stats(db: AsyncSession) -> dict:
         "achievement_pct": round(total_actual / total_target * 100, 1) if total_target > 0 else 0,
         "count": len(rows),
         "completed": sum(1 for t in rows if t.status == "completed"),
+    }
+
+
+# ============================================================
+# Commission CRUD + state machine
+# ============================================================
+
+COMMISSION_STATUSES = ("draft", "pending_approval", "approved", "paid", "rejected", "cancelled")
+COMMISSION_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"pending_approval", "cancelled"},
+    "pending_approval": {"approved", "rejected", "draft"},
+    "approved": {"paid", "cancelled"},
+    "paid": set(),
+    "rejected": {"draft"},
+    "cancelled": set(),
+}
+
+
+def assert_can_transition_commission(current: str, target: str) -> None:
+    """Raise InvalidStateTransition if the commission state transition is illegal."""
+    if current not in COMMISSION_STATUSES or target not in COMMISSION_STATUSES:
+        raise InvalidStateTransition(
+            f"unknown commission status: {current} → {target}",
+            current=current,
+            target=target,
+            allowed=sorted(COMMISSION_TRANSITIONS.get(current, set())),
+        )
+    allowed = COMMISSION_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise InvalidStateTransition(
+            f"illegal commission transition: {current} → {target}",
+            current=current,
+            target=target,
+            allowed=sorted(allowed),
+        )
+
+
+def _compute_commission_amount(base: float, rate: float) -> float:
+    """Commission = base * rate. Use Decimal internally to avoid float drift."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return float(Decimal(str(base)) * Decimal(str(rate)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
+
+
+async def list_commissions(
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    sales_user_id: int | None = None,
+) -> dict:
+    stmt = select(Commission).where(Commission.deleted_at.is_(None))
+    if status:
+        stmt = stmt.where(Commission.status == status)
+    if sales_user_id:
+        stmt = stmt.where(Commission.sales_user_id == sales_user_id)
+    stmt = stmt.order_by(Commission.created_at.desc())
+    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(stmt)
+    items = [c.to_dict() if hasattr(c, "to_dict") else _commission_to_dict(c) for c in result.scalars().all()]
+    return {"list": items, "total": total or 0, "page": page, "page_size": page_size}
+
+
+async def get_commission(db: AsyncSession, commission_id: int) -> Commission | None:
+    result = await db.execute(
+        select(Commission).where(Commission.id == commission_id, Commission.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_commission(db: AsyncSession, data: dict) -> Commission:
+    from app.models.sales import SalesOrder
+    so = await db.scalar(
+        select(SalesOrder.customer_id).where(SalesOrder.id == data["sales_order_id"], SalesOrder.deleted_at.is_(None))
+    )
+    if not so:
+        raise NotFoundError(f"sales_order {data['sales_order_id']} not found", entity="sales_order", id=data["sales_order_id"])
+    data["customer_id"] = so
+    data["commission_amount"] = _compute_commission_amount(data.get("base_amount", 0), data.get("rate", 0))
+    data.setdefault("commission_no", await generate_doc_no(db, "CM", Commission, "commission_no"))
+    obj = Commission(**data)
+    db.add(obj)
+    await db.flush()
+    return obj
+
+
+async def update_commission(db: AsyncSession, comm: Commission, data: dict) -> Commission:
+    if "status" in data and data["status"] != comm.status:
+        assert_can_transition_commission(comm.status, data["status"])
+        if data["status"] == "approved":
+            data["approved_at"] = datetime.now(timezone.utc)
+    for k, v in data.items():
+        setattr(comm, k, v)
+    if "base_amount" in data or "rate" in data:
+        comm.commission_amount = _compute_commission_amount(comm.base_amount or 0, comm.rate or 0)
+    await db.flush()
+    return comm
+
+
+async def delete_commission(db: AsyncSession, comm: Commission) -> None:
+    comm.deleted_at = datetime.now(timezone.utc)
+    await db.flush()
+
+
+def _commission_to_dict(c) -> dict:
+    return {
+        "id": c.id,
+        "commission_no": c.commission_no,
+        "sales_order_id": c.sales_order_id,
+        "sales_user_id": c.sales_user_id,
+        "customer_id": c.customer_id,
+        "base_amount": float(c.base_amount or 0),
+        "rate": float(c.rate or 0),
+        "commission_amount": float(c.commission_amount or 0),
+        "paid_amount": float(c.paid_amount or 0),
+        "status": c.status,
+        "approved_by": c.approved_by,
+        "approved_at": c.approved_at.isoformat() if c.approved_at else None,
+        "paid_at": c.paid_at.isoformat() if c.paid_at else None,
+        "period": c.period,
+        "notes": c.notes,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }

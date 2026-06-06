@@ -263,7 +263,6 @@ async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Qu
             db.add(qi)
         quote.total_amount = total
     await db.commit()
-    await db.refresh(quote)
     return quote
 
 

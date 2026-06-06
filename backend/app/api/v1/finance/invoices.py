@@ -12,6 +12,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -19,7 +20,14 @@ from app.api.v1.finance._shared import (
     INVOICES_LIST_CACHE_TTL,
     _invoices_cache_key,
 )
+from app.api.v1.sales._serialize import (
+    attach_customer_and_quotation,
+    attach_sales_order,
+    serialize_invoice,
+)
 from app.database import get_db
+from app.models.customer import Customer
+from app.models.sales import SalesOrder
 from app.schemas.common import fail, ok
 from app.schemas.finance import InvoiceCreate, InvoiceUpdate
 from app.services import finance_service as svc
@@ -63,12 +71,26 @@ async def list_invoices(
         response.headers["X-Cache-Key"] = cache_key
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
-    result = await svc.list_invoices(
+    raw = await svc.list_invoices(
         db, page=page, page_size=page_size, customer_id=customer_id,
         status=status, sales_order_id=sales_order_id,
         sort_by=sort_by, sort_order=sort_order,
     )
-    await cache_set_versioned("invoices:list", cache_key, json.dumps(result, default=str),
+    invoices = list(raw["list"])
+    # Eager-load customer + sales_order to avoid N+1 + async lazy loads
+    if invoices:
+        cust_ids = list({i.customer_id for i in invoices if i.customer_id})
+        so_ids = list({i.sales_order_id for i in invoices if i.sales_order_id})
+        custs = {c.id: c for c in (await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))).scalars().all()} if cust_ids else {}
+        sos = {s.id: s for s in (await db.execute(select(SalesOrder).where(SalesOrder.id.in_(so_ids)))).scalars().all()} if so_ids else {}
+        for inv in invoices:
+            if (c := custs.get(inv.customer_id)) is not None:
+                inv.customer = c
+            if (s := sos.get(inv.sales_order_id)) is not None:
+                inv.sales_order = s
+    serialized_list = [serialize_invoice(i) for i in invoices]
+    result = {**raw, "list": serialized_list}
+    await cache_set_versioned("invoices:list", cache_key, json.dumps(result),
                                 INVOICES_LIST_CACHE_TTL)
     return ok(result)
 
@@ -78,14 +100,18 @@ async def get_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: di
     inv = await svc.get_invoice(db, inv_id)
     if not inv:
         return fail("发票不存在", 404)
-    return ok(inv)
+    await attach_customer_and_quotation(db, inv, type(inv))
+    await attach_sales_order(db, inv, "sales_order_id")
+    return ok(serialize_invoice(inv))
 
 
 @router.post("/invoices")
 async def create_invoice(body: InvoiceCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
     inv = await svc.create_invoice(db, body.model_dump())
     await _bump_invoice_caches()
-    return ok(inv)
+    await attach_customer_and_quotation(db, inv, type(inv))
+    await attach_sales_order(db, inv, "sales_order_id")
+    return ok(serialize_invoice(inv))
 
 
 @router.put("/invoices/{inv_id}")
@@ -95,7 +121,9 @@ async def update_invoice(inv_id: int, body: InvoiceUpdate, db: AsyncSession = De
         return fail("发票不存在", 404)
     inv = await svc.update_invoice(db, inv, body.model_dump(exclude_none=True))
     await _bump_invoice_caches()
-    return ok(inv)
+    await attach_customer_and_quotation(db, inv, type(inv))
+    await attach_sales_order(db, inv, "sales_order_id")
+    return ok(serialize_invoice(inv))
 
 
 @router.delete("/invoices/{inv_id}")

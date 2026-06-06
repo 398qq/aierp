@@ -21,11 +21,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.v1.sales._serialize import (
+    attach_customer_and_quotation,
+    attach_items,
+    serialize_sales_order,
+)
 from app.api.v1.sales._shared import (
     SALES_ORDERS_LIST_CACHE_TTL,
     _sales_orders_cache_key,
 )
 from app.database import get_db
+from app.models.sales import SalesOrderItem
 from app.schemas.common import fail, ok
 from app.schemas.sales import (
     BatchDeleteRequest,
@@ -79,15 +85,45 @@ async def list_sales_orders(
         return ok(result)
 
     response.headers["X-Cache"] = "MISS"
-    result = await svc.list_sales_orders(
+    raw = await svc.list_sales_orders(
         db, page=page, page_size=page_size, customer_id=customer_id,
         status=status, q=q, sort_by=sort_by, sort_order=sort_order,
     )
-    if include_ai and result["list"]:
+    orders = list(raw["list"])
+    # Eager-load customer + quotation + items to avoid N+1 in serializer
+    from app.models.customer import Customer
+    from app.models.sales import Quotation
+    custs: dict[int, Customer] = {}
+    quots: dict[int, Quotation] = {}
+    if orders:
+        cust_ids = list({o.customer_id for o in orders if o.customer_id})
+        quot_ids = list({o.quotation_id for o in orders if o.quotation_id})
+        if cust_ids:
+            custs = {c.id: c for c in (await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))).scalars().all()}
+        if quot_ids:
+            quots = {q.id: q for q in (await db.execute(select(Quotation).where(Quotation.id.in_(quot_ids)))).scalars().all()}
+        item_rows = (await db.execute(
+            select(SalesOrderItem)
+            .where(SalesOrderItem.order_id.in_([o.id for o in orders]), SalesOrderItem.deleted_at.is_(None))
+        )).scalars().all()
+        items_by_o: dict[int, list[SalesOrderItem]] = {}
+        for it in item_rows:
+            items_by_o.setdefault(it.order_id, []).append(it)
+        for o in orders:
+            # Only assign non-None to many-to-one relationships to avoid
+            # clearing NOT NULL FK columns when the related row is missing.
+            if (c := custs.get(o.customer_id)) is not None:
+                o.customer = c
+            if (q := quots.get(o.quotation_id)) is not None:  # type: ignore[assignment]
+                o.quotation = q
+            o.items = items_by_o.get(o.id, [])
+    serialized_list = [serialize_sales_order(o) for o in orders]
+    result = {**raw, "list": serialized_list}
+    if include_ai and orders:
         from app.services.sales_ai_service import enrich_order_list
-        ai_map = await enrich_order_list(db, result["list"])
+        ai_map = await enrich_order_list(db, orders)
         result["ai"] = ai_map
-    await cache_set_versioned('sales-orders:list', cache_key, json.dumps(result, default=str), SALES_ORDERS_LIST_CACHE_TTL)
+    await cache_set_versioned('sales-orders:list', cache_key, json.dumps(result), SALES_ORDERS_LIST_CACHE_TTL)
     return ok(result)
 
 
@@ -187,14 +223,15 @@ async def get_sales_order(
     order = await svc.get_sales_order(db, order_id)
     if not order:
         return fail("销售订单不存在", 404)
+    await attach_customer_and_quotation(db, order, type(order))
+    await attach_items(db, order, SalesOrderItem, "order_id")
     if include_ai:
         from app.services.sales_ai_service import enrich_sales_order
         ai_data = await enrich_sales_order(db, order)
-        from app.schemas.sales import SalesOrderResponse
-        ai_result: dict = SalesOrderResponse.model_validate(order).model_dump()
+        ai_result = serialize_sales_order(order)
         ai_result["ai"] = ai_data
         return ok(ai_result)
-    return ok(order)
+    return ok(serialize_sales_order(order))
 
 
 @router.post("/sales-orders", status_code=201)
@@ -206,7 +243,9 @@ async def create_sales_order(
     items_data = data.pop("items", [])
     order = await svc.create_sales_order(db, data, items_data)
     await _bump_sales_order_caches()
-    return ok(order)
+    await attach_customer_and_quotation(db, order, type(order))
+    await attach_items(db, order, SalesOrderItem, "order_id")
+    return ok(serialize_sales_order(order))
 
 
 @router.put("/sales-orders/{order_id}")
@@ -219,7 +258,9 @@ async def update_sales_order(
         return fail("销售订单不存在", 404)
     order = await svc.update_sales_order(db, order, body.model_dump(exclude_none=True))
     await _bump_sales_order_caches()
-    return ok(order)
+    await attach_customer_and_quotation(db, order, type(order))
+    await attach_items(db, order, SalesOrderItem, "order_id")
+    return ok(serialize_sales_order(order))
 
 
 @router.delete("/sales-orders/{order_id}")
