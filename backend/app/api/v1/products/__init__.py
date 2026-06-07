@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from app.api.v1.products.bom import bom_router, product_bom_router
 from app.api.v1.products.brands import brands_router
 from app.api.v1.products.crud import router as crud_router
 from app.api.v1.products.inventories import inventories_router
@@ -18,9 +19,13 @@ router.include_router(crud_router)
 router.include_router(pricing_router)
 router.include_router(inventories_router)
 router.include_router(inventory_router)
+router.include_router(bom_router)
+router.include_router(product_bom_router)
 
 __all__ = [
     "router",
+    "bom_router",
+    "product_bom_router",
     "brands_router",
     "crud_router",
     "list_router",

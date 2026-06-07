@@ -1,4 +1,5 @@
 """Inventory management API."""
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -25,6 +26,12 @@ class InventoryCreate(BaseModel):
     safety_stock: int | None = None
     locked_quantity: int | None = None
     unit_price: float | None = None
+    location_code: str | None = None
+    reorder_point: int = 0
+    max_stock: int | None = None
+    abc_class: str | None = None
+    costing_method: str = "moving_avg"
+    count_cycle_days: int | None = None
 
 
 class InventoryUpdate(BaseModel):
@@ -32,6 +39,13 @@ class InventoryUpdate(BaseModel):
     safety_stock: int | None = None
     locked_quantity: int | None = None
     unit_price: float | None = None
+    location_code: str | None = None
+    reorder_point: int | None = None
+    max_stock: int | None = None
+    abc_class: str | None = None
+    costing_method: str | None = None
+    last_counted_at: str | None = None
+    count_cycle_days: int | None = None
 
 
 # ============================================================
@@ -45,13 +59,22 @@ def _inventory_row(inv: Inventory, prod: Product, wh: Warehouse) -> dict:
         "product_id": inv.product_id,
         "product_name": prod.name,
         "product_sku": prod.sku,
+        "mpn": prod.mpn,
         "warehouse_id": inv.warehouse_id,
         "warehouse_name": wh.name,
+        "warehouse_type": wh.warehouse_type,
         "quantity": inv.quantity,
         "safety_stock": inv.safety_stock,
         "locked_quantity": inv.locked_quantity,
         "unit_price": inv.unit_price,
         "available_quantity": inv.quantity - (inv.locked_quantity or 0),
+        "location_code": inv.location_code,
+        "reorder_point": inv.reorder_point,
+        "max_stock": inv.max_stock,
+        "abc_class": inv.abc_class,
+        "costing_method": inv.costing_method,
+        "last_counted_at": str(inv.last_counted_at) if inv.last_counted_at else None,
+        "count_cycle_days": inv.count_cycle_days,
         "created_at": inv.created_at,
         "updated_at": inv.updated_at,
     }
@@ -140,7 +163,9 @@ async def create_inventory(
         )
     )
     if existing.scalar_one_or_none():
-        return fail("Inventory record already exists for this product and warehouse", 400)
+        return fail(
+            "Inventory record already exists for this product and warehouse", 400
+        )
 
     inventory = Inventory(
         **data.model_dump(exclude_unset=True),

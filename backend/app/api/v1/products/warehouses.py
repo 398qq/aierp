@@ -1,4 +1,5 @@
 """Warehouses and inventory management API."""
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -22,12 +23,16 @@ class WarehouseCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     location: str | None = None
     description: str | None = None
+    warehouse_type: str | None = None  # main / transit / returns / quarantine
+    is_active: bool = True
 
 
 class WarehouseUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     location: str | None = None
     description: str | None = None
+    warehouse_type: str | None = None
+    is_active: bool | None = None
 
 
 # --- Inventory Schemas ---
@@ -73,7 +78,17 @@ async def list_warehouses(
     query = query.offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(query)).scalars().all()
 
-    items = [{"id": r.id, "name": r.name, "location": r.location, "description": r.description} for r in rows]
+    items = [
+        {
+            "id": r.id,
+            "name": r.name,
+            "location": r.location,
+            "description": r.description,
+            "warehouse_type": r.warehouse_type,
+            "is_active": r.is_active,
+        }
+        for r in rows
+    ]
     return ok({"list": items, "total": total, "page": page, "page_size": page_size})
 
 
@@ -87,7 +102,15 @@ async def create_warehouse(
     db.add(warehouse)
     await db.commit()
     await db.refresh(warehouse)
-    return ok({"id": warehouse.id, "name": warehouse.name, "location": warehouse.location})
+    return ok(
+        {
+            "id": warehouse.id,
+            "name": warehouse.name,
+            "location": warehouse.location,
+            "warehouse_type": warehouse.warehouse_type,
+            "is_active": warehouse.is_active,
+        }
+    )
 
 
 @warehouses_router.get("/{warehouse_id}")
@@ -99,7 +122,16 @@ async def get_warehouse(
     row = await db.get(Warehouse, warehouse_id)
     if not row or row.deleted_at is not None:
         return fail("Warehouse not found", 404)
-    return ok({"id": row.id, "name": row.name, "location": row.location, "description": row.description})
+    return ok(
+        {
+            "id": row.id,
+            "name": row.name,
+            "location": row.location,
+            "description": row.description,
+            "warehouse_type": row.warehouse_type,
+            "is_active": row.is_active,
+        }
+    )
 
 
 @warehouses_router.put("/{warehouse_id}")
@@ -117,7 +149,15 @@ async def update_warehouse(
     warehouse.updated_by = current_user["user_id"]
     await db.commit()
     await db.refresh(warehouse)
-    return ok({"id": warehouse.id, "name": warehouse.name, "location": warehouse.location})
+    return ok(
+        {
+            "id": warehouse.id,
+            "name": warehouse.name,
+            "location": warehouse.location,
+            "warehouse_type": warehouse.warehouse_type,
+            "is_active": warehouse.is_active,
+        }
+    )
 
 
 @warehouses_router.delete("/{warehouse_id}")
@@ -149,13 +189,14 @@ async def list_inventory(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    query = select(Inventory, Product, Warehouse).join(
-        Product, Inventory.product_id == Product.id
-    ).join(
-        Warehouse, Inventory.warehouse_id == Warehouse.id
-    ).where(
-        Product.deleted_at.is_(None),
-        Warehouse.deleted_at.is_(None),
+    query = (
+        select(Inventory, Product, Warehouse)
+        .join(Product, Inventory.product_id == Product.id)
+        .join(Warehouse, Inventory.warehouse_id == Warehouse.id)
+        .where(
+            Product.deleted_at.is_(None),
+            Warehouse.deleted_at.is_(None),
+        )
     )
     if warehouse_id:
         query = query.where(Inventory.warehouse_id == warehouse_id)
@@ -181,19 +222,32 @@ async def list_inventory(
 
     items = []
     for inv, prod, wh in rows:
-        items.append({
-            "id": inv.id,
-            "product_id": inv.product_id,
-            "product_name": prod.name,
-            "product_sku": prod.sku,
-            "warehouse_id": inv.warehouse_id,
-            "warehouse_name": wh.name,
-            "quantity": inv.quantity,
-            "safety_stock": inv.safety_stock,
-            "locked_quantity": inv.locked_quantity,
-            "unit_price": inv.unit_price,
-            "available_quantity": inv.quantity - inv.locked_quantity,
-        })
+        items.append(
+            {
+                "id": inv.id,
+                "product_id": inv.product_id,
+                "product_name": prod.name,
+                "product_sku": prod.sku,
+                "mpn": prod.mpn,
+                "warehouse_id": inv.warehouse_id,
+                "warehouse_name": wh.name,
+                "warehouse_type": wh.warehouse_type,
+                "quantity": inv.quantity,
+                "safety_stock": inv.safety_stock,
+                "locked_quantity": inv.locked_quantity,
+                "unit_price": inv.unit_price,
+                "available_quantity": inv.quantity - inv.locked_quantity,
+                "location_code": inv.location_code,
+                "reorder_point": inv.reorder_point,
+                "max_stock": inv.max_stock,
+                "abc_class": inv.abc_class,
+                "costing_method": inv.costing_method,
+                "last_counted_at": str(inv.last_counted_at)
+                if inv.last_counted_at
+                else None,
+                "count_cycle_days": inv.count_cycle_days,
+            }
+        )
     return ok({"list": items, "total": total, "page": page, "page_size": page_size})
 
 
@@ -207,7 +261,9 @@ async def inventory_overview(
     ).where(Warehouse.deleted_at.is_(None))
     total_value = (await db.execute(total_value_q)).scalar() or 0
 
-    low_stock_q = select(func.count()).where(Inventory.quantity <= Inventory.safety_stock)
+    low_stock_q = select(func.count()).where(
+        Inventory.quantity <= Inventory.safety_stock
+    )
     low_stock_count = (await db.execute(low_stock_q)).scalar() or 0
 
     out_of_stock_q = select(func.count()).where(Inventory.quantity <= 0)
@@ -216,12 +272,14 @@ async def inventory_overview(
     product_count_q = select(func.count(func.distinct(Inventory.product_id)))
     product_count = (await db.execute(product_count_q)).scalar() or 0
 
-    return ok({
-        "total_value": float(total_value),
-        "low_stock_count": low_stock_count,
-        "out_of_stock_count": out_of_stock_count,
-        "product_count": product_count,
-    })
+    return ok(
+        {
+            "total_value": float(total_value),
+            "low_stock_count": low_stock_count,
+            "out_of_stock_count": out_of_stock_count,
+            "product_count": product_count,
+        }
+    )
 
 
 @inventory_router.post("/adjust")
@@ -256,6 +314,7 @@ async def inventory_adjust(
         inv.quantity = new_qty
 
     from app.models.product import InventoryTransaction
+
     tx = InventoryTransaction(
         product_id=product_id,
         warehouse_id=warehouse_id,
@@ -306,6 +365,7 @@ async def inventory_batch_adjust(
             inv.quantity = new_qty
 
         from app.models.product import InventoryTransaction
+
         tx = InventoryTransaction(
             product_id=item.product_id,
             warehouse_id=item.warehouse_id,
@@ -316,7 +376,13 @@ async def inventory_batch_adjust(
             notes=item.notes or body.reason,
         )
         db.add(tx)
-        results.append({"product_id": item.product_id, "warehouse_id": item.warehouse_id, "quantity": new_qty})
+        results.append(
+            {
+                "product_id": item.product_id,
+                "warehouse_id": item.warehouse_id,
+                "quantity": new_qty,
+            }
+        )
 
     await db.commit()
     return ok(results)
@@ -350,12 +416,14 @@ async def inventory_substitutes(
 
     items = []
     for inv, prod, wh in rows:
-        items.append({
-            "product_id": prod.id,
-            "product_name": prod.name,
-            "product_sku": prod.sku,
-            "warehouse_id": wh.id,
-            "warehouse_name": wh.name,
-            "quantity": inv.quantity,
-        })
+        items.append(
+            {
+                "product_id": prod.id,
+                "product_name": prod.name,
+                "product_sku": prod.sku,
+                "warehouse_id": wh.id,
+                "warehouse_name": wh.name,
+                "quantity": inv.quantity,
+            }
+        )
     return ok(items)

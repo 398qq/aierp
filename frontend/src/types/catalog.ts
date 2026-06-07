@@ -82,13 +82,35 @@ export interface Supplier {
 
 export interface Warehouse {
   id: number; name: string; location: string | null; description: string | null;
+  warehouse_type: string | null; is_active: boolean;
 }
 
 export interface InventoryItem {
   id: number; product_id: number; warehouse_id: number;
   quantity: number; safety_stock: number; locked_quantity: number; created_at: string;
-  sku?: string; product_name?: string; category?: string;
-  brand_name?: string; warehouse_name?: string;
+  sku?: string; product_name?: string; mpn?: string | null; category?: string;
+  brand_name?: string; warehouse_name?: string; warehouse_type?: string | null;
   available_quantity?: number;
   unit_price?: number | null;
+  location_code?: string | null;
+  reorder_point?: number; max_stock?: number | null;
+  abc_class?: string | null; costing_method?: string;
+  last_counted_at?: string | null; count_cycle_days?: number | null;
+}
+
+// BOM — Bill of Materials
+export interface BOM {
+  id: number; product_id: number; name: string;
+  version: string; status: string; revision_notes: string | null;
+  product_name?: string; product_sku?: string;
+  line_count?: number;
+  created_at: string; updated_at?: string | null;
+}
+
+export interface BOMLine {
+  id: number; bom_id: number; child_product_id: number;
+  quantity: number; unit: string | null;
+  reference_designator: string | null;
+  position: number; is_critical: boolean; notes: string | null;
+  child_product_name?: string; child_product_sku?: string; child_product_mpn?: string | null;
 }

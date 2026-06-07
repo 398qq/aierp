@@ -223,6 +223,10 @@ class Warehouse(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100))
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    warehouse_type: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # main / transit / returns / quarantine
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
@@ -242,6 +246,33 @@ class Inventory(TimestampMixin, Base):
     unit_price: Mapped[float | None] = mapped_column(
         DECIMAL(20, 6), nullable=True, default=None
     )
+
+    # ── 库位 ──
+    location_code: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 库位编码 e.g. A-01-03
+
+    # ── 补货参数 ──
+    reorder_point: Mapped[int] = mapped_column(default=0)  # 再订货点
+    max_stock: Mapped[int | None] = mapped_column(nullable=True)  # 最大库存
+
+    # ── 库存分类 ──
+    abc_class: Mapped[str | None] = mapped_column(
+        String(1), nullable=True
+    )  # A / B / C — 按库存价值分级
+    costing_method: Mapped[str] = mapped_column(
+        String(20), default="moving_avg"
+    )  # fifo / weighted_avg / moving_avg
+
+    # ── 盘点 ──
+    last_counted_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # 上次盘点日期
+    count_cycle_days: Mapped[int | None] = mapped_column(
+        nullable=True
+    )  # 盘点周期（天）
+
+    # ── 乐观锁 ──
     version: Mapped[int] = mapped_column(default=0, nullable=False)
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
@@ -330,3 +361,59 @@ class SupplierProduct(TimestampMixin, Base):
     updated_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BOM — Bill of Materials (物料清单)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class BOM(TimestampMixin, Base):
+    """Bill of Materials header — defines an assembly structure.
+
+    A product (assembly) has one active BOM at a time (enforced by
+    application-layer version management).  Multi-level BOMs are
+    supported: a BOM line may reference a child product that itself
+    has a BOM.
+    """
+
+    __tablename__ = "boms"
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    name: Mapped[str] = mapped_column(String(255))  # e.g. "PCB Assembly v1.2"
+    version: Mapped[str] = mapped_column(String(20), default="1.0")
+    status: Mapped[str] = mapped_column(
+        String(20), default="draft"
+    )  # draft / active / obsolete
+    revision_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+
+    product = relationship("Product", foreign_keys=[product_id])
+    lines = relationship(
+        "BOMLine", back_populates="bom", lazy="selectin", cascade="all, delete-orphan"
+    )
+
+
+class BOMLine(TimestampMixin, Base):
+    """Single line in a BOM — one component used in an assembly."""
+
+    __tablename__ = "bom_lines"
+
+    bom_id: Mapped[int] = mapped_column(ForeignKey("boms.id"))
+    child_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    quantity: Mapped[float] = mapped_column(DECIMAL(12, 4), default=1)  # per assembly
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reference_designator: Mapped[str | None] = mapped_column(
+        String(200), nullable=True
+    )  # e.g. "R1,R2,R3" or "U1"
+    position: Mapped[int] = mapped_column(default=0)  # line sort order
+    is_critical: Mapped[bool] = mapped_column(default=False)  # critical component flag
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    bom = relationship("BOM", back_populates="lines")
+    child_product = relationship("Product", foreign_keys=[child_product_id])
