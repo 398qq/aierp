@@ -1803,7 +1803,7 @@ export default function CustomerList() {
             onRow={(record) => ({
               onClick: () => setContextCustomerId(record.id),
             })}
-            scroll={{ x: "max-content" }}
+            scroll={{ x: 1600 }}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
             pagination={{
               current: page,
