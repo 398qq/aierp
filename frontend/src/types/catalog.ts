@@ -75,9 +75,16 @@ export interface Brand {
 export interface Supplier {
   id: number; name: string; contact_person: string | null; phone: string | null;
   email: string | null; address: string | null; product_lines: string | null;
-  notes: string | null; supplier_type: string | null; certifications: string | null;
-  payment_terms: string | null; region: string | null; website: string | null;
-  financial_rating: string | null; created_at: string; updated_at?: string | null;
+  notes: string | null;
+  supplier_type: string | null; status: string;
+  certifications: string | null;
+  payment_terms: string | null; payment_method: string | null;
+  currency: string; incoterms: string | null;
+  region: string | null; website: string | null;
+  financial_rating: string | null; rating_score: number | null;
+  lead_time_days: number | null; min_order_value: number | null;
+  last_audit_date: string | null;
+  created_at: string; updated_at?: string | null;
 }
 
 export interface Warehouse {

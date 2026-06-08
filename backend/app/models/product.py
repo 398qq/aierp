@@ -198,12 +198,38 @@ class Supplier(TimestampMixin, Base):
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_lines: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── 商务 ──
     supplier_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    certifications: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="active"
+    )  # active / inactive / blacklisted
     payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # T/T / L/C / net30
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    incoterms: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # FOB / CIF / EXW / DDP
+
+    # ── 资质 ──
+    certifications: Mapped[str | None] = mapped_column(Text, nullable=True)
+    financial_rating: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    rating_score: Mapped[float | None] = mapped_column(
+        DECIMAL(3, 1), nullable=True
+    )  # 1.0–5.0
+
+    # ── 供应链 ──
     region: Mapped[str | None] = mapped_column(String(50), nullable=True)
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    financial_rating: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    lead_time_days: Mapped[int | None] = mapped_column(nullable=True)
+    min_order_value: Mapped[float | None] = mapped_column(DECIMAL(18, 2), nullable=True)
+    last_audit_date: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # ── AI ──
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
@@ -349,12 +375,31 @@ class SupplierProduct(TimestampMixin, Base):
 
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+
+    # ── 价格与数量 ──
     cost_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
-    lead_time_days: Mapped[int | None] = mapped_column(nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    price_valid_from: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    price_valid_to: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     moq: Mapped[int | None] = mapped_column(nullable=True)  # minimum order quantity
     spq: Mapped[int | None] = mapped_column(nullable=True)  # standard package quantity
+    min_order_value: Mapped[float | None] = mapped_column(DECIMAL(18, 2), nullable=True)
+
+    # ── 交付 ──
+    lead_time_days: Mapped[int | None] = mapped_column(nullable=True)
+    supplier_sku: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # 供应商自己的编码
+
+    # ── 状态 ──
     is_preferred: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )

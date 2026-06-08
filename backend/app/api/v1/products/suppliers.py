@@ -1,4 +1,5 @@
 """Suppliers CRUD API."""
+
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -26,11 +27,18 @@ class SupplierCreate(BaseModel):
     product_lines: str | None = None
     notes: str | None = None
     supplier_type: str | None = None
+    status: str = "active"
     certifications: str | None = None
     payment_terms: str | None = None
+    payment_method: str | None = None
+    currency: str = "CNY"
+    incoterms: str | None = None
     region: str | None = None
     website: str | None = None
     financial_rating: str | None = None
+    rating_score: float | None = None
+    lead_time_days: int | None = None
+    min_order_value: float | None = None
 
 
 class SupplierUpdate(BaseModel):
@@ -42,11 +50,18 @@ class SupplierUpdate(BaseModel):
     product_lines: str | None = None
     notes: str | None = None
     supplier_type: str | None = None
+    status: str | None = None
     certifications: str | None = None
     payment_terms: str | None = None
+    payment_method: str | None = None
+    currency: str | None = None
+    incoterms: str | None = None
     region: str | None = None
     website: str | None = None
     financial_rating: str | None = None
+    rating_score: float | None = None
+    lead_time_days: int | None = None
+    min_order_value: float | None = None
 
 
 def _supplier_to_dict(s: Supplier) -> dict:
@@ -61,11 +76,21 @@ def _supplier_to_dict(s: Supplier) -> dict:
         "product_lines": s.product_lines,
         "notes": s.notes,
         "supplier_type": None if supplier_type == "未维护" else supplier_type,
+        "status": s.status,
         "certifications": s.certifications,
         "payment_terms": s.payment_terms,
+        "payment_method": s.payment_method,
+        "currency": s.currency,
+        "incoterms": s.incoterms,
         "region": s.region,
         "website": s.website,
         "financial_rating": s.financial_rating,
+        "rating_score": float(s.rating_score) if s.rating_score is not None else None,
+        "lead_time_days": s.lead_time_days,
+        "min_order_value": float(s.min_order_value)
+        if s.min_order_value is not None
+        else None,
+        "last_audit_date": str(s.last_audit_date) if s.last_audit_date else None,
         "created_at": s.created_at,
         "updated_at": s.updated_at,
     }
@@ -99,7 +124,10 @@ def _merge_supplier_type_counts(rows: list[dict]) -> list[dict]:
     for row in rows:
         key = _normalize_supplier_type(row.get("type"))
         counts[key] = counts.get(key, 0) + int(row["count"])
-    return [{"type": key, "count": count} for key, count in sorted(counts.items(), key=lambda item: item[1], reverse=True)]
+    return [
+        {"type": key, "count": count}
+        for key, count in sorted(counts.items(), key=lambda item: item[1], reverse=True)
+    ]
 
 
 def _filled(column):
@@ -111,7 +139,11 @@ def _empty(column):
 
 
 async def _count_suppliers(db: AsyncSession, *conditions) -> int:
-    query = select(func.count()).select_from(Supplier).where(Supplier.deleted_at.is_(None), *conditions)
+    query = (
+        select(func.count())
+        .select_from(Supplier)
+        .where(Supplier.deleted_at.is_(None), *conditions)
+    )
     return (await db.execute(query)).scalar() or 0
 
 
@@ -154,7 +186,9 @@ async def list_suppliers(
     if region:
         query = query.where(Supplier.region == region)
     if supplier_type:
-        query = query.where(Supplier.supplier_type.in_(_supplier_type_filter_values(supplier_type)))
+        query = query.where(
+            Supplier.supplier_type.in_(_supplier_type_filter_values(supplier_type))
+        )
 
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -163,7 +197,14 @@ async def list_suppliers(
     query = query.offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(query)).scalars().all()
 
-    return ok({"list": [_supplier_to_dict(r) for r in rows], "total": total, "page": page, "page_size": page_size})
+    return ok(
+        {
+            "list": [_supplier_to_dict(r) for r in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @suppliers_router.get("/stats/summary")
@@ -176,7 +217,9 @@ async def supplier_stats_summary(
     total = await _count_suppliers(db)
     certified = await _count_suppliers(db, _filled(Supplier.certifications))
     rated = await _count_suppliers(db, _filled(Supplier.financial_rating))
-    recent_30d = await _count_suppliers(db, Supplier.created_at >= datetime.now(timezone.utc) - timedelta(days=30))
+    recent_30d = await _count_suppliers(
+        db, Supplier.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
+    )
     missing_contact = await _count_suppliers(
         db,
         _empty(Supplier.contact_person),
@@ -199,15 +242,24 @@ async def supplier_stats_summary(
     overseas_terms = ["海外", "香港", "台湾", "新加坡", "美国", "欧洲", "日本", "韩国"]
     overseas = await _count_suppliers(
         db,
-        or_(*[
-            condition
-            for term in overseas_terms
-            for condition in (Supplier.region.ilike(f"%{term}%"), Supplier.address.ilike(f"%{term}%"))
-        ]),
+        or_(
+            *[
+                condition
+                for term in overseas_terms
+                for condition in (
+                    Supplier.region.ilike(f"%{term}%"),
+                    Supplier.address.ilike(f"%{term}%"),
+                )
+            ]
+        ),
     )
 
     top_query = (
-        select(Supplier.id, Supplier.name, func.count(SupplierProduct.id).label("product_count"))
+        select(
+            Supplier.id,
+            Supplier.name,
+            func.count(SupplierProduct.id).label("product_count"),
+        )
         .select_from(Supplier)
         .outerjoin(SupplierProduct, SupplierProduct.supplier_id == Supplier.id)
         .where(Supplier.deleted_at.is_(None))
@@ -217,24 +269,30 @@ async def supplier_stats_summary(
     )
     top_rows = (await db.execute(top_query)).all()
 
-    by_type = _merge_supplier_type_counts(await _count_by_supplier_field(db, Supplier.supplier_type, "type"))
+    by_type = _merge_supplier_type_counts(
+        await _count_by_supplier_field(db, Supplier.supplier_type, "type")
+    )
 
-    return ok({
-        "total": total,
-        "certified": certified,
-        "rated": rated,
-        "recent_30d": recent_30d,
-        "missing_contact": missing_contact,
-        "missing_profile": missing_profile,
-        "overseas": overseas,
-        "by_type": by_type,
-        "by_region": await _count_by_supplier_field(db, Supplier.region, "region"),
-        "by_rating": await _count_by_supplier_field(db, Supplier.financial_rating, "rating"),
-        "top_suppliers": [
-            {"id": supplier_id, "name": name, "product_count": product_count}
-            for supplier_id, name, product_count in top_rows
-        ],
-    })
+    return ok(
+        {
+            "total": total,
+            "certified": certified,
+            "rated": rated,
+            "recent_30d": recent_30d,
+            "missing_contact": missing_contact,
+            "missing_profile": missing_profile,
+            "overseas": overseas,
+            "by_type": by_type,
+            "by_region": await _count_by_supplier_field(db, Supplier.region, "region"),
+            "by_rating": await _count_by_supplier_field(
+                db, Supplier.financial_rating, "rating"
+            ),
+            "top_suppliers": [
+                {"id": supplier_id, "name": name, "product_count": product_count}
+                for supplier_id, name, product_count in top_rows
+            ],
+        }
+    )
 
 
 @suppliers_router.get("/{supplier_id}")
@@ -316,11 +374,13 @@ async def supplier_stats(
     )
     preferred_count = (await db.execute(preferred_count_q)).scalar() or 0
 
-    return ok({
-        "supplier_id": supplier_id,
-        "product_count": product_count,
-        "preferred_product_count": preferred_count,
-    })
+    return ok(
+        {
+            "supplier_id": supplier_id,
+            "product_count": product_count,
+            "preferred_product_count": preferred_count,
+        }
+    )
 
 
 # --- Supplier-Product links ---
@@ -329,10 +389,16 @@ async def supplier_stats(
 class SupplierProductLink(BaseModel):
     product_id: int
     cost_price: float | None = None
-    lead_time_days: int | None = None
+    currency: str = "CNY"
+    price_valid_from: str | None = None
+    price_valid_to: str | None = None
     moq: int | None = None
     spq: int | None = None
+    min_order_value: float | None = None
+    lead_time_days: int | None = None
+    supplier_sku: str | None = None
     is_preferred: bool = False
+    is_active: bool = True
     notes: str | None = None
 
 
@@ -353,18 +419,31 @@ async def list_supplier_products(
     rows = (await db.execute(query)).all()
     items = []
     for sp, prod in rows:
-        items.append({
-            "id": sp.id,
-            "product_id": sp.product_id,
-            "product_name": prod.name,
-            "product_sku": prod.sku,
-            "cost_price": sp.cost_price,
-            "lead_time_days": sp.lead_time_days,
-            "moq": sp.moq,
-            "spq": sp.spq,
-            "is_preferred": sp.is_preferred,
-            "notes": sp.notes,
-        })
+        items.append(
+            {
+                "id": sp.id,
+                "product_id": sp.product_id,
+                "product_name": prod.name,
+                "product_sku": prod.sku,
+                "product_mpn": prod.mpn,
+                "cost_price": float(sp.cost_price) if sp.cost_price else None,
+                "currency": sp.currency,
+                "price_valid_from": str(sp.price_valid_from)
+                if sp.price_valid_from
+                else None,
+                "price_valid_to": str(sp.price_valid_to) if sp.price_valid_to else None,
+                "moq": sp.moq,
+                "spq": sp.spq,
+                "min_order_value": float(sp.min_order_value)
+                if sp.min_order_value
+                else None,
+                "lead_time_days": sp.lead_time_days,
+                "supplier_sku": sp.supplier_sku,
+                "is_preferred": sp.is_preferred,
+                "is_active": sp.is_active,
+                "notes": sp.notes,
+            }
+        )
     return ok(items)
 
 
