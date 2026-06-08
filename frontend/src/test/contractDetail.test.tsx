@@ -18,6 +18,7 @@ const contract = (overrides: Partial<Contract> = {}): Contract => ({
   sales_order_id: null,
   title: "2026年度框架采购合同",
   amount: 128000,
+  currency: "CNY",
   signed_date: "2026-03-15T00:00:00Z",
   expire_date: "2026-12-31T00:00:00Z",
   status: "active",

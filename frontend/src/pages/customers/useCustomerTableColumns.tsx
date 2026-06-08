@@ -1,7 +1,3 @@
-// useCustomerTableColumns — builds the Antd Table columns definition for
-// the customer list, sharing the parent's sort state, overdue set, and
-// follow-up-by-customer map.
-
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Dropdown, Space, Tooltip, Typography } from "antd";
@@ -33,6 +29,12 @@ interface Args {
   onVendAsSupplier: (customer: Customer) => void;
 }
 
+const MONO: React.CSSProperties = {
+  fontFamily: "ui-monospace, SFMono-Regular, Consolas, Menlo, monospace",
+  fontSize: 13,
+};
+const TITLE_STYLE: React.CSSProperties = { fontSize: 13, fontWeight: 600 };
+
 export function useCustomerTableColumns({
   sortBy,
   sortOrder,
@@ -44,116 +46,180 @@ export function useCustomerTableColumns({
   onVendAsSupplier,
 }: Args): ColumnsType<Customer> {
   const navigate = useNavigate();
-  const sortIndicator = (key: string) =>
-    sortBy === key ? (sortOrder === "asc" ? "ascend" : "descend") : null;
+  const sortDir = (key: string) =>
+    sortBy === key ? (sortOrder === "asc" ? "ascend" as const : "descend" as const) : null;
 
   return useMemo<ColumnsType<Customer>>(() => [
     {
-      title: "客户编码",
+      title: "编码",
       dataIndex: "code",
       key: "code",
-      width: 120,
+      width: 110,
       sorter: true,
-      sortOrder: sortIndicator("code"),
+      sortOrder: sortDir("code"),
       render: (v: string | null) => (
-        <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{v || "-"}</span>
+        <Typography.Text style={MONO}>{v || "-"}</Typography.Text>
       ),
     },
     {
-      title: "客户",
+      title: "客户名称",
       dataIndex: "name",
       key: "name",
-      width: 280,
+      width: 240,
       sorter: true,
-      sortOrder: sortIndicator("name"),
+      sortOrder: sortDir("name"),
+      fixed: "left",
       render: (text: string, r: Customer) => (
-        <Space direction="vertical" size={2}>
-          <Space size={6} wrap>
-            <Typography.Link strong onClick={() => navigate(`/customers/${r.id}`)}>{text}</Typography.Link>
-            {r.level && <StatusTag tone={getLevelColor(r.level)} style={{ marginInlineEnd: 0 }}>{r.level}</StatusTag>}
-            {overdueCustomerIds.has(r.id) && <StatusTag tone="danger" style={{ marginInlineEnd: 0 }}>逾期</StatusTag>}
+        <div>
+          <Space size={4}>
+            <Typography.Link
+              onClick={() => navigate(`/customers/${r.id}`)}
+              style={TITLE_STYLE}
+            >
+              {text}
+            </Typography.Link>
+            {r.level && (
+              <StatusTag tone={getLevelColor(r.level)}>{r.level}</StatusTag>
+            )}
+            {overdueCustomerIds.has(r.id) && (
+              <StatusTag tone="danger">逾期</StatusTag>
+            )}
           </Space>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {[r.code, r.short_name].filter(Boolean).join(" / ") || "-"}
-          </Typography.Text>
-          {r.contact_person && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              联系人：{r.contact_person}
-            </Typography.Text>
-          )}
-        </Space>
+          <div style={{ color: "#8c8c8c", fontSize: 12, marginTop: 1 }}>
+            {r.short_name || r.code ? `${r.short_name || r.code}${r.tax_id ? ` · ${r.tax_id}` : ""}` : "-"}
+          </div>
+        </div>
       ),
+    },
+    {
+      title: "简称",
+      dataIndex: "short_name",
+      key: "short_name",
+      width: 120,
+      render: (v: string | null) => v || "-",
     },
     {
       title: "行业",
       dataIndex: "industry",
       key: "industry",
-      width: 120,
+      width: 90,
       sorter: true,
-      sortOrder: sortIndicator("industry"),
+      sortOrder: sortDir("industry"),
       render: (v: string | null) => (v ? <StatusTag>{v}</StatusTag> : "-"),
     },
     {
       title: "等级",
       dataIndex: "level",
       key: "level",
-      width: 76,
+      width: 64,
       align: "center",
       sorter: true,
-      sortOrder: sortIndicator("level"),
-      render: (v: string | null) => <StatusTag tone={getLevelColor(v)} style={{ marginInlineEnd: 0 }}>{v || "-"}</StatusTag>,
+      sortOrder: sortDir("level"),
+      render: (v: string | null) => (
+        <StatusTag tone={getLevelColor(v)}>{v || "-"}</StatusTag>
+      ),
     },
     {
       title: "区域",
       dataIndex: "region",
       key: "region",
-      width: 100,
+      width: 90,
       sorter: true,
-      sortOrder: sortIndicator("region"),
+      sortOrder: sortDir("region"),
       render: (v: string | null) => v || "-",
     },
     {
       title: "信用",
-      dataIndex: "credit_level",
       key: "credit_level",
-      width: 90,
-      sorter: true,
-      sortOrder: sortIndicator("credit_level"),
-      render: (v: string | null) => v ? <StatusTag>{v}</StatusTag> : "-",
-    },
-    {
-      title: "健康/风险",
-      key: "health",
       width: 130,
-      render: (_: unknown, row: Customer) => (
-        <Space size={4} wrap>
-          <StatusTag tone={getHealthColor(row.health_score)}>
-            {row.health_score != null ? `${row.health_score}` : "-"}
-          </StatusTag>
-          {overdueCustomerIds.has(row.id) && <StatusTag tone="danger">逾期</StatusTag>}
+      sorter: true,
+      sortOrder: sortDir("credit_level"),
+      render: (_: unknown, r: Customer) => (
+        <Space size={4}>
+          {r.credit_level ? (
+            <StatusTag>{r.credit_level}</StatusTag>
+          ) : (
+            "-"
+          )}
+          {r.credit_limit != null && r.credit_limit > 0 && (
+            <Typography.Text style={{ fontSize: 12, color: "#595959" }}>
+              ¥{r.credit_limit.toLocaleString()}
+            </Typography.Text>
+          )}
         </Space>
       ),
     },
     {
-      title: "下一次跟进",
+      title: "付款条件",
+      dataIndex: "payment_terms",
+      key: "payment_terms",
+      width: 110,
+      render: (v: string | null) =>
+        v ? <StatusTag tone="info">{v}</StatusTag> : "-",
+    },
+    {
+      title: "币种",
+      dataIndex: "currency",
+      key: "currency",
+      width: 64,
+      align: "center",
+      render: (v: string) => (
+        <Typography.Text style={MONO}>{v || "CNY"}</Typography.Text>
+      ),
+    },
+    {
+      title: "税号",
+      dataIndex: "tax_id",
+      key: "tax_id",
+      width: 150,
+      render: (v: string | null) =>
+        v ? <Typography.Text copyable style={MONO}>{v}</Typography.Text> : "-",
+    },
+    {
+      title: "收货地址",
+      dataIndex: "delivery_address",
+      key: "delivery_address",
+      width: 160,
+      ellipsis: true,
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "健康度",
+      key: "health",
+      width: 80,
+      align: "center",
+      render: (_: unknown, r: Customer) => (
+        <StatusTag tone={getHealthColor(r.health_score)}>
+          {r.health_score != null ? r.health_score : "-"}
+        </StatusTag>
+      ),
+    },
+    {
+      title: "下次跟进",
       key: "next_followup",
-      width: 170,
-      render: (_: unknown, row: Customer) => {
-        const next = nextFollowUpByCustomer.get(row.id);
-        if (!next) return "-";
-        const color = next.due_bucket === "overdue" ? "red" : next.due_bucket === "today" ? "orange" : "blue";
-        const label = next.due_bucket === "overdue"
-          ? `逾期${next.overdue_days}天`
-          : next.due_bucket === "today"
-            ? "今日"
-            : `${next.days_until ?? "-"}天后`;
+      width: 150,
+      render: (_: unknown, r: Customer) => {
+        const next = nextFollowUpByCustomer.get(r.id);
+        if (!next) return <Typography.Text type="secondary">-</Typography.Text>;
+        const tone =
+          next.due_bucket === "overdue"
+            ? "danger"
+            : next.due_bucket === "today"
+              ? "warning"
+              : "info";
+        const label =
+          next.due_bucket === "overdue"
+            ? `逾期${next.overdue_days}天`
+            : next.due_bucket === "today"
+              ? "今日"
+              : `${next.days_until ?? "-"}天后`;
         return (
-          <Space direction="vertical" size={0}>
-            <Space size={4}>
-              <StatusTag tone={color}>{label}</StatusTag>
-              <FollowUpMethodTag method={next.method} />
-            </Space>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(next.planned_at)}</Typography.Text>
+          <Space size={4}>
+            <StatusTag tone={tone as any}>{label}</StatusTag>
+            <FollowUpMethodTag method={next.method} />
+            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+              {formatDateTime(next.planned_at)}
+            </Typography.Text>
           </Space>
         );
       },
@@ -162,16 +228,20 @@ export function useCustomerTableColumns({
       title: "标签",
       dataIndex: "tags",
       key: "tags",
-      width: 180,
+      width: 140,
       render: (rowTags: TagType[] | undefined) => {
         const items = rowTags || [];
         if (!items.length) return "-";
         return (
-          <Space size={[4, 4]} wrap>
+          <Space size={[3, 3]} wrap>
             {items.slice(0, 2).map((t) => (
-              <StatusTag key={t.id} tone={t.color || "info"}>{t.name}</StatusTag>
+              <StatusTag key={t.id} tone={(t.color as any) || "info"}>
+                {t.name}
+              </StatusTag>
             ))}
-            {items.length > 2 && <StatusTag>+{items.length - 2}</StatusTag>}
+            {items.length > 2 && (
+              <StatusTag>+{items.length - 2}</StatusTag>
+            )}
           </Space>
         );
       },
@@ -180,87 +250,124 @@ export function useCustomerTableColumns({
       title: "负责人",
       dataIndex: "owner",
       key: "owner",
-      width: 100,
-      render: (v: string | null) => v ? <Typography.Text>{v}</Typography.Text> : "-",
+      width: 80,
+      render: (v: string | null) => (v || "-"),
     },
     {
       title: "联系人",
       dataIndex: "contact_person",
       key: "contact_person",
-      width: 120,
+      width: 90,
       render: (v: string | null) => v || "-",
     },
     {
       title: "电话",
       dataIndex: "phone",
       key: "phone",
-      width: 130,
+      width: 120,
       render: (v: string | null) => v || "-",
     },
     {
       title: "邮箱",
       dataIndex: "email",
       key: "email",
-      width: 180,
-      render: (v: string | null) => v ? <Typography.Text copyable>{v}</Typography.Text> : "-",
+      width: 170,
+      render: (v: string | null) =>
+        v ? <Typography.Text copyable style={{ fontSize: 12 }}>{v}</Typography.Text> : "-",
     },
     {
       title: "最近联系",
       dataIndex: "last_contacted_at",
       key: "last_contacted_at",
-      width: 110,
+      width: 100,
+      sorter: true,
+      sortOrder: sortDir("last_contacted_at"),
       render: (v: string | null) => formatDate(v),
     },
     {
       title: "来源",
       dataIndex: "source",
       key: "source",
-      width: 100,
+      width: 80,
       sorter: true,
-      sortOrder: sortIndicator("source"),
+      sortOrder: sortDir("source"),
+      render: (v: string | null) => v || "-",
+    },
+    {
+      title: "类型",
+      dataIndex: "customer_type",
+      key: "customer_type",
+      width: 90,
       render: (v: string | null) => v || "-",
     },
     {
       title: "创建时间",
       dataIndex: "created_at",
       key: "created_at",
-      width: 120,
+      width: 100,
       sorter: true,
-      sortOrder: sortIndicator("created_at"),
-      render: (v: string) => formatDate(v),
+      sortOrder: sortDir("created_at"),
+      render: (v: string) => (
+        <Typography.Text style={{ fontSize: 12 }}>{formatDate(v)}</Typography.Text>
+      ),
     },
     {
       title: "操作",
       key: "actions",
-      width: 142,
+      width: 130,
       fixed: "right",
       render: (_: unknown, r: Customer) => (
-        <Space size={2}>
-          <Button size="small" type="link" onClick={() => onOpenDetail(r.id)}>查看</Button>
-          <Button size="small" type="link" onClick={() => onOpenQuickFollowUp(r)}>跟进</Button>
+        <Space size={0}>
+          <Button size="small" type="link" onClick={() => onOpenDetail(r.id)}>
+            查看
+          </Button>
+          <Button size="small" type="link" onClick={() => onOpenQuickFollowUp(r)}>
+            跟进
+          </Button>
           <Dropdown
             trigger={["click"]}
             menu={{
               items: [
-                { key: "order", icon: <ShoppingCartOutlined />, label: "创建销售订单" },
-                { key: "supplier", icon: <SwapOutlined />, label: "转为供应商" },
+                {
+                  key: "order",
+                  icon: <ShoppingCartOutlined />,
+                  label: "创建销售订单",
+                },
+                {
+                  key: "supplier",
+                  icon: <SwapOutlined />,
+                  label: "转为供应商",
+                },
                 { type: "divider" },
-                { key: "delete", icon: <DeleteOutlined />, danger: true, label: "删除客户" },
+                {
+                  key: "delete",
+                  icon: <DeleteOutlined />,
+                  danger: true,
+                  label: "删除客户",
+                },
               ],
               onClick: ({ key }) => {
-                if (key === "order") navigate(`/sales/orders/new?customer_id=${r.id}`);
+                if (key === "order")
+                  navigate(`/sales/orders/new?customer_id=${r.id}`);
                 if (key === "supplier") onVendAsSupplier(r);
                 if (key === "delete") onConfirmDelete(r);
               },
             }}
           >
-            <Tooltip title="更多操作">
-              <Button size="small" type="link" icon={<MoreOutlined />} aria-label="更多操作" />
+            <Tooltip title="更多">
+              <Button
+                size="small"
+                type="text"
+                icon={<MoreOutlined />}
+                aria-label="更多操作"
+              />
             </Tooltip>
           </Dropdown>
         </Space>
       ),
     },
-  ], [sortBy, sortOrder, overdueCustomerIds, nextFollowUpByCustomer, navigate,
-      onOpenDetail, onOpenQuickFollowUp, onConfirmDelete, onVendAsSupplier]);
+  ], [
+    sortBy, sortOrder, overdueCustomerIds, nextFollowUpByCustomer,
+    navigate, onOpenDetail, onOpenQuickFollowUp, onConfirmDelete, onVendAsSupplier,
+  ]);
 }

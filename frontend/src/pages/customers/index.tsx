@@ -231,10 +231,16 @@ export default function CustomerList() {
   const allColKeys = [
     "code",
     "name",
+    "short_name",
     "industry",
     "level",
     "region",
     "credit_level",
+    "credit_limit",
+    "payment_terms",
+    "currency",
+    "tax_id",
+    "delivery_address",
     "health",
     "next_followup",
     "tags",
@@ -244,6 +250,7 @@ export default function CustomerList() {
     "email",
     "last_contacted_at",
     "source",
+    "customer_type",
     "created_at",
     "actions",
   ];
@@ -1339,11 +1346,30 @@ export default function CustomerList() {
         }
         .customer-table-card .ant-table-thead > tr > th {
           background: #fafafa;
+          font-size: 12px;
+          font-weight: 650;
+          color: #595959;
+          padding: 8px 10px;
+          border-bottom: 2px solid #e8e8e8;
+          white-space: nowrap;
         }
         .customer-table-card .ant-table-tbody > tr > td {
-          padding-top: 10px;
-          padding-bottom: 10px;
-          vertical-align: top;
+          padding: 6px 10px;
+          vertical-align: middle;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        .customer-table-card .ant-table-tbody > tr {
+          height: 44px;
+        }
+        .customer-table-card .ant-table-tbody > tr:hover > td {
+          background: #f0f5ff !important;
+        }
+        .customer-table-card .ant-table-column-sort {
+          background: transparent;
+        }
+        .customer-table-card .ant-table-thead th.ant-table-column-has-sorters:hover {
+          background: #f0f0f0;
         }
         .customer-board {
           display: grid;

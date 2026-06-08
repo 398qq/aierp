@@ -73,14 +73,20 @@ export const SCENE_FILTERS: Record<
 };
 
 export const COL_LABEL_MAP: Record<string, string> = {
-  code: "编码",
-  name: "名称",
+  code: "客户编码",
+  name: "客户名称",
+  short_name: "简称",
   industry: "行业",
   level: "等级",
   region: "区域",
-  credit_level: "信用",
+  credit_level: "信用等级",
+  credit_limit: "信用额度",
+  payment_terms: "付款条件",
+  currency: "币种",
+  tax_id: "税号",
+  delivery_address: "收货地址",
   health: "健康度",
-  next_followup: "下一次跟进",
+  next_followup: "下次跟进",
   tags: "标签",
   owner: "负责人",
   contact_person: "联系人",
@@ -88,12 +94,14 @@ export const COL_LABEL_MAP: Record<string, string> = {
   email: "邮箱",
   last_contacted_at: "最近联系",
   source: "来源",
+  customer_type: "客户类型",
   created_at: "创建时间",
   actions: "操作",
 };
 
 export const DEFAULT_VISIBLE_COL_KEYS = [
-  "name", "level", "region", "owner", "next_followup",
+  "code", "name", "level", "region", "credit_level",
+  "payment_terms", "owner", "next_followup",
   "last_contacted_at", "tags", "actions",
 ];
 export const PEOPLE_VISIBLE_COL_KEYS = [
