@@ -62,186 +62,32 @@ import {
   updateProductInventory,
 } from "../../api";
 import type { Brand, InventoryItem, Product } from "../../types";
-
-type SceneValue = "all" | "in_stock" | "low_stock" | "out_of_stock" | "pending_completion" | "stale_30d";
-type BatchTaskType = "update" | "delete" | "export";
-type ProductTaskKey = "replenish" | "out" | "complete" | "stale" | "no_supplier" | "ai_search" | "all";
-
-type ProductStats = {
-  total: number;
-  in_stock_count: number;
-  out_of_stock_count: number;
-  low_stock_count: number;
-  pending_completion_count: number;
-  stale_30d_count: number;
-};
-
-type SavedView = {
-  name: string;
-  scene: SceneValue;
-  q: string;
-  category?: string;
-  brandId?: number;
-  stockStatus?: string;
-  sort: string;
-  visibleCols: string[];
-};
-
-type ProductSalesData = {
-  quotations: Record<string, unknown>[];
-  orders: Record<string, unknown>[];
-  deliveries: Record<string, unknown>[];
-};
-
-const CATEGORIES = ["MLCC", "IC", "电阻", "电容", "连接器", "晶体管", "传感器", "电源管理", "存储", "其他"];
-const STOCK_OPTIONS = [
-  { value: "", label: "全部" },
-  { value: "in_stock", label: "在库" },
-  { value: "out_of_stock", label: "缺货" },
-  { value: "low_stock", label: "低库存" },
-];
-const SORT_OPTIONS = [
-  { value: "created_at_desc", label: "最新优先" },
-  { value: "created_at_asc", label: "最旧优先" },
-  { value: "name_asc", label: "名称升序" },
-  { value: "name_desc", label: "名称降序" },
-];
-const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
-  { label: "全部", value: "all" },
-  { label: "待补货", value: "low_stock" },
-  { label: "缺货", value: "out_of_stock" },
-  { label: "待完善", value: "pending_completion" },
-  { label: "30天无动销", value: "stale_30d" },
-];
-
-const TASK_SCENE_MAP: Partial<Record<ProductTaskKey, SceneValue>> = {
-  replenish: "low_stock",
-  out: "out_of_stock",
-  complete: "pending_completion",
-  stale: "stale_30d",
-  all: "all",
-};
-
-const PRODUCT_TASK_LABELS: Record<ProductTaskKey, string> = {
-  replenish: "补货预警",
-  out: "缺货处理",
-  complete: "资料完善",
-  stale: "无动销复盘",
-  no_supplier: "供应商缺口",
-  ai_search: "AI选型搜索",
-  all: "全部产品",
-};
-
-const COL_LABEL_MAP: Record<string, string> = {
-  sku: "SKU",
-  name: "产品名称",
-  category: "分类",
-  package_type: "封装",
-  specs: "规格",
-  unit: "单位",
-  brand_name: "品牌",
-  completion_score: "完整度",
-  supplier_count: "供应商",
-  inventory_location_count: "分仓",
-  stock_state: "库存状态",
-  quantity: "库存",
-  available: "可用",
-  locked: "锁定",
-  safety_stock: "安全库存",
-  unit_price: "单价",
-  last_sale_at: "最近销售",
-  actions: "操作",
-};
-
-const PAGE_SIZE = 20;
-const SAVED_VIEW_STORAGE_KEY = "aierp.products.saved_views.v1";
-
-const getBrandSelectLabel = (brand: Brand) => brand.name || brand.short_name || brand.name_cn;
-
-const getAvailableQty = (p: Product) => {
-  if (typeof p.available === "number") return p.available;
-  return (p.quantity ?? 0) - (p.locked_quantity ?? 0);
-};
-
-const getStockState = (p: Product): "in" | "low" | "out" => {
-  const available = getAvailableQty(p);
-  const safety = p.safety_stock ?? 0;
-  if (available <= 0) return "out";
-  if (available <= safety) return "low";
-  return "in";
-};
-
-const getDaysSince = (value?: string | null) => {
-  if (!value) return null;
-  const time = new Date(value).getTime();
-  if (Number.isNaN(time)) return null;
-  return Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
-};
-
-const getProductPriorityScore = (product: Product) => {
-  let score = 35;
-  const stockState = getStockState(product);
-  if (stockState === "out") score += 32;
-  if (stockState === "low") score += 24;
-  if ((product.completion_score ?? 100) < 60) score += 18;
-  if ((product.supplier_count ?? 0) <= 0) score += 12;
-  if ((product.inventory_location_count ?? 0) <= 0) score += 8;
-  const staleDays = getDaysSince(product.last_sale_at);
-  if (staleDays == null) score += 8;
-  else if (staleDays > 90) score += 16;
-  else if (staleDays > 30) score += 8;
-  return Math.min(100, score);
-};
-
-const getProductSuggestedAction = (product: Product) => {
-  const stockState = getStockState(product);
-  if (stockState === "out") return "优先确认可替代库存或发起采购补货";
-  if (stockState === "low") return "检查安全库存并补充采购计划";
-  if ((product.completion_score ?? 100) < 60) return "补齐品牌、封装、规格和资料字段";
-  if ((product.supplier_count ?? 0) <= 0) return "补充可供货供应商并维护采购关系";
-  const staleDays = getDaysSince(product.last_sale_at);
-  if (staleDays == null || staleDays > 30) return "复盘动销，生成客户推荐或清理策略";
-  return "维护价格与库存，保持可销售状态";
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
-};
-
-const exportProductsCsv = (rows: Product[], filename: string) => {
-  if (!rows.length) return false;
-  const headers = ["SKU", "产品名称", "分类", "封装", "规格", "单位", "品牌", "完整度", "供应商数", "分仓数", "库存", "可用", "锁定", "安全库存", "单价", "最近销售"];
-  const body = rows.map((p) => [
-    p.sku || "",
-    p.name || "",
-    p.category || "",
-    p.package_type || "",
-    p.specs || "",
-    p.unit || "",
-    p.brand_name || "",
-    p.completion_score ?? "",
-    p.supplier_count ?? 0,
-    p.inventory_location_count ?? 0,
-    p.quantity ?? 0,
-    getAvailableQty(p),
-    p.locked_quantity ?? 0,
-    p.safety_stock ?? "",
-    p.unit_price != null ? `¥${p.unit_price.toFixed(2)}` : "",
-    p.last_sale_at || "",
-  ]);
-  const csv = [headers, ...body].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-  return true;
-};
+import {
+  BatchTaskType,
+  CATEGORIES,
+  COL_LABEL_MAP,
+  exportProductsCsv,
+  formatDateTime,
+  getAvailableQty,
+  getBrandSelectLabel,
+  getDaysSince,
+  getProductPriorityScore,
+  getProductSuggestedAction,
+  getStockState,
+  PAGE_SIZE,
+  ProductSalesData,
+  ProductStats,
+  ProductTaskKey,
+  SavedView,
+  SAVED_VIEW_STORAGE_KEY,
+  SCENE_OPTIONS,
+  SceneValue,
+  SORT_OPTIONS,
+  STOCK_OPTIONS,
+  TASK_SCENE_MAP,
+  PRODUCT_TASK_LABELS,
+} from "./constants";
+import { useProductTableColumns } from "./useProductTableColumns";
 
 export default function ProductList() {
   const [data, setData] = useState<Product[]>([]);
@@ -882,89 +728,13 @@ export default function ProductList() {
     fetch(1);
   }, [category, brandId, stockStatus]);
 
-  const columns: ColumnsType<Product> = [
-    {
-      title: "SKU",
-      dataIndex: "sku",
-      key: "sku",
-      width: 140,
-      fixed: "left",
-      render: (v: string | null) => <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{v || "-"}</span>,
-    },
-    {
-      title: "产品名称",
-      dataIndex: "name",
-      key: "name",
-      width: 220,
-      fixed: "left",
-      sorter: true,
-      render: (text: string, r: Product) => <a onClick={() => openDetail(r)}>{text}</a>,
-    },
-    { title: "分类", dataIndex: "category", key: "category", width: 100, render: (v: string) => (v ? <StatusTag>{v}</StatusTag> : "-") },
-    { title: "封装", dataIndex: "package_type", key: "package_type", width: 100, render: (v: string | null) => v || "-" },
-    { title: "规格", dataIndex: "specs", key: "specs", width: 220, ellipsis: true, render: (v: string | null) => v || "-" },
-    { title: "单位", dataIndex: "unit", key: "unit", width: 80, render: (v: string | null) => v || "-" },
-    { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 130, render: (v: string | null) => v || "-" },
-    {
-      title: "完整度",
-      dataIndex: "completion_score",
-      key: "completion_score",
-      width: 120,
-      render: (v: number | null, r: Product) => {
-        const score = v ?? 0;
-        const missing = r.missing_fields?.length ? `缺少：${r.missing_fields.join("、")}` : "资料完整";
-        return (
-          <Tooltip title={missing}>
-            <Progress percent={score} size="small" showInfo={false} strokeColor={score >= 80 ? "#52c41a" : score >= 50 ? "#faad14" : "#ff4d4f"} />
-          </Tooltip>
-        );
-      },
-    },
-    { title: "供应商", dataIndex: "supplier_count", key: "supplier_count", width: 90, align: "right", render: (v: number | null) => v ?? 0 },
-    { title: "分仓", dataIndex: "inventory_location_count", key: "inventory_location_count", width: 80, align: "right", render: (v: number | null) => v ?? 0 },
-    {
-      title: "库存状态",
-      key: "stock_state",
-      width: 110,
-      render: (_: unknown, r: Product) => {
-        const state = getStockState(r);
-        if (state === "out") return <StatusTag tone="danger">缺货</StatusTag>;
-        if (state === "low") return <StatusTag tone="warning">低库存</StatusTag>;
-        return <StatusTag tone="success">在库</StatusTag>;
-      },
-    },
-    { title: "库存", dataIndex: "quantity", key: "quantity", width: 90, align: "right", render: (v: number | null) => v != null ? v : 0 },
-    { title: "可用", dataIndex: "available", key: "available", width: 90, align: "right", render: (_: number | null, r: Product) => getAvailableQty(r) },
-    { title: "锁定", dataIndex: "locked_quantity", key: "locked", width: 90, align: "right", render: (v: number | null) => v != null ? v : 0 },
-    { title: "安全库存", dataIndex: "safety_stock", key: "safety_stock", width: 100, align: "right", render: (v: number | null) => v != null ? v : "-" },
-    { title: "单价", dataIndex: "unit_price", key: "unit_price", width: 110, align: "right", render: (v: number | null) => v != null ? `¥${v.toFixed(2)}` : "-" },
-    { title: "最近销售", dataIndex: "last_sale_at", key: "last_sale_at", width: 170, render: (v: string | null) => formatDateTime(v) },
-    {
-      title: "操作",
-      key: "actions",
-      width: 230,
-      fixed: "right",
-      render: (_: unknown, r: Product) => (
-        <Space size="small">
-          <Tooltip title="查看详情">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(r)} />
-          </Tooltip>
-          <Tooltip title="快捷改价">
-            <Button size="small" onClick={() => openQuickAction(r, "price")}>改价</Button>
-          </Tooltip>
-          <Tooltip title="快捷改安全库存">
-            <Button size="small" onClick={() => openQuickAction(r, "safety")}>安库</Button>
-          </Tooltip>
-          <Tooltip title="编辑产品">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          </Tooltip>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+  const columns: ColumnsType<Product> = useProductTableColumns({
+    onOpenDetail: openDetail,
+    onOpenEdit: openEdit,
+    onOpenQuickPrice: (r) => openQuickAction(r, "price"),
+    onOpenQuickSafety: (r) => openQuickAction(r, "safety"),
+    onDelete: handleDelete,
+  });
 
   return (
     <div className="product-workbench-page">
