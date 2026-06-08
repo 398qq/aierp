@@ -72,6 +72,7 @@ export interface LevelRule {
 export interface Contract {
   id: number; contract_no: string | null; customer_id: number;
   sales_order_id: number | null; title: string; amount: number;
+  currency: string;
   signed_date: string | null; expire_date: string | null;
   status: string; file_url: string | null; notes: string | null;
   created_at: string; updated_at?: string | null;

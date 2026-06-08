@@ -207,6 +207,7 @@ def _serialize_delivery_note_item(it) -> dict:
 
 
 def serialize_invoice(inv) -> dict:
+    items = [_serialize_invoice_line(it) for it in (inv.lines or [])] if hasattr(inv, 'lines') else []
     return {
         "id": inv.id,
         "invoice_no": inv.invoice_no,
@@ -216,12 +217,32 @@ def serialize_invoice(inv) -> dict:
         "customer_name": inv.customer.name if inv.customer else None,
         "amount": _money(inv.amount),
         "tax_amount": _money(inv.tax_amount),
+        "subtotal": _money(inv.subtotal),
+        "currency": inv.currency,
+        "due_date": inv.due_date.isoformat() if inv.due_date else None,
         "invoice_date": inv.invoice_date.isoformat() if inv.invoice_date else None,
         "invoice_type": inv.invoice_type,
         "status": inv.status,
         "notes": inv.notes,
         "created_at": inv.created_at.isoformat() if inv.created_at else None,
         "updated_at": inv.updated_at.isoformat() if inv.updated_at else None,
+        "items": items,
+    }
+
+
+def _serialize_invoice_line(it) -> dict:
+    return {
+        "id": it.id,
+        "invoice_id": it.invoice_id,
+        "product_id": it.product_id,
+        "product_name": it.product_name,
+        "quantity": it.quantity,
+        "unit": it.unit,
+        "unit_price": _money(it.unit_price),
+        "total_price": _money(it.total_price),
+        "tax_rate": float(it.tax_rate) if it.tax_rate else None,
+        "tax_amount": _money(it.tax_amount),
+        "notes": it.notes,
     }
 
 

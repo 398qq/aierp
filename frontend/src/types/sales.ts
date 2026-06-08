@@ -110,6 +110,20 @@ export interface DeliveryNote {
   ai?: DeliveryNoteAI | null;
 }
 
+export interface InvoiceLine {
+  id: number;
+  invoice_id: number;
+  product_id: number | null;
+  product_name: string | null;
+  quantity: number;
+  unit: string | null;
+  unit_price: number | null;
+  total_price: number | null;
+  tax_rate: number | null;
+  tax_amount: number | null;
+  notes: string | null;
+}
+
 export interface Invoice {
   id: number;
   invoice_no: string | null;
@@ -119,12 +133,16 @@ export interface Invoice {
   customer_name?: string | null;
   amount: number;
   tax_amount: number;
+  subtotal: number | null;
+  currency: string;
+  due_date: string | null;
   invoice_date: string | null;
   invoice_type: string;
   status: string;
   notes: string | null;
   created_at: string;
   updated_at: string | null;
+  items?: InvoiceLine[];
 }
 
 export interface QuotationStats {

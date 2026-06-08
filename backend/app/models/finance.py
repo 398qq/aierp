@@ -16,6 +16,9 @@ class PaymentRecord(TimestampMixin, Base):
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
     payment_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payment_method: Mapped[str] = mapped_column(String(30), default="bank")
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    transaction_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    bank_account: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -35,10 +38,15 @@ class Invoice(TimestampMixin, Base):
     invoice_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invoice_type: Mapped[str] = mapped_column(String(20), default="普通发票")
     status: Mapped[str] = mapped_column(String(20), default="draft")
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    due_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    subtotal: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     customer = relationship("Customer", foreign_keys=[customer_id])
+    lines = relationship("InvoiceLine", back_populates="invoice", lazy="selectin", cascade="all, delete-orphan")
 
 
 class SalesTarget(TimestampMixin, Base):
@@ -133,3 +141,22 @@ class Commission(TimestampMixin, Base):
             name="ck_commission_rate_range",
         ),
     )
+
+class InvoiceLine(TimestampMixin, Base):
+    """Single line in an invoice — mirrors a SalesOrderItem."""
+
+    __tablename__ = "invoice_lines"
+
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"))
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    quantity: Mapped[int] = mapped_column(default=1)
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    tax_amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    invoice = relationship("Invoice", back_populates="lines")
+    product = relationship("Product", foreign_keys=[product_id])

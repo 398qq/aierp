@@ -11,6 +11,8 @@ export interface PaymentRecord {
   delivery_note_id: number | null;
   amount: number; payment_date: string | null;
   payment_method: string; status: string;
+  currency: string; transaction_ref: string | null;
+  bank_account: string | null;
   notes: string | null; created_at: string; updated_at: string | null;
 }
 
