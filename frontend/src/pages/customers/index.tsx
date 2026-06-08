@@ -148,6 +148,7 @@ import {
 import { useCustomerTableColumns } from "./useCustomerTableColumns";
 import CustomerStatsCards from "./CustomerStatsCards";
 import CustomerCrmToolbar from "./CustomerCrmToolbar";
+import CustomerFilterBar from "./CustomerFilterBar";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -1564,162 +1565,61 @@ export default function CustomerList() {
           {workbenchTab === "customers" && (
             <>
       <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
-        <div className="customer-toolbar-main">
-          <div>
-            <Input
-              placeholder="搜索客户名称/编码/联系人/电话"
-              prefix={<SearchOutlined />}
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setSmartTask("all");
-                setActiveViewPreset("all");
-                setOverdueOnly(false);
-                setPage(1);
-              }}
-              allowClear
-            />
-          </div>
-          <div>
-            <Segmented
-              style={{ maxWidth: "100%" }}
-              options={SCENE_OPTIONS}
-              value={scene}
-              onChange={(v) => {
-                setScene(v as SceneValue);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div>
-            <Space wrap className="customer-toolbar-actions" style={{ width: "100%", justifyContent: "flex-end" }}>
-              <Button
-                icon={<FilterOutlined />}
-                type={activeAdvancedFilterCount > 0 ? "primary" : "default"}
-                onClick={() => setAdvancedOpen((open) => !open)}
-              >
-                高级筛选{activeAdvancedFilterCount > 0 ? `(${activeAdvancedFilterCount})` : ""}
-                <DownOutlined />
-              </Button>
-              <Button icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
-              <Popover content={moreActionsContent} title="更多操作" trigger="click" placement="bottomRight">
-                <Button icon={<MoreOutlined />}>更多</Button>
-              </Popover>
-            </Space>
-          </div>
-        </div>
-
-        {advancedOpen && (
-          <Row gutter={[10, 10]} className="customer-advanced-grid">
-            <Col xs={12} md={6} xl={4}>
-              <Select
-                allowClear
-                placeholder="行业"
-                style={{ width: "100%" }}
-                value={industry}
-                options={INDUSTRIES.map((v) => ({ value: v, label: v }))}
-                onChange={(v) => {
-                  setIndustry(v);
-                  setPage(1);
-                }}
-              />
-            </Col>
-            <Col xs={12} md={6} xl={4}>
-              <Select
-                allowClear
-                placeholder="等级"
-                style={{ width: "100%" }}
-                value={level}
-                options={LEVELS.map((v) => ({ value: v, label: v }))}
-                onChange={(v) => {
-                  setLevel(v);
-                  setPage(1);
-                }}
-              />
-            </Col>
-            <Col xs={12} md={6} xl={4}>
-              <Select
-                allowClear
-                placeholder="区域"
-                style={{ width: "100%" }}
-                value={region}
-                options={REGIONS.map((v) => ({ value: v, label: v }))}
-                onChange={(v) => {
-                  setRegion(v);
-                  setPage(1);
-                }}
-              />
-            </Col>
-            <Col xs={12} md={6} xl={4}>
-              <Select
-                allowClear
-                placeholder="来源"
-                style={{ width: "100%" }}
-                value={source}
-                options={SOURCES.map((v) => ({ value: v, label: v }))}
-                onChange={(v) => {
-                  setSource(v);
-                  setPage(1);
-                }}
-              />
-            </Col>
-            <Col xs={12} md={6} xl={4}>
-              <Select
-                allowClear
-                placeholder="信用等级"
-                style={{ width: "100%" }}
-                value={creditLevel}
-                options={CREDIT_LEVELS.map((v) => ({ value: v, label: v }))}
-                onChange={(v) => {
-                  setCreditLevel(v);
-                  setPage(1);
-                }}
-              />
-            </Col>
-          </Row>
-        )}
-
-        <div className="customer-summary-strip">
-          <div className="customer-stat-grid">
-            <div className="customer-stat-pill">
-              <span className="customer-stat-label">A级客户</span>
-              <span className="customer-stat-value">{statsLoading ? "..." : levelACount}</span>
-            </div>
-            <div className={`customer-stat-pill${alertCount > 0 ? " is-warning" : ""}`}>
-              <BellOutlined />
-              <span className="customer-stat-label">未读预警</span>
-              <span className="customer-stat-value">{alertCount}</span>
-            </div>
-            <div className="customer-stat-pill">
-              <span className="customer-stat-label">本月新增</span>
-              <span className="customer-stat-value">{statsLoading ? "..." : monthlyNewCount}</span>
-            </div>
-            {topIndustry && (
-              <div className="customer-stat-pill">
-                <span className="customer-stat-label">主力行业</span>
-                <span className="customer-stat-value">{topIndustry.name} {topIndustry.value}</span>
-              </div>
-            )}
-          </div>
-          {activeFilterItems.length > 0 && (
-            <div className="customer-active-filters">
-              <Typography.Text type="secondary">筛选</Typography.Text>
-              {activeFilterItems.map((item) => (
-                <StatusTag
-                  key={item.key}
-                  closable
-                  onClose={(event) => {
-                    event.preventDefault();
-                    item.clear();
-                  }}
-                >
-                  {item.label}
-                </StatusTag>
-              ))}
-              <Button size="small" type="link" onClick={resetFilters}>清除</Button>
-            </div>
-          )}
-        </div>
+        <CustomerFilterBar
+          q={q}
+          scene={scene}
+          industry={industry}
+          level={level}
+          region={region}
+          source={source}
+          creditLevel={creditLevel}
+          advancedOpen={advancedOpen}
+          activeAdvancedFilterCount={activeAdvancedFilterCount}
+          levelACount={levelACount}
+          alertCount={alertCount}
+          monthlyNewCount={monthlyNewCount}
+          topIndustry={topIndustry}
+          statsLoading={statsLoading}
+          activeFilterItems={activeFilterItems}
+          moreActionsContent={moreActionsContent}
+          onSearchChange={(value) => {
+            setQ(value);
+            setSmartTask("all");
+            setActiveViewPreset("all");
+            setOverdueOnly(false);
+            setPage(1);
+          }}
+          onSceneChange={(v) => {
+            setScene(v);
+            setPage(1);
+          }}
+          onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
+          onResetFilters={resetFilters}
+          onIndustryChange={(v) => {
+            setIndustry(v);
+            setPage(1);
+          }}
+          onLevelChange={(v) => {
+            setLevel(v);
+            setPage(1);
+          }}
+          onRegionChange={(v) => {
+            setRegion(v);
+            setPage(1);
+          }}
+          onSourceChange={(v) => {
+            setSource(v);
+            setPage(1);
+          }}
+          onCreditLevelChange={(v) => {
+            setCreditLevel(v);
+            setPage(1);
+          }}
+          onClearFilter={(key) => {
+            const item = activeFilterItems.find((i) => i.key === key);
+            item?.clear();
+          }}
+        />
       </Card>
 
       {selectedRowKeys.length > 0 && (
