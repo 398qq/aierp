@@ -26,8 +26,11 @@ export interface QuotationItem {
   product_id: number | null;
   product_name: string | null;
   quantity: number;
+  unit: string | null;
   unit_price: number | null;
   total_price: number | null;
+  tax_rate: number | null;
+  discount_rate: number | null;
   cost_price: number | null;
   untaxed_cost: number | null;
   taxed_cost: number | null;
@@ -45,6 +48,12 @@ export interface Quotation {
   title: string | null;
   total_amount: number;
   status: string;
+  currency: string;
+  incoterms: string | null;
+  payment_terms: string | null;
+  discount_rate: number | null;
+  discount_amount: number | null;
+  subtotal: number | null;
   valid_until: string | null;
   notes: string | null;
   created_at: string;
@@ -62,6 +71,16 @@ export interface SalesOrder {
   quotation_no?: string | null;
   total_amount: number;
   status: string;
+  currency: string;
+  incoterms: string | null;
+  payment_terms: string | null;
+  due_date: string | null;
+  customer_po_no: string | null;
+  shipping_address: string | null;
+  billing_address: string | null;
+  discount_rate: number | null;
+  discount_amount: number | null;
+  subtotal: number | null;
   order_date: string | null;
   delivery_date: string | null;
   notes: string | null;
@@ -79,6 +98,9 @@ export interface DeliveryNote {
   customer_id: number;
   customer_name?: string | null;
   status: string;
+  shipping_method: string | null;
+  tracking_number: string | null;
+  incoterms: string | null;
   delivery_date: string | null;
   received_date: string | null;
   notes: string | null;
@@ -126,8 +148,11 @@ export interface SalesOrderItem {
   product_id: number | null;
   product_name: string | null;
   quantity: number;
+  unit: string | null;
   unit_price: number | null;
   total_price: number | null;
+  tax_rate: number | null;
+  discount_rate: number | null;
   notes: string | null;
 }
 
@@ -137,6 +162,7 @@ export interface DeliveryNoteItem {
   product_id: number | null;
   product_name: string | null;
   quantity: number;
+  unit: string | null;
   notes: string | null;
 }
 

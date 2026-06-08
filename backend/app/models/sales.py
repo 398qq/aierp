@@ -11,27 +11,39 @@ class Opportunity(TimestampMixin, Base):
     __tablename__ = "opportunities"
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
     stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     win_probability: Mapped[int | None] = mapped_column(nullable=True)
-    expected_close_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expected_close_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     assigned_to: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- AI 分析结果（由背景 AI 自动填充） ---
-    ai_risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # low/medium/high
+    ai_risk_level: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # low/medium/high
     ai_next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ai_key_concerns: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list
-    ai_scored_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ai_key_concerns: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # JSON list
+    ai_scored_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     customer = relationship("Customer", back_populates="opportunities")
     product = relationship("Product", foreign_keys=[product_id])
-    quotations = relationship("Quotation", back_populates="opportunity", lazy="selectin")
+    quotations = relationship(
+        "Quotation", back_populates="opportunity", lazy="selectin"
+    )
 
 
 class Quotation(TimestampMixin, Base):
@@ -39,11 +51,34 @@ class Quotation(TimestampMixin, Base):
 
     quotation_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    opportunity_id: Mapped[int | None] = mapped_column(ForeignKey("opportunities.id"), nullable=True)
+    opportunity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("opportunities.id"), nullable=True
+    )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     total_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     status: Mapped[str] = mapped_column(String(20), default="draft")
-    valid_until: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # ── 商务条款 ──
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    incoterms: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # FOB / CIF / EXW
+    payment_terms: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # Net 30 / T/T in advance
+
+    # ── 折扣 ──
+    discount_rate: Mapped[float | None] = mapped_column(
+        DECIMAL(5, 2), nullable=True
+    )  # 折扣率 %
+    discount_amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    subtotal: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )  # 税前折前合计
+
+    valid_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", back_populates="quotations")
@@ -61,11 +96,16 @@ class QuotationItem(TimestampMixin, Base):
     __tablename__ = "quotation_items"
 
     quotation_id: Mapped[int] = mapped_column(ForeignKey("quotations.id"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quantity: Mapped[int] = mapped_column(default=1)
     unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    discount_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
     cost_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     untaxed_cost: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     taxed_cost: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
@@ -81,25 +121,58 @@ class SalesOrder(TimestampMixin, Base):
 
     order_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    quotation_id: Mapped[int | None] = mapped_column(ForeignKey("quotations.id"), nullable=True)
+    quotation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("quotations.id"), nullable=True
+    )
     total_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    order_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    delivery_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # ── 商务条款 ──
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    incoterms: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    due_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    customer_po_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # ── 地址 ──
+    shipping_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    billing_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── 折扣 ──
+    discount_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    discount_amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    subtotal: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+
+    order_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    delivery_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", back_populates="sales_orders")
     quotation = relationship("Quotation", foreign_keys=[quotation_id])
-    items = relationship("SalesOrderItem", back_populates="order", lazy="selectin", cascade="all, delete-orphan")
+    items = relationship(
+        "SalesOrderItem",
+        back_populates="order",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class SalesOrderItem(TimestampMixin, Base):
     __tablename__ = "sales_order_items"
 
     order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quantity: Mapped[int] = mapped_column(default=1)
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    discount_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
     unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -115,22 +188,40 @@ class DeliveryNote(TimestampMixin, Base):
     sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    delivery_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    received_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # ── 物流 ──
+    shipping_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    incoterms: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    delivery_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    received_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", back_populates="delivery_notes")
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
-    items = relationship("DeliveryNoteItem", back_populates="delivery_note", lazy="selectin", cascade="all, delete-orphan")
+    items = relationship(
+        "DeliveryNoteItem",
+        back_populates="delivery_note",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class DeliveryNoteItem(TimestampMixin, Base):
     __tablename__ = "delivery_note_items"
 
     delivery_note_id: Mapped[int] = mapped_column(ForeignKey("delivery_notes.id"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quantity: Mapped[int] = mapped_column(default=1)
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     delivery_note = relationship("DeliveryNote", back_populates="items")
@@ -139,16 +230,27 @@ class DeliveryNoteItem(TimestampMixin, Base):
 
 class Inquiry(TimestampMixin, Base):
     """Incoming customer inquiry — underived leads that may convert to opportunities."""
+
     __tablename__ = "inquiries"
 
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
-    channel: Mapped[str] = mapped_column(String(20), default="web")  # web, wechat, email, api
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id"), nullable=True
+    )
+    channel: Mapped[str] = mapped_column(
+        String(20), default="web"
+    )  # web, wechat, email, api
     contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    contact_info: Mapped[str | None] = mapped_column(String(255), nullable=True)  # email/phone
+    contact_info: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # email/phone
     inquiry_text: Mapped[str] = mapped_column(Text)
     reply_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, replied, converted
-    matched_products: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list of {id, name, brand}
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending, replied, converted
+    matched_products: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # JSON list of {id, name, brand}
     ai_confidence: Mapped[float | None] = mapped_column(nullable=True)  # 0.0-1.0
 
     customer = relationship("Customer", backref="inquiries")
