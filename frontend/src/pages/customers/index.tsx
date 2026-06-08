@@ -149,6 +149,7 @@ import { useCustomerTableColumns } from "./useCustomerTableColumns";
 import CustomerStatsCards from "./CustomerStatsCards";
 import CustomerCrmToolbar from "./CustomerCrmToolbar";
 import CustomerFilterBar from "./CustomerFilterBar";
+import CustomerDetailDrawer from "./CustomerDetailDrawer";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -2276,62 +2277,14 @@ export default function CustomerList() {
         )}
       </Modal>
 
-      <Drawer
-        title={detailCustomer ? `客户详情 - ${detailCustomer.name}` : "客户详情"}
-        width={700}
-        placement="right"
+      <CustomerDetailDrawer
         open={detailOpen}
+        loading={detailLoading}
+        customer={detailCustomer}
+        stats={detailStats}
         onClose={() => setDetailOpen(false)}
-      >
-        {detailLoading ? (
-          <Card loading />
-        ) : !detailCustomer ? (
-          <Empty description="暂无详情" />
-        ) : (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Space wrap>
-              <StatusTag tone={getLevelColor(detailCustomer.level)}>等级 {detailCustomer.level || "-"}</StatusTag>
-              <StatusTag>行业 {detailCustomer.industry || "-"}</StatusTag>
-              <StatusTag>区域 {detailCustomer.region || "-"}</StatusTag>
-              <StatusTag tone={getHealthColor(detailCustomer.health_score)}>健康度 {detailCustomer.health_score ?? "-"}</StatusTag>
-            </Space>
-
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="客户编码">{detailCustomer.code || "-"}</Descriptions.Item>
-              <Descriptions.Item label="客户简称">{detailCustomer.short_name || "-"}</Descriptions.Item>
-              <Descriptions.Item label="负责人">{detailCustomer.owner || "-"}</Descriptions.Item>
-              <Descriptions.Item label="联系人">{detailCustomer.contact_person || "-"}</Descriptions.Item>
-              <Descriptions.Item label="电话">{detailCustomer.phone || "-"}</Descriptions.Item>
-              <Descriptions.Item label="邮箱">{detailCustomer.email || "-"}</Descriptions.Item>
-              <Descriptions.Item label="来源">{detailCustomer.source || "-"}</Descriptions.Item>
-              <Descriptions.Item label="信用等级">{detailCustomer.credit_level || "-"}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDate(detailCustomer.created_at)}</Descriptions.Item>
-              <Descriptions.Item label="最近联系">{formatDate(detailCustomer.last_contacted_at)}</Descriptions.Item>
-              <Descriptions.Item label="地址" span={2}>{detailCustomer.address || "-"}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={2}>{detailCustomer.notes || "-"}</Descriptions.Item>
-            </Descriptions>
-
-            <Divider style={{ margin: "4px 0" }}>经营指标</Divider>
-            {!detailStats ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无指标数据" />
-            ) : (
-              <Row gutter={[10, 10]}>
-                <Col span={8}><Card size="small"><Statistic title="订单数" value={detailStats.order_count} /></Card></Col>
-                <Col span={8}><Card size="small"><Statistic title="总营收" value={detailStats.total_revenue} precision={2} /></Card></Col>
-                <Col span={8}><Card size="small"><Statistic title="信用占用%" value={detailStats.credit_usage_pct} precision={1} /></Card></Col>
-              </Row>
-            )}
-
-            <Divider style={{ margin: "4px 0" }}>快速动作</Divider>
-            <Space wrap>
-              <Button icon={<EyeOutlined />} onClick={() => navigate(`/customers/${detailCustomer.id}`)}>完整详情</Button>
-              <Button icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${detailCustomer.id}`)}>建订单</Button>
-              <Button icon={<PhoneOutlined />} onClick={() => navigate(`/customers/${detailCustomer.id}?tab=followups`)}>建跟进</Button>
-              <Button icon={<SwapOutlined />} onClick={() => setVendCustomer(detailCustomer)}>转供应商</Button>
-            </Space>
-          </Space>
-        )}
-      </Drawer>
+        onVendAsSupplier={setVendCustomer}
+      />
 
       <Drawer
         title={quickFollowUpCustomer ? `新增跟进 - ${quickFollowUpCustomer.name}` : "新增跟进"}
