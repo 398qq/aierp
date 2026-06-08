@@ -88,6 +88,7 @@ import {
   PRODUCT_TASK_LABELS,
 } from "./constants";
 import { useProductTableColumns } from "./useProductTableColumns";
+import ProductHealthStrip from "./ProductHealthStrip";
 
 export default function ProductList() {
   const [data, setData] = useState<Product[]>([]);
@@ -945,46 +946,21 @@ export default function ProductList() {
         }
       `}</style>
 
-      <div className="product-health-strip">
-        <div className="product-health-main">
-          <div>
-            <div className="product-health-title">
-              <InboxOutlined />
-              <span>产品管理工作台</span>
-              {statsLoading && <StatusTag>刷新中</StatusTag>}
-            </div>
-            <div className="product-health-note">
-              统一处理产品主数据、库存、供应商、价格和 AI 选型动作，优先消除缺货、低库存与资料缺口。
-            </div>
-          </div>
-          <div className="product-health-actions">
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建产品</Button>
-            <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>批量导入</Button>
-            <Button icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>AI 解析</Button>
-            <Button icon={<FileTextOutlined />} onClick={() => setBomModalOpen(true)}>BOM 导入</Button>
-          </div>
-        </div>
-        <div className="product-health-metric" onClick={resetAllFilters}>
-          <span className="product-health-label">SKU 总数</span>
-          <span className="product-health-value">{stats.total}<small>个</small></span>
-          <div className="product-health-sub">在库率 {healthMetrics.inStockRate}%</div>
-        </div>
-        <div className="product-health-metric" onClick={() => { setProductTask("replenish"); setScene("low_stock"); setPage(1); }}>
-          <span className="product-health-label">低库存</span>
-          <span className="product-health-value">{stats.low_stock_count}<small>个</small></span>
-          <div className="product-health-sub">占比 {healthMetrics.lowStockRate}%</div>
-        </div>
-        <div className="product-health-metric" onClick={() => { setProductTask("out"); setScene("out_of_stock"); setPage(1); }}>
-          <span className="product-health-label">缺货</span>
-          <span className="product-health-value">{stats.out_of_stock_count}<small>个</small></span>
-          <div className="product-health-sub">占比 {healthMetrics.outOfStockRate}%</div>
-        </div>
-        <div className="product-health-metric" onClick={() => { setProductTask("complete"); setScene("pending_completion"); setPage(1); }}>
-          <span className="product-health-label">待完善</span>
-          <span className="product-health-value">{stats.pending_completion_count}<small>个</small></span>
-          <div className="product-health-sub">缺口率 {healthMetrics.completionGapRate}%</div>
-        </div>
-      </div>
+      <ProductHealthStrip
+        stats={stats}
+        statsLoading={statsLoading}
+        metrics={healthMetrics}
+        onCreate={openCreate}
+        onImport={() => setImportModalOpen(true)}
+        onOpenAiParse={() => setAiModalOpen(true)}
+        onOpenBomImport={() => setBomModalOpen(true)}
+        onResetFilters={resetAllFilters}
+        onTaskClick={(task, scene) => {
+          setProductTask(task);
+          setScene(scene);
+          setPage(1);
+        }}
+      />
 
       <div className="product-command-layout">
         <aside className="product-command-sidebar">
