@@ -68,8 +68,11 @@ class QuotationItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int = 1
+    unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    tax_rate: float | None = None
+    discount_rate: float | None = None
     cost_price: float | None = None
     untaxed_cost: float | None = None
     taxed_cost: float | None = None
@@ -81,8 +84,11 @@ class QuotationItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int | None = None
+    unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    tax_rate: float | None = None
+    discount_rate: float | None = None
     cost_price: float | None = None
     untaxed_cost: float | None = None
     taxed_cost: float | None = None
@@ -96,8 +102,11 @@ class QuotationItemResponse(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int
+    unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    tax_rate: float | None = None
+    discount_rate: float | None = None
     cost_price: float | None = None
     untaxed_cost: float | None = None
     taxed_cost: float | None = None
@@ -113,6 +122,12 @@ class QuotationCreate(BaseModel):
     title: str | None = None
     total_amount: float = 0
     status: str = "draft"
+    currency: str = "CNY"
+    incoterms: str | None = None
+    payment_terms: str | None = None
+    discount_rate: float | None = None
+    discount_amount: float | None = None
+    subtotal: float | None = None
     valid_until: datetime | None = None
     notes: str | None = None
     items: list[QuotationItemCreate] = []
@@ -125,6 +140,12 @@ class QuotationUpdate(BaseModel):
     title: str | None = None
     total_amount: float | None = None
     status: str | None = None
+    currency: str | None = None
+    incoterms: str | None = None
+    payment_terms: str | None = None
+    discount_rate: float | None = None
+    discount_amount: float | None = None
+    subtotal: float | None = None
     valid_until: datetime | None = None
     notes: str | None = None
     items: list[QuotationItemCreate] | None = None
@@ -153,6 +174,12 @@ class QuotationResponse(BaseModel):
     title: str | None = None
     total_amount: float
     status: str
+    currency: str = "CNY"
+    incoterms: str | None = None
+    payment_terms: str | None = None
+    discount_rate: float | None = None
+    discount_amount: float | None = None
+    subtotal: float | None = None
     valid_until: datetime | None = None
     notes: str | None = None
     created_at: datetime
@@ -170,8 +197,11 @@ class SalesOrderItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int = 1
+    unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    tax_rate: float | None = None
+    discount_rate: float | None = None
     notes: str | None = None
 
 
@@ -179,8 +209,11 @@ class SalesOrderItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int | None = None
+    unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    tax_rate: float | None = None
+    discount_rate: float | None = None
     notes: str | None = None
 
 
@@ -190,8 +223,11 @@ class SalesOrderItemResponse(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int
+    unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    tax_rate: float | None = None
+    discount_rate: float | None = None
     notes: str | None = None
     model_config = {"from_attributes": True}
 
@@ -202,6 +238,16 @@ class SalesOrderCreate(BaseModel):
     quotation_id: int | None = None
     total_amount: float = 0
     status: str = "pending"
+    currency: str = "CNY"
+    incoterms: str | None = None
+    payment_terms: str | None = None
+    due_date: datetime | None = None
+    customer_po_no: str | None = None
+    shipping_address: str | None = None
+    billing_address: str | None = None
+    discount_rate: float | None = None
+    discount_amount: float | None = None
+    subtotal: float | None = None
     order_date: datetime | None = None
     delivery_date: datetime | None = None
     notes: str | None = None
@@ -214,6 +260,16 @@ class SalesOrderUpdate(BaseModel):
     quotation_id: int | None = None
     total_amount: float | None = None
     status: str | None = None
+    currency: str | None = None
+    incoterms: str | None = None
+    payment_terms: str | None = None
+    due_date: datetime | None = None
+    customer_po_no: str | None = None
+    shipping_address: str | None = None
+    billing_address: str | None = None
+    discount_rate: float | None = None
+    discount_amount: float | None = None
+    subtotal: float | None = None
     order_date: datetime | None = None
     delivery_date: datetime | None = None
     notes: str | None = None
@@ -229,6 +285,16 @@ class SalesOrderResponse(BaseModel):
     quotation_no: str | None = None
     total_amount: float
     status: str
+    currency: str = "CNY"
+    incoterms: str | None = None
+    payment_terms: str | None = None
+    due_date: datetime | None = None
+    customer_po_no: str | None = None
+    shipping_address: str | None = None
+    billing_address: str | None = None
+    discount_rate: float | None = None
+    discount_amount: float | None = None
+    subtotal: float | None = None
     order_date: datetime | None = None
     delivery_date: datetime | None = None
     notes: str | None = None
@@ -247,6 +313,7 @@ class DeliveryNoteItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int = 1
+    unit: str | None = None
     notes: str | None = None
 
 
@@ -254,6 +321,7 @@ class DeliveryNoteItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int | None = None
+    unit: str | None = None
     notes: str | None = None
 
 
@@ -263,6 +331,7 @@ class DeliveryNoteItemResponse(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     quantity: int
+    unit: str | None = None
     notes: str | None = None
     model_config = {"from_attributes": True}
 
@@ -272,6 +341,9 @@ class DeliveryNoteCreate(BaseModel):
     sales_order_id: int
     customer_id: int
     status: str = "pending"
+    shipping_method: str | None = None
+    tracking_number: str | None = None
+    incoterms: str | None = None
     delivery_date: datetime | None = None
     received_date: datetime | None = None
     notes: str | None = None
@@ -283,6 +355,9 @@ class DeliveryNoteUpdate(BaseModel):
     sales_order_id: int | None = None
     customer_id: int | None = None
     status: str | None = None
+    shipping_method: str | None = None
+    tracking_number: str | None = None
+    incoterms: str | None = None
     delivery_date: datetime | None = None
     received_date: datetime | None = None
     notes: str | None = None
@@ -303,6 +378,9 @@ class DeliveryNoteResponse(BaseModel):
     customer_id: int
     customer_name: str | None = None
     status: str
+    shipping_method: str | None = None
+    tracking_number: str | None = None
+    incoterms: str | None = None
     delivery_date: datetime | None = None
     received_date: datetime | None = None
     notes: str | None = None
