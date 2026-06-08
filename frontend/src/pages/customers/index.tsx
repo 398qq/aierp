@@ -106,238 +106,46 @@ import {
   FollowUpPriorityTag,
   FollowUpStatusTag,
 } from "./customerUi";
-
-const INDUSTRIES = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗设备", "安防监控", "其他"];
-const LEVELS = ["A", "B", "C", "D"];
-const REGIONS = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
-const SOURCES = ["展会", "转介绍", "线上推广", "陌生拜访", "公司资源"];
-const CREDIT_LEVELS = ["AAA", "AA", "A", "B", "C"];
-const TAG_COLOR_OPTIONS = [
-  { value: "blue", label: "蓝色" },
-  { value: "green", label: "绿色" },
-  { value: "orange", label: "橙色" },
-  { value: "red", label: "红色" },
-  { value: "purple", label: "紫色" },
-  { value: "cyan", label: "青色" },
-  { value: "default", label: "默认" },
-];
-
-type SceneValue = "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
-type SmartTaskKey = "today" | "overdue" | "high_risk" | "key_stale" | "new_customers" | "ai_suggested" | "all";
-type CustomerWorkbenchTab = "customers" | "followups";
-type CustomerViewMode = "table" | "board";
-type CrmObjectKey = "companies" | "people" | "opportunities" | "quotations" | "orders";
-
-const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
-  { label: "全部客户", value: "all" },
-  { label: "重点客户", value: "key_accounts" },
-  { label: "华东区域", value: "east_region" },
-  { label: "展会线索", value: "expo_leads" },
-  { label: "高信用", value: "high_credit" },
-];
-
-const SCENE_FILTERS: Record<SceneValue, { level?: string; region?: string; source?: string; creditLevel?: string }> = {
-  all: {},
-  key_accounts: { level: "A" },
-  east_region: { region: "华东" },
-  expo_leads: { source: "展会" },
-  high_credit: { creditLevel: "A" },
-};
-
-const COL_LABEL_MAP: Record<string, string> = {
-  code: "编码",
-  name: "名称",
-  industry: "行业",
-  level: "等级",
-  region: "区域",
-  credit_level: "信用",
-  health: "健康度",
-  next_followup: "下一次跟进",
-  tags: "标签",
-  owner: "负责人",
-  contact_person: "联系人",
-  phone: "电话",
-  email: "邮箱",
-  last_contacted_at: "最近联系",
-  source: "来源",
-  created_at: "创建时间",
-  actions: "操作",
-};
-
-const DEFAULT_VISIBLE_COL_KEYS = ["name", "level", "region", "owner", "next_followup", "last_contacted_at", "tags", "actions"];
-const PEOPLE_VISIBLE_COL_KEYS = ["name", "contact_person", "phone", "email", "owner", "last_contacted_at", "actions"];
-type ReminderBucket = "all" | FollowUpReminder["due_bucket"];
-type GlobalFollowUpBucket = "all" | GlobalFollowUp["due_bucket"];
-
-const REMINDER_BUCKETS: { key: ReminderBucket; label: string }[] = [
-  { key: "all", label: "全部" },
-  { key: "overdue", label: "逾期" },
-  { key: "today", label: "今日" },
-  { key: "upcoming", label: "未来" },
-];
-
-const GLOBAL_FOLLOW_UP_BUCKETS: { key: GlobalFollowUpBucket; label: string }[] = [
-  { key: "all", label: "全部" },
-  { key: "overdue", label: "逾期" },
-  { key: "today", label: "今日" },
-  { key: "upcoming", label: "未来" },
-  { key: "unscheduled", label: "未排期" },
-  { key: "closed", label: "已完成" },
-];
-
-const SMART_TASK_LABELS: Record<SmartTaskKey, string> = {
-  today: "今日必做",
-  overdue: "逾期跟进",
-  high_risk: "高风险客户",
-  key_stale: "A类长期未联系",
-  new_customers: "新客户首联",
-  ai_suggested: "AI推荐动作",
-  all: "全部客户",
-};
-
-const CRM_OBJECTS: Array<{ key: CrmObjectKey; label: string; title: string; path: string; icon: ReactNode }> = [
-  { key: "companies", label: "Companies", title: "客户公司", path: "/customers", icon: <UserOutlined /> },
-  { key: "people", label: "People", title: "联系人", path: "/customers?view=people", icon: <PhoneOutlined /> },
-  { key: "opportunities", label: "Opportunities", title: "商机", path: "/sales/opportunities", icon: <BulbOutlined /> },
-  { key: "quotations", label: "Quotes", title: "报价", path: "/sales/quotations", icon: <SendOutlined /> },
-  { key: "orders", label: "Orders", title: "订单", path: "/sales/orders", icon: <ShoppingCartOutlined /> },
-];
-
-const CRM_VIEW_PRESETS = [
-  { key: "all", label: "All companies", description: "全部公司对象", task: "all" as SmartTaskKey, view: "table" as CustomerViewMode },
-  { key: "key", label: "Key accounts", description: "A级客户看板", task: "all" as SmartTaskKey, scene: "key_accounts" as SceneValue, view: "board" as CustomerViewMode },
-  { key: "today", label: "Today follow-ups", description: "今日必须推进", task: "today" as SmartTaskKey, view: "table" as CustomerViewMode },
-  { key: "risk", label: "At risk", description: "逾期或健康度低", task: "high_risk" as SmartTaskKey, view: "board" as CustomerViewMode },
-  { key: "new", label: "New companies", description: "14天内新建", task: "new_customers" as SmartTaskKey, view: "table" as CustomerViewMode },
-];
-
-const DEFAULT_STATS: DashboardStats = {
-  total: 0,
-  by_industry: [],
-  by_level: [],
-  by_region: [],
-  by_source: [],
-  by_type: [],
-  monthly: [],
-};
-
-const getLevelColor = (level?: string | null) => {
-  if (!level) return "default";
-  if (level === "A") return "red";
-  if (level === "B") return "orange";
-  if (level === "C") return "gold";
-  return "default";
-};
-
-const getHealthColor = (value?: number | null) => {
-  if (value == null) return "default";
-  if (value >= 80) return "green";
-  if (value >= 60) return "gold";
-  return "red";
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  return value.slice(0, 10);
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "-";
-  return value.slice(0, 16).replace("T", " ");
-};
-
-const formatReminderRefreshTime = (value: Date | null) => {
-  if (!value) return "尚未刷新";
-  const diffMs = Date.now() - value.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  if (diffMinutes < 1) return "刚刚刷新";
-  if (diffMinutes < 60) return `${diffMinutes}分钟前刷新`;
-  return `${value.getHours().toString().padStart(2, "0")}:${value.getMinutes().toString().padStart(2, "0")} 刷新`;
-};
-
-const plusOneDayIso = (value?: string | null) => {
-  const currentTime = value ? new Date(value).getTime() : Date.now();
-  const baseTime = Number.isNaN(currentTime) ? Date.now() : Math.max(currentTime, Date.now());
-  return new Date(baseTime + 24 * 60 * 60 * 1000).toISOString();
-};
-
-const getReminderDueMeta = (item: FollowUpReminder) => {
-  if (item.due_bucket === "overdue") {
-    return { text: `逾期 ${item.overdue_days} 天`, color: "red" };
-  }
-  if (item.due_bucket === "today") {
-    return { text: "今日待跟进", color: "orange" };
-  }
-  return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
-};
-
-const getGlobalFollowUpDueMeta = (item: GlobalFollowUp) => {
-  if (item.due_bucket === "overdue") return { text: `逾期 ${item.overdue_days} 天`, color: "red" };
-  if (item.due_bucket === "today") return { text: "今日待跟进", color: "orange" };
-  if (item.due_bucket === "upcoming") return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
-  if (item.due_bucket === "closed") return { text: "已完成", color: "green" };
-  return { text: "未排期", color: "default" };
-};
-
-const getDaysSince = (value?: string | null) => {
-  if (!value) return null;
-  const time = new Date(value).getTime();
-  if (Number.isNaN(time)) return null;
-  return Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
-};
-
-const getCustomerPriorityScore = (customer: Customer, next?: FollowUpReminder) => {
-  let score = 35;
-  if (customer.level === "A") score += 18;
-  if (customer.level === "B") score += 10;
-  if (next?.due_bucket === "overdue") score += 28;
-  if (next?.due_bucket === "today") score += 20;
-  if (customer.health_score != null && customer.health_score < 60) score += 18;
-  const contactAge = getDaysSince(customer.last_contacted_at);
-  if (contactAge == null) score += 10;
-  else if (contactAge > 60) score += 16;
-  else if (contactAge > 30) score += 8;
-  return Math.min(100, score);
-};
-
-const getCustomerSuggestedAction = (customer: Customer, next?: FollowUpReminder) => {
-  if (next?.due_bucket === "overdue") return "立即补跟进并更新结果";
-  if (next?.due_bucket === "today") return "按计划完成今日跟进";
-  if (customer.health_score != null && customer.health_score < 60) return "查看风险原因并安排挽回";
-  if (customer.level === "A" && getDaysSince(customer.last_contacted_at) != null && getDaysSince(customer.last_contacted_at)! > 30) {
-    return "联系关键客户并确认近期需求";
-  }
-  if (getDaysSince(customer.created_at) != null && getDaysSince(customer.created_at)! <= 14) return "完成新客户首联";
-  return "补充客户画像并规划下一步";
-};
-
-const buildFollowUpTalkTrack = (customer: Customer, next?: FollowUpReminder) => {
-  const name = customer.contact_person || "客户";
-  const action = getCustomerSuggestedAction(customer, next);
-  const lines = [
-    `${name}您好，我这边想同步一下${customer.name}近期项目和物料需求，看看有没有需要我们提前配合的地方。`,
-    `我注意到当前建议动作是「${action}」，所以这次主要想确认需求进度、交付时间和后续采购计划。`,
-    "如果方便，我可以先整理一版适配产品/报价建议，您确认方向后我们再推进下一步。",
-  ];
-  if (next?.due_bucket === "overdue") {
-    lines[0] = `${name}您好，之前计划的跟进已逾期，我先补充确认一下当前项目状态和需要我们处理的事项。`;
-  }
-  if (customer.health_score != null && customer.health_score < 60) {
-    lines[1] = "近期客户健康度偏低，我想重点确认是否存在交付、价格、响应或备货方面的问题，我们这边及时调整。";
-  }
-  return lines;
-};
-
-const buildFollowUpPlanContent = (customer: Customer, next?: FollowUpReminder) => {
-  const talkTrack = buildFollowUpTalkTrack(customer, next);
-  return [
-    `AI建议动作：${getCustomerSuggestedAction(customer, next)}`,
-    `客户优先级：${getCustomerPriorityScore(customer, next)}`,
-    "",
-    "建议沟通话术：",
-    ...talkTrack.map((line, index) => `${index + 1}. ${line}`),
-  ].join("\n");
-};
+import {
+  buildFollowUpPlanContent,
+  buildFollowUpTalkTrack,
+  COL_LABEL_MAP,
+  CREDIT_LEVELS,
+  CRM_OBJECTS,
+  CRM_VIEW_PRESETS,
+  CustomerViewMode,
+  CustomerWorkbenchTab,
+  CrmObjectKey,
+  DEFAULT_STATS,
+  DEFAULT_VISIBLE_COL_KEYS,
+  formatDate,
+  formatDateTime,
+  formatReminderRefreshTime,
+  GLOBAL_FOLLOW_UP_BUCKETS,
+  GlobalFollowUpBucket,
+  getCustomerPriorityScore,
+  getCustomerSuggestedAction,
+  getDaysSince,
+  getGlobalFollowUpDueMeta,
+  getHealthColor,
+  getLevelColor,
+  getReminderDueMeta,
+  INDUSTRIES,
+  LEVELS,
+  PEOPLE_VISIBLE_COL_KEYS,
+  plusOneDayIso,
+  REGIONS,
+  ReminderBucket,
+  REMINDER_BUCKETS,
+  SCENE_FILTERS,
+  SCENE_OPTIONS,
+  SceneValue,
+  SMART_TASK_LABELS,
+  SmartTaskKey,
+  SOURCES,
+  TAG_COLOR_OPTIONS,
+} from "./constants";
+import { useCustomerTableColumns } from "./useCustomerTableColumns";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -1145,221 +953,16 @@ export default function CustomerList() {
     }
   };
 
-  const columns: ColumnsType<Customer> = [
-    {
-      title: "客户编码",
-      dataIndex: "code",
-      key: "code",
-      width: 120,
-      sorter: true,
-      sortOrder: sortBy === "code" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => (
-        <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{v || "-"}</span>
-      ),
-    },
-    {
-      title: "客户",
-      dataIndex: "name",
-      key: "name",
-      width: 280,
-      sorter: true,
-      sortOrder: sortBy === "name" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (text: string, r: Customer) => (
-        <Space direction="vertical" size={2}>
-          <Space size={6} wrap>
-            <Typography.Link strong onClick={() => navigate(`/customers/${r.id}`)}>{text}</Typography.Link>
-            {r.level && <StatusTag tone={getLevelColor(r.level)} style={{ marginInlineEnd: 0 }}>{r.level}</StatusTag>}
-            {overdueCustomerIds.has(r.id) && <StatusTag tone="danger" style={{ marginInlineEnd: 0 }}>逾期</StatusTag>}
-          </Space>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {[r.code, r.short_name].filter(Boolean).join(" / ") || "-"}
-          </Typography.Text>
-          {r.contact_person && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              联系人：{r.contact_person}
-            </Typography.Text>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: "行业",
-      dataIndex: "industry",
-      key: "industry",
-      width: 120,
-      sorter: true,
-      sortOrder: sortBy === "industry" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => (v ? <StatusTag>{v}</StatusTag> : "-"),
-    },
-    {
-      title: "等级",
-      dataIndex: "level",
-      key: "level",
-      width: 76,
-      align: "center",
-      sorter: true,
-      sortOrder: sortBy === "level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => <StatusTag tone={getLevelColor(v)} style={{ marginInlineEnd: 0 }}>{v || "-"}</StatusTag>,
-    },
-    {
-      title: "区域",
-      dataIndex: "region",
-      key: "region",
-      width: 100,
-      sorter: true,
-      sortOrder: sortBy === "region" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => v || "-",
-    },
-    {
-      title: "信用",
-      dataIndex: "credit_level",
-      key: "credit_level",
-      width: 90,
-      sorter: true,
-      sortOrder: sortBy === "credit_level" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => v ? <StatusTag>{v}</StatusTag> : "-",
-    },
-    {
-      title: "健康/风险",
-      key: "health",
-      width: 130,
-      render: (_: unknown, row: Customer) => (
-        <Space size={4} wrap>
-          <StatusTag tone={getHealthColor(row.health_score)}>
-            {row.health_score != null ? `${row.health_score}` : "-"}
-          </StatusTag>
-          {overdueCustomerIds.has(row.id) && <StatusTag tone="danger">逾期</StatusTag>}
-        </Space>
-      ),
-    },
-    {
-      title: "下一次跟进",
-      key: "next_followup",
-      width: 170,
-      render: (_: unknown, row: Customer) => {
-        const next = nextFollowUpByCustomer.get(row.id);
-        if (!next) return "-";
-        const color = next.due_bucket === "overdue" ? "red" : next.due_bucket === "today" ? "orange" : "blue";
-        const label = next.due_bucket === "overdue"
-          ? `逾期${next.overdue_days}天`
-          : next.due_bucket === "today"
-            ? "今日"
-            : `${next.days_until ?? "-"}天后`;
-        return (
-          <Space direction="vertical" size={0}>
-            <Space size={4}>
-              <StatusTag tone={color}>{label}</StatusTag>
-              <FollowUpMethodTag method={next.method} />
-            </Space>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(next.planned_at)}</Typography.Text>
-          </Space>
-        );
-      },
-    },
-    {
-      title: "标签",
-      dataIndex: "tags",
-      key: "tags",
-      width: 180,
-      render: (rowTags: TagType[] | undefined) => {
-        const items = rowTags || [];
-        if (!items.length) return "-";
-        return (
-          <Space size={[4, 4]} wrap>
-            {items.slice(0, 2).map((t) => (
-              <StatusTag key={t.id} tone={t.color || "info"}>{t.name}</StatusTag>
-            ))}
-            {items.length > 2 && <StatusTag>+{items.length - 2}</StatusTag>}
-          </Space>
-        );
-      },
-    },
-    {
-      title: "负责人",
-      dataIndex: "owner",
-      key: "owner",
-      width: 100,
-      render: (v: string | null) => v ? <Typography.Text>{v}</Typography.Text> : "-",
-    },
-    {
-      title: "联系人",
-      dataIndex: "contact_person",
-      key: "contact_person",
-      width: 120,
-      render: (v: string | null) => v || "-",
-    },
-    {
-      title: "电话",
-      dataIndex: "phone",
-      key: "phone",
-      width: 130,
-      render: (v: string | null) => v || "-",
-    },
-    {
-      title: "邮箱",
-      dataIndex: "email",
-      key: "email",
-      width: 180,
-      render: (v: string | null) => v ? <Typography.Text copyable>{v}</Typography.Text> : "-",
-    },
-    {
-      title: "最近联系",
-      dataIndex: "last_contacted_at",
-      key: "last_contacted_at",
-      width: 110,
-      render: (v: string | null) => formatDate(v),
-    },
-    {
-      title: "来源",
-      dataIndex: "source",
-      key: "source",
-      width: 100,
-      sorter: true,
-      sortOrder: sortBy === "source" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string | null) => v || "-",
-    },
-    {
-      title: "创建时间",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 120,
-      sorter: true,
-      sortOrder: sortBy === "created_at" ? (sortOrder === "asc" ? "ascend" : "descend") : null,
-      render: (v: string) => formatDate(v),
-    },
-    {
-      title: "操作",
-      key: "actions",
-      width: 142,
-      fixed: "right",
-      render: (_: unknown, r: Customer) => (
-        <Space size={2}>
-          <Button size="small" type="link" onClick={() => openDetailDrawer(r.id)}>查看</Button>
-          <Button size="small" type="link" onClick={() => openQuickFollowUp(r)}>跟进</Button>
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                { key: "order", icon: <ShoppingCartOutlined />, label: "创建销售订单" },
-                { key: "supplier", icon: <SwapOutlined />, label: "转为供应商" },
-                { type: "divider" },
-                { key: "delete", icon: <DeleteOutlined />, danger: true, label: "删除客户" },
-              ],
-              onClick: ({ key }) => {
-                if (key === "order") navigate(`/sales/orders/new?customer_id=${r.id}`);
-                if (key === "supplier") setVendCustomer(r);
-                if (key === "delete") confirmDeleteCustomer(r);
-              },
-            }}
-          >
-            <Tooltip title="更多操作">
-              <Button size="small" type="link" icon={<MoreOutlined />} aria-label="更多操作" />
-            </Tooltip>
-          </Dropdown>
-        </Space>
-      ),
-    },
-  ];
+  const columns: ColumnsType<Customer> = useCustomerTableColumns({
+    sortBy,
+    sortOrder,
+    overdueCustomerIds,
+    nextFollowUpByCustomer,
+    onOpenDetail: openDetailDrawer,
+    onOpenQuickFollowUp: openQuickFollowUp,
+    onConfirmDelete: confirmDeleteCustomer,
+    onVendAsSupplier: setVendCustomer,
+  });
 
   const moreActionsContent = (
     <Space direction="vertical" size={8} style={{ width: 260 }}>
