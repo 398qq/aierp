@@ -68,7 +68,6 @@ export function useCustomerTableColumns({
       width: 240,
       sorter: true,
       sortOrder: sortDir("name"),
-      fixed: "left",
       render: (text: string, r: Customer) => (
         <div>
           <Space size={4}>
@@ -315,7 +314,6 @@ export function useCustomerTableColumns({
       title: "操作",
       key: "actions",
       width: 130,
-      fixed: "right",
       render: (_: unknown, r: Customer) => (
         <Space size={0}>
           <Button size="small" type="link" onClick={() => onOpenDetail(r.id)}>
