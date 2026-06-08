@@ -146,6 +146,8 @@ import {
   TAG_COLOR_OPTIONS,
 } from "./constants";
 import { useCustomerTableColumns } from "./useCustomerTableColumns";
+import CustomerStatsCards from "./CustomerStatsCards";
+import CustomerCrmToolbar from "./CustomerCrmToolbar";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -1442,86 +1444,34 @@ export default function CustomerList() {
       `}</style>
 
       <div className="customer-workbench-grid">
-        <div className="customer-kpi-card">
-          <div className="customer-kpi-title">
-            <span>客户总数</span>
-            <UserOutlined />
-          </div>
-          <div className="customer-kpi-value">{statsLoading ? "..." : stats.total}</div>
-          <div className="customer-kpi-note">当前筛选显示 {overdueOnly ? tableData.length : total} 条</div>
-        </div>
-        <div className={`customer-kpi-card${reminderCounts.today > 0 ? " is-warning" : ""}`}>
-          <div className="customer-kpi-title">
-            <span>今日待跟进</span>
-            <PhoneOutlined />
-          </div>
-          <div className="customer-kpi-value">{reminderCounts.today}</div>
-          <div className="customer-kpi-note">{formatReminderRefreshTime(reminderRefreshedAt)}</div>
-        </div>
-        <div className={`customer-kpi-card${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
-          <div className="customer-kpi-title">
-            <span>超期未跟进</span>
-            <BellOutlined />
-          </div>
-          <div className="customer-kpi-value">{reminderCounts.overdue}</div>
-          <div className="customer-kpi-note">可一键完成或延期处理</div>
-        </div>
-        <div className="customer-kpi-card">
-          <div className="customer-kpi-title">
-            <span>高价值客户</span>
-            <SafetyCertificateOutlined />
-          </div>
-          <div className="customer-kpi-value">{statsLoading ? "..." : levelACount}</div>
-          <div className="customer-kpi-note">
-            {topRegion ? `主力区域 ${topRegion.name} ${topRegion.value}` : `本月新增 ${monthlyNewCount}`}
-          </div>
-        </div>
+        <CustomerStatsCards
+          total={stats.total}
+          statsLoading={statsLoading}
+          filteredCount={overdueOnly ? tableData.length : total}
+          todayReminders={reminderCounts.today}
+          overdueReminders={reminderCounts.overdue}
+          lastRefreshedAt={reminderRefreshedAt}
+          levelACount={levelACount}
+          topRegion={topRegion}
+          monthlyNewCount={monthlyNewCount}
+          formatRefreshTime={formatReminderRefreshTime}
+        />
       </div>
 
       <div className="crm-compact-bar">
-        <Space size={8} wrap>
-          <Typography.Text strong>CRM</Typography.Text>
-          <Select
-            size="small"
-            style={{ width: 148 }}
-            value={activeCrmObject}
-            options={CRM_OBJECTS.map((object) => ({
-              value: object.key,
-              label: object.title,
-            }))}
-            onChange={(key) => {
-              const object = CRM_OBJECTS.find((item) => item.key === key);
-              if (object) openCrmObject(object);
-            }}
-          />
-          <Select
-            size="small"
-            style={{ width: 180 }}
-            value={activeViewPreset}
-            options={CRM_VIEW_PRESETS.map((preset) => ({
-              value: preset.key,
-              label: preset.description,
-            }))}
-            onChange={applyCrmViewPreset}
-          />
-        </Space>
-        <div className="crm-compact-controls">
-          <Segmented
-            size="small"
-            value={customerView}
-            options={[
-              { label: "表格", value: "table" },
-              { label: "看板", value: "board" },
-            ]}
-            onChange={(value) => setCustomerView(value as CustomerViewMode)}
-          />
-          <Button size="small" icon={<BellOutlined />} onClick={() => setReminderDrawerOpen(true)}>
-            跟进 {reminderCounts.today + reminderCounts.overdue}
-          </Button>
-          <Button size="small" icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>
-            AI队列
-          </Button>
-        </div>
+        <CustomerCrmToolbar
+          activeCrmObject={activeCrmObject}
+          activeViewPreset={activeViewPreset}
+          customerView={customerView}
+          reminderTotal={reminderCounts.today + reminderCounts.overdue}
+          onOpenCrmObject={(key) => {
+            const object = CRM_OBJECTS.find((item) => item.key === key);
+            if (object) openCrmObject(object);
+          }}
+          onApplyCrmViewPreset={applyCrmViewPreset}
+          onSetCustomerView={setCustomerView}
+          onOpenReminderDrawer={() => setReminderDrawerOpen(true)}
+        />
       </div>
 
       <div className="customer-ai-layout">
