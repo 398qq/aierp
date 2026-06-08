@@ -8,6 +8,7 @@ from app.api.v1.customers.contacts import router as contacts_router
 from app.api.v1.customers.crud import router as crud_router
 from app.api.v1.customers.follow_ups import router as follow_ups_router
 from app.api.v1.customers.level_rules import router as level_rules_router
+from app.api.v1.customers.list import router as list_router
 from app.api.v1.customers.quotations import router as quotations_router
 from app.api.v1.customers.stats import router as stats_router
 from app.api.v1.customers.tags import router as customer_tags_router, tags_router
@@ -28,6 +29,7 @@ from app.api.v1.customers.crud import (
 # Main router — NOTE: no prefix here; sub-routers already have prefix="/customers"
 # so paths resolve correctly: /customers/... → /api/v1/customers/...
 router = APIRouter()
+router.include_router(list_router)
 router.include_router(crud_router)
 router.include_router(stats_router)
 router.include_router(contacts_router)
