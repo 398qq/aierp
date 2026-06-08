@@ -1,12 +1,31 @@
-import { useEffect, Suspense, lazy } from "react";
+import { Component, useEffect, Suspense, lazy } from "react";
+import type { ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ConfigProvider, App as AntdApp, Spin } from "antd";
+import { Button, ConfigProvider, App as AntdApp, Result, Spin } from "antd";
 import zhCN from "antd/locale/zh_CN";
 
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
 import { antdTheme } from "./design-tokens";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  state = { hasError: false, error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Result
+          status="error"
+          title="页面加载异常"
+          subTitle={this.state.error?.message || "未知错误"}
+          extra={<Button type="primary" onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}>刷新页面</Button>}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Lazy-loaded pages — code splitting for faster initial load
 const Dashboard = lazy(() => import("./pages/dashboard/index"));
@@ -108,9 +127,10 @@ export default function App() {
 
   useEffect(() => { init(); }, []);
 
-  if (loading) return null;
+  if (loading) return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
 
   return (
+    <ErrorBoundary>
     <ConfigProvider locale={zhCN} theme={antdTheme}>
       <AntdApp>
         <BrowserRouter>
@@ -224,5 +244,6 @@ export default function App() {
         </BrowserRouter>
       </AntdApp>
     </ConfigProvider>
+    </ErrorBoundary>
   );
 }
