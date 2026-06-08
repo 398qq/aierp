@@ -70,7 +70,7 @@ from app.services.pdf._formatters import (
     status_label,
 )
 from app.services.pdf._quotation import (
-    REPORTLAB_AVAILABLE,
+    REPORTLAB_AVAILABLE,  # noqa: F401  (re-exported for back-compat)
     generate_basic_pdf,
     generate_quotation_pdf,
 )
