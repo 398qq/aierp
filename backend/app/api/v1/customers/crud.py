@@ -166,17 +166,31 @@ class CustomerCreate(BaseModel):
     contact_person: str | None = None
     phone: str | None = None
     email: str | None = None
+    website: str | None = None
     address: str | None = None
+    tax_id: str | None = None
+    registration_number: str | None = None
+    invoice_title: str | None = None
+    invoice_address: str | None = None
+    bank_name: str | None = None
+    bank_account: str | None = None
     industry: str | None = None
     level: str | None = None
     source: str | None = None
-    notes: str | None = None
     customer_type: str | None = None
     region: str | None = None
+    price_tier: str | None = None
+    annual_revenue: float | None = None
+    employee_count: int | None = None
     credit_limit: float | None = None
     credit_level: str | None = None
+    payment_terms: str | None = None
+    payment_method: str | None = None
+    currency: str = "CNY"
+    delivery_address: str | None = None
+    default_incoterm: str | None = None
     owner: str | None = None
-
+    notes: str | None = None
 
 class CustomerUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
@@ -185,17 +199,31 @@ class CustomerUpdate(BaseModel):
     contact_person: str | None = None
     phone: str | None = None
     email: str | None = None
+    website: str | None = None
     address: str | None = None
+    tax_id: str | None = None
+    registration_number: str | None = None
+    invoice_title: str | None = None
+    invoice_address: str | None = None
+    bank_name: str | None = None
+    bank_account: str | None = None
     industry: str | None = None
     level: str | None = None
     source: str | None = None
-    notes: str | None = None
     customer_type: str | None = None
     region: str | None = None
+    price_tier: str | None = None
+    annual_revenue: float | None = None
+    employee_count: int | None = None
     credit_limit: float | None = None
     credit_level: str | None = None
+    payment_terms: str | None = None
+    payment_method: str | None = None
+    currency: str | None = None
+    delivery_address: str | None = None
+    default_incoterm: str | None = None
     owner: str | None = None
-
+    notes: str | None = None
 
 class ContactCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -265,21 +293,47 @@ def _customer_row(c: Customer, now: datetime | None = None) -> dict:
         now = datetime.now(timezone.utc)
     health_score, health_label = calc_health(c, orders=[], payments=[], now=now)
     return {
-        "id": c.id, "code": c.code, "name": c.name,
-        "short_name": c.short_name, "contact_person": c.contact_person,
-        "phone": c.phone, "email": c.email, "address": c.address,
-        "industry": c.industry, "level": c.level, "source": c.source,
-        "notes": c.notes, "customer_type": c.customer_type, "region": c.region,
+        "id": c.id,
+        "code": c.code,
+        "name": c.name,
+        "short_name": c.short_name,
+        "contact_person": c.contact_person,
+        "phone": c.phone,
+        "email": c.email,
+        "website": c.website,
+        "address": c.address,
+        "tax_id": c.tax_id,
+        "registration_number": c.registration_number,
+        "invoice_title": c.invoice_title,
+        "invoice_address": c.invoice_address,
+        "bank_name": c.bank_name,
+        "bank_account": c.bank_account,
+        "industry": c.industry,
+        "level": c.level,
+        "source": c.source,
+        "customer_type": c.customer_type,
+        "region": c.region,
+        "price_tier": c.price_tier,
+        "annual_revenue": float(c.annual_revenue) if c.annual_revenue else None,
+        "employee_count": c.employee_count,
         "credit_limit": float(c.credit_limit) if c.credit_limit else None,
         "credit_level": c.credit_level,
+        "payment_terms": c.payment_terms,
+        "payment_method": c.payment_method,
+        "currency": c.currency,
+        "delivery_address": c.delivery_address,
+        "default_incoterm": c.default_incoterm,
         "lifecycle": c.lifecycle,
         "last_contacted_at": str(c.last_contacted_at) if c.last_contacted_at else None,
         "created_at": str(c.created_at) if c.created_at else None,
         "owner": c.owner,
+        "notes": c.notes,
         "parent_id": c.parent_id,
         "health_score": health_score,
         "health_label": health_label,
-        "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in (c.tags or [])],
+        "tags": [
+            {"id": t.id, "name": t.name, "color": t.color} for t in (c.tags or [])
+        ],
     }
 
 
@@ -309,7 +363,10 @@ SORTABLE_COLUMNS = {"id": Customer.id, "name": Customer.name, "code": Customer.c
                     "created_at": Customer.created_at, "last_contacted_at": Customer.last_contacted_at}
 
 CSV_TEMPLATE_HEADERS = ["名称", "编码", "简称", "行业", "等级", "区域", "来源", "类型",
-                        "信用等级", "信用额度", "联系人", "电话", "邮箱", "地址", "备注"]
+                        "信用等级", "信用额度", "联系人", "电话", "邮箱", "网站", "地址",
+                        "纳税人识别号", "统一社会信用代码", "发票抬头", "发票地址",
+                        "开户行", "银行账号", "价格等级", "年营业额", "员工数",
+                        "付款条件", "付款方式", "币种", "收货地址", "贸易条款", "备注"]
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -580,7 +637,13 @@ async def export_customers(
             c.name, c.code or "", c.short_name or "", c.industry or "", c.level or "",
             c.region or "", c.source or "", c.customer_type or "", c.credit_level or "",
             str(c.credit_limit) if c.credit_limit else "", c.contact_person or "",
-            c.phone or "", c.email or "", c.address or "", c.notes or "",
+            c.phone or "", c.email or "", c.website or "", c.address or "",
+            c.tax_id or "", c.registration_number or "", c.invoice_title or "",
+            c.invoice_address or "", c.bank_name or "", c.bank_account or "",
+            c.price_tier or "", str(c.annual_revenue) if c.annual_revenue else "",
+            str(c.employee_count) if c.employee_count else "",
+            c.payment_terms or "", c.payment_method or "", c.currency or "CNY",
+            c.delivery_address or "", c.default_incoterm or "", c.notes or "",
         ])
     output.seek(0)
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
