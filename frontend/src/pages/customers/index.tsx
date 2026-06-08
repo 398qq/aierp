@@ -151,6 +151,7 @@ import CustomerCrmToolbar from "./CustomerCrmToolbar";
 import CustomerFilterBar from "./CustomerFilterBar";
 import CustomerDetailDrawer from "./CustomerDetailDrawer";
 import CustomerReminderDrawer from "./CustomerReminderDrawer";
+import CustomerSemanticSearchModal from "./CustomerSemanticSearchModal";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -2132,44 +2133,15 @@ export default function CustomerList() {
         )}
       </Modal>
 
-      <Modal title="语义搜索" open={semanticOpen} onCancel={() => setSemanticOpen(false)} footer={null} width={620}>
-        <Space.Compact style={{ width: "100%", marginBottom: 16 }}>
-          <Input
-            placeholder="例如：华东地区做汽车电子的A级客户"
-            value={semanticQ}
-            onChange={(e) => setSemanticQ(e.target.value)}
-            onPressEnter={handleSemanticSearch}
-          />
-          <Button type="primary" loading={semanticLoading} onClick={handleSemanticSearch}>搜索</Button>
-        </Space.Compact>
-        <Table
-          dataSource={semanticResults}
-          rowKey="id"
-          size="small"
-          pagination={false}
-          locale={{ emptyText: semanticQ && !semanticLoading ? "未找到匹配客户" : "输入关键词后搜索" }}
-          columns={[
-            {
-              title: "客户名称",
-              dataIndex: "name",
-              key: "name",
-              render: (name: string, r: SimilarCustomer) => (
-                <a
-                  onClick={() => {
-                    setSemanticOpen(false);
-                    navigate(`/customers/${r.id}`);
-                  }}
-                >
-                  {name}
-                </a>
-              ),
-            },
-            { title: "行业", dataIndex: "industry", key: "industry", render: (v: string) => <StatusTag>{v || "-"}</StatusTag> },
-            { title: "区域", dataIndex: "region", key: "region", render: (v: string) => v || "-" },
-            { title: "相似度", dataIndex: "similarity", key: "similarity", render: (v: number) => `${(v * 100).toFixed(1)}%` },
-          ]}
-        />
-      </Modal>
+      <CustomerSemanticSearchModal
+        open={semanticOpen}
+        loading={semanticLoading}
+        query={semanticQ}
+        results={semanticResults}
+        onClose={() => setSemanticOpen(false)}
+        onChangeQuery={setSemanticQ}
+        onSearch={handleSemanticSearch}
+      />
 
       <Modal
         title="合并客户"
