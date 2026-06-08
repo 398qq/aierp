@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.customers.alerts import router as alerts_router
 from app.api.v1.customers.attachments import router as attachments_router
+from app.api.v1.customers.bulk import router as bulk_router
 from app.api.v1.customers.contacts import router as contacts_router
 from app.api.v1.customers.crud import router as crud_router
 from app.api.v1.customers.follow_ups import router as follow_ups_router
@@ -31,6 +32,7 @@ from app.api.v1.customers.crud import (
 router = APIRouter()
 router.include_router(list_router)
 router.include_router(crud_router)
+router.include_router(bulk_router)
 router.include_router(stats_router)
 router.include_router(contacts_router)
 router.include_router(follow_ups_router)

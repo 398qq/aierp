@@ -39,7 +39,6 @@ class Invoice(TimestampMixin, Base):
     invoice_type: Mapped[str] = mapped_column(String(20), default="普通发票")
     status: Mapped[str] = mapped_column(String(20), default="draft")
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
-    currency: Mapped[str] = mapped_column(String(3), default="CNY")
     due_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     subtotal: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -76,6 +75,7 @@ class Contract(TimestampMixin, Base):
     signed_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expire_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="draft")
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
     file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
