@@ -153,6 +153,7 @@ import CustomerDetailDrawer from "./CustomerDetailDrawer";
 import CustomerReminderDrawer from "./CustomerReminderDrawer";
 import CustomerSemanticSearchModal from "./CustomerSemanticSearchModal";
 import { CustomerDuplicateListModal, CustomerMergeModal } from "./CustomerDuplicateModals";
+import CustomerTagModal from "./CustomerTagModal";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -2053,48 +2054,23 @@ export default function CustomerList() {
         onPostpone={handlePostponeReminder}
       />
 
-      <Modal
-        title="添加标签"
+      <CustomerTagModal
         open={tagModalOpen}
+        tags={tags}
+        selectedTagIds={batchTagIds}
+        createName={tagCreateName}
+        createColor={tagCreateColor}
+        creating={tagCreating}
+        generating={tagGenerating}
+        selectedRowCount={selectedRowKeys.length}
         onCancel={() => setTagModalOpen(false)}
         onOk={handleBatchTag}
-        okText="添加到已选客户"
-        okButtonProps={{ disabled: !batchTagIds.length || !selectedRowKeys.length }}
-      >
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Space style={{ width: "100%", justifyContent: "space-between" }}>
-            <Typography.Text type="secondary">可用标签</Typography.Text>
-            <Button size="small" icon={<TagsOutlined />} loading={tagGenerating} onClick={handleGenerateDefaultTags}>
-              生成5个默认标签
-            </Button>
-          </Space>
-          <Select
-            mode="multiple"
-            style={{ width: "100%" }}
-            placeholder="选择要添加的标签"
-            value={batchTagIds}
-            onChange={(v) => setBatchTagIds(v)}
-            options={tags.map((t) => ({ value: t.id, label: t.name }))}
-          />
-          <Divider style={{ margin: 0 }} />
-          <Typography.Text type="secondary">新建标签</Typography.Text>
-          <Space.Compact style={{ width: "100%" }}>
-            <Input
-              placeholder="标签名称"
-              value={tagCreateName}
-              onChange={(event) => setTagCreateName(event.target.value)}
-              onPressEnter={handleCreateBatchTag}
-            />
-            <Select
-              style={{ width: 110 }}
-              value={tagCreateColor}
-              options={TAG_COLOR_OPTIONS}
-              onChange={setTagCreateColor}
-            />
-            <Button loading={tagCreating} onClick={handleCreateBatchTag}>创建</Button>
-          </Space.Compact>
-        </Space>
-      </Modal>
+        onChangeSelectedTagIds={setBatchTagIds}
+        onChangeCreateName={setTagCreateName}
+        onChangeCreateColor={setTagCreateColor}
+        onCreate={handleCreateBatchTag}
+        onGenerateDefault={handleGenerateDefaultTags}
+      />
 
       <CustomerDuplicateListModal
         open={dupModalOpen}
