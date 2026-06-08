@@ -2,7 +2,9 @@
 export interface PurchaseOrder {
   id: number; order_no: string | null; supplier_id: number;
   supplier_name?: string;
-  status: string; total_amount: number; expected_date: string | null;
+  status: string; total_amount: number;
+  currency: string; incoterms: string | null; payment_terms: string | null;
+  expected_date: string | null;
   notes: string | null; created_at: string;
 }
 

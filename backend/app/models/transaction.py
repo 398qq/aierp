@@ -11,6 +11,9 @@ class PurchaseOrder(TimestampMixin, Base):
     order_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"))
     status: Mapped[str] = mapped_column(String(20), default="draft")
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    incoterms: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
     total_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     expected_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -27,6 +30,8 @@ class PurchaseOrderItem(TimestampMixin, Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.id"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     quantity: Mapped[int] = mapped_column(default=1)
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
     unit_price: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
 
