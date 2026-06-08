@@ -150,6 +150,7 @@ import CustomerStatsCards from "./CustomerStatsCards";
 import CustomerCrmToolbar from "./CustomerCrmToolbar";
 import CustomerFilterBar from "./CustomerFilterBar";
 import CustomerDetailDrawer from "./CustomerDetailDrawer";
+import CustomerReminderDrawer from "./CustomerReminderDrawer";
 
 export default function CustomerList() {
   const { message, modal } = App.useApp();
@@ -2033,95 +2034,22 @@ export default function CustomerList() {
         </aside>
       </div>
 
-      <Drawer
-        title="跟进提醒"
-        width={620}
+      <CustomerReminderDrawer
         open={reminderDrawerOpen}
+        loading={reminderLoading}
+        bucket={reminderBucket}
+        reminderCounts={reminderCounts}
+        visibleReminders={visibleReminders}
+        refreshedAt={reminderRefreshedAt}
+        overdueOnly={overdueOnly}
+        actionKey={reminderActionKey}
         onClose={() => setReminderDrawerOpen(false)}
-        extra={(
-          <Space>
-            <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue}>
-              刷新
-            </Button>
-            <Button
-              size="small"
-              type={overdueOnly ? "primary" : "default"}
-              onClick={() => setOverdueOnly((value) => !value)}
-            >
-              {overdueOnly ? "取消逾期筛选" : "只看逾期客户"}
-            </Button>
-          </Space>
-        )}
-      >
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Segmented
-            value={reminderBucket}
-            options={REMINDER_BUCKETS.map((item) => ({
-              value: item.key,
-              label: `${item.label} ${reminderCounts[item.key]}`,
-            }))}
-            onChange={(value) => setReminderBucket(value as ReminderBucket)}
-          />
-          <Typography.Text type="secondary">{formatReminderRefreshTime(reminderRefreshedAt)}</Typography.Text>
-          {visibleReminders.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理跟进提醒" />
-          ) : (
-            <List
-              loading={reminderLoading}
-              dataSource={visibleReminders}
-              renderItem={(item) => {
-                const due = getReminderDueMeta(item);
-                return (
-                  <List.Item
-                    actions={[
-                      <Button
-                        key="complete"
-                        size="small"
-                        type="link"
-                        loading={reminderActionKey === `complete-${item.id}`}
-                        onClick={() => handleCompleteReminder(item)}
-                      >
-                        完成
-                      </Button>,
-                      <Button
-                        key="postpone"
-                        size="small"
-                        type="link"
-                        loading={reminderActionKey === `postpone-${item.id}`}
-                        onClick={() => handlePostponeReminder(item)}
-                      >
-                        延期1天
-                      </Button>,
-                      <Button
-                        key="customer"
-                        size="small"
-                        type="link"
-                        onClick={() => navigate(`/customers/${item.customer_id}`)}
-                      >
-                        查看客户
-                      </Button>,
-                    ]}
-                  >
-                    <List.Item.Meta
-                      title={(
-                        <Space size={6} wrap>
-                          <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
-                            {item.customer_name}
-                          </Typography.Link>
-                          <StatusTag tone={due.color}>{due.text}</StatusTag>
-                          {item.priority && <StatusTag>{item.priority}</StatusTag>}
-                          {item.owner && <Typography.Text type="secondary">{item.owner}</Typography.Text>}
-                        </Space>
-                      )}
-                      description={`${item.method || "跟进"} | 计划 ${formatDateTime(item.planned_at)}${item.content ? ` | ${item.content}` : ""}`}
-                    />
-                  </List.Item>
-                );
-              }}
-            />
-          )}
-        </Space>
-      </Drawer>
+        onReload={loadOverdue}
+        onToggleOverdueOnly={() => setOverdueOnly((value) => !value)}
+        onChangeBucket={setReminderBucket}
+        onComplete={handleCompleteReminder}
+        onPostpone={handlePostponeReminder}
+      />
 
       <Modal
         title="添加标签"
