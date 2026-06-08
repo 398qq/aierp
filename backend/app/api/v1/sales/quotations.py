@@ -61,26 +61,36 @@ async def _reload_quotation_for_serialize(db: AsyncSession, quote_id: int) -> di
     """
     from app.models.customer import Customer
     from app.models.sales import Opportunity, QuotationItem
+
     quote_result = await db.execute(
-        select(Quotation).where(Quotation.id == quote_id, Quotation.deleted_at.is_(None))
+        select(Quotation).where(
+            Quotation.id == quote_id, Quotation.deleted_at.is_(None)
+        )
     )
     quote = quote_result.scalar_one_or_none()
     if not quote:
         return {}
     # Eager-load related entities
     if quote.customer_id:
-        cust = (await db.execute(select(Customer).where(Customer.id == quote.customer_id))).scalar_one_or_none()
+        cust = (
+            await db.execute(select(Customer).where(Customer.id == quote.customer_id))
+        ).scalar_one_or_none()
         quote.customer = cust
     else:
         quote.customer = None
     if quote.opportunity_id:
-        opp = (await db.execute(select(Opportunity).where(Opportunity.id == quote.opportunity_id))).scalar_one_or_none()
+        opp = (
+            await db.execute(
+                select(Opportunity).where(Opportunity.id == quote.opportunity_id)
+            )
+        ).scalar_one_or_none()
         quote.opportunity = opp
     else:
         quote.opportunity = None
     items_result = await db.execute(
-        select(QuotationItem)
-        .where(QuotationItem.quotation_id == quote.id, QuotationItem.deleted_at.is_(None))
+        select(QuotationItem).where(
+            QuotationItem.quotation_id == quote.id, QuotationItem.deleted_at.is_(None)
+        )
     )
     quote.items = list(items_result.scalars().all())
     return _serialize_quotation(quote)
@@ -121,6 +131,16 @@ def _serialize_quotation(quote) -> dict:
         "title": quote.title,
         "total_amount": float(Decimal(str(quote.total_amount or 0))),
         "status": quote.status,
+        "currency": quote.currency,
+        "incoterms": quote.incoterms,
+        "payment_terms": quote.payment_terms,
+        "discount_rate": float(quote.discount_rate) if quote.discount_rate else None,
+        "discount_amount": float(Decimal(str(quote.discount_amount)))
+        if quote.discount_amount is not None
+        else None,
+        "subtotal": float(Decimal(str(quote.subtotal)))
+        if quote.subtotal is not None
+        else None,
         "valid_until": quote.valid_until.isoformat() if quote.valid_until else None,
         "notes": quote.notes,
         "created_at": quote.created_at.isoformat() if quote.created_at else None,
@@ -132,12 +152,27 @@ def _serialize_quotation(quote) -> dict:
                 "product_id": it.product_id,
                 "product_name": it.product_name,
                 "quantity": it.quantity,
-                "unit_price": float(Decimal(str(it.unit_price))) if it.unit_price is not None else None,
-                "total_price": float(Decimal(str(it.total_price))) if it.total_price is not None else None,
-                "cost_price": float(Decimal(str(it.cost_price))) if it.cost_price is not None else None,
-                "untaxed_cost": float(it.untaxed_cost) if it.untaxed_cost is not None else None,
-                "taxed_cost": float(it.taxed_cost) if it.taxed_cost is not None else None,
-                "sales_profit": float(it.sales_profit) if it.sales_profit is not None else None,
+                "unit": it.unit,
+                "unit_price": float(Decimal(str(it.unit_price)))
+                if it.unit_price is not None
+                else None,
+                "total_price": float(Decimal(str(it.total_price)))
+                if it.total_price is not None
+                else None,
+                "tax_rate": float(it.tax_rate) if it.tax_rate else None,
+                "discount_rate": float(it.discount_rate) if it.discount_rate else None,
+                "cost_price": float(Decimal(str(it.cost_price)))
+                if it.cost_price is not None
+                else None,
+                "untaxed_cost": float(it.untaxed_cost)
+                if it.untaxed_cost is not None
+                else None,
+                "taxed_cost": float(it.taxed_cost)
+                if it.taxed_cost is not None
+                else None,
+                "sales_profit": float(it.sales_profit)
+                if it.sales_profit is not None
+                else None,
                 "notes": it.notes,
             }
             for it in (quote.items or [])
@@ -148,22 +183,34 @@ def _serialize_quotation(quote) -> dict:
 @router.get("/quotations")
 async def list_quotations(
     response: JSONResponse,
-    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
-    customer_id: int | None = None, status: str | None = None,
-    q: str | None = Query(None, description="Search customer, quotation no, title, notes, product line"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    customer_id: int | None = None,
+    status: str | None = None,
+    q: str | None = Query(
+        None, description="Search customer, quotation no, title, notes, product line"
+    ),
     include_ai: bool = Query(False),
-    sort_by: str = "id", sort_order: str = "desc",
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    sort_by: str = "id",
+    sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     cache_key = _quotations_cache_key(
-        page=page, page_size=page_size, customer_id=customer_id,
-        status=status, q=q, sort_by=sort_by, sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+        customer_id=customer_id,
+        status=status,
+        q=q,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
-    cached_payload = await cache_get_versioned('quotations:list', cache_key)
+    cached_payload = await cache_get_versioned("quotations:list", cache_key)
     if cached_payload is not None:
         result = json.loads(cached_payload)
         if include_ai and result.get("list"):
             from app.services.sales_ai_service import enrich_quotation_list
+
             ai_map = await enrich_quotation_list(db, result["list"])
             result["ai"] = ai_map
         response.headers["X-Cache"] = "HIT"
@@ -172,8 +219,14 @@ async def list_quotations(
 
     response.headers["X-Cache"] = "MISS"
     raw = await svc.list_quotations(
-        db, page=page, page_size=page_size, customer_id=customer_id,
-        status=status, q=q, sort_by=sort_by, sort_order=sort_order,
+        db,
+        page=page,
+        page_size=page_size,
+        customer_id=customer_id,
+        status=status,
+        q=q,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     # Eager-load customer + opportunity + items on every Quotation in the
     # page so the response can include customer_name without triggering
@@ -182,6 +235,7 @@ async def list_quotations(
     from app.models.customer import Customer
     from app.models.sales import Opportunity, Quotation, QuotationItem
     from typing import cast
+
     quotes = cast(list[Quotation], list(raw["list"]))
     custs: dict[int, Customer] = {}
     opps: dict[int, Opportunity] = {}
@@ -191,15 +245,35 @@ async def list_quotations(
         opp_ids = list({q.opportunity_id for q in quotes if q.opportunity_id})
         items_by_q: dict[int, list[QuotationItem]] = {qid: [] for qid in quote_ids}
         if cust_ids:
-            cust_rows = (await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))).scalars().all()
+            cust_rows = (
+                (await db.execute(select(Customer).where(Customer.id.in_(cust_ids))))
+                .scalars()
+                .all()
+            )
             custs = {c.id: c for c in cust_rows}
         if opp_ids:
-            opp_rows = (await db.execute(select(Opportunity).where(Opportunity.id.in_(opp_ids)))).scalars().all()
+            opp_rows = (
+                (
+                    await db.execute(
+                        select(Opportunity).where(Opportunity.id.in_(opp_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
             opps = {o.id: o for o in opp_rows}
-        item_rows = (await db.execute(
-            select(QuotationItem)
-            .where(QuotationItem.quotation_id.in_(quote_ids), QuotationItem.deleted_at.is_(None))
-        )).scalars().all()
+        item_rows = (
+            (
+                await db.execute(
+                    select(QuotationItem).where(
+                        QuotationItem.quotation_id.in_(quote_ids),
+                        QuotationItem.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for it in item_rows:
             items_by_q.setdefault(it.quotation_id, []).append(it)
         for q in quotes:  # type: ignore[union-attr,assignment]
@@ -215,16 +289,20 @@ async def list_quotations(
     if include_ai and result["list"]:
         # enrich_quotation_list expects ORM objects; pass quotes
         from app.services.sales_ai_service import enrich_quotation_list
+
         ai_map = await enrich_quotation_list(db, quotes)
         result["ai"] = ai_map
-    await cache_set_versioned('quotations:list', cache_key, json.dumps(result), QUOTATIONS_LIST_CACHE_TTL)
+    await cache_set_versioned(
+        "quotations:list", cache_key, json.dumps(result), QUOTATIONS_LIST_CACHE_TTL
+    )
     return ok(result)
 
 
 @router.get("/quotations/stats")
 async def quotation_stats(
     response: JSONResponse,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     cache_key = "quotations:stats:global"
     cached_payload = await cache_get_versioned("quotations:stats", cache_key)
@@ -235,8 +313,10 @@ async def quotation_stats(
     response.headers["X-Cache"] = "MISS"
     result = await svc.get_quotation_stats(db)
     await cache_set_versioned(
-        "quotations:stats", cache_key,
-        json.dumps(result, default=str), QUOTATIONS_STATS_CACHE_TTL,
+        "quotations:stats",
+        cache_key,
+        json.dumps(result, default=str),
+        QUOTATIONS_STATS_CACHE_TTL,
     )
     return ok(result)
 
@@ -245,15 +325,18 @@ async def quotation_stats(
 async def get_quotation(
     quote_id: int,
     include_ai: bool = Query(False),
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
         return fail("报价单不存在", 404)
     if include_ai:
         from app.services.sales_ai_service import enrich_quotation
+
         ai_data = await enrich_quotation(db, quote)
         from app.schemas.sales import QuotationResponse
+
         ai_result: dict = QuotationResponse.model_validate(quote).model_dump()
         ai_result["ai"] = ai_data
         return ok(ai_result)
@@ -263,7 +346,8 @@ async def get_quotation(
 @router.post("/quotations/{quote_id}/duplicate", status_code=201)
 async def duplicate_quotation(
     quote_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -277,7 +361,8 @@ async def duplicate_quotation(
 async def update_quotation_status(
     quote_id: int,
     body: QuotationStatusUpdate,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -305,10 +390,12 @@ async def get_quotation_pdf(
     prepared_by: str | None = Query(None, max_length=80),
     contact_phone: str | None = Query(None, max_length=60),
     terms: str | None = Query(None, max_length=2000),
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     from app.models.sales import Quotation
     from app.models.customer import Customer
+
     result = await db.execute(
         select(Quotation)
         .where(Quotation.id == quote_id)
@@ -327,39 +414,45 @@ async def get_quotation_pdf(
         quote.customer = None
 
     from app.services.pdf_service import generate_quotation_pdf
-    pdf_bytes = generate_quotation_pdf(quote, {
-        "template": template,
-        "company_name": company_name,
-        "document_title": document_title,
-        "show_smart_summary": show_smart_summary,
-        "show_line_hints": show_line_hints,
-        "show_terms": show_terms,
-        "show_notes": show_notes,
-        "show_internal_metrics": show_internal_metrics,
-        "show_signature": show_signature,
-        "prepared_by": prepared_by,
-        "contact_phone": contact_phone,
-        "terms": terms,
-    })
+
+    pdf_bytes = generate_quotation_pdf(
+        quote,
+        {
+            "template": template,
+            "company_name": company_name,
+            "document_title": document_title,
+            "show_smart_summary": show_smart_summary,
+            "show_line_hints": show_line_hints,
+            "show_terms": show_terms,
+            "show_notes": show_notes,
+            "show_internal_metrics": show_internal_metrics,
+            "show_signature": show_signature,
+            "prepared_by": prepared_by,
+            "contact_phone": contact_phone,
+            "terms": terms,
+        },
+    )
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="quotation_{quote.quotation_no or quote_id}.pdf"'
-        }
+        },
     )
 
 
 @router.post("/quotations", status_code=201)
 async def create_quotation(
     body: QuotationCreate,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     data = body.model_dump()
     items_data = data.pop("items", [])
     quote = await svc.create_quotation(db, data, items_data)
     from app.services.sales_ai_pipeline import after_quotation_save
+
     after_quotation_save(quote.id)
     await _bump_quotation_caches()
     return ok(await _reload_quotation_for_serialize(db, quote.id))
@@ -367,8 +460,10 @@ async def create_quotation(
 
 @router.put("/quotations/{quote_id}")
 async def update_quotation(
-    quote_id: int, body: QuotationUpdate,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    quote_id: int,
+    body: QuotationUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -378,6 +473,7 @@ async def update_quotation(
         data["items"] = body.items
     quote = await svc.update_quotation(db, quote, data)
     from app.services.sales_ai_pipeline import after_quotation_save
+
     after_quotation_save(quote.id)
     await _bump_quotation_caches()
     return ok(await _reload_quotation_for_serialize(db, quote.id))
@@ -386,7 +482,8 @@ async def update_quotation(
 @router.delete("/quotations/{quote_id}")
 async def delete_quotation(
     quote_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -399,7 +496,8 @@ async def delete_quotation(
 @router.post("/quotations/batch-delete")
 async def batch_delete_quotations(
     body: BatchDeleteRequest,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     for qid in body.ids:
         quote = await svc.get_quotation(db, qid)
@@ -412,7 +510,8 @@ async def batch_delete_quotations(
 @router.put("/quotations/{quote_id}/send")
 async def send_quotation(
     quote_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -425,7 +524,8 @@ async def send_quotation(
 @router.post("/quotations/from-inquiry", status_code=201)
 async def create_quotation_from_inquiry(
     body: QuotationFromInquiryRequest,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     try:
         quote = await svc.create_quotation_from_inquiry(

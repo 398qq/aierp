@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 # --- PaymentRecord ---
 
+
 class PaymentRecordCreate(BaseModel):
     sales_order_id: int
     customer_id: int
@@ -14,6 +15,9 @@ class PaymentRecordCreate(BaseModel):
     payment_date: str | None = None
     payment_method: str = "bank"
     status: str = "pending"
+    currency: str = "CNY"
+    transaction_ref: str | None = None
+    bank_account: str | None = None
     notes: str | None = None
 
 
@@ -25,10 +29,14 @@ class PaymentRecordUpdate(BaseModel):
     payment_date: str | None = None
     payment_method: str | None = None
     status: str | None = None
+    currency: str | None = None
+    transaction_ref: str | None = None
+    bank_account: str | None = None
     notes: str | None = None
 
 
 # --- Invoice ---
+
 
 class InvoiceCreate(BaseModel):
     invoice_no: str | None = None
@@ -39,6 +47,9 @@ class InvoiceCreate(BaseModel):
     invoice_date: str | None = None
     invoice_type: str = "普通发票"
     status: str = "draft"
+    currency: str = "CNY"
+    due_date: str | None = None
+    subtotal: float | None = None
     notes: str | None = None
 
 
@@ -51,10 +62,14 @@ class InvoiceUpdate(BaseModel):
     invoice_date: str | None = None
     invoice_type: str | None = None
     status: str | None = None
+    currency: str | None = None
+    due_date: str | None = None
+    subtotal: float | None = None
     notes: str | None = None
 
 
 # --- SalesTarget ---
+
 
 class SalesTargetCreate(BaseModel):
     user_id: int
@@ -82,12 +97,14 @@ class SalesTargetUpdate(BaseModel):
 
 # --- Contract ---
 
+
 class ContractCreate(BaseModel):
     contract_no: str | None = None
     customer_id: int
     sales_order_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
     amount: float = 0
+    currency: str = "CNY"
     signed_date: str | None = None
     expire_date: str | None = None
     status: str = "draft"
@@ -101,6 +118,7 @@ class ContractUpdate(BaseModel):
     sales_order_id: int | None = None
     title: str | None = Field(None, min_length=1, max_length=255)
     amount: float | None = None
+    currency: str | None = None
     signed_date: str | None = None
     expire_date: str | None = None
     status: str | None = None
@@ -109,6 +127,7 @@ class ContractUpdate(BaseModel):
 
 
 # --- Notification ---
+
 
 class MarkReadRequest(BaseModel):
     ids: list[int] | None = None
@@ -119,6 +138,7 @@ class MarkReadRequest(BaseModel):
 # Response Schemas
 # ============================================================
 
+
 class PaymentRecordResponse(BaseModel):
     id: int
     sales_order_id: int
@@ -128,6 +148,9 @@ class PaymentRecordResponse(BaseModel):
     payment_date: str | None = None
     payment_method: str
     status: str
+    currency: str = "CNY"
+    transaction_ref: str | None = None
+    bank_account: str | None = None
     notes: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
@@ -143,6 +166,9 @@ class InvoiceResponse(BaseModel):
     customer_name: str | None = None
     amount: float
     tax_amount: float
+    currency: str = "CNY"
+    due_date: str | None = None
+    subtotal: float | None = None
     invoice_date: str | None = None
     invoice_type: str
     status: str
@@ -175,6 +201,7 @@ class ContractResponse(BaseModel):
     sales_order_id: int | None = None
     title: str
     amount: float
+    currency: str = "CNY"
     signed_date: str | None = None
     expire_date: str | None = None
     status: str
@@ -194,6 +221,7 @@ class PaymentStats(BaseModel):
 
 
 # --- Commission ---
+
 
 class CommissionCreate(BaseModel):
     sales_order_id: int
