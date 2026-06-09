@@ -115,8 +115,31 @@ async def init_db():
     await _ensure_quotation_item_cost_schema(engine)
     await _ensure_critical_indexes(engine)
     await _ensure_pgvector(engine)
+    await _ensure_customer_status_machine(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
+
+
+async def _ensure_customer_status_machine(eng) -> None:
+    """Apply the customer status machine migration (020-customer-status-machine.sql)."""
+    import logging
+    import pathlib
+    _log = logging.getLogger("app.db.migration")
+    if eng.dialect.name != "postgresql":
+        return
+    sql_path = pathlib.Path(__file__).resolve().parent / "migrations" / "020-customer-status-machine.sql"
+    if not sql_path.exists():
+        return
+    sql = sql_path.read_text()
+    async with eng.begin() as conn:
+        for stmt in sql.split(";"):
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            try:
+                await conn.exec_driver_sql(stmt + ";")
+            except Exception as exc:  # noqa: BLE001
+                _log.warning("Customer status migration failed (non-fatal): %s", exc)
 
 
 async def _ensure_critical_indexes(eng) -> None:

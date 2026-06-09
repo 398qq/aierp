@@ -15,8 +15,12 @@ const { Text } = Typography;
 
 const CHURN_COLORS: Record<string, string> = { 低: "#52c41a", 中: "#faad14", 高: "#f5222d", 未知: "#d9d9d9" };
 const TIER_COLORS: Record<string, string> = {
-  重要价值: "#52c41a", 重要发展: "#1890ff", 重要保持: "#faad14", 一般价值: "#d9d9d9", 流失风险: "#f5222d",
+  重要价值: "#52c41a", 重要发展: "#1890ff", 重要保持: "#faad14", 一般价值: "#d9d9d9", "流失风险": "#f5222d",
 };
+const LIFECYCLE_COLORS: Record<string, string> = {
+  "新潜客": "#1890ff", "活跃": "#52c41a", "已成交": "#722ed1", "VIP": "#eb2f96", "不活跃": "#faad14", "流失": "#f5222d",
+};
+
 
 export default function CustomerIntelligenceDashboard() {
   const [stats, setStats] = useState<CustomerAIStats | null>(null);
@@ -231,7 +235,7 @@ export default function CustomerIntelligenceDashboard() {
                 <Tooltip />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {s.by_lifecycle.map((entry) => (
-                    <Cell key={entry.stage} fill={TIER_COLORS[entry.stage] || "#1890ff"} />
+                    <Cell key={entry.stage} fill={LIFECYCLE_COLORS[entry.stage] || "#1890ff"} />
                   ))}
                 </Bar>
               </BarChart>

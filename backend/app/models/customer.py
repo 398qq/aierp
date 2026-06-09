@@ -96,7 +96,12 @@ class Customer(TimestampMixin, Base):
     last_contacted_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    lifecycle: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="new_lead"
+    )  # new_lead/active/converted/vip/inactive/churned
+    lifecycle: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # deprecated — superseded by status
     owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

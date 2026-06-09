@@ -29,6 +29,8 @@ export interface Customer {
   currency: string;
   delivery_address: string | null;
   default_incoterm: string | null;
+  status: string | null;
+  total_amount: number | null;
   lifecycle: string | null;
   last_contacted_at: string | null;
   created_at: string;

@@ -1,4 +1,5 @@
 """Customer API tests."""
+
 from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
@@ -24,14 +25,20 @@ class TestCustomers:
         assert resp.json()["data"]["created_at"]
 
         cid = resp.json()["data"]["id"]
-        detail = await async_client.get(f"/api/v1/customers/{cid}", headers=auth_headers)
+        detail = await async_client.get(
+            f"/api/v1/customers/{cid}", headers=auth_headers
+        )
         assert detail.json()["data"]["created_at"]
 
         customers = await async_client.get("/api/v1/customers", headers=auth_headers)
-        row = next(item for item in customers.json()["data"]["list"] if item["id"] == cid)
+        row = next(
+            item for item in customers.json()["data"]["list"] if item["id"] == cid
+        )
         assert row["created_at"]
 
-    async def test_create_customer_auto_generates_short_name(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_create_customer_auto_generates_short_name(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -40,24 +47,36 @@ class TestCustomers:
         assert resp.status_code == 201
         cid = resp.json()["data"]["id"]
 
-        detail = await async_client.get(f"/api/v1/customers/{cid}", headers=auth_headers)
+        detail = await async_client.get(
+            f"/api/v1/customers/{cid}", headers=auth_headers
+        )
         assert detail.status_code == 200
         assert detail.json()["data"]["short_name"] == "深圳市星河电子"
 
-    async def test_create_customer_keeps_manual_short_name(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_create_customer_keeps_manual_short_name(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
-            json={"name": "上海星河电子有限公司", "short_name": "星河", "type": "终端客户"},
+            json={
+                "name": "上海星河电子有限公司",
+                "short_name": "星河",
+                "type": "终端客户",
+            },
         )
         assert resp.status_code == 201
         cid = resp.json()["data"]["id"]
 
-        detail = await async_client.get(f"/api/v1/customers/{cid}", headers=auth_headers)
+        detail = await async_client.get(
+            f"/api/v1/customers/{cid}", headers=auth_headers
+        )
         assert detail.status_code == 200
         assert detail.json()["data"]["short_name"] == "星河"
 
-    async def test_create_customer_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_create_customer_rejects_duplicate_normalized_name(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         first = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -74,10 +93,14 @@ class TestCustomers:
         assert second.json()["code"] == 400
         assert "客户名称已存在" in second.json()["msg"]
 
-        listed = await async_client.get("/api/v1/customers?q=华芯科技", headers=auth_headers)
+        listed = await async_client.get(
+            "/api/v1/customers?q=华芯科技", headers=auth_headers
+        )
         assert listed.json()["data"]["total"] == 1
 
-    async def test_update_customer_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_update_customer_rejects_duplicate_normalized_name(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         first = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -101,10 +124,14 @@ class TestCustomers:
         assert resp.status_code == 400
         assert "客户名称已存在" in resp.json()["msg"]
 
-        detail = await async_client.get(f"/api/v1/customers/{second_id}", headers=auth_headers)
+        detail = await async_client.get(
+            f"/api/v1/customers/{second_id}", headers=auth_headers
+        )
         assert detail.json()["data"]["name"] == "北京远航贸易有限公司"
 
-    async def test_import_customers_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_import_customers_rejects_duplicate_normalized_name(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -121,10 +148,14 @@ class TestCustomers:
         assert resp.status_code == 400
         assert "客户名称已存在" in resp.json()["msg"]
 
-        listed = await async_client.get("/api/v1/customers?q=明芯半导体", headers=auth_headers)
+        listed = await async_client.get(
+            "/api/v1/customers?q=明芯半导体", headers=auth_headers
+        )
         assert listed.json()["data"]["total"] == 1
 
-    async def test_create_customer_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_create_customer_rejects_duplicate_code_number(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         first = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -141,10 +172,14 @@ class TestCustomers:
         assert second.json()["code"] == 400
         assert "数字部分已存在" in second.json()["msg"]
 
-        listed = await async_client.get("/api/v1/customers?q=编码数字客户", headers=auth_headers)
+        listed = await async_client.get(
+            "/api/v1/customers?q=编码数字客户", headers=auth_headers
+        )
         assert listed.json()["data"]["total"] == 1
 
-    async def test_update_customer_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_update_customer_rejects_duplicate_code_number(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         first = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -168,10 +203,14 @@ class TestCustomers:
         assert resp.status_code == 400
         assert "数字部分已存在" in resp.json()["msg"]
 
-        detail = await async_client.get(f"/api/v1/customers/{second_id}", headers=auth_headers)
+        detail = await async_client.get(
+            f"/api/v1/customers/{second_id}", headers=auth_headers
+        )
         assert detail.json()["data"]["code"] == "CUST-HN-000457"
 
-    async def test_import_customers_rejects_duplicate_code_number(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_import_customers_rejects_duplicate_code_number(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -188,7 +227,9 @@ class TestCustomers:
         assert resp.status_code == 400
         assert "数字部分已存在" in resp.json()["msg"]
 
-        listed = await async_client.get("/api/v1/customers?q=编码导入客户", headers=auth_headers)
+        listed = await async_client.get(
+            "/api/v1/customers?q=编码导入客户", headers=auth_headers
+        )
         assert listed.json()["data"]["total"] == 1
 
     async def test_get_customer(self, async_client: AsyncClient, auth_headers: dict):
@@ -202,7 +243,9 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["data"]["name"] == "单个客户"
 
-    async def test_get_customer_quotation_history(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_get_customer_quotation_history(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         customer = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -223,7 +266,14 @@ class TestCustomers:
                 "customer_id": customer_id,
                 "status": "won",
                 "total_amount": 1200,
-                "items": [{"product_name": "QMI8658", "quantity": 10, "unit_price": 120, "total_price": 1200}],
+                "items": [
+                    {
+                        "product_name": "QMI8658",
+                        "quantity": 10,
+                        "unit_price": 120,
+                        "total_price": 1200,
+                    }
+                ],
             },
         )
         sent = await async_client.post(
@@ -233,7 +283,14 @@ class TestCustomers:
                 "customer_id": customer_id,
                 "status": "sent",
                 "total_amount": 600,
-                "items": [{"product_name": "WK2212", "quantity": 3, "unit_price": 200, "total_price": 600}],
+                "items": [
+                    {
+                        "product_name": "WK2212",
+                        "quantity": 3,
+                        "unit_price": 200,
+                        "total_price": 600,
+                    }
+                ],
             },
         )
         await async_client.post(
@@ -243,11 +300,20 @@ class TestCustomers:
                 "customer_id": other_id,
                 "status": "won",
                 "total_amount": 9999,
-                "items": [{"product_name": "OTHER", "quantity": 1, "unit_price": 9999, "total_price": 9999}],
+                "items": [
+                    {
+                        "product_name": "OTHER",
+                        "quantity": 1,
+                        "unit_price": 9999,
+                        "total_price": 9999,
+                    }
+                ],
             },
         )
 
-        resp = await async_client.get(f"/api/v1/customers/{customer_id}/quotation-history", headers=auth_headers)
+        resp = await async_client.get(
+            f"/api/v1/customers/{customer_id}/quotation-history", headers=auth_headers
+        )
 
         assert resp.status_code == 200
         payload = resp.json()
@@ -259,7 +325,9 @@ class TestCustomers:
         ids = {item["id"] for item in payload["data"]["quotations"]}
         assert ids == {won.json()["data"]["id"], sent.json()["data"]["id"]}
 
-    async def test_get_customer_quotation_history_status_filter(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_get_customer_quotation_history_status_filter(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         customer = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -309,17 +377,21 @@ class TestCustomers:
             json={"name": "待删除", "type": "终端客户"},
         )
         cid = c.json()["data"]["id"]
-        resp = await async_client.delete(f"/api/v1/customers/{cid}", headers=auth_headers)
+        resp = await async_client.delete(
+            f"/api/v1/customers/{cid}", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
     async def test_batch_delete(self, async_client: AsyncClient, auth_headers: dict):
         c1 = await async_client.post(
-            "/api/v1/customers", headers=auth_headers,
+            "/api/v1/customers",
+            headers=auth_headers,
             json={"name": "批量删1", "type": "终端客户"},
         )
         c2 = await async_client.post(
-            "/api/v1/customers", headers=auth_headers,
+            "/api/v1/customers",
+            headers=auth_headers,
             json={"name": "批量删2", "type": "终端客户"},
         )
         ids = [c1.json()["data"]["id"], c2.json()["data"]["id"]]
@@ -331,7 +403,9 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] == 2
 
-    async def test_duplicate_detection_ignores_weak_name_overlap(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_duplicate_detection_ignores_weak_name_overlap(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -343,21 +417,29 @@ class TestCustomers:
             json={"name": "上海星河科技有限公司", "phone": "13800000002"},
         )
 
-        resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
+        resp = await async_client.get(
+            "/api/v1/customers/duplicates", headers=auth_headers
+        )
 
         assert resp.status_code == 200
         assert resp.json()["data"]["pairs"] == []
 
-    async def test_duplicate_detection_matches_normalized_legal_name(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_duplicate_detection_matches_normalized_legal_name(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         from app.models.customer import Customer
 
-        db_session.add_all([
-            Customer(name="深圳市华芯科技有限公司"),
-            Customer(name="深圳华芯科技"),
-        ])
+        db_session.add_all(
+            [
+                Customer(name="深圳市华芯科技有限公司"),
+                Customer(name="深圳华芯科技"),
+            ]
+        )
         await db_session.flush()
 
-        resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
+        resp = await async_client.get(
+            "/api/v1/customers/duplicates", headers=auth_headers
+        )
 
         assert resp.status_code == 200
         pairs = resp.json()["data"]["pairs"]
@@ -365,7 +447,9 @@ class TestCustomers:
         assert pairs[0]["similarity"] == 1
         assert "名称完全一致" in pairs[0]["reasons"]
 
-    async def test_duplicate_detection_requires_related_name_for_same_email(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_duplicate_detection_requires_related_name_for_same_email(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -382,7 +466,9 @@ class TestCustomers:
             json={"name": "北京远航贸易有限公司", "email": "sales@example.com"},
         )
 
-        resp = await async_client.get("/api/v1/customers/duplicates", headers=auth_headers)
+        resp = await async_client.get(
+            "/api/v1/customers/duplicates", headers=auth_headers
+        )
 
         assert resp.status_code == 200
         pairs = resp.json()["data"]["pairs"]
@@ -395,7 +481,9 @@ class TestCustomers:
         resp = await async_client.get("/api/v1/customers")
         assert resp.status_code == 401
 
-    async def test_ai_recognize_customer(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_customer(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         async def fake_recognize_customer(text: str, ocr_candidates=None):
             assert "深圳市星河电子有限公司" in text
             return {
@@ -426,7 +514,9 @@ class TestCustomers:
         resp = await async_client.post(
             "/api/v1/ai/customer/recognition",
             headers=auth_headers,
-            json={"text": "深圳市星河电子有限公司，汽车电子OEM，联系人张工，13800001111，展会线索。"},
+            json={
+                "text": "深圳市星河电子有限公司，汽车电子OEM，联系人张工，13800001111，展会线索。"
+            },
         )
 
         assert resp.status_code == 200
@@ -438,7 +528,9 @@ class TestCustomers:
         assert data["credit_limit"] == 200000
         assert data["confidence"] == 0.9
 
-    async def test_ai_recognize_business_card(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_business_card(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         def fake_extract_business_card_ocr(content: bytes):
             assert content == b"fake-card-image"
             return {
@@ -455,7 +547,14 @@ class TestCustomers:
                     "sharpness": 24,
                     "warnings": [],
                 },
-                "candidates": [{"engine": "rapidocr", "confidence": 0.91, "score": 3.2, "text_length": 55}],
+                "candidates": [
+                    {
+                        "engine": "rapidocr",
+                        "confidence": 0.91,
+                        "score": 3.2,
+                        "text_length": 55,
+                    }
+                ],
                 "candidate_texts": [
                     {
                         "engine": "rapidocr:original",
@@ -528,7 +627,9 @@ class TestCustomers:
         assert data["image_quality"]["width"] == 1280
         assert data["recognition_warnings"] == []
 
-    async def test_ai_recognize_business_card_accepts_body_file(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_business_card_accepts_body_file(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         def fake_extract_business_card_ocr(content: bytes):
             assert content == b"fake-card-image"
             return {
@@ -598,7 +699,14 @@ class TestCustomers:
                     "sharpness": 8,
                     "warnings": ["名片图片分辨率偏低，建议使用更清晰的原图"],
                 },
-                "candidates": [{"engine": "rapidocr:original", "confidence": 0.42, "score": 0.8, "text_length": 14}],
+                "candidates": [
+                    {
+                        "engine": "rapidocr:original",
+                        "confidence": 0.42,
+                        "score": 0.8,
+                        "text_length": 14,
+                    }
+                ],
             }
 
         async def fake_recognize_customer(text: str, ocr_candidates=None):
@@ -641,8 +749,13 @@ class TestCustomers:
         data = resp.json()["data"]
         assert "未识别到客户名称" in data["recognition_warnings"]
         assert "未识别到邮箱" in data["recognition_warnings"]
-        assert "OCR评分较低，建议上传更清晰、无遮挡的名片图片" in data["recognition_warnings"]
-        assert "名片图片分辨率偏低，建议使用更清晰的原图" in data["recognition_warnings"]
+        assert (
+            "OCR评分较低，建议上传更清晰、无遮挡的名片图片"
+            in data["recognition_warnings"]
+        )
+        assert (
+            "名片图片分辨率偏低，建议使用更清晰的原图" in data["recognition_warnings"]
+        )
 
     def test_business_card_image_quality_flags_low_quality_image(self):
         from PIL import Image
@@ -663,7 +776,9 @@ class TestCustomers:
 
         pytest.importorskip("cv2")
 
-        from app.api.v1.ai.customer._ocr_regions import _opencv_business_card_region_variants
+        from app.api.v1.ai.customer._ocr_regions import (
+            _opencv_business_card_region_variants,
+        )
 
         background = Image.new("RGB", (1200, 800), (80, 80, 80))
         card = Image.new("RGB", (760, 430), "white")
@@ -685,18 +800,20 @@ class TestCustomers:
     def test_business_card_ocr_scoring_prefers_field_rich_text(self):
         from app.api.v1.ai.customer._ocr_merging import _merge_card_ocr_results
 
-        result = _merge_card_ocr_results([
-            {
-                "text": "AAAA BBBB CCCC DDDD EEEE FFFF GGGG HHHH IIII JJJJ KKKK LLLL",
-                "engine": "rapidocr:original",
-                "confidence": 0.95,
-            },
-            {
-                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
-                "engine": "rapidocr:gray_autocontrast",
-                "confidence": 0.72,
-            },
-        ])
+        result = _merge_card_ocr_results(
+            [
+                {
+                    "text": "AAAA BBBB CCCC DDDD EEEE FFFF GGGG HHHH IIII JJJJ KKKK LLLL",
+                    "engine": "rapidocr:original",
+                    "confidence": 0.95,
+                },
+                {
+                    "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                    "engine": "rapidocr:gray_autocontrast",
+                    "confidence": 0.72,
+                },
+            ]
+        )
 
         assert result["engine"] == "rapidocr:gray_autocontrast"
         assert result["text"].startswith("深圳市星河电子有限公司")
@@ -706,18 +823,20 @@ class TestCustomers:
     def test_business_card_ocr_merge_keeps_key_fields_from_other_candidates(self):
         from app.api.v1.ai.customer._ocr_merging import _merge_card_ocr_results
 
-        result = _merge_card_ocr_results([
-            {
-                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
-                "engine": "rapidocr:original",
-                "confidence": 0.6,
-            },
-            {
-                "text": "深圳市星河电子有限公司\n销售经理\n地址: 深圳市南山区科技园\n官网 www.example.com\n主营电子元器件代理销售",
-                "engine": "rapidocr:threshold_190",
-                "confidence": 0.96,
-            },
-        ])
+        result = _merge_card_ocr_results(
+            [
+                {
+                    "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                    "engine": "rapidocr:original",
+                    "confidence": 0.6,
+                },
+                {
+                    "text": "深圳市星河电子有限公司\n销售经理\n地址: 深圳市南山区科技园\n官网 www.example.com\n主营电子元器件代理销售",
+                    "engine": "rapidocr:threshold_190",
+                    "confidence": 0.96,
+                },
+            ]
+        )
 
         assert result["engine"] == "rapidocr:original"
         assert "13800001111" in result["text"]
@@ -737,12 +856,18 @@ class TestCustomers:
                 assert paragraph is False
                 assert image.shape[:2] == (120, 240)
                 return [
-                    ([[0, 0], [10, 0], [10, 10], [0, 10]], "深圳市星河电子有限公司", 0.92),
+                    (
+                        [[0, 0], [10, 0], [10, 10], [0, 10]],
+                        "深圳市星河电子有限公司",
+                        0.92,
+                    ),
                     ([[0, 20], [10, 20], [10, 30], [0, 30]], "张工 13800001111", 0.86),
                     ([[0, 40], [10, 40], [10, 50], [0, 50]], "zhang@example.com", 0.88),
                 ]
 
-        monkeypatch.setattr(customer_ai, "_get_easyocr_reader", lambda: FakeEasyOCRReader())
+        monkeypatch.setattr(
+            customer_ai, "_get_easyocr_reader", lambda: FakeEasyOCRReader()
+        )
 
         result = customer_ai.ocr_with_easyocr(Image.new("RGB", (240, 120), "white"))
 
@@ -755,21 +880,26 @@ class TestCustomers:
     def test_business_card_ocr_selection_prefers_easyocr_when_key_fields_match(self):
         from app.api.v1.ai.customer._ocr_merging import _merge_card_ocr_results
 
-        result = _merge_card_ocr_results([
-            {
-                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
-                "engine": "rapidocr:original",
-                "confidence": 0.96,
-            },
-            {
-                "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
-                "engine": "easyocr:opencv_card_wide_closed_50_150",
-                "confidence": 0.72,
-            },
-        ])
+        result = _merge_card_ocr_results(
+            [
+                {
+                    "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                    "engine": "rapidocr:original",
+                    "confidence": 0.96,
+                },
+                {
+                    "text": "深圳市星河电子有限公司\n张工 13800001111\nzhang@example.com",
+                    "engine": "easyocr:opencv_card_wide_closed_50_150",
+                    "confidence": 0.72,
+                },
+            ]
+        )
 
         assert result["engine"] == "easyocr:opencv_card_wide_closed_50_150"
-        assert result["candidate_texts"][0]["engine"] == "easyocr:opencv_card_wide_closed_50_150"
+        assert (
+            result["candidate_texts"][0]["engine"]
+            == "easyocr:opencv_card_wide_closed_50_150"
+        )
 
     def test_extract_business_card_ocr_runs_easyocr_before_rapidocr(self, monkeypatch):
         import io
@@ -781,7 +911,11 @@ class TestCustomers:
 
         calls = []
 
-        monkeypatch.setattr(customer_ocr_engines, "opencv_business_card_region_variants", lambda image: [])
+        monkeypatch.setattr(
+            customer_ocr_engines,
+            "opencv_business_card_region_variants",
+            lambda image: [],
+        )
 
         def fake_easyocr(image):
             calls.append("easyocr")
@@ -801,7 +935,11 @@ class TestCustomers:
 
         monkeypatch.setattr(customer_ocr_engines, "ocr_with_easyocr", fake_easyocr)
         monkeypatch.setattr(customer_ocr_engines, "ocr_with_rapidocr", fake_rapidocr)
-        monkeypatch.setattr(customer_ocr_engines, "ocr_with_tesseract", lambda image: {"text": "", "engine": "tesseract", "confidence": 0})
+        monkeypatch.setattr(
+            customer_ocr_engines,
+            "ocr_with_tesseract",
+            lambda image: {"text": "", "engine": "tesseract", "confidence": 0},
+        )
 
         image = Image.new("RGB", (900, 500), "white")
         content = io.BytesIO()
@@ -814,7 +952,9 @@ class TestCustomers:
         assert result["engine"].startswith("easyocr:")
 
     def test_customer_recognition_prompt_includes_ocr_candidates(self):
-        from app.services.ai.prompts.customer_prompts import customer_recognition_from_ocr_candidates_prompt
+        from app.services.ai.prompts.customer_prompts import (
+            customer_recognition_from_ocr_candidates_prompt,
+        )
 
         prompt = customer_recognition_from_ocr_candidates_prompt(
             "深圳市星河电子有限公司\n张工",
@@ -848,7 +988,7 @@ class TestCustomers:
             raise RuntimeError("AI down")
 
         monkeypatch.setattr(
-            "app.services.ai.agents.ai_client.chat_structured",
+            "app.services.ai.client.ai_client.chat_structured",
             fake_chat_structured,
         )
 
@@ -865,7 +1005,9 @@ class TestCustomers:
         assert result["email"] == "zhang@example.com"
         assert result["address"] == "深圳市南山区科技园"
 
-    async def test_customer_recognition_ai_result_is_completed_from_ocr_candidates(self, monkeypatch):
+    async def test_customer_recognition_ai_result_is_completed_from_ocr_candidates(
+        self, monkeypatch
+    ):
         from app.services.ai.agents import CustomerAgent
 
         async def fake_chat_structured(*_args, **_kwargs):
@@ -890,7 +1032,7 @@ class TestCustomers:
             }
 
         monkeypatch.setattr(
-            "app.services.ai.agents.ai_client.chat_structured",
+            "app.services.ai.client.ai_client.chat_structured",
             fake_chat_structured,
         )
 
@@ -908,12 +1050,14 @@ class TestCustomers:
         assert result["address"] == "深圳市南山区科技园"
         assert result["confidence"] == 0.8
 
-    async def test_ai_recognize_customer_fallback_extracts_key_fields(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_customer_fallback_extracts_key_fields(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         async def fake_chat_structured(*_args, **_kwargs):
             raise RuntimeError("AI down")
 
         monkeypatch.setattr(
-            "app.services.ai.agents.ai_client.chat_structured",
+            "app.services.ai.client.ai_client.chat_structured",
             fake_chat_structured,
         )
 
@@ -941,12 +1085,14 @@ class TestCustomers:
         assert data["owner"] == "王明"
         assert data["credit_limit"] == 200000
 
-    async def test_ai_recognize_customer_fallback_complex_text(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_customer_fallback_complex_text(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         async def fake_chat_structured(*_args, **_kwargs):
             raise RuntimeError("AI down")
 
         monkeypatch.setattr(
-            "app.services.ai.agents.ai_client.chat_structured",
+            "app.services.ai.client.ai_client.chat_structured",
             fake_chat_structured,
         )
 
@@ -971,12 +1117,14 @@ class TestCustomers:
         assert data["credit_level"] == "A"
         assert data["credit_limit"] == 800000
 
-    async def test_ai_recognize_customer_fallback_repairs_ocr_spacing(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_customer_fallback_repairs_ocr_spacing(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         async def fake_chat_structured(*_args, **_kwargs):
             raise RuntimeError("AI down")
 
         monkeypatch.setattr(
-            "app.services.ai.agents.ai_client.chat_structured",
+            "app.services.ai.client.ai_client.chat_structured",
             fake_chat_structured,
         )
 
@@ -1039,7 +1187,9 @@ class TestCustomerContacts:
             json={"name": "列表联系人", "type": "终端客户"},
         )
         cid = cust.json()["data"]["id"]
-        resp = await async_client.get(f"/api/v1/customers/{cid}/contacts", headers=auth_headers)
+        resp = await async_client.get(
+            f"/api/v1/customers/{cid}/contacts", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert isinstance(resp.json()["data"], list)
 
@@ -1088,7 +1238,9 @@ class TestCustomerFollowups:
             json={"name": "列表跟进", "type": "终端客户"},
         )
         cid = cust.json()["data"]["id"]
-        resp = await async_client.get(f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers)
+        resp = await async_client.get(
+            f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert isinstance(resp.json()["data"], list)
 
@@ -1112,7 +1264,9 @@ class TestCustomerFollowups:
         )
         assert resp.status_code == 200
 
-    async def test_update_followup_planned_time(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_update_followup_planned_time(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         cust = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -1122,7 +1276,11 @@ class TestCustomerFollowups:
         fup = await async_client.post(
             f"/api/v1/customers/{cid}/follow-ups",
             headers=auth_headers,
-            json={"content": "确认样品进度", "status": "planned", "planned_at": "2026-05-25 09:00:00"},
+            json={
+                "content": "确认样品进度",
+                "status": "planned",
+                "planned_at": "2026-05-25 09:00:00",
+            },
         )
         fup_id = fup.json()["data"]["id"]
 
@@ -1133,11 +1291,15 @@ class TestCustomerFollowups:
         )
         assert resp.status_code == 200
 
-        listed = await async_client.get(f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers)
+        listed = await async_client.get(
+            f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers
+        )
         updated = next(item for item in listed.json()["data"] if item["id"] == fup_id)
         assert updated["planned_at"].startswith("2026-05-27 15:30:00")
 
-    async def test_ai_recognize_followup(self, async_client: AsyncClient, auth_headers: dict, monkeypatch):
+    async def test_ai_recognize_followup(
+        self, async_client: AsyncClient, auth_headers: dict, monkeypatch
+    ):
         cust = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -1145,7 +1307,9 @@ class TestCustomerFollowups:
         )
         cid = cust.json()["data"]["id"]
 
-        async def fake_recognize_followup(text: str, customer_data: dict, now_text: str):
+        async def fake_recognize_followup(
+            text: str, customer_data: dict, now_text: str
+        ):
             assert "明天下午3点" in text
             assert customer_data["name"] == "AI识别跟进客户"
             assert now_text
@@ -1170,7 +1334,9 @@ class TestCustomerFollowups:
         resp = await async_client.post(
             f"/api/v1/ai/customer/{cid}/followup-recognition",
             headers=auth_headers,
-            json={"text": "今天和客户电话沟通，明天下午3点再电话确认BOM价格，优先级高，负责人王明。"},
+            json={
+                "text": "今天和客户电话沟通，明天下午3点再电话确认BOM价格，优先级高，负责人王明。"
+            },
         )
 
         assert resp.status_code == 200
@@ -1193,27 +1359,39 @@ class TestCustomerStats:
             json={"name": "统计客户", "type": "终端客户"},
         )
         cid = cust.json()["data"]["id"]
-        resp = await async_client.get(f"/api/v1/customers/{cid}/stats", headers=auth_headers)
+        resp = await async_client.get(
+            f"/api/v1/customers/{cid}/stats", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_customer_timeline(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_customer_timeline(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         cust = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
             json={"name": "时间线客户", "type": "终端客户"},
         )
         cid = cust.json()["data"]["id"]
-        resp = await async_client.get(f"/api/v1/customers/{cid}/timeline", headers=auth_headers)
+        resp = await async_client.get(
+            f"/api/v1/customers/{cid}/timeline", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert isinstance(resp.json()["data"], list)
 
-    async def test_overdue_followups(self, async_client: AsyncClient, auth_headers: dict):
-        resp = await async_client.get("/api/v1/customers/overdue-followups", headers=auth_headers)
+    async def test_overdue_followups(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        resp = await async_client.get(
+            "/api/v1/customers/overdue-followups", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_overdue_followups_only_include_scheduled_open_items(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_overdue_followups_only_include_scheduled_open_items(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         cust = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -1236,7 +1414,9 @@ class TestCustomerStats:
         )
         scheduled_id = scheduled.json()["data"]["id"]
 
-        overdue = await async_client.get("/api/v1/customers/overdue-followups", headers=auth_headers)
+        overdue = await async_client.get(
+            "/api/v1/customers/overdue-followups", headers=auth_headers
+        )
         overdue_ids = {item["id"] for item in overdue.json()["data"]["items"]}
         assert scheduled_id in overdue_ids
         assert unscheduled.json()["data"]["id"] not in overdue_ids
@@ -1246,11 +1426,17 @@ class TestCustomerStats:
             headers=auth_headers,
             json={"status": "completed"},
         )
-        overdue_after_complete = await async_client.get("/api/v1/customers/overdue-followups", headers=auth_headers)
-        overdue_ids_after_complete = {item["id"] for item in overdue_after_complete.json()["data"]["items"]}
+        overdue_after_complete = await async_client.get(
+            "/api/v1/customers/overdue-followups", headers=auth_headers
+        )
+        overdue_ids_after_complete = {
+            item["id"] for item in overdue_after_complete.json()["data"]["items"]
+        }
         assert scheduled_id not in overdue_ids_after_complete
 
-    async def test_follow_up_reminders_group_by_due_bucket(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_follow_up_reminders_group_by_due_bucket(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         cust = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -1262,27 +1448,43 @@ class TestCustomerStats:
         past = await async_client.post(
             f"/api/v1/customers/{cid}/follow-ups",
             headers=auth_headers,
-            json={"method": "phone", "status": "planned", "planned_at": (now - timedelta(days=2)).isoformat()},
+            json={
+                "method": "phone",
+                "status": "planned",
+                "planned_at": (now - timedelta(days=2)).isoformat(),
+            },
         )
         today = await async_client.post(
             f"/api/v1/customers/{cid}/follow-ups",
             headers=auth_headers,
-            json={"method": "email", "status": "planned", "planned_at": now.isoformat()},
+            json={
+                "method": "email",
+                "status": "planned",
+                "planned_at": now.isoformat(),
+            },
         )
         upcoming = await async_client.post(
             f"/api/v1/customers/{cid}/follow-ups",
             headers=auth_headers,
-            json={"method": "visit", "status": "planned", "planned_at": (now + timedelta(days=3)).isoformat()},
+            json={
+                "method": "visit",
+                "status": "planned",
+                "planned_at": (now + timedelta(days=3)).isoformat(),
+            },
         )
 
-        resp = await async_client.get("/api/v1/customers/follow-up-reminders", headers=auth_headers)
+        resp = await async_client.get(
+            "/api/v1/customers/follow-up-reminders", headers=auth_headers
+        )
         assert resp.status_code == 200
         items_by_id = {item["id"]: item for item in resp.json()["data"]["items"]}
         assert items_by_id[past.json()["data"]["id"]]["due_bucket"] == "overdue"
         assert items_by_id[today.json()["data"]["id"]]["due_bucket"] == "today"
         assert items_by_id[upcoming.json()["data"]["id"]]["due_bucket"] == "upcoming"
 
-    async def test_global_follow_ups_collection(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_global_follow_ups_collection(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         target = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -1334,7 +1536,9 @@ class TestCustomerStats:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_alert_rules_crud(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_alert_rules_crud(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         # create
         create = await async_client.post(
             "/api/v1/customers/alerts/rules",
@@ -1361,15 +1565,20 @@ class TestCustomerStats:
 class TestCustomerLevelRules:
     """Customer level (A/B/C) management."""
 
-    async def test_level_rules_crud(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_level_rules_crud(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         # create rule
         create = await async_client.post(
             "/api/v1/customers/level-rules",
             headers=auth_headers,
             json={
-                "name": "A类客户规则", "target_level": "A",
-                "condition_type": "revenue", "operator": ">=",
-                "threshold_value": 100000, "period_days": 365,
+                "name": "A类客户规则",
+                "target_level": "A",
+                "condition_type": "revenue",
+                "operator": ">=",
+                "threshold_value": 100000,
+                "period_days": 365,
             },
         )
         assert create.status_code == 201
@@ -1388,21 +1597,37 @@ class TestCustomerLevelRules:
         )
         assert del_.status_code == 200
 
-    async def test_list_level_rules(self, async_client: AsyncClient, auth_headers: dict):
-        resp = await async_client.get("/api/v1/customers/level-rules", headers=auth_headers)
+    async def test_list_level_rules(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        resp = await async_client.get(
+            "/api/v1/customers/level-rules", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert isinstance(resp.json()["data"], list)
 
 
 class TestCustomerTags:
-    async def test_generate_default_customer_tags_is_idempotent(self, async_client: AsyncClient, auth_headers: dict):
-        first = await async_client.post("/api/v1/customers/tags/defaults", headers=auth_headers)
+    async def test_generate_default_customer_tags_is_idempotent(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        first = await async_client.post(
+            "/api/v1/customers/tags/defaults", headers=auth_headers
+        )
         assert first.status_code == 201
         first_data = first.json()["data"]
         assert first_data["created"] == 5
-        assert [tag["name"] for tag in first_data["tags"]] == ["重点客户", "潜在客户", "样品跟进", "价格敏感", "风险预警"]
+        assert [tag["name"] for tag in first_data["tags"]] == [
+            "重点客户",
+            "潜在客户",
+            "样品跟进",
+            "价格敏感",
+            "风险预警",
+        ]
 
-        second = await async_client.post("/api/v1/customers/tags/defaults", headers=auth_headers)
+        second = await async_client.post(
+            "/api/v1/customers/tags/defaults", headers=auth_headers
+        )
         assert second.status_code == 201
         second_data = second.json()["data"]
         assert second_data["created"] == 0
@@ -1410,4 +1635,10 @@ class TestCustomerTags:
 
         listed = await async_client.get("/api/v1/customers/tags", headers=auth_headers)
         assert listed.status_code == 200
-        assert {tag["name"] for tag in listed.json()["data"]} == {"重点客户", "潜在客户", "样品跟进", "价格敏感", "风险预警"}
+        assert {tag["name"] for tag in listed.json()["data"]} == {
+            "重点客户",
+            "潜在客户",
+            "样品跟进",
+            "价格敏感",
+            "风险预警",
+        }

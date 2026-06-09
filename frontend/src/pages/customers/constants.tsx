@@ -85,6 +85,7 @@ export const COL_LABEL_MAP: Record<string, string> = {
   currency: "币种",
   tax_id: "税号",
   delivery_address: "收货地址",
+  status: "生命周期",
   health: "健康度",
   next_followup: "下次跟进",
   tags: "标签",
@@ -100,7 +101,7 @@ export const COL_LABEL_MAP: Record<string, string> = {
 };
 
 export const DEFAULT_VISIBLE_COL_KEYS = [
-  "code", "name", "level", "region", "credit_level",
+  "code", "name", "status", "level", "region", "credit_level",
   "payment_terms", "owner", "next_followup",
   "last_contacted_at", "tags", "actions",
 ];

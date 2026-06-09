@@ -14,7 +14,8 @@ import QuotationHistoryPanel from "./QuotationHistoryPanel";
 import dayjs from "dayjs";
 import type { Attachment, Customer, Contact, FollowUp, Tag as TagType, TimelineEvent, CustomerStats, CustomerLog, GroupStats, Visit } from "../../types";
 import {
-  CustomerHealthBadge,
+  CustomerStatusTag,
+  CUSTOMER_STATUS_META,
   FOLLOW_UP_METHOD_OPTIONS,
   FOLLOW_UP_PRIORITY_OPTIONS,
   FOLLOW_UP_STATUS_OPTIONS,
@@ -829,7 +830,7 @@ function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { o
 
 // --- Customer Profile ---
 
-const LIFECYCLE_COLORS: Record<string, string> = { "活跃": "green", "新客户": "blue", "衰退": "orange", "沉默客户": "default", "流失": "red" };
+
 const HEALTH_COLORS: Record<string, string> = { "优秀": "#52c41a", "良好": "#1677ff", "一般": "#faad14", "差": "#ff4d4f" };
 
 function CustomerProfile({ customerId }: { customerId: number }) {
@@ -865,8 +866,11 @@ function CustomerProfile({ customerId }: { customerId: number }) {
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="生命周期" value={stats.lifecycle}
-              prefix={<StatusTag tone={LIFECYCLE_COLORS[stats.lifecycle] || "neutral"} style={{ fontSize: 16 }}>{stats.lifecycle}</StatusTag>} />
+            <Statistic 
+              title="当前状态" 
+              value={stats.lifecycle}
+              prefix={<CustomerStatusTag status={customer.status} />} 
+            />
             <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>创建 {stats.created_days} 天</div>
           </Card>
         </Col>

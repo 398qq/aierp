@@ -189,6 +189,7 @@ class CustomerCreate(BaseModel):
     currency: str = "CNY"
     delivery_address: str | None = None
     default_incoterm: str | None = None
+    status: str | None = None
     owner: str | None = None
     notes: str | None = None
 
@@ -222,6 +223,7 @@ class CustomerUpdate(BaseModel):
     currency: str | None = None
     delivery_address: str | None = None
     default_incoterm: str | None = None
+    status: str | None = None
     owner: str | None = None
     notes: str | None = None
 
@@ -486,6 +488,11 @@ async def update_customer(
         if conflict:
             response.status_code = status.HTTP_400_BAD_REQUEST
             return fail(_code_number_conflict_message(data["code"], conflict.code))
+
+    if "status" in data and data["status"] != customer.status:
+        from app.domain.states import assert_can_transition_customer
+        assert_can_transition_customer(customer.status, data["status"])
+
     next_name = data.get("name", customer.name)
     auto_short_name = False
     if "short_name" in data:

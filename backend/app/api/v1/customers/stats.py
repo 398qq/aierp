@@ -155,18 +155,8 @@ async def customer_stats(
     credit_limit = _safe_float(customer.credit_limit)
     credit_usage_pct = round((outstanding / credit_limit) * 100, 1) if credit_limit > 0 else 0.0
 
-    if customer.lifecycle:
-        lifecycle = customer.lifecycle
-    elif order_count == 0:
-        lifecycle = "新客户" if created_days <= 30 else "沉默客户"
-    else:
-        days_since_last_order = _days_since(last_order_at, now)
-        if days_since_last_order <= 90:
-            lifecycle = "活跃"
-        elif days_since_last_order <= 365:
-            lifecycle = "衰退"
-        else:
-            lifecycle = "流失"
+    from app.domain.states import CUSTOMER_STATUS_LABELS
+    lifecycle = CUSTOMER_STATUS_LABELS.get(customer.status, customer.status or "未知")
 
     ai_insights = customer.ai_insights if isinstance(customer.ai_insights, dict) else {}
     health_score = _safe_float(ai_insights.get("health_score"))
@@ -366,11 +356,12 @@ async def customer_ai_stats(
     days_30 = now - timedelta(days=30)
 
     # Pull required fields once and aggregate in Python to avoid JSON SQL dialect differences.
+    from app.domain.states import CUSTOMER_STATUS_LABELS
     customers = (await db.execute(
         select(
             Customer.id,
             Customer.level,
-            Customer.lifecycle,
+            Customer.status,
             Customer.last_contacted_at,
             Customer.ai_insights,
         ).where(Customer.deleted_at.is_(None))
@@ -389,8 +380,8 @@ async def customer_ai_stats(
 
     stale_cutoff = now - timedelta(days=60)
 
-    for _id, level, lifecycle, last_contacted_at, ai_insights in customers:
-        lifecycle_key = lifecycle or "未设置"
+    for _id, level, status, last_contacted_at, ai_insights in customers:
+        lifecycle_key = CUSTOMER_STATUS_LABELS.get(status, status or "未设置")
         lifecycle_map[lifecycle_key] = lifecycle_map.get(lifecycle_key, 0) + 1
 
         if last_contacted_at is None:

@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import { StatusTag } from "../../ui";
 import type { Customer, FollowUpReminder, Tag as TagType } from "../../types";
-import { FollowUpMethodTag } from "./customerUi";
+import { CustomerStatusTag, FollowUpMethodTag } from "./customerUi";
 import {
   formatDate,
   formatDateTime,
@@ -97,6 +97,15 @@ export function useCustomerTableColumns({
       key: "short_name",
       width: 120,
       render: (v: string | null) => v || "-",
+    },
+    {
+      title: "生命周期",
+      dataIndex: "status",
+      key: "status",
+      width: 100,
+      sorter: true,
+      sortOrder: sortDir("status"),
+      render: (v: string | null) => <CustomerStatusTag status={v} />,
     },
     {
       title: "行业",

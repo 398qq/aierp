@@ -57,6 +57,9 @@ async def create_followup(
             cust = result.scalar_one_or_none()
             if cust:
                 cust.last_contacted_at = datetime.now(timezone.utc)
+                # Trigger customer state machine transition (inactive/churned -> active)
+                from app.services.customer_state_service import on_re_engage
+                await on_re_engage(db, customer_id)
             await db.flush()
             followup_id = followup.id
         return ok({"id": followup_id})
