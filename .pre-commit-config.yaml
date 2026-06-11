@@ -34,3 +34,21 @@ repos:
         name: check for merge conflict markers
       - id: detect-private-key
         name: detect private keys
+
+  # Stage 13 Day 4: detect-secrets (防密码 / API key 误提交)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect secrets (passwords / API keys)
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '\.lock$|package-lock\.json|\.db$|test\.db|backups/'
+
+  # Stage 13 Day 4: bandit (Python 安全 linter, local)
+  - repo: https://github.com/PyCQA/bandit
+    rev: '1.7.10'  # 锁版本, 避免 hook 资源下载
+    hooks:
+      - id: bandit
+        name: bandit (Python security linter, local baseline)
+        args: ['-c', '.bandit', '-r', 'backend/app/']
+        # 不用 --baseline JSON: local pass B110/B105, CI 另走 security-audit workflow

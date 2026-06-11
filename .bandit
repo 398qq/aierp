@@ -1,0 +1,24 @@
+# Bandit config (Stage 13 Day 4) — YAML format
+# Local pre-commit: fail on NEW high-severity issues
+# CI security-audit: --strict 模式 (Stage 12 Day 4)
+
+exclude_dirs:
+  - tests
+  - venv
+  - __pycache__
+  - .git
+  - alembic/versions
+
+# 跳过的 false-positive checks:
+# - B110: try/except pass (Prometheus fallback / cache 容忍, Stage 9 Day 2 设计)
+# - B105: hardcoded password ('aierp_token' / test fixture, CONTRIBUTING.md 文档化)
+# - B311: random (embedding.py 不涉密, ID 生成)
+# - B404/B603/B607: subprocess (Playwright 启动浏览器, 受控)
+# 真严重漏洞 (SQL 注入 / pickle.loads / 不安全反序列化) 不在 skip 列表, 仍会 fail
+skips:
+  - B110
+  - B105
+  - B311
+  - B404
+  - B603
+  - B607
