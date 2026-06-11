@@ -33,6 +33,7 @@ async def test_no_chat_id_returns_false():
     }, clear=False):
         os.environ.pop("TELEGRAM_CHAT_ID", None)
         result = await send_message("hello")
+    # patch.dict restores at exit, no manual cleanup needed
     assert result is False
 
 

@@ -20,8 +20,26 @@ import threading
 import time
 
 
+# Optional prometheus_client integration (Stage 9 Day 2).
+# If installed, every inc/set/observe is mirrored to prometheus_client,
+# so /metrics/prometheus can export via prometheus_client.generate_latest().
+# If not installed, falls back to in-process dict (no behavior change).
+try:
+    from prometheus_client import Counter as _PCounter, Gauge as _PGauge, Histogram as _PHistogram
+
+    _PROM_AVAILABLE = True
+except ImportError:  # pragma: no cover - import-time
+    _PROM_AVAILABLE = False
+
+
 class Counter:
-    """Monotonic counter with optional labels."""
+    """Monotonic counter with optional labels.
+
+    Stage 9 Day 2: mirrors writes to prometheus_client when available,
+    so /metrics/prometheus can include business metrics in the same
+    text exposition as process metrics. Backed by an in-process dict
+    for value()/snapshot() (used by /metrics JSON endpoint).
+    """
 
     def __init__(self, name: str, doc: str, labels: list[str] | None = None) -> None:
         self.name = name
@@ -29,6 +47,19 @@ class Counter:
         self.labels = labels or []
         self._values: dict[tuple, float] = defaultdict(float)
         self._lock = threading.Lock()
+        self._prom: "_PCounter | None" = None
+        if _PROM_AVAILABLE:
+            try:
+                # prometheus_client enforces name pattern [a-zA-Z_:][a-zA-Z0-9_:]*
+                self._prom = _PCounter(name, doc, list(self.labels))
+            except ValueError:
+                # name already registered (re-import in tests) — reuse
+                from prometheus_client import REGISTRY as _REG
+
+                for collector in list(_REG._collector_to_names.keys()):  # type: ignore[attr-defined]
+                    if name in _REG._names_to_collectors:  # type: ignore[attr-defined]
+                        self._prom = _REG._names_to_collectors[name]  # type: ignore[attr-defined]
+                        break
 
     def inc(self, amount: float = 1.0, **label_values) -> None:
         if list(label_values.keys()) != self.labels:
@@ -38,6 +69,16 @@ class Counter:
         key = tuple(label_values[label] for label in self.labels)
         with self._lock:
             self._values[key] += amount
+        if self._prom is not None and self.labels:
+            try:
+                self._prom.labels(**label_values).inc(amount)
+            except Exception:  # pragma: no cover - defensive
+                pass
+        elif self._prom is not None:
+            try:
+                self._prom.inc(amount)
+            except Exception:  # pragma: no cover - defensive
+                pass
 
     def value(self, **label_values) -> float:
         key = tuple(label_values[label] for label in self.labels)
@@ -50,7 +91,7 @@ class Counter:
 
 
 class Gauge:
-    """Gauge that can increase/decrease."""
+    """Gauge that can increase/decrease. Stage 9 Day 2: also writes to prometheus_client."""
 
     def __init__(self, name: str, doc: str, labels: list[str] | None = None) -> None:
         self.name = name
@@ -58,21 +99,42 @@ class Gauge:
         self.labels = labels or []
         self._values: dict[tuple, float] = defaultdict(float)
         self._lock = threading.Lock()
+        self._prom: "_PGauge | None" = None
+        if _PROM_AVAILABLE:
+            try:
+                self._prom = _PGauge(name, doc, list(self.labels))
+            except ValueError:
+                self._prom = None  # name registered; set/inc still work via in-process
 
     def set(self, value: float, **label_values) -> None:
         key = tuple(label_values[label] for label in self.labels)
         with self._lock:
             self._values[key] = value
+        if self._prom is not None:
+            try:
+                self._prom.labels(**label_values).set(value)
+            except Exception:  # pragma: no cover
+                pass
 
     def inc(self, amount: float = 1.0, **label_values) -> None:
         key = tuple(label_values[label] for label in self.labels)
         with self._lock:
             self._values[key] += amount
+        if self._prom is not None:
+            try:
+                self._prom.labels(**label_values).inc(amount)
+            except Exception:  # pragma: no cover
+                pass
 
     def dec(self, amount: float = 1.0, **label_values) -> None:
         key = tuple(label_values[label] for label in self.labels)
         with self._lock:
             self._values[key] -= amount
+        if self._prom is not None:
+            try:
+                self._prom.labels(**label_values).dec(amount)
+            except Exception:  # pragma: no cover
+                pass
 
     def value(self, **label_values) -> float:
         key = tuple(label_values[label] for label in self.labels)
@@ -84,7 +146,7 @@ class Gauge:
 
 
 class Histogram:
-    """Histogram with predefined buckets (in seconds)."""
+    """Histogram with predefined buckets (in seconds). Stage 9 Day 2: also writes to prometheus_client."""
 
     DEFAULT_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
 
@@ -102,6 +164,12 @@ class Histogram:
         # {label_tuple: {"counts": [bucket_counts], "sum": total_sum, "count": total_count}}
         self._values: dict[tuple, dict] = {}
         self._lock = threading.Lock()
+        self._prom: "_PHistogram | None" = None
+        if _PROM_AVAILABLE:
+            try:
+                self._prom = _PHistogram(name, doc, list(self.labels), buckets=list(self.buckets))
+            except ValueError:
+                self._prom = None  # already registered
 
     def observe(self, value: float, **label_values) -> None:
         if list(label_values.keys()) != self.labels:
@@ -127,6 +195,11 @@ class Histogram:
                 slot["counts"][-1] += 1
             slot["sum"] += value
             slot["count"] += 1
+        if self._prom is not None:
+            try:
+                self._prom.labels(**label_values).observe(value)
+            except Exception:  # pragma: no cover
+                pass
 
     @contextmanager
     def time(self, **label_values):
