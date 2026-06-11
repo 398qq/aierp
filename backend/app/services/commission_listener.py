@@ -130,6 +130,25 @@ async def _maybe_create_commission(
     db.add(commission)
     await db.commit()
     await db.refresh(commission)
+
+    # Stage 8 Day 4: Telegram notification (best-effort, never blocks)
+    try:
+        from app.services.telegram_notifier import send_message
+
+        msg = (
+            f"💰 <b>New Commission</b>\n"
+            f"Order: {order.order_no or '(no no)'}\n"
+            f"Invoice: {invoice.invoice_no}\n"
+            f"Customer: {customer.name}\n"
+            f"Base: ¥{base:,.2f} × {rate * 100:.1f}% = "
+            f"<b>¥{commission_amount:,.2f}</b>\n"
+            f"Period: {period} | Status: draft"
+        )
+        await send_message(msg)
+    except Exception:
+        # Telegram failure must not abort the commission flow
+        pass
+
     return commission
 
 
