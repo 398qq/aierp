@@ -108,6 +108,7 @@ const JournalEntryList = lazy(() => import("./pages/finance/JournalEntryList"));
 const JournalEntryForm = lazy(() => import("./pages/finance/JournalEntryForm"));
 const ProfitLoss = lazy(() => import("./pages/finance/ProfitLoss"));
 const CommissionList = lazy(() => import("./pages/finance/CommissionList"));
+const AuditLogViewer = lazy(() => import("./pages/system/AuditLogViewer"));
 const ReportAP = lazy(() => import("./pages/reports/ReportAP"));
 const ImportExport = lazy(() => import("./pages/import-export/index"));
 
@@ -214,6 +215,7 @@ export default function App() {
               <Route path="/finance/journal-entries/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
               <Route path="/finance/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
               <Route path="/finance/commissions" element={<Suspense fallback={<PageLoader />}><CommissionList /></Suspense>} />
+              <Route path="/system/audit" element={<Suspense fallback={<PageLoader />}><AuditLogViewer /></Suspense>} />
               <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
               <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
               <Route path="/sales" element={<Navigate to="/sales/dashboard" replace />} />
