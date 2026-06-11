@@ -1,16 +1,39 @@
 """Base CRUD service — reusable list / get / create / update / soft-delete operations.
 
 Extend this class and override `model` to get standard CRUD with pagination.
+
+Stage 7: update() now supports an optional `audit_actor` parameter that
+records every changed field to `field_change_logs` (one row per field).
+Pass `audit_actor="alice"` (or any string) to enable; omit to skip.
 """
 
 from datetime import datetime, timezone
+from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit import FieldChangeLog
+
+
+def _serialize(v) -> str:
+    """Best-effort string snapshot for audit log."""
+    if v is None:
+        return None
+    if isinstance(v, (str, int, float, bool)):
+        return str(v)
+    if isinstance(v, datetime):
+        return v.isoformat()
+    return repr(v)
+
 
 class BaseCRUDService:
     model: type = None  # Set in subclass
+    table_name: Optional[str] = None  # Override in subclass if != model.__tablename__
+
+    @property
+    def _table_name(self) -> str:
+        return self.table_name or (self.model.__tablename__ if self.model else "unknown")
 
     # ── list ──────────────────────────────────────────────────────────
 
@@ -43,7 +66,7 @@ class BaseCRUDService:
 
         return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
-    # ── get by id ─────────────────────────────────────────────────────
+    # ── get by id ──────────────────────────────────────────────────────
 
     async def get(self, db: AsyncSession, obj_id: int) -> object | None:
         result = await db.execute(
@@ -54,7 +77,7 @@ class BaseCRUDService:
         )
         return result.scalar_one_or_none()
 
-    # ── create ────────────────────────────────────────────────────────
+    # ── create ─────────────────────────────────────────────────────────
 
     async def create(self, db: AsyncSession, data: dict) -> object:
         obj = self.model(**data)
@@ -63,17 +86,51 @@ class BaseCRUDService:
         await db.refresh(obj)
         return obj
 
-    # ── update ────────────────────────────────────────────────────────
+    # ── update ─────────────────────────────────────────────────────────
 
-    async def update(self, db: AsyncSession, obj: object, data: dict) -> object:
+    async def update(
+        self,
+        db: AsyncSession,
+        obj: object,
+        data: dict,
+        *,
+        audit_actor: Optional[str] = None,
+        audit_reason: Optional[str] = None,
+    ) -> object:
+        """Update fields on `obj`.
+
+        Stage 7: if `audit_actor` is provided, every changed field is
+        recorded to `field_change_logs` (one row per field). Existing
+        rows that have the same value are not recorded (no-op filter).
+        """
+        changes: list[FieldChangeLog] = []
         for k, v in data.items():
-            if v is not None:
-                setattr(obj, k, v)
+            if v is None:
+                continue  # PATCH semantics
+            old = getattr(obj, k, None)
+            if old == v:
+                continue  # skip no-op
+            setattr(obj, k, v)
+            if audit_actor is not None:
+                changes.append(
+                    FieldChangeLog(
+                        table_name=self._table_name,
+                        record_id=obj.id,
+                        field_name=k,
+                        old_value=_serialize(old),
+                        new_value=_serialize(v),
+                        actor=audit_actor,
+                        reason=audit_reason,
+                    )
+                )
         await db.commit()
+        if changes:
+            db.add_all(changes)
+            await db.commit()
         await db.refresh(obj)
         return obj
 
-    # ── soft-delete ───────────────────────────────────────────────────
+    # ── soft-delete ────────────────────────────────────────────────────
 
     async def delete(self, db: AsyncSession, obj: object) -> None:
         obj.deleted_at = datetime.now(timezone.utc)

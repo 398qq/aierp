@@ -215,6 +215,7 @@ async def update_payment(
 async def _reconcile_invoice_if_fully_paid(db: AsyncSession, invoice_id: int) -> None:
     """Mark invoice as paid when all linked payments are completed."""
     from app.models.finance import Invoice
+    from app.services.commission_listener import on_invoice_paid
 
     inv = await db.scalar(
         select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
@@ -232,6 +233,8 @@ async def _reconcile_invoice_if_fully_paid(db: AsyncSession, invoice_id: int) ->
     if total_paid and total_paid >= inv.amount:
         inv.status = "paid"
         await db.commit()
+        # Stage 7: auto-create draft commission (no-op if already exists)
+        await on_invoice_paid(db, invoice_id)
 
 
 async def delete_payment(db: AsyncSession, pay: PaymentRecord) -> None:

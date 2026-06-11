@@ -402,3 +402,102 @@ async def dashboard_kpi(
         json.dumps(result, default=str), DASHBOARD_KPI_CACHE_TTL,
     )
     return ok(result)
+
+
+# ===========================================================================
+# Stage 7: 跟单全流程关键指标
+# ===========================================================================
+
+@router.get("/sales/lifecycle-metrics")
+async def sales_lifecycle_metrics(
+    days_back: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """三个关键指标 — 让老板一眼看出健康度。
+
+    1. avg_time_to_confirm (avg_time_to_confirm_hours):
+       从 PENDING → CONFIRMED 的平均停留小时数。
+       越短越健康（订单响应快）；越长说明销售响应慢。
+
+    2. cancellation_rate (cancellation_rate_pct):
+       cancelled / (completed + cancelled) 的百分比。
+       越低越健康；>30% 说明报价质量差或客户匹配错。
+
+    3. stage_conversion (stage_conversion_pct):
+       PENDING → COMPLETED 的端到端转化率。
+       越高越好；<20% 说明漏斗流失严重。
+    """
+    from app.models.audit import StatusTransitionLog
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+
+    # 1. avg_time_to_confirm
+    # Find PENDING → CONFIRMED transitions in the time window
+    pending_to_confirmed = (await db.execute(
+        select(StatusTransitionLog).where(
+            StatusTransitionLog.action == "confirm",
+            StatusTransitionLog.transitioned_at >= cutoff,
+        )
+    )).scalars().all()
+
+    confirm_hours = []
+    for log in pending_to_confirmed:
+        # Find the corresponding PENDING entry (same aggregate, just before)
+        prev = await db.scalar(
+            select(StatusTransitionLog).where(
+                StatusTransitionLog.aggregate_type == log.aggregate_type,
+                StatusTransitionLog.aggregate_id == log.aggregate_id,
+                StatusTransitionLog.status_before.is_(None),  # initial creation
+            )
+        )
+        if prev:
+            delta = (log.transitioned_at - prev.transitioned_at).total_seconds() / 3600
+            confirm_hours.append(delta)
+    avg_time_to_confirm_hours = round(sum(confirm_hours) / len(confirm_hours), 1) if confirm_hours else None
+
+    # 2. cancellation_rate (within window)
+    cancelled_count = (await db.scalar(
+        select(func.count(StatusTransitionLog.id)).where(
+            StatusTransitionLog.action == "cancel",
+            StatusTransitionLog.transitioned_at >= cutoff,
+        )
+    )) or 0
+    completed_count = (await db.scalar(
+        select(func.count(StatusTransitionLog.id)).where(
+            StatusTransitionLog.action == "complete",
+            StatusTransitionLog.transitioned_at >= cutoff,
+        )
+    )) or 0
+    total_outcomes = cancelled_count + completed_count
+    cancellation_rate_pct = round(cancelled_count / total_outcomes * 100, 1) if total_outcomes > 0 else None
+
+    # 3. stage_conversion
+    # Count distinct orders that reached PENDING, then COMPLETED
+    pending_orders = (await db.execute(
+        select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
+            StatusTransitionLog.action == "create",  # initial
+            StatusTransitionLog.transitioned_at >= cutoff,
+        )
+    )).scalar() or 0
+    completed_orders = (await db.scalar(
+        select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
+            StatusTransitionLog.action == "complete",
+            StatusTransitionLog.transitioned_at >= cutoff,
+        )
+    )).scalar() or 0
+    stage_conversion_pct = round(completed_orders / pending_orders * 100, 1) if pending_orders > 0 else None
+
+    return ok({
+        "window_days": days_back,
+        "avg_time_to_confirm_hours": avg_time_to_confirm_hours,
+        "cancellation_rate_pct": cancellation_rate_pct,
+        "stage_conversion_pct": stage_conversion_pct,
+        "sample_counts": {
+            "confirm_transitions": len(confirm_hours),
+            "cancelled": cancelled_count,
+            "completed": completed_count,
+            "pending_orders": pending_orders,
+            "completed_orders": completed_orders,
+        },
+    })
