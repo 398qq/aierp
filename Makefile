@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -223,6 +223,17 @@ deps-audit: ## Audit dependencies for known vulnerabilities
 	@echo ""
 	@echo "=== Frontend (npm audit) ==="
 	cd $(FRONTEND_DIR) && npm audit --audit-level=high
+
+# ===========================================================================
+# Operations alerts (Stage 6 Day 2)
+# ===========================================================================
+ops-alert: ## Run ops health check + Telegram alert
+	TELEGRAM_BOT_TOKEN=$${TELEGRAM_BOT_TOKEN:-} ./scripts/ops-alert.sh
+
+ops-alert-cron: ## Show cron line to install ops-alert hourly
+	@echo "0 * * * * /home/ttdiy/aierp/scripts/ops-alert.sh >> /home/ttdiy/aierp/logs/ops-alert.log 2>&1"
+	@echo ""
+	@echo "To install: (crontab -l 2>/dev/null; cat <(echo '0 * * * * /home/ttdiy/aierp/scripts/ops-alert.sh >> /home/ttdiy/aierp/logs/ops-alert.log 2>&1')) | crontab -"
 
 # ---------------------------------------------------------------------------
 # Performance baseline (Locust)
