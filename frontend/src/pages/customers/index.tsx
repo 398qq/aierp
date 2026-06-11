@@ -32,6 +32,7 @@ import {
   Upload,
 } from "antd";
 import { StatusTag } from "../../ui";
+import { useCustomersFilter } from "../../hooks/useCustomersFilter";
 import {
   BellOutlined,
   BulbOutlined,
@@ -167,16 +168,15 @@ export default function CustomerList() {
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [q, setQ] = useState(() => new URLSearchParams(window.location.search).get("q")?.trim() || "");
-  const [scene, setScene] = useState<SceneValue>("all");
-  const [industry, setIndustry] = useState<string | undefined>();
-  const [level, setLevel] = useState<string | undefined>();
-  const [region, setRegion] = useState<string | undefined>();
-  const [source, setSource] = useState<string | undefined>();
-  const [creditLevel, setCreditLevel] = useState<string | undefined>();
+  // 8 filter / sort states extracted to useCustomersFilter (Stage 3 Day 1)
+  const filter = useCustomersFilter();
+  const {
+    q, scene, industry, level, region, source, creditLevel,
+    sortBy, sortOrder,
+    setQ, setScene, setIndustry, setLevel, setRegion, setSource, setCreditLevel, setSort,
+  } = filter;
+
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<string>("id");
-  const [sortOrder, setSortOrder] = useState<string>("desc");
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [tags, setTags] = useState<TagType[]>([]);
@@ -552,8 +552,7 @@ export default function CustomerList() {
     setCreditLevel(undefined);
     setOverdueOnly(false);
     setAdvancedOpen(false);
-    setSortBy("id");
-    setSortOrder("desc");
+    setSort("id", "desc");
     setSmartTask("all");
     setActiveViewPreset("all");
     setActiveCrmObject("companies");
@@ -820,10 +819,8 @@ export default function CustomerList() {
     }
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
     if (s.field && typeof s.field === "string") {
-      setSortBy(s.field);
-      if (s.order === "ascend") setSortOrder("asc");
-      if (s.order === "descend") setSortOrder("desc");
-      if (!s.order) setSortOrder("desc");
+      if (s.order === "ascend") setSort(s.field, "asc");
+      else setSort(s.field, "desc");  // covers "descend" + null + undefined
     }
   };
 
