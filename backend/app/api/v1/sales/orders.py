@@ -56,6 +56,7 @@ async def _bump_sales_order_caches() -> None:
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("dashboard:trends")
+    await cache_bump_version("dashboard:lifecycle")
     await cache_bump_version("reports:predefined:sales")
 
 

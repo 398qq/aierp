@@ -36,6 +36,7 @@ DASHBOARD_TRENDS_CACHE_TTL = 600  # 10min
 DASHBOARD_ALERTS_CACHE_TTL = 60  # 1min (alerts need fresh data)
 DASHBOARD_WIDGETS_CACHE_TTL = 600  # 10min
 DASHBOARD_KPI_CACHE_TTL = 120  # 2min (KPI needs to be fresh)
+DASHBOARD_LIFECYCLE_CACHE_TTL = 300  # 5min (lifecycle metrics can be slightly stale)
 
 
 def _dashboard_cache_key(**parts: object) -> str:
@@ -518,7 +519,15 @@ async def sales_lifecycle_metrics(
     3. stage_conversion (stage_conversion_pct):
        PENDING → COMPLETED 的端到端转化率。
        越高越好；<20% 说明漏斗流失严重。
+
+    Cached: 5 min (DASHBOARD_LIFECYCLE_CACHE_TTL). Bust on OrderConfirmed
+    / OrderCancelled / OrderCompleted via cache_bump_version (Stage 8 Day 3).
     """
+    cache_key = _dashboard_cache_key("lifecycle", days_back=days_back)
+    cached = await cache_get_versioned("dashboard:lifecycle", cache_key)
+    if cached:
+        return JSONResponse(content=json.loads(cached))
+
     from app.models.audit import StatusTransitionLog
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
@@ -601,18 +610,21 @@ async def sales_lifecycle_metrics(
         else None
     )
 
-    return ok(
-        {
-            "window_days": days_back,
-            "avg_time_to_confirm_hours": avg_time_to_confirm_hours,
-            "cancellation_rate_pct": cancellation_rate_pct,
-            "stage_conversion_pct": stage_conversion_pct,
-            "sample_counts": {
-                "confirm_transitions": len(confirm_hours),
-                "cancelled": cancelled_count,
-                "completed": completed_count,
-                "pending_orders": pending_orders,
-                "completed_orders": completed_orders,
-            },
-        }
+    result = {
+        "window_days": days_back,
+        "avg_time_to_confirm_hours": avg_time_to_confirm_hours,
+        "cancellation_rate_pct": cancellation_rate_pct,
+        "stage_conversion_pct": stage_conversion_pct,
+        "sample_counts": {
+            "confirm_transitions": len(confirm_hours),
+            "cancelled": cancelled_count,
+            "completed": completed_count,
+            "pending_orders": pending_orders,
+            "completed_orders": completed_orders,
+        },
+    }
+    await cache_set_versioned(
+        "dashboard:lifecycle", cache_key,
+        json.dumps(result, default=str), DASHBOARD_LIFECYCLE_CACHE_TTL,
     )
+    return ok(result)
