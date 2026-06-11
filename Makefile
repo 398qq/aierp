@@ -242,6 +242,26 @@ ops-alert-cron: ## Show cron line to install ops-alert hourly
 	@echo "To install: (crontab -l 2>/dev/null; cat <(echo '0 * * * * /home/ttdiy/aierp/scripts/ops-alert.sh >> /home/ttdiy/aierp/logs/ops-alert.log 2>&1')) | crontab -"
 
 # ===========================================================================
+# AlertManager webhook receiver (Stage 10 Day 4)
+# ===========================================================================
+alert-webhook-start: ## Start AlertManager webhook receiver (port 9099)
+	./scripts/alert-webhook.sh start
+
+alert-webhook-stop: ## Stop AlertManager webhook receiver
+	./scripts/alert-webhook.sh stop
+
+alert-webhook-status: ## Check webhook receiver status
+	./scripts/alert-webhook.sh status
+
+alert-webhook-logs: ## Tail webhook receiver logs (Ctrl+C to exit)
+	./scripts/alert-webhook.sh logs
+
+alert-webhook-test: ## Send a test alert to the webhook
+	@curl -s -X POST http://localhost:9099/alert \
+	  -H 'Content-Type: application/json' \
+	  -d '{"version":"4","status":"firing","alerts":[{"status":"firing","labels":{"alertname":"TestAlert","severity":"warning","service":"aierp"},"annotations":{"summary":"Test from Makefile","description":"This is a test alert from make alert-webhook-test"},"startsAt":"2026-06-11T00:00:00Z"}]}'
+
+# ===========================================================================
 # Docker (Stage 6 Day 4)
 # ===========================================================================
 docker-build: ## Build all Docker images (backend + frontend)
