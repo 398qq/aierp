@@ -81,6 +81,10 @@ class SalesTarget(TimestampMixin, Base):
     target_type: Mapped[str] = mapped_column(String(20), default="monthly")
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     target_orders: Mapped[int | None] = mapped_column(nullable=True)
+    commission_rate: Mapped[float] = mapped_column(
+        DECIMAL(8, 4), default=0.05, server_default="0.05",
+        comment="Per-user commission rate (e.g. 0.05 = 5%)",
+    )
     period_start: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -21,20 +21,36 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.finance import Commission, Invoice
+from app.models.finance import Commission, Invoice, SalesTarget
 from app.models.sales import SalesOrder
 from app.models.customer import Customer
 from app.services.docno import generate_doc_no
 
 
-# Default commission rate when no override is set
+# Default commission rate when no SalesTarget override is set
 DEFAULT_COMMISSION_RATE = 0.05
 
 
-async def _get_default_rate(db: AsyncSession) -> float:
-    """Look up default rate from sales_targets (current period) or hardcoded fallback."""
-    # For now: just return hardcoded 5%. Future: read from settings/SalesTarget.
-    return DEFAULT_COMMISSION_RATE
+async def _get_rate_for_user(db: AsyncSession, sales_user_id: int) -> float:
+    """Look up commission rate from user's active SalesTarget.
+
+    Falls back to DEFAULT_COMMISSION_RATE (5%) if no active target.
+    """
+    target = await db.scalar(
+        select(SalesTarget)
+        .where(
+            SalesTarget.user_id == sales_user_id,
+            SalesTarget.status == "active",
+            SalesTarget.deleted_at.is_(None),
+        )
+        .order_by(SalesTarget.id.desc())
+    )
+    if target is None:
+        return DEFAULT_COMMISSION_RATE
+    rate = getattr(target, "commission_rate", None)
+    if rate is None:
+        return DEFAULT_COMMISSION_RATE
+    return float(rate)
 
 
 async def _maybe_create_commission(
@@ -92,7 +108,7 @@ async def _maybe_create_commission(
         return None
 
     base = float(invoice.amount or 0)
-    rate = await _get_default_rate(db)
+    rate = await _get_rate_for_user(db, sales_user_id)
     commission_amount = round(base * rate, 2)
 
     period = datetime.utcnow().strftime("%Y-%m")

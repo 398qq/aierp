@@ -203,3 +203,66 @@ async def test_skips_when_owner_not_numeric(db: AsyncSession):
 
     result = await on_invoice_paid(db, inv.id)
     assert result is None  # owner not numeric, skip
+
+
+@pytest.mark.asyncio
+async def test_rate_pulled_from_sales_target(db: AsyncSession):
+    """When user has SalesTarget with custom rate, use that (Stage 8 Day 2)."""
+    from app.models.customer import Customer
+    from app.models.sales import SalesOrder
+    from app.models.finance import Invoice, SalesTarget
+    from app.models.user import User
+
+    user = User(id=300, username="carol", password="x")
+    db.add(user)
+    cust = Customer(id=6, name="Zeta", owner="300")
+    db.add(cust)
+    order = SalesOrder(
+        id=50, order_no="SO-006", customer_id=6, status="completed", total_amount=20000
+    )
+    db.add(order)
+    inv = Invoice(
+        id=70, invoice_no="INV-006", sales_order_id=50, customer_id=6,
+        amount=20000, status="paid",
+    )
+    db.add(inv)
+    # Custom rate: 8% (instead of default 5%)
+    target = SalesTarget(
+        user_id=300, target_amount=100000, commission_rate=0.08, status="active"
+    )
+    db.add(target)
+    await db.commit()
+
+    commission = await on_invoice_paid(db, inv.id)
+    assert commission is not None
+    assert float(commission.rate) == 0.08  # custom rate
+    assert float(commission.commission_amount) == 1600.0  # 20000 * 8%
+
+
+@pytest.mark.asyncio
+async def test_rate_falls_back_to_default_without_target(db: AsyncSession):
+    """No SalesTarget → use 5% default (regression test for fallback)."""
+    from app.models.customer import Customer
+    from app.models.sales import SalesOrder
+    from app.models.finance import Invoice
+    from app.models.user import User
+
+    user = User(id=400, username="dave", password="x")
+    db.add(user)
+    cust = Customer(id=7, name="Eta", owner="400")
+    db.add(cust)
+    order = SalesOrder(
+        id=60, order_no="SO-007", customer_id=7, status="completed", total_amount=10000
+    )
+    db.add(order)
+    inv = Invoice(
+        id=80, invoice_no="INV-007", sales_order_id=60, customer_id=7,
+        amount=10000, status="paid",
+    )
+    db.add(inv)
+    await db.commit()
+
+    commission = await on_invoice_paid(db, inv.id)
+    assert commission is not None
+    assert float(commission.rate) == 0.05  # default
+    assert float(commission.commission_amount) == 500.0
