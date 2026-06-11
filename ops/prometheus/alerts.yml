@@ -1,0 +1,73 @@
+groups:
+  - name: aierp-business-alerts
+    interval: 30s
+    rules:
+      - alert: HighOrderCancellationRate
+        expr: sum(rate(orders_cancelled_total[5m])) > sum(rate(orders_confirmed_total[5m])) * 0.3
+        for: 5m
+        labels:
+          severity: warning
+          service: aierp
+        annotations:
+          summary: "Order cancellation rate > 30% of confirmed"
+          description: "Cancellations are exceeding 30% of confirmations for 5+ minutes. Investigate order quality or sales pipeline."
+
+      - alert: HighAIErrorRate
+        expr: sum(rate(ai_call_duration_seconds_count{outcome="error"}[5m])) / sum(rate(ai_call_duration_seconds_count[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: aierp
+        annotations:
+          summary: "AI call error rate > 10%"
+          description: "More than 10% of AI calls are failing. Check API keys, quota, or service health."
+
+      - alert: SlowAILatency
+        expr: histogram_quantile(0.95, sum(rate(ai_call_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: aierp
+        annotations:
+          summary: "AI p95 latency > 5s"
+          description: "AI calls are taking >5s at p95. May be hitting rate limits or upstream slowness."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes > 1.5e9
+        for: 10m
+        labels:
+          severity: warning
+          service: aierp
+        annotations:
+          summary: "Backend RSS > 1.5GB"
+          description: "Process memory has exceeded 1.5GB. May indicate a leak. Check after-deploy metrics."
+
+      - alert: DomainErrorSpike
+        expr: sum(rate(domain_errors_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: critical
+          service: aierp
+        annotations:
+          summary: "Domain error rate > 1/s"
+          description: "Domain layer is raising >1 error per second. Check logs for stacktrace."
+
+      - alert: CacheHitRatioLow
+        expr: cache_hit_ratio < 0.5
+        for: 15m
+        labels:
+          severity: info
+          service: aierp
+        annotations:
+          summary: "Cache hit ratio < 50%"
+          description: "Cache effectiveness has dropped. May indicate hot key rotation or backend restart."
+
+      - alert: ZeroOrdersConfirmed
+        expr: sum(rate(orders_confirmed_total[1h])) == 0
+        for: 1h
+        labels:
+          severity: critical
+          service: aierp
+        annotations:
+          summary: "No orders confirmed in 1h"
+          description: "Zero order confirmations in the last hour. Sales pipeline may be stuck — investigate."

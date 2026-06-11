@@ -1,0 +1,36 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'telegram-webhook'
+  group_by: ['alertname', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  routes:
+    - match:
+        severity: critical
+      receiver: 'telegram-webhook-critical'
+      repeat_interval: 15m
+
+receivers:
+  - name: 'telegram-webhook'
+    webhook_configs:
+      # Stage 9 Day 4: forward alerts to ops-alert.sh which posts to Telegram.
+      # ops-alert.sh is invoked by cron hourly for health checks; the
+      # alertmanager webhook gives us real-time (5m-15m repeat) notifications
+      # for Prometheus-detected anomalies.
+      - url: 'http://localhost:9099/alert'
+        send_resolved: true
+
+  - name: 'telegram-webhook-critical'
+    webhook_configs:
+      - url: 'http://localhost:9099/alert-critical'
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']
