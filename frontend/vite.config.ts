@@ -1,11 +1,22 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const backendPort = process.env.BACKEND_PORT ?? "8080";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Stage 13 Day 2: 生成 dist/stats.html 体积可视化 (本地看, CI 存档)
+    visualizer({
+      template: "treemap",
+      filename: "dist/stats.html",
+      gzipSize: true,
+      brotliSize: true,
+      title: "AIERP Frontend Bundle Analysis",
+    }),
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -23,6 +34,8 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 600,
+    // Stage 13 Day 2: 体积预算 — 警告阈值 (KB, 未压缩)
+    // antd ~700KB 是合理范围; vendor 2MB 是上限; 单文件 600KB warning
     rollupOptions: {
       output: {
         manualChunks(id: string) {
