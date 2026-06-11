@@ -98,7 +98,7 @@ import type {
 import VendAsSupplierModal from "./VendAsSupplierModal";
 import CustomerModuleShell from "./CustomerModuleShell";
 import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
-import "./CustomerList.css";
+import "./index.css";
 import dayjs from "dayjs";
 import {
   FOLLOW_UP_METHOD_OPTIONS,
@@ -1013,7 +1013,7 @@ export default function CustomerList() {
         </>
       )}
     >
-      {/* inline styles moved to CustomerList.css */}
+      {/* inline styles (CustomerList.css removed Stage 5 Day 2 — see CUSTOMER_CSS_AUDIT.md) */}
 
       <div className="customer-workbench-grid">
         <CustomerStatsCards

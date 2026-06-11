@@ -1,0 +1,70 @@
+/* Customer page shared styles (Stage 5 Day 2)
+ *
+ * Replaces the old CustomerList.css (276 lines / 65 classes — 0 were used).
+ * Only includes classes that are actually referenced in *.tsx files.
+ * See docs/CUSTOMER_CSS_AUDIT.md for the audit.
+ *
+ * Keep this file SMALL. New styles should go to the component that owns
+ * the class (e.g. CustomerStatsCards.css for kpi classes).
+ */
+
+/* workbench grid — used by index.tsx + CustomerStatsCards.tsx */
+.customer-workbench-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* compact CRM toolbar — used by CustomerCrmToolbar.tsx + index.tsx */
+.crm-compact-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-bg-layout, #f8fafc);
+  border-radius: 4px;
+}
+
+.crm-compact-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* board view — used by index.tsx (column layout) */
+.customer-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.customer-board-column {
+  flex: 0 0 280px;
+  background: var(--color-bg-layout, #f8fafc);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.customer-board-column-head {
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.customer-board-column-meta {
+  font-size: 12px;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.customer-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 40px;
+}

@@ -2,7 +2,6 @@ import { BarChartOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotO
 import { Button, Segmented, Space, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import "./CustomerList.css";
 
 type CustomerModuleNavKey = "list" | "stats" | "segments" | "intelligence" | "workbench";
 
