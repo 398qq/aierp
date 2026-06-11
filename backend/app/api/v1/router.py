@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     ai,
     approvals,
+    audit,
     auth,
     commissions,
     customers,
@@ -55,3 +56,4 @@ api_router.include_router(finance_accounts.router)
 api_router.include_router(integrations.router)
 api_router.include_router(documents.router)
 api_router.include_router(export_import.router)
+api_router.include_router(audit.router)
