@@ -29,7 +29,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 
 // Lazy-loaded pages — code splitting for faster initial load
 const Dashboard = lazy(() => import("./pages/dashboard/index"));
-const CustomerList = lazy(() => import("./pages/customers/index"));
+const CustomerList = lazy(() => import("./pages/customers/CustomerListPage"));
 const CustomerDetail = lazy(() => import("./pages/customers/CustomerDetail"));
 const CustomerNew = lazy(() => import("./pages/customers/CustomerNew"));
 const CustomerDashboard = lazy(() => import("./pages/customers/CustomerDashboard"));
@@ -132,6 +132,25 @@ export default function App() {
   return (
     <ErrorBoundary>
     <ConfigProvider locale={zhCN} theme={antdTheme}>
+      <style>{`
+        :root {
+          --color-primary: ${antdTheme.token.colorPrimary};
+          --color-success: ${antdTheme.token.colorSuccess};
+          --color-warning: ${antdTheme.token.colorWarning};
+          --color-error: ${antdTheme.token.colorError};
+          --color-info: ${antdTheme.token.colorInfo};
+          --color-text: ${antdTheme.token.colorText};
+          --color-text-secondary: ${antdTheme.token.colorTextSecondary};
+          --color-text-tertiary: ${antdTheme.token.colorTextTertiary};
+          --color-border: ${antdTheme.token.colorBorder};
+          --color-canvas: ${antdTheme.token.colorBgContainer};
+          --color-bg-layout: ${antdTheme.token.colorBgLayout};
+          --color-primary-bg: #eef2ff;
+          --radius-card: ${antdTheme.token.borderRadius}px;
+          --radius-input: ${antdTheme.token.borderRadiusSM}px;
+          --radius-tag: ${antdTheme.token.borderRadiusXS}px;
+        }
+      `}</style>
       <AntdApp>
         <BrowserRouter>
           <Routes>

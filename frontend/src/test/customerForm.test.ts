@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { generateCustomerShortName } from "../pages/customers/CustomerForm";
+import { buildCustomerPayload } from "../pages/customers/CustomerFormDrawer";
 import { getDefaultCustomerOwner } from "../pages/customers/CustomerNew";
 
 describe("generateCustomerShortName", () => {
@@ -26,5 +27,27 @@ describe("getDefaultCustomerOwner", () => {
   it("does not produce an owner when the user is unavailable", () => {
     expect(getDefaultCustomerOwner(null)).toBe("");
     expect(getDefaultCustomerOwner("")).toBe("");
+  });
+});
+
+describe("buildCustomerPayload", () => {
+  it("maps the selected contact method to the backend customer field", () => {
+    expect(buildCustomerPayload({
+      name: "星河电子",
+      contact_method: "phone",
+      contact_info: "13800001111",
+    })).toEqual({
+      name: "星河电子",
+      phone: "13800001111",
+    });
+
+    expect(buildCustomerPayload({
+      name: "星河电子",
+      contact_method: "email",
+      contact_info: "sales@example.com",
+    })).toEqual({
+      name: "星河电子",
+      email: "sales@example.com",
+    });
   });
 });

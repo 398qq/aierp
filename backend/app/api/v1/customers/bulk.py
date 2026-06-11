@@ -19,7 +19,6 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.api.deps import get_current_user
 from app.api.v1.customers.crud import (
     BatchDelete,
     CSV_TEMPLATE_HEADERS,
@@ -32,6 +31,7 @@ from app.api.v1.customers.crud import (
     customer_name_conflict_message,
     find_name_conflict,
 )
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import (
     Customer,
@@ -54,7 +54,7 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 
 @router.get("/import-template")
 async def import_template(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_perm("customers", "read")),
 ):
     output = io.StringIO()
     writer = csv.writer(output)
@@ -74,7 +74,7 @@ async def import_customers(
     response: Response,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_perm("customers", "write")),
 ):
     if not file.filename or not file.filename.endswith(".csv"):
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -196,7 +196,8 @@ async def import_customers(
 
 @router.get("/export")
 async def export_customers(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_perm("customers", "export")),
+    ids: str | None = None,
     keyword: str | None = None,
     q: str | None = None,
     level: str | None = None,
@@ -208,6 +209,12 @@ async def export_customers(
 ):
     stmt = select(Customer).where(Customer.deleted_at.is_(None))
     conditions = []
+    if ids:
+        selected_ids = [int(value) for value in ids.split(",") if value.strip().isdigit()]
+        if selected_ids:
+            conditions.append(Customer.id.in_(selected_ids))
+        else:
+            conditions.append(Customer.id.in_([]))
     _keyword = keyword or q
     if _keyword:
         conditions.append(
@@ -283,7 +290,7 @@ async def export_customers(
 async def merge_customers(
     body: MergeRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     if body.source_id == body.target_id:
         return fail("不能合并到自身", 400)
@@ -407,7 +414,7 @@ async def merge_customers(
 async def detect_duplicates(
     threshold: float = Query(0.9, ge=0.5, le=1.0),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (
         (
@@ -428,7 +435,7 @@ async def detect_duplicates(
 async def batch_delete(
     body: BatchDelete,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     if not body.ids:
         return fail("ids required", 400)

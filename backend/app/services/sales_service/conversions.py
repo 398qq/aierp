@@ -3,9 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.domain.states import assert_can_transition_quotation
 from app.models.sales import (
     DeliveryNote,
     DeliveryNoteItem,
@@ -14,13 +12,14 @@ from app.models.sales import (
     SalesOrderItem,
 )
 from app.services.docno import generate_doc_no
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 
 async def convert_quotation_to_order(db: AsyncSession, quote: Quotation) -> SalesOrder:
-    if quote.status == "won":
-        raise ValueError(f"Quotation {quote.id} already converted to an order")
+    assert_can_transition_quotation(quote.status, "won")
     order_no = await generate_doc_no(db, "SO", SalesOrder, "order_no")
     order = SalesOrder(
         order_no=order_no,
@@ -49,11 +48,16 @@ async def convert_quotation_to_order(db: AsyncSession, quote: Quotation) -> Sale
     await db.refresh(order)
     return order
 
-async def convert_order_to_delivery(db: AsyncSession, order: SalesOrder) -> DeliveryNote | None:
+
+async def convert_order_to_delivery(
+    db: AsyncSession, order: SalesOrder
+) -> DeliveryNote | None:
     if order.status in ("completed", "cancelled"):
         return None
     existing = await db.execute(
-        select(func.count()).where(DeliveryNote.sales_order_id == order.id, DeliveryNote.deleted_at.is_(None))
+        select(func.count()).where(
+            DeliveryNote.sales_order_id == order.id, DeliveryNote.deleted_at.is_(None)
+        )
     )
     existing_count = existing.scalar() or 0
     if existing_count > 0:
@@ -81,7 +85,7 @@ async def convert_order_to_delivery(db: AsyncSession, order: SalesOrder) -> Deli
     await db.refresh(note)
     return note
 
+
 # ============================================================
 # Sales Targets
 # ============================================================
-

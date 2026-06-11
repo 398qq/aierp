@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
 from app.api.v1.ai.customer._cleaners import days_since, safe_float, to_utc
 from app.api.v1.customers.stats import _rfm_bucket as rfm_bucket
+from app.core.permissions import require_perm
 from app.database import get_db
-from app.models.customer import Customer, CustomerAIRecommendation, CustomerFollowUp
+from app.models.customer import Customer, CustomerFollowUp
 from app.models.sales import Opportunity, SalesOrder
 from app.schemas.common import ok
 
@@ -36,7 +36,7 @@ class BatchScoreAIRequest(BaseModel):
 async def batch_score_ai(
     body: BatchScoreAIRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     """Generate/refresh lightweight AI insights for customers (compat route for frontend dashboard)."""
     now = datetime.now(timezone.utc)

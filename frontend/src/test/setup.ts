@@ -35,6 +35,14 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// ResizeObserver stub (required by Ant Design's @rc-component/resize-observer)
+class ResizeObserverStub {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+
 // IntersectionObserver stub
 class IntersectionObserverStub {
   observe = vi.fn();

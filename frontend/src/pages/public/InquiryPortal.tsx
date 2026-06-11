@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, Form, Input, Button, Typography, Spin, message, Result, Row, Col } from "antd";
+import { Card, Form, Input, Button, Typography, Spin, message, Result, Row, Col, Flex } from "antd";
 import { SendOutlined, CheckCircleOutlined, RobotOutlined, PhoneOutlined, MailOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 import type { APIResponse } from "../../types";

@@ -41,8 +41,8 @@ export default function TargetForm() {
       subtitle="设定销售人员的月度/季度/年度业绩目标，跟踪完成进度"
       activeKey="targets"
     >
-      <Card>
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "active", target_type: "monthly" }}>
+      <Card size="small">
+        <Form form={form} layout="vertical" size="small" onFinish={onFinish} initialValues={{ status: "active", target_type: "monthly" }}>
         <Form.Item name="user_id" label="用户ID" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item>
         <Form.Item name="target_amount" label="目标金额" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
         <Form.Item name="actual_amount" label="实际完成"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>

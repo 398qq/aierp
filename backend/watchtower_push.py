@@ -1,55 +1,66 @@
 #!/usr/bin/env python3
-import urllib.request, urllib.parse, json, sys
+import urllib.request, urllib.error, json, sys
 
 BASE = "http://localhost:8080"
 
 def api(method, path, token=None, data=None):
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    url = BASE + path
+    url = f"{BASE}{path}"
     body = json.dumps(data).encode() if data else None
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    with urllib.request.urlopen(req) as r:
-        return json.loads(r.read())
+    req = urllib.request.Request(url, method=method, data=body)
+    req.add_header("Content-Type", "application/json")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read())
 
-# Step 1: Login
+# Step 1: login
 login = api("POST", "/api/v1/auth/login", data={"username":"admin","password":"admin123"})
+print("Login:", login.get("msg"))
 token = login["data"]["token"]
-print("Logged in, token obtained.")
+print("Token obtained")
 
-# Step 2: Trigger scan
-print("Triggering watchtower scan...")
+# Step 2: trigger scan
+print("=== Triggering watchtower scan ===")
 scan = api("GET", "/api/v1/ai/watchtower/scan?days_back=90", token=token)
-print("Scan result:", scan)
+print("Scan result:", json.dumps(scan, ensure_ascii=False))
 
-# Step 3: Get unread alerts
-print("Fetching unread alerts...")
+# Step 3: get unread alerts
+print("=== Fetching unread alerts ===")
 alerts = api("GET", "/api/v1/customers/alerts?is_read=false&page_size=10", token=token)
-print("Alerts response:", json.dumps(alerts, indent=2))
+print("Alerts response:", json.dumps(alerts, ensure_ascii=False))
 
-if not alerts.get("data") or not alerts["data"].get("alerts"):
+alerts_list = alerts.get("data", {}).get("items", [])
+print(f"Unread alerts count: {len(alerts_list)}")
+
+if not alerts_list:
     print("HEARTBEAT_OK")
     sys.exit(0)
 
-alert_list = alerts["data"]["alerts"]
-print(f"Found {len(alert_list)} unread alerts")
+# Step 5 & 6: format and send each alert
+sent = 0
+for alert in alerts_list:
+    event_id = alert.get("event_id") or alert.get("id")
+    rule_type = alert.get("rule_type", "unknown")
+    severity = alert.get("severity", "unknown")
+    customer_name = alert.get("customer_name", alert.get("customer", "未知客户"))
+    anomaly_summary = alert.get("anomaly_summary", "无摘要")
+    ai_suggestion = alert.get("ai_suggestion") or "无建议"
 
-# Step 5 & 6: Format and collect
-messages = []
-for a in alert_list:
-    rule_type = a.get("rule_type","")
-    severity = a.get("severity","")
-    customer_name = a.get("customer_name","")
-    anomaly_summary = a.get("anomaly_summary","")
-    ai_suggestion = a.get("ai_suggestion","")
-    event_id = a.get("event_id","")
-
-    msg = f"🚨 Watchtower 告警\nrule_type: {rule_type}\nseverity: {severity}\ncustomer: {customer_name}\nanomaly_summary: {anomaly_summary}"
-    if ai_suggestion:
-        msg += f"\nai_suggestion: {ai_suggestion}"
-    messages.append((event_id, msg))
+    msg = (
+        f"🚨 Watchtower 告警\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📌 类型: {rule_type}\n"
+        f"⚠️  等级: {severity}\n"
+        f"👤 客户: {customer_name}\n"
+        f"📋 摘要: {anomaly_summary}\n"
+        f"💡 建议: {ai_suggestion}"
+    )
+    print(f"\n--- Alert {event_id} ---")
     print(msg)
-    print("---")
 
-print(f"\nTotal: {len(messages)} alerts to send")
+    # Step 7: mark as read
+    read = api("POST", f"/api/v1/customers/alerts/{event_id}/read", token=token)
+    print(f"Mark read: {read.get('msg', read)}")
+    sent += 1
+
+print(f"\n=== Done: sent {sent} alerts ===")

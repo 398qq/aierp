@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse, Flex } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
 import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct } from "../../api";

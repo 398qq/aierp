@@ -53,7 +53,7 @@ export default function ContractForm() {
       activeKey="contracts"
     >
       <Card size="small">
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft" }} style={{ maxWidth: 720 }}>
+        <Form form={form} layout="vertical" size="small" onFinish={onFinish} initialValues={{ status: "draft" }} style={{ maxWidth: 720 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
             <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
               <CustomerSelect />

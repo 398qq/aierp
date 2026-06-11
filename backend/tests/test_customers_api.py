@@ -1,5 +1,7 @@
 """Customer API tests."""
 
+import csv
+import io
 from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
@@ -12,6 +14,75 @@ class TestCustomers:
         resp = await async_client.get("/api/v1/customers", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
+
+    async def test_list_requires_customer_read_permission(
+        self, async_client: AsyncClient, db_session
+    ):
+        from app.core.security import create_access_token, hash_password
+        from app.models.user import User
+
+        user = User(
+            username="customer-no-access",
+            password=hash_password("NoAccess123!"),
+            role="guest",
+        )
+        db_session.add(user)
+        await db_session.flush()
+        from app.services.cache_service import cache_delete
+
+        await cache_delete(f"perm:{user.id}:customers:read")
+        token = create_access_token(user.id, user.username)
+
+        resp = await async_client.get(
+            "/api/v1/customers",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert resp.status_code == 403
+
+    async def test_list_returns_status_and_total_amount(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        customer = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "列表汇总客户", "status": "active"},
+        )
+        customer_id = customer.json()["data"]["id"]
+        await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "status": "pending",
+                "total_amount": 12345.67,
+                "items": [{
+                    "product_name": "列表汇总产品",
+                    "quantity": 1,
+                    "unit_price": 12345.67,
+                    "total_price": 12345.67,
+                }],
+            },
+        )
+
+        resp = await async_client.get(
+            "/api/v1/customers?q=列表汇总客户",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        row = resp.json()["data"]["list"][0]
+        assert row["status"] == "active"
+        assert row["total_amount"] == 12345.67
+
+    async def test_list_rejects_unbounded_page_size(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        resp = await async_client.get(
+            "/api/v1/customers?page_size=501",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
 
     async def test_create_customer(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.post(
@@ -402,6 +473,31 @@ class TestCustomers:
         )
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] == 2
+
+    async def test_export_selected_customers_only(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        first = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "导出选中客户A"},
+        )
+        await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "导出选中客户B"},
+        )
+        selected_id = first.json()["data"]["id"]
+
+        resp = await async_client.get(
+            f"/api/v1/customers/export?ids={selected_id}",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        rows = list(csv.reader(io.StringIO(resp.text)))
+        names = [row[0] for row in rows[1:]]
+        assert names == ["导出选中客户A"]
 
     async def test_duplicate_detection_ignores_weak_name_overlap(
         self, async_client: AsyncClient, auth_headers: dict

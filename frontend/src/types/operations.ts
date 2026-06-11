@@ -11,6 +11,7 @@ export interface PurchaseOrder {
 export interface PaymentRecord {
   id: number; sales_order_id: number; customer_id: number;
   delivery_note_id: number | null;
+  invoice_id: number | null; invoice_no: string | null;
   amount: number; payment_date: string | null;
   payment_method: string; status: string;
   currency: string; transaction_ref: string | null;

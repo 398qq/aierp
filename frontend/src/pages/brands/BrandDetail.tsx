@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input, Flex } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";

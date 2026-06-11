@@ -1,4 +1,5 @@
 import datetime
+from enum import Enum
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Table, Text
@@ -6,6 +7,21 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
+
+
+class CustomerStatus(str, Enum):
+    """7-state customer lifecycle machine.
+
+    new_lead → active → converted → vip | inactive → churned
+    """
+
+    NEW_LEAD = "new_lead"
+    ACTIVE = "active"
+    CONVERTED = "converted"
+    VIP = "vip"
+    INACTIVE = "inactive"
+    CHURNED = "churned"
+
 
 # Many-to-many: customer <-> tag
 customer_tag_table = Table(
@@ -96,8 +112,8 @@ class Customer(TimestampMixin, Base):
     last_contacted_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    status: Mapped[str] = mapped_column(
-        String(20), default="new_lead"
+    status: Mapped[CustomerStatus] = mapped_column(
+        String(20), default=CustomerStatus.NEW_LEAD
     )  # new_lead/active/converted/vip/inactive/churned
     lifecycle: Mapped[str | None] = mapped_column(
         String(20), nullable=True

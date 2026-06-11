@@ -75,8 +75,24 @@ export const orchestrateCustomer360 = (customerId: number) =>
 export const orchestrateProduct360 = (productId: number) =>
   client.post<APIResponse<Product360>>(`/ai/orchestrate/product/${productId}`);
 
+export function normalizeGlobal360(payload: Global360): Global360 {
+  if (!payload.insights) return payload;
+  return {
+    ...payload,
+    ...payload.insights,
+    insights: payload.insights,
+  };
+}
+
 export const orchestrateGlobal360 = () =>
-  client.post<APIResponse<Global360>>("/ai/orchestrate/global");
+  client
+    .post<APIResponse<Global360>>("/ai/orchestrate/global", undefined, { timeout: 25000 })
+    .then((response) => {
+      if (response.data.data) {
+        response.data.data = normalizeGlobal360(response.data.data);
+      }
+      return response;
+    });
 
 // ============================================================
 
@@ -139,4 +155,3 @@ export const aiChat = (query: string, history?: { role: string; content: string 
 };
 
 // ============================================================
-

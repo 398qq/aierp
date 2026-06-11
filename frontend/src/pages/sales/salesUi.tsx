@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Card, Empty, Input, Select, Space, Statistic, Tag, Tooltip, Typography } from "antd";
+import { Button, Card, Empty, Flex, Input, Select, Space, Statistic, Tag, Tooltip, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import {
   AimOutlined,
@@ -97,32 +97,32 @@ export function SalesModuleShell({
         .sales-erp-shell {
           max-width: 1480px;
           margin: 0 auto;
-          padding: 0 0 24px;
+          padding: 0 0 12px;
         }
         .sales-erp-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
-          gap: 16px;
-          margin-bottom: 12px;
-          padding: 14px 16px;
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+          gap: 12px;
+          margin-bottom: 8px;
+          padding: 10px 12px;
+          background: var(--color-canvas, #fff);
+          border: 1px solid var(--color-border, #e5e7eb);
+          border-radius: 6px;
         }
         .sales-erp-title {
           margin: 0;
-          color: #111827;
-          font-size: 20px;
+          color: var(--color-text, #111827);
+          font-size: 17px;
           font-weight: 650;
-          line-height: 28px;
+          line-height: 24px;
         }
         .sales-erp-subtitle {
           display: block;
-          margin-top: 2px;
-          color: #6b7280;
-          font-size: 13px;
-          line-height: 20px;
+          margin-top: 1px;
+          color: var(--color-text-secondary, #6b7280);
+          font-size: 12px;
+          line-height: 18px;
         }
         .sales-erp-actions {
           display: flex;
@@ -130,13 +130,13 @@ export function SalesModuleShell({
           flex: 1 1 360px;
         }
         .sales-erp-nav-card.ant-card-small > .ant-card-body {
-          padding: 8px 10px;
+          padding: 5px 8px;
         }
         .sales-erp-nav {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 12px;
+          gap: 8px;
           overflow-x: auto;
         }
         .sales-erp-modules,
@@ -148,95 +148,95 @@ export function SalesModuleShell({
         }
         .sales-erp-flow {
           padding-left: 12px;
-          border-left: 1px solid #e3e8ee;
+          border-left: 1px solid var(--color-border, #e3e8ee);
         }
         .sales-erp-flow-step {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          color: #6b7280;
+          color: var(--color-text-secondary, #6b7280);
           font-size: 12px;
         }
         .sales-erp-flow-step.is-active {
-          color: #1677ff;
+          color: var(--color-primary, #1677ff);
           font-weight: 600;
         }
         .sales-erp-flow-dot {
           width: 6px;
           height: 6px;
           border-radius: 999px;
-          background: #e3e8ee;
+          background: var(--color-border, #e3e8ee);
         }
         .sales-erp-flow-step.is-active .sales-erp-flow-dot {
-          background: #1677ff;
+          background: var(--color-primary, #1677ff);
         }
         .sales-erp-flow-arrow {
-          color: #e3e8ee;
+          color: var(--color-border, #e3e8ee);
           font-size: 11px;
         }
         .sales-erp-metrics {
           display: grid;
           grid-template-columns: repeat(6, minmax(0, 1fr));
-          gap: 10px;
-          margin-bottom: 12px;
+          gap: 8px;
+          margin-bottom: 8px;
         }
         .sales-erp-metric {
-          min-height: 78px;
-          padding: 10px 12px;
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+          min-height: 60px;
+          padding: 8px 10px;
+          background: var(--color-canvas, #fff);
+          border: 1px solid var(--color-border, #e5e7eb);
+          border-radius: 6px;
         }
         .sales-erp-metric-title {
-          color: #6b7280;
-          font-size: 12px;
-          line-height: 18px;
+          color: var(--color-text-secondary, #6b7280);
+          font-size: 11px;
+          line-height: 16px;
         }
         .sales-erp-metric-value {
-          margin-top: 8px;
-          color: #111827;
-          font-size: 22px;
+          margin-top: 4px;
+          color: var(--color-text, #111827);
+          font-size: 18px;
           font-weight: 650;
           line-height: 1;
         }
         .sales-erp-toolbar.ant-card-small > .ant-card-body {
-          padding: 10px 12px;
+          padding: 6px 10px;
         }
         .sales-erp-table-card.ant-card-small > .ant-card-body {
           padding: 0;
         }
         .sales-erp-table-card .ant-tabs {
-          padding: 0 12px;
+          padding: 0 10px;
         }
         .sales-erp-table-card .ant-tabs-nav {
-          margin-bottom: 10px;
+          margin-bottom: 8px;
         }
         .sales-erp-table-card .ant-card-head {
-          min-height: 44px;
-          padding: 0 12px;
-          border-bottom-color: #e5e7eb;
+          min-height: 38px;
+          padding: 0 10px;
+          border-bottom-color: var(--color-border, #e5e7eb);
         }
         .sales-erp-table-card .ant-card-head-title,
         .sales-erp-table-card .ant-card-extra {
-          padding: 10px 0;
+          padding: 6px 0;
         }
         .sales-erp-table-card .ant-table-thead > tr > th {
-          background: #f9fafb;
-          color: #374151;
+          background: var(--color-bg-layout, #f9fafb);
+          color: var(--color-text-secondary, #374151);
           font-weight: 600;
         }
         .sales-erp-table-card .ant-table-tbody > tr > td {
-          vertical-align: top;
-          padding: 4px 8px !important;
+          vertical-align: middle;
+          padding: 3px 8px !important;
         }
         .sales-erp-table-card .ant-table-thead > tr > th {
-          padding: 6px 8px !important;
+          padding: 5px 8px !important;
         }
         .sales-erp-table-card .ant-table-tbody > tr.erp-row-even > td {
-          background: #f9fafb;
+          background: var(--color-bg-layout, #f9fafb);
         }
         .sales-erp-table-card .ant-table-tbody > tr:hover > td {
-          background: #eef2ff !important;
+          background: var(--color-primary-bg, #eef2ff) !important;
         }
         .sales-erp-table-card .erp-status-dot {
           display: inline-block;
@@ -247,12 +247,12 @@ export function SalesModuleShell({
           vertical-align: middle;
         }
         .sales-erp-table-card .erp-cell-primary {
-          color: #111827;
+          color: var(--color-text, #111827);
           font-weight: 500;
           font-size: 13px;
         }
         .sales-erp-table-card .erp-cell-secondary {
-          color: #94a3b8;
+          color: var(--color-text-tertiary, #94a3b8);
           font-size: 11px;
           line-height: 1.4;
         }

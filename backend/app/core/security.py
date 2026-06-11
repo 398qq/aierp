@@ -93,7 +93,25 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    """Verify password against bcrypt hash.
+
+    Bcrypt 4.x dropped the __about__ attribute that passlib 1.7.4 reads at
+    backend load time, which makes `passlib.context.CryptContext.verify`
+    fail. We therefore use the `bcrypt` package directly here, while
+    `hash_password` still relies on passlib for new hashes (the two are
+    wire-compatible because passlib writes standard $2b$ bcrypt hashes).
+    """
+    import bcrypt
+    try:
+        plain_bytes = plain.encode("utf-8") if isinstance(plain, str) else plain
+        hashed_bytes = hashed.encode("utf-8") if isinstance(hashed, str) else hashed
+        return bcrypt.checkpw(plain_bytes, hashed_bytes)
+    except Exception:
+        # Final fallback to passlib in case the hash uses a non-bcrypt scheme.
+        try:
+            return pwd_context.verify(plain, hashed)
+        except Exception:
+            return False
 
 
 def create_access_token(user_id: int, username: str) -> str:

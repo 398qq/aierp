@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer, CustomerFollowUp
 from app.schemas.common import fail, ok
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 async def list_followups(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (await db.execute(
         select(CustomerFollowUp).where(
@@ -41,7 +41,7 @@ async def create_followup(
     customer_id: int,
     body: FollowUpCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     try:
         data = body.model_dump()
@@ -75,7 +75,7 @@ async def update_followup(
     followup_id: int,
     body: FollowUpUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(CustomerFollowUp).where(
@@ -106,7 +106,7 @@ async def delete_followup(
     customer_id: int,
     followup_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(CustomerFollowUp).where(

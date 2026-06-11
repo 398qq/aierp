@@ -1,5 +1,6 @@
 """Global 360 orchestrator — aggregates system-wide data across all domains."""
 
+import asyncio
 import datetime
 import json
 import logging
@@ -432,14 +433,15 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     ai_insights: dict | None = None
     last_error: str | None = None
     try:
-        ai_insights = await ai_client.chat_structured(
-            [
-                {"role": "system", "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。"},
-                {"role": "user", "content": orchestrate_global_prompt(ai_input)},
-            ],
-            output_schema,
-            max_tokens=16384,
-        )
+        async with asyncio.timeout(20):
+            ai_insights = await ai_client.chat_structured(
+                [
+                    {"role": "system", "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。"},
+                    {"role": "user", "content": orchestrate_global_prompt(ai_input)},
+                ],
+                output_schema,
+                max_tokens=4096,
+            )
         for key, default_val in heuristic_insights.items():
             if key not in ai_insights:
                 ai_insights[key] = default_val

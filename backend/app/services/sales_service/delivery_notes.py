@@ -1,15 +1,13 @@
 """DeliveryNote CRUD + inventory hooks (auto-deduct, auto-lock)."""
+
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.domain.shared.errors import InsufficientStockError
+from app.domain.states import assert_can_transition_delivery
 from app.models.finance import PaymentRecord
 from app.models.product import Warehouse
 from app.models.sales import DeliveryNote, DeliveryNoteItem, SalesOrder
@@ -19,16 +17,24 @@ from app.services.sales_service._helpers import (
     _customer_search_ids,
     _sales_item_ids,
 )
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
 
 async def list_delivery_notes(
-    db: AsyncSession, *, page: int = 1, page_size: int = 20,
-    customer_id: int | None = None, status: str | None = None,
+    db: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    customer_id: int | None = None,
+    status: str | None = None,
     sales_order_id: int | None = None,
     q: str | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
+    sort_by: str = "id",
+    sort_order: str = "desc",
 ) -> dict:
     base = select(DeliveryNote).where(DeliveryNote.deleted_at.is_(None))
     cnt = select(func.count(DeliveryNote.id)).where(DeliveryNote.deleted_at.is_(None))
@@ -45,7 +51,12 @@ async def list_delivery_notes(
     if q and q.strip():
         q = q.strip()
         pattern = f"%{q}%"
-        item_ids = _sales_item_ids(DeliveryNoteItem, DeliveryNoteItem.delivery_note_id, DeliveryNoteItem.product_name, q)
+        item_ids = _sales_item_ids(
+            DeliveryNoteItem,
+            DeliveryNoteItem.delivery_note_id,
+            DeliveryNoteItem.product_name,
+            q,
+        )
         order_ids = select(SalesOrder.id).where(
             SalesOrder.deleted_at.is_(None),
             SalesOrder.order_no.ilike(pattern),
@@ -62,18 +73,32 @@ async def list_delivery_notes(
 
     total = (await db.execute(cnt)).scalar() or 0
 
-    allowed_sorts = {"id", "delivery_no", "status", "delivery_date", "received_date", "created_at", "updated_at"}
+    allowed_sorts = {
+        "id",
+        "delivery_no",
+        "status",
+        "delivery_date",
+        "received_date",
+        "created_at",
+        "updated_at",
+    }
     sort_by = sort_by if sort_by in allowed_sorts else "id"
     sort_col = getattr(DeliveryNote, sort_by, DeliveryNote.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
-    rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    rows = (
+        (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
 
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 async def get_delivery_note(db: AsyncSession, note_id: int) -> DeliveryNote | None:
     result = await db.execute(
-        select(DeliveryNote).where(DeliveryNote.id == note_id, DeliveryNote.deleted_at.is_(None))
+        select(DeliveryNote).where(
+            DeliveryNote.id == note_id, DeliveryNote.deleted_at.is_(None)
+        )
     )
     return result.scalar_one_or_none()
 
@@ -109,10 +134,14 @@ async def _apply_sales_order_to_delivery_data(
     return items_data
 
 
-async def create_delivery_note(db: AsyncSession, data: dict, items_data: list[dict] | None = None) -> DeliveryNote:
+async def create_delivery_note(
+    db: AsyncSession, data: dict, items_data: list[dict] | None = None
+) -> DeliveryNote:
     items_data = await _apply_sales_order_to_delivery_data(db, data, items_data)
     if not data.get("delivery_no"):
-        data["delivery_no"] = await generate_doc_no(db, "DN", DeliveryNote, "delivery_no")
+        data["delivery_no"] = await generate_doc_no(
+            db, "DN", DeliveryNote, "delivery_no"
+        )
     note = DeliveryNote(**{k: v for k, v in data.items() if k != "items"})
     db.add(note)
     await db.flush()
@@ -127,8 +156,13 @@ async def create_delivery_note(db: AsyncSession, data: dict, items_data: list[di
     return note
 
 
-async def update_delivery_note(db: AsyncSession, note: DeliveryNote, data: dict) -> DeliveryNote:
+async def update_delivery_note(
+    db: AsyncSession, note: DeliveryNote, data: dict
+) -> DeliveryNote:
     old_status = note.status
+    new_status = data.get("status")
+    if new_status and new_status != old_status:
+        assert_can_transition_delivery(old_status, new_status)
     await _apply_sales_order_to_delivery_data(db, data)
     for k, v in data.items():
         if v is not None and k != "items":
@@ -137,8 +171,11 @@ async def update_delivery_note(db: AsyncSession, note: DeliveryNote, data: dict)
     await db.refresh(note)
 
     # Auto-deduct inventory when status changes to shipped/completed
-    new_status = data.get("status")
-    if new_status and new_status in ("shipped", "completed") and old_status != new_status:
+    if (
+        new_status
+        and new_status in ("shipped", "completed")
+        and old_status != new_status
+    ):
         await _auto_deduct_delivery(db, note)
 
     return note
@@ -155,11 +192,18 @@ async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:
     for item in note.items:
         if item.product_id and item.quantity > 0:
             try:
-                await deduct_for_delivery(db, item.product_id, warehouse_id, item.quantity, note.id)
+                await deduct_for_delivery(
+                    db, item.product_id, warehouse_id, item.quantity, note.id
+                )
             except InsufficientStockError:
                 raise
             except Exception as e:
-                logger.error("Auto-deduct failed DN#%s product#%s: %s", note.id, item.product_id, e)
+                logger.error(
+                    "Auto-deduct failed DN#%s product#%s: %s",
+                    note.id,
+                    item.product_id,
+                    e,
+                )
 
 
 async def _auto_lock_sales_order(db: AsyncSession, order: SalesOrder) -> None:
@@ -185,16 +229,24 @@ async def _auto_lock_sales_order(db: AsyncSession, order: SalesOrder) -> None:
             except InsufficientStockError as e:
                 logger.warning(
                     "Auto-lock short SO#%s product#%s requested=%s available=%s",
-                    order.id, item.product_id, e.context.get("requested"),
+                    order.id,
+                    item.product_id,
+                    e.context.get("requested"),
                     e.context.get("available"),
                 )
             except Exception as e:
-                logger.error("Auto-lock failed SO#%s product#%s: %s", order.id, item.product_id, e)
+                logger.error(
+                    "Auto-lock failed SO#%s product#%s: %s",
+                    order.id,
+                    item.product_id,
+                    e,
+                )
 
     if total_requested > 0 and total_locked == 0:
         logger.warning(
             "Order SO#%s confirmed but NO stock locked (%s requested)",
-            order.id, total_requested,
+            order.id,
+            total_requested,
         )
 
 
@@ -224,28 +276,33 @@ async def mark_delivery_note_paid(
     """
 
     # Check for existing payment
-    existing = (await db.execute(
-        select(PaymentRecord).where(
-            PaymentRecord.delivery_note_id == note.id,
-            PaymentRecord.deleted_at.is_(None),
+    existing = (
+        await db.execute(
+            select(PaymentRecord).where(
+                PaymentRecord.delivery_note_id == note.id,
+                PaymentRecord.deleted_at.is_(None),
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if existing is not None:
         return {"payment": existing, "created": False}
 
     # Determine amount if not provided
     if amount is None:
         from app.models.sales import SalesOrder
-        order = (await db.execute(
-            select(SalesOrder).where(SalesOrder.id == note.sales_order_id)
-        )).scalar_one_or_none()
+
+        order = (
+            await db.execute(
+                select(SalesOrder).where(SalesOrder.id == note.sales_order_id)
+            )
+        ).scalar_one_or_none()
         if order is not None and order.total_amount:
             amount = float(order.total_amount)
         else:
             # Sum line totals from delivery note items
-            amount = sum(
-                (item.quantity or 0) for item in note.items
-            ) * 1.0  # Fallback: just count items
+            amount = (
+                sum((item.quantity or 0) for item in note.items) * 1.0
+            )  # Fallback: just count items
 
     paid_at = payment_date or datetime.now(timezone.utc)
 

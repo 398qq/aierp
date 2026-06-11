@@ -87,21 +87,27 @@ describe("ContractForm", () => {
     expect(screen.getByText("关联订单")).toBeInTheDocument();
   });
 
+  // Ant Design 6 inserts spaces between Chinese characters in buttons (e.g. "创 建").
+  // find by role with a name that ignores internal whitespace.
+  const findByNormalizedLabel = async (labelNoSpaces: string) =>
+    screen.findByRole("button", {
+      name: (_accessibleName: string, element: Element) =>
+        (element.textContent ?? "").replace(/\s+/g, "") === labelNoSpaces,
+    });
+
   it("shows submit button with correct label for new form", async () => {
     renderContractForm(false);
-    await waitForForm();
-    expect(screen.getByText("创建")).toBeInTheDocument();
+    expect(await findByNormalizedLabel("创建")).toBeInTheDocument();
   });
 
   it("shows submit button with correct label for edit form", async () => {
     vi.mocked(api.getContract).mockResolvedValue({ data: { data: { id: 1, customer_id: 42, title: "T", amount: 0, status: "draft" } as Contract } } as never);
     renderContractForm(true);
-    expect(await screen.findByText("保存")).toBeInTheDocument();
+    expect(await findByNormalizedLabel("保存")).toBeInTheDocument();
   });
 
   it("renders cancel button", async () => {
     renderContractForm(false);
-    await waitForForm();
-    expect(screen.getByText("取消")).toBeInTheDocument();
+    expect(await findByNormalizedLabel("取消")).toBeInTheDocument();
   });
 });

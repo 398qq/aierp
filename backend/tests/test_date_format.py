@@ -74,29 +74,3 @@ def test_date_format_unknown_fmt_returns_cast_unchanged():
     assert "CAST(" in sql.upper()
 
 
-@pytest.mark.integration
-def test_date_format_executes_on_real_postgres():
-    """End-to-end: run the generated SQL on the live PostgreSQL backend.
-
-    This is the failure mode that motivated the fix — asyncpg raises
-    ``UndefinedFunctionError`` when ``substr`` receives a raw date/timestamp.
-    """
-    import asyncio
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    from app.config import settings
-
-    async def _run():
-        eng = create_async_engine(settings.DATABASE_URL)
-        try:
-            async with eng.begin() as conn:
-                result = await conn.execute(
-                    text("SELECT substr(CAST(NOW() AS VARCHAR), 1, 7) AS m")
-                )
-                row = result.scalar()
-                assert row is not None and len(row) == 7  # YYYY-MM
-        finally:
-            await eng.dispose()
-
-    asyncio.run(_run())

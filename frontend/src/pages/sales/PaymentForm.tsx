@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
-import { getPayment, createPayment, updatePayment, getSalesOrders, getDeliveryNotes } from "../../api";
+import { getPayment, createPayment, updatePayment, getSalesOrders, getDeliveryNotes, getInvoices } from "../../api";
 import dayjs from "dayjs";
-import type { DeliveryNote, SalesOrder } from "../../types";
+import type { DeliveryNote, Invoice, SalesOrder } from "../../types";
 import { CustomerSelect, shortDate } from "./salesUi";
 
 export default function PaymentForm() {
@@ -13,6 +13,7 @@ export default function PaymentForm() {
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const isEdit = !!id;
 
   useEffect(() => {
@@ -21,9 +22,9 @@ export default function PaymentForm() {
       getPayment(Number(id)).then((r) => {
         const p = r.data.data;
         form.setFieldsValue({ ...p, payment_date: p.payment_date ? dayjs(p.payment_date) : null });
-        // Load delivery notes for the existing payment's sales_order
         if (p.sales_order_id) {
           loadDeliveryNotes(p.sales_order_id);
+          loadInvoices(p.sales_order_id);
         }
       });
     }
@@ -40,6 +41,15 @@ export default function PaymentForm() {
     }
   };
 
+  const loadInvoices = async (orderId: number) => {
+    try {
+      const resp = await getInvoices({ page: 1, page_size: 100, sales_order_id: orderId });
+      setInvoices(resp.data.data.list || []);
+    } catch {
+      setInvoices([]);
+    }
+  };
+
   const applyOrder = (orderId: number) => {
     const order = orderById.get(orderId);
     if (!order) return;
@@ -47,9 +57,9 @@ export default function PaymentForm() {
       customer_id: order.customer_id,
       amount: form.getFieldValue("amount") ?? order.total_amount,
     });
-    // Reset delivery_note_id when order changes
-    form.setFieldsValue({ delivery_note_id: undefined });
+    form.setFieldsValue({ delivery_note_id: undefined, invoice_id: undefined });
     loadDeliveryNotes(orderId);
+    loadInvoices(orderId);
   };
 
   const onFinish = async (values: Record<string, unknown>) => {
@@ -64,8 +74,8 @@ export default function PaymentForm() {
   };
 
   return (
-    <Card title={isEdit ? "编辑回款" : "新增回款"}>
-      <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", payment_method: "bank" }}>
+    <Card size="small" title={isEdit ? "编辑回款" : "新增回款"}>
+      <Form form={form} layout="vertical" size="small" onFinish={onFinish} initialValues={{ status: "pending", payment_method: "bank" }}>
         <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
           <CustomerSelect />
         </Form.Item>
@@ -88,6 +98,16 @@ export default function PaymentForm() {
             options={deliveryNotes.map((dn) => ({
               value: dn.id,
               label: `${dn.delivery_no || `#${dn.id}`} / ${shortDate(dn.delivery_date)}`,
+            }))}
+          />
+        </Form.Item>
+        <Form.Item name="invoice_id" label="关联发票（核销）">
+          <Select
+            allowClear
+            placeholder="选择发票进行核销（可选）"
+            options={invoices.map((inv) => ({
+              value: inv.id,
+              label: `${inv.invoice_no || `#${inv.id}`} / ¥${inv.amount.toLocaleString("zh-CN")} / ${inv.status}`,
             }))}
           />
         </Form.Item>

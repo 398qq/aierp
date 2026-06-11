@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer, CustomerTag
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_bump_version
 
 from .crud import BatchTag, TagCreate, TagUpdate
 
@@ -54,7 +55,7 @@ async def _create_or_restore_tag(db: AsyncSession, name: str, color: str | None)
 @tags_router.get("")
 async def list_tags(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (await db.execute(
         select(CustomerTag).where(CustomerTag.deleted_at.is_(None)).order_by(CustomerTag.name)
@@ -66,7 +67,7 @@ async def list_tags(
 async def create_tag(
     body: TagCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     name = body.name.strip()
     if not name:
@@ -91,7 +92,7 @@ async def create_tag(
 @tags_router.post("/defaults", status_code=201)
 async def generate_default_tags(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     tags: list[CustomerTag] = []
     created = 0
@@ -113,7 +114,7 @@ async def update_tag(
     tag_id: int,
     body: TagUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(CustomerTag).where(CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None))
@@ -138,7 +139,7 @@ async def update_tag(
 async def delete_tag(
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(CustomerTag).where(CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None))
@@ -157,7 +158,7 @@ async def delete_tag(
 async def batch_tag(
     body: BatchTag,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     if not body.ids or not body.tag_ids:
         return fail("ids and tag_ids required", 400)
@@ -174,6 +175,7 @@ async def batch_tag(
             if t not in c.tags:
                 c.tags.append(t)
     await db.flush()
+    await cache_bump_version("customers:list")
     return ok({"updated": len(customers), "tags_added": len(tags)})
 
 
@@ -183,7 +185,7 @@ async def batch_tag(
 async def get_customer_tags(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     result = await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
@@ -199,7 +201,7 @@ async def link_tag(
     customer_id: int,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
@@ -224,7 +226,7 @@ async def unlink_tag(
     customer_id: int,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))

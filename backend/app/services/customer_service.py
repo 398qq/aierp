@@ -46,13 +46,17 @@ COMPANY_SUFFIXES = (
     "inc",
     "llc",
 )
-NAME_PUNCT_RE = re.compile(r"[\s\-_\.,，、。·•/\\|:：;；'\"“”‘’&＋+（）()\[\]【】{}<>《》]")
+NAME_PUNCT_RE = re.compile(
+    r"[\s\-_\.,，、。·•/\\|:：;；'\"“”‘’&＋+（）()\[\]【】{}<>《》]"
+)
 LEADING_CITY_SUFFIX_RE = re.compile(r"^([\u4e00-\u9fff]{2,6})市(?=[\u4e00-\u9fff])")
 
 
 async def list_customers_query(
-    db: AsyncSession, *,
-    page: int, page_size: int,
+    db: AsyncSession,
+    *,
+    page: int,
+    page_size: int,
     q: str | None = None,
     industry: str | None = None,
     level: str | None = None,
@@ -61,6 +65,7 @@ async def list_customers_query(
     customer_type: str | None = None,
     owner: str | None = None,
     credit_level: str | None = None,
+    status: str | None = None,
     sort_by: str = "id",
     sort_order: str = "desc",
 ) -> dict:
@@ -69,19 +74,36 @@ async def list_customers_query(
 
     if q:
         like = f"%{q}%"
-        filt = or_(Customer.name.ilike(like), Customer.code.ilike(like), Customer.contact_person.ilike(like))
+        filt = or_(
+            Customer.name.ilike(like),
+            Customer.code.ilike(like),
+            Customer.contact_person.ilike(like),
+        )
         base = base.where(filt)
         count_base = count_base.where(filt)
 
     for col, val in [
-        (Customer.industry, industry), (Customer.level, level),
-        (Customer.customer_type, customer_type), (Customer.region, region),
-        (Customer.source, source), (Customer.credit_level, credit_level),
+        (Customer.industry, industry),
+        (Customer.level, level),
+        (Customer.customer_type, customer_type),
+        (Customer.region, region),
+        (Customer.source, source),
+        (Customer.credit_level, credit_level),
         (Customer.owner, owner),
     ]:
         if val:
             base = base.where(col == val)
             count_base = count_base.where(col == val)
+
+    # Support comma-separated status values (e.g. "vip,active")
+    if status:
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if len(statuses) == 1:
+            base = base.where(Customer.status == statuses[0])
+            count_base = count_base.where(Customer.status == statuses[0])
+        elif len(statuses) > 1:
+            base = base.where(Customer.status.in_(statuses))
+            count_base = count_base.where(Customer.status.in_(statuses))
 
     total = (await db.execute(count_base)).scalar() or 0
 
@@ -91,23 +113,34 @@ async def list_customers_query(
     else:
         base = base.order_by(sort_col.desc())
 
-    rows = (await db.execute(
-        base.offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
 
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 async def get_customer(db: AsyncSession, customer_id: int) -> Customer | None:
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     return result.scalar_one_or_none()
 
 
-def calc_lifecycle(customer: Customer, order_count: int, last_order_date: datetime | None, now: datetime) -> str:
+def calc_lifecycle(
+    customer: Customer,
+    order_count: int,
+    last_order_date: datetime | None,
+    now: datetime,
+) -> str:
     created_at = customer.created_at
-    created_days = (now - created_at.replace(tzinfo=timezone.utc)).days if created_at else 0
+    created_days = (
+        (now - created_at.replace(tzinfo=timezone.utc)).days if created_at else 0
+    )
     if order_count == 0:
         return "新客户" if created_days <= 30 else "沉默客户"
     if last_order_date and last_order_date.tzinfo:
@@ -133,12 +166,16 @@ def calc_health(
 ) -> tuple[int, str]:
     """Returns (score, label) for customer health. Score is 0-100."""
     created_at = customer.created_at
-    created_days = (now - created_at.replace(tzinfo=timezone.utc)).days if created_at else 0
+    created_days = (
+        (now - created_at.replace(tzinfo=timezone.utc)).days if created_at else 0
+    )
     score = 50
 
     # Recency (max +20)
     if orders:
-        latest = max(o.created_at.replace(tzinfo=timezone.utc) for o in orders if o.created_at)
+        latest = max(
+            o.created_at.replace(tzinfo=timezone.utc) for o in orders if o.created_at
+        )
         days_since_last = (now - latest).days
         if days_since_last <= 30:
             score += 20
@@ -185,7 +222,11 @@ def calc_health(
     last_contact = customer.last_contacted_at
     if last_contact:
         if isinstance(last_contact, dt.datetime):
-            lc = last_contact if last_contact.tzinfo else last_contact.replace(tzinfo=timezone.utc)
+            lc = (
+                last_contact
+                if last_contact.tzinfo
+                else last_contact.replace(tzinfo=timezone.utc)
+            )
         elif isinstance(last_contact, dt.date):
             lc = dt.datetime.combine(last_contact, dt.time.min, tzinfo=timezone.utc)
         else:
@@ -206,7 +247,15 @@ def calc_health(
         score -= 5
 
     score = max(0, min(100, score))
-    label = "优秀" if score >= 80 else "良好" if score >= 60 else "一般" if score >= 40 else "差"
+    label = (
+        "优秀"
+        if score >= 80
+        else "良好"
+        if score >= 60
+        else "一般"
+        if score >= 40
+        else "差"
+    )
     return score, label
 
 
@@ -222,7 +271,9 @@ def normalize_name(name: str | None) -> str:
 
 
 def customer_name_conflict_message(name: str, conflict_name: str | None) -> str:
-    return f"客户名称已存在：{name} 与 {conflict_name or '-'} 归一后相同，请变更后再添加"
+    return (
+        f"客户名称已存在：{name} 与 {conflict_name or '-'} 归一后相同，请变更后再添加"
+    )
 
 
 async def find_name_conflict(
@@ -234,7 +285,9 @@ async def find_name_conflict(
     if not normalized:
         return None
 
-    stmt = select(Customer).where(Customer.deleted_at.is_(None), Customer.name.isnot(None))
+    stmt = select(Customer).where(
+        Customer.deleted_at.is_(None), Customer.name.isnot(None)
+    )
     if exclude_id is not None:
         stmt = stmt.where(Customer.id != exclude_id)
     rows = (await db.execute(stmt)).scalars().all()
@@ -273,15 +326,24 @@ def _names_are_related(name_a: str, name_b: str, similarity: float) -> bool:
     return len(shorter) >= 4 and shorter in longer
 
 
-def _duplicate_reasons(a: Customer, b: Customer, name_a: str, name_b: str, threshold: float) -> tuple[float, list[str]]:
+def _duplicate_reasons(
+    a: Customer, b: Customer, name_a: str, name_b: str, threshold: float
+) -> tuple[float, list[str]]:
     similarity = _name_similarity(name_a, name_b)
     reasons: list[str] = []
 
-    code_match = _same_non_empty(_normalize_contact_value(a.code), _normalize_contact_value(b.code))
+    code_match = _same_non_empty(
+        _normalize_contact_value(a.code), _normalize_contact_value(b.code)
+    )
     email_match = _same_non_empty(_normalize_email(a.email), _normalize_email(b.email))
     phone_match = _same_non_empty(_normalize_phone(a.phone), _normalize_phone(b.phone))
-    short_name_match = _same_non_empty(normalize_name(a.short_name), normalize_name(b.short_name))
-    contact_match = _same_non_empty(_normalize_contact_value(a.contact_person), _normalize_contact_value(b.contact_person))
+    short_name_match = _same_non_empty(
+        normalize_name(a.short_name), normalize_name(b.short_name)
+    )
+    contact_match = _same_non_empty(
+        _normalize_contact_value(a.contact_person),
+        _normalize_contact_value(b.contact_person),
+    )
     names_related = _names_are_related(name_a, name_b, similarity)
 
     if name_a and name_a == name_b and len(name_a) >= 3:
@@ -333,23 +395,39 @@ def detect_duplicates(rows: list[Customer], threshold: float = 0.9) -> list[dict
             sim, reasons = _duplicate_reasons(a, rows[j], na, nb, threshold)
             if not reasons:
                 continue
-            pairs.append({
-                "similarity": sim,
-                "reasons": reasons,
-                "customer_a": {"id": a.id, "name": a.name, "phone": a.phone, "owner": a.owner},
-                "customer_b": {"id": rows[j].id, "name": rows[j].name, "phone": rows[j].phone, "owner": rows[j].owner},
-            })
+            pairs.append(
+                {
+                    "similarity": sim,
+                    "reasons": reasons,
+                    "customer_a": {
+                        "id": a.id,
+                        "name": a.name,
+                        "phone": a.phone,
+                        "owner": a.owner,
+                    },
+                    "customer_b": {
+                        "id": rows[j].id,
+                        "name": rows[j].name,
+                        "phone": rows[j].phone,
+                        "owner": rows[j].owner,
+                    },
+                }
+            )
 
     pairs.sort(key=lambda x: (-x["similarity"], -len(x["reasons"])))
     return pairs[:30]
 
 
-async def detect_duplicates_embedding(db, threshold: float = 0.85, top_k: int = 30) -> list[dict]:
+async def detect_duplicates_embedding(
+    db, threshold: float = 0.85, top_k: int = 30
+) -> list[dict]:
     """Find potential duplicates by pgvector cosine similarity. Requires embeddings to exist."""
     from sqlalchemy import select
 
     result = await db.execute(
-        select(Customer).where(Customer.embedding.isnot(None), Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.embedding.isnot(None), Customer.deleted_at.is_(None)
+        )
     )
     customers = result.scalars().all()
     if len(customers) < 2:
@@ -369,11 +447,23 @@ async def detect_duplicates_embedding(db, threshold: float = 0.85, top_k: int = 
             seen.add(pair_key)
             if s["similarity"] >= threshold:
                 other = next((x for x in customers if x.id == s["id"]), None)
-                pairs.append({
-                    "similarity": s["similarity"],
-                    "customer_a": {"id": c.id, "name": c.name, "phone": c.phone, "owner": c.owner},
-                    "customer_b": {"id": s["id"], "name": s["name"], "phone": other.phone if other else None, "owner": other.owner if other else None},
-                })
+                pairs.append(
+                    {
+                        "similarity": s["similarity"],
+                        "customer_a": {
+                            "id": c.id,
+                            "name": c.name,
+                            "phone": c.phone,
+                            "owner": c.owner,
+                        },
+                        "customer_b": {
+                            "id": s["id"],
+                            "name": s["name"],
+                            "phone": other.phone if other else None,
+                            "owner": other.owner if other else None,
+                        },
+                    }
+                )
 
     pairs.sort(key=lambda x: -x["similarity"])
     return pairs[:top_k]

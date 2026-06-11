@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.sales import Quotation
@@ -21,7 +21,7 @@ async def get_customer_quotation_history(
     customer_id: int,
     status: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     customer_exists = await db.scalar(
         select(func.count(Customer.id)).where(Customer.id == customer_id, Customer.deleted_at.is_(None))

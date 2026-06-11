@@ -72,6 +72,38 @@ export const SCENE_FILTERS: Record<
   high_credit: { creditLevel: "A" },
 };
 
+// Customer lifecycle status — mirrors backend state machine
+export const CUSTOMER_STATUSES = [
+  "new_lead", "active", "converted", "vip", "inactive", "churned",
+];
+
+export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  new_lead: { label: "新潜客", color: "blue" },
+  active: { label: "活跃", color: "green" },
+  converted: { label: "已成交", color: "cyan" },
+  vip: { label: "VIP", color: "gold" },
+  inactive: { label: "不活跃", color: "orange" },
+  churned: { label: "流失", color: "red" },
+};
+
+// Customer group presets
+export type GroupValue = "all" | "new" | "vip_active" | "at_risk" | "dormant";
+export const GROUP_OPTIONS: { label: string; value: GroupValue }[] = [
+  { label: "全部", value: "all" },
+  { label: "新潜客", value: "new" },
+  { label: "VIP/活跃", value: "vip_active" },
+  { label: "风险客户", value: "at_risk" },
+  { label: "沉默客户", value: "dormant" },
+];
+
+export const GROUP_FILTERS: Record<GroupValue, { status?: string[] }> = {
+  all: {},
+  new: { status: ["new_lead"] },
+  vip_active: { status: ["vip", "active"] },
+  at_risk: { status: ["inactive", "churned"] },
+  dormant: { status: ["inactive"] },
+};
+
 export const COL_LABEL_MAP: Record<string, string> = {
   code: "客户编码",
   name: "客户名称",

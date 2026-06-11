@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import (
     Customer,
@@ -114,7 +114,7 @@ def _health_label(score: float) -> str:
 async def customer_stats(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     customer = (await db.execute(
         select(Customer).where(
@@ -236,7 +236,7 @@ async def customer_stats(
 async def customer_timeline(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     customer = (await db.execute(
         select(Customer).where(
@@ -302,7 +302,10 @@ async def customer_timeline(
     return ok(events[:50])
 
 @router.get("/stats")
-async def customer_dashboard_stats(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def customer_dashboard_stats(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "read")),
+):
     async def _agg(field):
         col = getattr(Customer, field)
         r = await db.execute(
@@ -349,7 +352,8 @@ async def customer_dashboard_stats(db: AsyncSession = Depends(get_db), _user: di
 
 @router.get("/ai-stats")
 async def customer_ai_stats(
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     """Customer AI intelligence overview: health score, churn risk, RFM tier distributions, segment overview."""
     now = datetime.now(timezone.utc)
@@ -454,7 +458,7 @@ async def customer_ai_stats(
 async def batch_score_ai(
     body: BatchScoreAIRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     """Generate/refresh lightweight AI insights for customers (compat route for frontend dashboard)."""
     now = datetime.now(timezone.utc)
@@ -591,7 +595,11 @@ async def batch_score_ai(
 
 
 @router.get("/recent-activity")
-async def recent_activity(limit: int = Query(20, le=100), db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def recent_activity(
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "read")),
+):
     """Recent customer activity across all customers."""
     logs = (await db.execute(
         select(CustomerLog, Customer.name).join(
@@ -621,7 +629,10 @@ async def recent_activity(limit: int = Query(20, le=100), db: AsyncSession = Dep
 TERMINAL_FOLLOWUP_STATUSES = ("completed", "cancelled")
 
 @router.get("/overdue-followups")
-async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def overdue_followups(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "read")),
+):
     now = datetime.now(timezone.utc)
     rows = (await db.execute(
         select(CustomerFollowUp, Customer).join(Customer, CustomerFollowUp.customer_id == Customer.id).where(
@@ -659,7 +670,7 @@ async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = De
 async def follow_up_reminders(
     days_ahead: int = Query(default=14, ge=0, le=90),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     now = datetime.now(timezone.utc)
     today = now.date()
@@ -728,7 +739,7 @@ async def global_follow_ups(
     due_bucket: str | None = Query(default=None),
     q: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     now = datetime.now(timezone.utc)
     today = now.date()

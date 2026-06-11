@@ -2,6 +2,7 @@ import { BarChartOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotO
 import { Button, Segmented, Space, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import "./CustomerList.css";
 
 type CustomerModuleNavKey = "list" | "stats" | "segments" | "intelligence" | "workbench";
 
@@ -54,86 +55,6 @@ export default function CustomerModuleShell({ title, subtitle, extra, children }
 
   return (
     <div className="customer-module-shell">
-      <style>{`
-        .customer-module-shell {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .customer-module-header {
-          padding: 14px 16px 12px;
-          background: #fff;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-        }
-        .customer-module-heading {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .customer-module-title-wrap {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          min-width: 220px;
-        }
-        .customer-module-title-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 34px;
-          height: 34px;
-          margin-top: 1px;
-          color: #1677ff;
-          background: #e6f4ff;
-          border: 1px solid #bae0ff;
-          border-radius: 8px;
-          flex: 0 0 auto;
-        }
-        .customer-module-eyebrow {
-          display: block;
-          margin-bottom: 2px;
-          color: #8c8c8c;
-          font-size: 12px;
-          line-height: 18px;
-        }
-        .customer-module-actions {
-          display: flex;
-          justify-content: flex-end;
-          flex: 1 1 360px;
-        }
-        .customer-module-nav {
-          margin-top: 12px;
-          overflow-x: auto;
-          overflow-y: hidden;
-          white-space: nowrap;
-        }
-        .customer-module-nav .ant-segmented {
-          min-width: max-content;
-        }
-        .customer-module-nav-item {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          min-height: 28px;
-        }
-        @media (max-width: 768px) {
-          .customer-module-header {
-            padding: 12px;
-          }
-          .customer-module-title-wrap,
-          .customer-module-actions {
-            width: 100%;
-            flex-basis: 100%;
-          }
-          .customer-module-actions .ant-space {
-            width: 100%;
-            justify-content: flex-start;
-          }
-        }
-      `}</style>
 
       <div className="customer-module-header">
         <div className="customer-module-heading">

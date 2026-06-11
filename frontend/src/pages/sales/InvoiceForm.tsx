@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
 import { getInvoice, createInvoice, updateInvoice, getSalesOrders } from "../../api";
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import type { SalesOrder } from "../../types";
 import { CustomerSelect, SalesModuleShell, shortDate } from "./salesUi";
 
@@ -38,12 +38,24 @@ export default function InvoiceForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
-      const payload = { ...values, invoice_date: values.invoice_date ? (values.invoice_date as string) : null };
+      const payload = {
+        ...values,
+        invoice_date: values.invoice_date
+          ? (values.invoice_date as Dayjs).toISOString()
+          : null,
+      };
       if (isEdit) { await updateInvoice(Number(id), payload); message.success("发票已更新"); }
       else { await createInvoice(payload); message.success("发票已创建"); }
       navigate("/sales/invoices");
-    } catch { message.error("保存失败"); }
-    finally { setLoading(false); }
+    } catch (e: unknown) {
+      const errMsg =
+        (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg ||
+        (e as Error)?.message ||
+        "保存失败";
+      message.error(errMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,8 +64,8 @@ export default function InvoiceForm() {
       subtitle="填写发票信息，关联销售订单"
       activeKey="invoices"
     >
-      <Card>
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "draft", invoice_type: "普通发票" }}>
+      <Card size="small">
+        <Form form={form} layout="vertical" size="small" onFinish={onFinish} initialValues={{ status: "draft", invoice_type: "普通发票" }}>
         <Form.Item name="customer_id" label="客户" rules={[{ required: true }]}>
           <CustomerSelect />
         </Form.Item>
@@ -70,7 +82,7 @@ export default function InvoiceForm() {
           />
         </Form.Item>
         <Form.Item name="invoice_no" label="发票号"><Input placeholder="留空自动生成" /></Form.Item>
-        <Form.Item name="amount" label="金额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
+        <Form.Item name="amount" label="金额" rules={[{ required: true, message: "请输入金额" }]}><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
         <Form.Item name="tax_amount" label="税额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
         <Form.Item name="invoice_type" label="发票类型">
           <Select options={[{ value: "普通发票", label: "普通发票" }, { value: "增值税专用发票", label: "增值税专用发票" }]} />

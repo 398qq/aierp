@@ -16,9 +16,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.shared.errors import InvalidStateTransition
 from app.domain.states import (
     assert_can_transition_customer,
 )
+from app.models.customer import CustomerStatus
 
 logger = logging.getLogger(__name__)
 
@@ -31,21 +33,38 @@ INACTIVE_DAYS = 90
 async def _transition(
     db: AsyncSession, customer_id: int, current: str, target: str
 ) -> bool:
-    """Apply a single customer state transition if legal. Returns True if changed."""
+    """Apply a single customer state transition if legal. Returns True if changed.
+
+    Uses optimistic locking: the UPDATE WHERE clause checks that the row still
+    holds *current* status, preventing silent double-transitions under concurrency.
+    """
     if current == target:
         return False
     try:
         assert_can_transition_customer(current, target)
-    except Exception:
+    except InvalidStateTransition:
         return False
 
     from app.models.customer import Customer
 
-    await db.execute(
+    result = await db.execute(
         update(Customer)
-        .where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        .where(
+            Customer.id == customer_id,
+            Customer.status == current,
+            Customer.deleted_at.is_(None),
+        )
         .values(status=target, updated_at=datetime.now(timezone.utc))
     )
+    if result.rowcount == 0:
+        logger.warning(
+            "Customer #%d: concurrent modification detected, %s → %s skipped",
+            customer_id,
+            current,
+            target,
+        )
+        return False
+
     logger.info("Customer #%d: %s → %s (auto)", customer_id, current, target)
     return True
 
@@ -63,8 +82,8 @@ async def on_first_opportunity(db: AsyncSession, customer_id: int) -> None:
         )
     )
     status = row.scalar()
-    if status == "new_lead":
-        await _transition(db, customer_id, "new_lead", "active")
+    if status == CustomerStatus.NEW_LEAD:
+        await _transition(db, customer_id, status, CustomerStatus.ACTIVE)
 
 
 async def on_first_order_completed(db: AsyncSession, customer_id: int) -> None:
@@ -77,8 +96,8 @@ async def on_first_order_completed(db: AsyncSession, customer_id: int) -> None:
         )
     )
     status = row.scalar()
-    if status in ("new_lead", "active"):
-        await _transition(db, customer_id, status, "converted")
+    if status in (CustomerStatus.NEW_LEAD, CustomerStatus.ACTIVE):
+        await _transition(db, customer_id, status, CustomerStatus.CONVERTED)
 
 
 async def on_re_engage(db: AsyncSession, customer_id: int) -> None:
@@ -91,8 +110,8 @@ async def on_re_engage(db: AsyncSession, customer_id: int) -> None:
         )
     )
     status = row.scalar()
-    if status in ("inactive", "churned"):
-        await _transition(db, customer_id, status, "active")
+    if status in (CustomerStatus.INACTIVE, CustomerStatus.CHURNED):
+        await _transition(db, customer_id, status, CustomerStatus.ACTIVE)
 
 
 # ── Scheduled job (daily 02:00) ──
@@ -120,14 +139,16 @@ async def run_customer_status_job(db: AsyncSession) -> dict:
     stale = await db.execute(
         select(Customer.id, Customer.status).where(
             Customer.deleted_at.is_(None),
-            Customer.status.in_(["active", "converted", "vip"]),
+            Customer.status.in_(
+                [CustomerStatus.ACTIVE, CustomerStatus.CONVERTED, CustomerStatus.VIP]
+            ),
             Customer.last_contacted_at.is_not(None),
             Customer.last_contacted_at < cutoff_inactive,
         )
     )
     for cid, status in stale.all():
         summary["total_checked"] += 1
-        if await _transition(db, cid, status, "inactive"):
+        if await _transition(db, cid, status, CustomerStatus.INACTIVE):
             summary["to_inactive"] += 1
 
     # ── Converted → VIP (12-month revenue > ¥500,000) ──
@@ -136,7 +157,7 @@ async def run_customer_status_job(db: AsyncSession) -> dict:
         .join(SalesOrder, SalesOrder.customer_id == Customer.id)
         .where(
             Customer.deleted_at.is_(None),
-            Customer.status == "converted",
+            Customer.status == CustomerStatus.CONVERTED,
             SalesOrder.deleted_at.is_(None),
             SalesOrder.status == "completed",
             SalesOrder.order_date >= cutoff_vip,
@@ -146,7 +167,7 @@ async def run_customer_status_job(db: AsyncSession) -> dict:
     )
     for cid, revenue in high_value.all():
         summary["total_checked"] += 1
-        if await _transition(db, cid, "converted", "vip"):
+        if await _transition(db, cid, CustomerStatus.CONVERTED, CustomerStatus.VIP):
             summary["to_vip"] += 1
 
     await db.commit()

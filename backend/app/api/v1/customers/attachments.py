@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import CustomerAttachment
 from app.schemas.common import fail, ok
@@ -32,7 +32,7 @@ def _safe_filename(name: str) -> str:
 async def list_attachments(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (await db.execute(
         select(CustomerAttachment).where(
@@ -53,7 +53,7 @@ async def upload_attachment(
     file: UploadFile = File(...),
     category: str = Query("contract"),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     if not file.filename:
         return fail("No file selected", 400)
@@ -91,7 +91,7 @@ async def download_attachment(
     customer_id: int,
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     result = await db.execute(
         select(CustomerAttachment).where(
@@ -120,7 +120,7 @@ async def delete_attachment(
     customer_id: int,
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(CustomerAttachment).where(
