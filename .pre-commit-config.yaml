@@ -13,8 +13,11 @@ repos:
         name: ruff (Python linter)
         args: [--fix, --exit-non-zero-on-fix]
         files: ^backend/
-      # Note: ruff-format is intentionally not enabled — would
-      # reformat 246 files on first run. Enable gradually.
+      - id: ruff-format
+        name: ruff-format (Python formatter)
+        files: ^backend/
+      # ruff-format enabled Stage 8 Day 1 after baseline format
+      # of 272 tracked files. Future diffs stay small.
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
