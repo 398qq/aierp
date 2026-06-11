@@ -1,4 +1,4 @@
-"""Field-level audit log query API (Stage 10 Day 3).
+"""Field-level audit log query API (Stage 10 Day 3, Stage 12 Day 3 CSV).
 
 Exposes FieldChangeLog for read-only viewing.
 
@@ -6,12 +6,16 @@ Endpoints:
 - GET /audit/field-changes - paginated, filter by table/record/field/actor/time
 - GET /audit/field-changes/recent - last N changes (no pagination, fast path)
 - GET /audit/field-changes/summary - aggregated counts (per table / per actor)
+- GET /audit/field-changes/export.csv - CSV download (Stage 12 Day 3)
 """
 
+import csv
+import io
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -176,3 +180,76 @@ async def field_changes_summary(
         "by_actor": by_actor,
         "top_fields": by_field,
     })
+
+
+@router.get("/field-changes/export.csv")
+async def export_field_changes_csv(
+    table_name: Optional[str] = Query(None),
+    record_id: Optional[int] = Query(None),
+    field_name: Optional[str] = Query(None),
+    actor: Optional[str] = Query(None),
+    days_back: int = Query(30, ge=1, le=365),
+    max_rows: int = Query(10000, ge=1, le=100000, description="Safety cap"),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Stream CSV of field changes matching filters (Stage 12 Day 3).
+
+    Use this for export-to-Excel / Google Sheets / email reports.
+    The streaming response avoids loading all rows in memory.
+    """
+    from datetime import timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+
+    conditions = [FieldChangeLog.changed_at >= cutoff]
+    if table_name:
+        conditions.append(FieldChangeLog.table_name == table_name)
+    if record_id is not None:
+        conditions.append(FieldChangeLog.record_id == record_id)
+    if field_name:
+        conditions.append(FieldChangeLog.field_name == field_name)
+    if actor:
+        conditions.append(FieldChangeLog.actor == actor)
+
+    # Materialize once (capped) — safe for 10k rows
+    rows = (await db.execute(
+        select(FieldChangeLog)
+        .where(*conditions)
+        .order_by(FieldChangeLog.changed_at.desc())
+        .limit(max_rows)
+    )).scalars().all()
+
+    def csv_iter():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            "id", "changed_at", "table_name", "record_id",
+            "field_name", "old_value", "new_value", "actor", "reason",
+        ])
+        yield buf.getvalue()
+        buf.seek(0)
+        buf.truncate(0)
+        for r in rows:
+            writer.writerow([
+                r.id,
+                r.changed_at.isoformat() if r.changed_at else "",
+                r.table_name,
+                r.record_id,
+                r.field_name,
+                r.old_value or "",
+                r.new_value or "",
+                r.actor or "",
+                (r.reason or "").replace("\n", " ").replace("\r", " "),
+            ])
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate(0)
+
+    # Filename includes the date for easy filing
+    filename = f"audit-field-changes-{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        csv_iter(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

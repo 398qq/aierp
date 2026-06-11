@@ -19,8 +19,10 @@ import {
   listFieldChanges,
   recentFieldChanges,
   fieldChangesSummary,
+  buildFieldChangesCsvUrl,
   type FieldChange,
   type AuditSummary,
+  type ListFieldChangesParams,
 } from "@/api/audit";
 
 const TABLE_OPTIONS = [
@@ -248,6 +250,16 @@ export default function AuditLogViewer() {
       />
       <Tabs
         defaultActiveKey="recent"
+        tabBarExtraContent={
+          <Button
+            type="primary"
+            href={buildFieldChangesCsvUrl({ days_back: 30 })}
+            target="_blank"
+            rel="noopener"
+          >
+            导出 CSV (30 天)
+          </Button>
+        }
         items={[
           { key: "recent", label: "最近变更", children: <RecentTab /> },
           { key: "filtered", label: "按条件查询", children: <FilteredTab /> },

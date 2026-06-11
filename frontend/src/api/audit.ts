@@ -54,3 +54,14 @@ export const fieldChangesSummary = (daysBack = 30) =>
   client.get<unknown, { data: AuditSummary }>("/audit/field-changes/summary", {
     params: { days_back: daysBack },
   });
+
+/** Build a CSV download URL with filters (Stage 12 Day 3). */
+export const buildFieldChangesCsvUrl = (params: ListFieldChangesParams = {}) => {
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") {
+      search.set(k, String(v));
+    }
+  }
+  return `/audit/field-changes/export.csv?${search.toString()}`;
+};
