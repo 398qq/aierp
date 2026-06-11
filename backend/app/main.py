@@ -69,6 +69,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)
 _started_at = time.time()
 
+# Stage 9 Day 1: prometheus_client default collectors (process_*, python_gc_*,
+# python_info) are auto-registered on first use of generate_latest(). No need
+# to manually wire them — see metrics_prometheus() endpoint.
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -217,7 +221,17 @@ async def metrics_prometheus():
         total = hits + misses
         if total > 0:
             cache_hit_ratio.set(hits / total, family=family)
+    business_text = render_prometheus_text()
+    # Append prometheus_client default registry (process / python info)
+    try:
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+        runtime_text = generate_latest().decode("utf-8")
+        # The text has the same Prometheus format; just concatenate.
+        merged = business_text.rstrip() + "\n" + runtime_text
+    except Exception:
+        merged = business_text
     return PlainTextResponse(
-        content=render_prometheus_text(),
+        content=merged,
         media_type="text/plain; version=0.0.4",
     )

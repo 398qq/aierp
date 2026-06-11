@@ -22,3 +22,4 @@ pytesseract==0.3.13
 rapidocr==3.8.1
 reportlab>=4.2,<5.0
 cachetools==5.5.0
+prometheus-client==0.25.0
