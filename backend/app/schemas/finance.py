@@ -11,6 +11,7 @@ class PaymentRecordCreate(BaseModel):
     sales_order_id: int
     customer_id: int
     delivery_note_id: int | None = None
+    invoice_id: int | None = None
     amount: float
     payment_date: str | None = None
     payment_method: str = "bank"
@@ -25,6 +26,7 @@ class PaymentRecordUpdate(BaseModel):
     sales_order_id: int | None = None
     customer_id: int | None = None
     delivery_note_id: int | None = None
+    invoice_id: int | None = None
     amount: float | None = None
     payment_date: str | None = None
     payment_method: str | None = None
@@ -144,6 +146,8 @@ class PaymentRecordResponse(BaseModel):
     sales_order_id: int
     customer_id: int
     delivery_note_id: int | None = None
+    invoice_id: int | None = None
+    invoice_no: str | None = None
     amount: float
     payment_date: str | None = None
     payment_method: str

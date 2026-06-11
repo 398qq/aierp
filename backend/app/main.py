@@ -30,6 +30,7 @@ for _model_module in (
     "app.models.sales",
     "app.models.transaction",
     "app.models.user",
+    "app.models.audit",
 ):
     import_module(_model_module)
 
@@ -44,10 +45,20 @@ async def lifespan(app: FastAPI):
     from app.core.event_bus import event_bus
     from app.application.uow import init_uow
     from app.database import async_session
+
     register_default_handlers(event_bus)
     register_inventory_handlers(event_bus)
     init_uow(async_session)
+
+    # Warm up connection pool so first user request isn't slow
+    from app.database import engine
+
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+        await conn.commit()
+
     from app.jobs.scheduler import start, shutdown
+
     start()
     try:
         yield
@@ -143,7 +154,10 @@ async def health():
 async def health_ready():
     db_status = await _check_database()
     if db_status != "ok":
-        return JSONResponse(status_code=503, content={"status": "down", "checks": {"database": db_status}})
+        return JSONResponse(
+            status_code=503,
+            content={"status": "down", "checks": {"database": db_status}},
+        )
     return {"status": "ok", "checks": {"database": db_status}}
 
 
@@ -157,6 +171,7 @@ async def metrics():
     """In-process metrics snapshot. Plug into Prometheus by replacing the
     primitives in `core.observability.metrics` with `prometheus_client` types."""
     from app.core.observability.metrics import all_snapshots
+
     return all_snapshots()
 
 
@@ -164,19 +179,39 @@ async def metrics():
 async def metrics_prometheus():
     """Prometheus text exposition format — drop-in for scraping."""
     from app.core.observability.metrics import (
-        cache_hit_ratio, cache_hits_total, cache_misses_total, render_prometheus_text,
+        cache_hit_ratio,
+        cache_hits_total,
+        cache_misses_total,
+        render_prometheus_text,
     )
+
     # Sample cache_hit_ratio per family (Prometheus prefers gauges over computed values)
-    for family in ("products:list", "customers:list", "sales-orders:list",
-                   "opportunities:list", "quotations:list", "ai:enrich:opp_list",
-                   "ai:enrich:quote_list", "ai:enrich:order_list",
-                   "invoices:list", "payments:list", "payments:stats",
-                   "contracts:list", "targets:list", "targets:stats",
-                   "accounts:list", "journal-entries:list", "bank-reconciliations:list",
-                   "finance:reports:pnl", "finance:reports:ap",
-                   "reports:templates:list", "reports:predefined:sales",
-                   "reports:predefined:ar", "reports:predefined:inventory",
-                   "reports:predefined:procurement"):
+    for family in (
+        "products:list",
+        "customers:list",
+        "sales-orders:list",
+        "opportunities:list",
+        "quotations:list",
+        "ai:enrich:opp_list",
+        "ai:enrich:quote_list",
+        "ai:enrich:order_list",
+        "invoices:list",
+        "payments:list",
+        "payments:stats",
+        "contracts:list",
+        "targets:list",
+        "targets:stats",
+        "accounts:list",
+        "journal-entries:list",
+        "bank-reconciliations:list",
+        "finance:reports:pnl",
+        "finance:reports:ap",
+        "reports:templates:list",
+        "reports:predefined:sales",
+        "reports:predefined:ar",
+        "reports:predefined:inventory",
+        "reports:predefined:procurement",
+    ):
         hits = cache_hits_total.value(family=family)
         misses = cache_misses_total.value(family=family)
         total = hits + misses

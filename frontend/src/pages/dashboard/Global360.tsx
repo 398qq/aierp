@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, List } from "antd";
 import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, AimOutlined, WarningOutlined, ThunderboltOutlined } from "@ant-design/icons";
@@ -11,8 +11,11 @@ export default function Global360Page() {
   const [data, setData] = useState<Global360Type | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const initializedRef = useRef(false);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     setLoading(true);
     orchestrateGlobal360()
       .then((r) => setData(r.data.data))

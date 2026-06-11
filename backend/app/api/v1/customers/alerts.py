@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import AlertEvent, AlertRule, Customer
 from app.schemas.common import fail, ok
@@ -35,7 +35,7 @@ class AlertRuleUpdate(BaseModel):
 @router.get("/alerts/rules")
 async def list_alert_rules(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (await db.execute(
         select(AlertRule).where(AlertRule.deleted_at.is_(None)).order_by(AlertRule.rule_type, AlertRule.name)
@@ -51,7 +51,7 @@ async def list_alert_rules(
 async def create_alert_rule(
     body: AlertRuleCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     rule = AlertRule(**body.model_dump())
     db.add(rule)
@@ -64,7 +64,7 @@ async def update_alert_rule(
     rule_id: int,
     body: AlertRuleUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(AlertRule).where(AlertRule.id == rule_id, AlertRule.deleted_at.is_(None))
@@ -82,7 +82,7 @@ async def update_alert_rule(
 async def delete_alert_rule(
     rule_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(AlertRule).where(AlertRule.id == rule_id, AlertRule.deleted_at.is_(None))
@@ -103,7 +103,7 @@ async def list_alert_events(
     rule_type: str | None = None,
     is_read: bool | None = None,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     base = (
         select(AlertEvent, Customer.name.label("customer_name"))
@@ -143,7 +143,7 @@ async def list_alert_events(
 async def mark_alert_read(
     event_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(AlertEvent).where(AlertEvent.id == event_id, AlertEvent.deleted_at.is_(None))
@@ -160,7 +160,7 @@ async def mark_alert_read(
 @router.post("/alerts/read-all")
 async def mark_all_alerts_read(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     rows = (await db.execute(
         select(AlertEvent).where(~AlertEvent.is_read, AlertEvent.deleted_at.is_(None))
@@ -177,7 +177,7 @@ async def mark_all_alerts_read(
 async def get_alert_events(
     alert_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     """Get events for a specific alert rule."""
     rows = (await db.execute(
@@ -203,7 +203,7 @@ async def get_alert_events(
 @router.get("/alerts/stats")
 async def alert_stats(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     """Get alert statistics."""
     total_rules = (await db.execute(
@@ -235,7 +235,7 @@ async def alert_stats(
 @router.post("/alerts/check")
 async def check_alerts(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     """Batch alert checker — loads all data in bulk and evaluates rules in-memory."""
     from app.models.sales import SalesOrder

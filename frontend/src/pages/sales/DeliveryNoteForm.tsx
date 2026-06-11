@@ -89,8 +89,8 @@ export default function DeliveryNoteForm() {
       activeKey="delivery"
       extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/delivery-notes")}>返回</Button>}
     >
-      <Card>
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ status: "pending", items: [{}] }}>
+      <Card size="small">
+        <Form form={form} layout="vertical" size="small" onFinish={onFinish} initialValues={{ status: "pending", items: [{}] }}>
           <Form.Item name="sales_order_id" label="关联销售订单" rules={[{ required: true }]}>
             <Select
               showSearch

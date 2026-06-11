@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber, Divider } from "antd";
+import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber, Divider, Flex } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
 import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, generateDefaultCustomerTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
@@ -48,6 +48,12 @@ const TAG_COLOR_OPTIONS = [
   { value: "cyan", label: "青色" },
   { value: "default", label: "默认" },
 ];
+
+function CustomerHealthBadge({ value }: { value?: number | null }) {
+  if (value == null) return <StatusTag>健康度 -</StatusTag>;
+  const tone = value >= 80 ? "success" : value >= 60 ? "info" : value >= 40 ? "warning" : "danger";
+  return <StatusTag tone={tone}>健康度 {value}</StatusTag>;
+}
 
 export default function CustomerDetail() {
   const { message } = App.useApp();
@@ -869,7 +875,6 @@ function CustomerProfile({ customerId }: { customerId: number }) {
             <Statistic 
               title="当前状态" 
               value={stats.lifecycle}
-              prefix={<CustomerStatusTag status={customer.status} />} 
             />
             <div style={{ marginTop: 8, color: "#888", fontSize: 12 }}>创建 {stats.created_days} 天</div>
           </Card>

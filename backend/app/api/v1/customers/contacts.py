@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import CustomerContact
 from app.schemas.common import fail, ok
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 async def list_contacts(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (await db.execute(
         select(CustomerContact).where(
@@ -38,7 +38,7 @@ async def create_contact(
     customer_id: int,
     body: ContactCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     contact = CustomerContact(customer_id=customer_id, **body.model_dump())
     db.add(contact)
@@ -52,7 +52,7 @@ async def update_contact(
     contact_id: int,
     body: ContactUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(CustomerContact).where(
@@ -75,7 +75,7 @@ async def delete_contact(
     customer_id: int,
     contact_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(CustomerContact).where(
@@ -97,7 +97,7 @@ async def set_primary_contact(
     customer_id: int,
     contact_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     """Set a contact as the primary contact for a customer."""
     result = await db.execute(

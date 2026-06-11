@@ -39,3 +39,7 @@ export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 
 export { ErrorBoundary } from "./ErrorBoundary";
+
+export { FlexBox } from "./FlexBox";
+
+export { useColumnResize } from "./useColumnResize";

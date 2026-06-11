@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Row, Col, Card, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Empty, Space, Badge, Drawer, Switch } from "antd";
+import { useEffect, useRef, useState } from "react";
+import { Row, Col, Card, Flex, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Empty, Space, Badge, Drawer, Switch } from "antd";
 import { StatusTag } from "../../ui";
 import {
   TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined, SettingOutlined,
@@ -12,9 +12,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const { Title, Text, Paragraph } = Typography;
 const COLORS = ["#1890ff", "#52c41a", "#faad14", "#ff4d4f", "#722ed1", "#13c2c2"];
 
+const EMPTY_STATS: DashboardStats = { total: 0, by_industry: [], by_level: [], by_region: [], by_source: [], by_type: [], monthly: [] };
+
 export default function Dashboard() {
   const username = useAuthStore((s) => s.username);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [upcomingVisits, setUpcomingVisits] = useState<Visit[]>([]);
   const [recentActivity, setRecentActivity] = useState<CustomerLog[]>([]);
   const [overdue, setOverdue] = useState<OverdueFollowUp[]>([]);
@@ -24,6 +26,7 @@ export default function Dashboard() {
   const [dailyReport, setDailyReport] = useState<DailyReport | null>(null);
   const [drLoading, setDrLoading] = useState(false);
   const [kpi, setKpi] = useState<KpiData | null>(null);
+  const initializedRef = useRef(false);
 
   // Widget visibility customization
   const DEFAULT_WIDGETS: Record<string, { title: string; enabled: boolean }> = {
@@ -82,14 +85,14 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     Promise.all([
       getDashboardStats(),
       getUpcomingVisits(14),
       getRecentActivity(10),
       getOverdueFollowUps(),
-      getKpi().then((r) => setKpi(r.data.data as KpiData)).catch(() => {}),
-      orchestrateGlobal360().then((r) => setGlobal360(r.data.data)).catch(() => {}),
-      getDailyReport().then((r) => setDailyReport(r.data.data as DailyReport)).catch(() => {}),
     ])
       .then(([s, uv, ra, od]) => {
         setStats(s.data.data);
@@ -100,16 +103,25 @@ export default function Dashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    getKpi().then((r) => setKpi(r.data.data as KpiData)).catch(() => {});
+    getDailyReport().then((r) => setDailyReport(r.data.data as DailyReport)).catch(() => {});
+
+    setG360Loading(true);
+    orchestrateGlobal360()
+      .then((r) => setGlobal360(r.data.data))
+      .catch(() => {})
+      .finally(() => setG360Loading(false));
   }, []);
 
-  if (loading) return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
+  if (loading) return <Flex justify="center" style={{ marginTop: 120 }}><Spin size="large" /></Flex>;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+      <Flex justify="space-between" align="center" wrap gap={8}>
         <Title level={4} style={{ margin: 0 }}>欢迎回来，{username}</Title>
         <Button icon={<SettingOutlined />} onClick={() => setWidgetDrawerOpen(true)}>自定义仪表板</Button>
-      </div>
+      </Flex>
 
       <Space wrap style={{ marginBottom: 16 }}>
         <Text type="secondary">AI 问答建议：</Text>
@@ -201,7 +213,7 @@ export default function Dashboard() {
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} lg={12}>
             <Card title="客户行业分布" size="small">
-              {stats.by_industry.length > 0 ? (
+              {(stats.by_industry?.length ?? 0) > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie data={stats.by_industry} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
@@ -215,7 +227,7 @@ export default function Dashboard() {
           </Col>
           <Col xs={24} lg={12}>
             <Card title="客户等级分布" size="small">
-              {stats.by_level.length > 0 ? (
+              {(stats.by_level?.length ?? 0) > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.by_level}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -231,7 +243,7 @@ export default function Dashboard() {
         </Row>
       )}
 
-      {stats && stats.monthly.length > 0 && widgetPrefs.monthly_trend?.enabled !== false && (
+      {stats && (stats.monthly?.length ?? 0) > 0 && widgetPrefs.monthly_trend?.enabled !== false && (
         <Card title="月度新增客户趋势" size="small" style={{ marginTop: 16 }}>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={stats.monthly}>
@@ -247,7 +259,7 @@ export default function Dashboard() {
 
       {/* Overdue FollowUps */}
       {overdue.length > 0 && widgetPrefs.overdue_followups?.enabled !== false && (
-        <Card title={<span><WarningOutlined style={{ marginRight: 8, color: "#cf1322" }} />逾期跟进</span>} size="small" style={{ marginTop: 16 }}>
+        <Card title={<span><WarningOutlined style={{ marginRight: 8, color: "var(--color-error, #cf1322)" }} />逾期跟进</span>} size="small" style={{ marginTop: 16 }}>
           <Table
             rowKey="id"
             dataSource={overdue}
@@ -493,7 +505,9 @@ export default function Dashboard() {
             />
           </div>
         ) : (
-          <div style={{ textAlign: "center", padding: 24 }}><Spin tip="AI 正在分析企业全局数据..." /></div>
+          <div style={{ textAlign: "center", padding: 24 }}>
+            {g360Loading ? <Spin tip="AI 正在分析企业全局数据..." /> : <Empty description="AI 诊断暂不可用，可稍后重试" />}
+          </div>
         )}
       </Card>
       )}

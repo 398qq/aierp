@@ -94,12 +94,60 @@ async def test_customer(db_session) -> dict:
 
 @pytest_asyncio.fixture
 async def test_user(db_session) -> dict:
+    from app.models.rbac import Permission, Role, role_permissions_table, user_roles_table
     from app.models.user import User
 
     password = "testpass123"
     user = User(username="testuser", password=hash_password(password), role="sales")
     db_session.add(user)
     await db_session.flush()
+    role = (
+        await db_session.execute(select(Role).where(Role.name == "sales"))
+    ).scalar_one_or_none()
+    if role is None:
+        role = Role(name="sales", description="销售")
+        db_session.add(role)
+        await db_session.flush()
+    permissions = (
+        await db_session.execute(
+            select(Permission).where(
+                Permission.resource == "customers",
+                Permission.action.in_(["read", "write", "delete", "export"]),
+            )
+        )
+    ).scalars().all()
+    existing_actions = {permission.action for permission in permissions}
+    for action in ("read", "write", "delete", "export"):
+        if action not in existing_actions:
+            permission = Permission(
+                resource="customers",
+                action=action,
+                name=f"测试客户权限:{action}",
+            )
+            db_session.add(permission)
+            permissions.append(permission)
+    await db_session.flush()
+    await db_session.execute(
+        user_roles_table.insert().values(user_id=user.id, role_id=role.id)
+    )
+    for permission in permissions:
+        existing_link = await db_session.scalar(
+            select(role_permissions_table.c.role_id).where(
+                role_permissions_table.c.role_id == role.id,
+                role_permissions_table.c.permission_id == permission.id,
+            )
+        )
+        if existing_link is None:
+            await db_session.execute(
+                role_permissions_table.insert().values(
+                    role_id=role.id,
+                    permission_id=permission.id,
+                )
+            )
+    from app.services.cache_service import cache_delete
+
+    for action in ("read", "write", "delete", "export"):
+        await cache_delete(f"perm:{user.id}:customers:{action}")
     token = create_access_token(user.id, user.username)
     return {"id": user.id, "username": user.username, "password": password, "token": token}
 

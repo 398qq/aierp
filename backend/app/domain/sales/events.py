@@ -13,7 +13,9 @@ class OrderConfirmed(DomainEvent):
     """
 
     aggregate_type: str = "SalesOrder"
+    order_no: str = ""
     customer_id: int = 0
+    owner: str = ""
     total_amount: float = 0.0
     lines: tuple = field(default_factory=tuple)
     warehouse_id: int = 0
@@ -37,8 +39,25 @@ class OrderShipped(DomainEvent):
     """Emitted when an order (or part of it) is shipped."""
 
     aggregate_type: str = "SalesOrder"
+    order_no: str = ""
+    customer_id: int = 0
     lines: tuple = field(default_factory=tuple)
     is_full: bool = False
+
+
+@dataclass(frozen=True)
+class OrderCompleted(DomainEvent):
+    """Emitted when a sales order reaches COMPLETED.
+
+    Triggers commission accrual for the owner (handled by
+    commission service, scheduled in Stage 2 follow-ups).
+    """
+
+    aggregate_type: str = "SalesOrder"
+    order_no: str = ""
+    customer_id: int = 0
+    owner: str = ""
+    total_amount: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -75,3 +94,42 @@ class DeliveryShipped(DomainEvent):
     sales_order_id: int = 0
     customer_id: int = 0
     lines: tuple = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class InvoiceIssued(DomainEvent):
+    """Emitted when an invoice is issued to the customer.
+
+    Notification handlers should email / WeCom the PDF.
+    """
+
+    aggregate_type: str = "Invoice"
+    invoice_no: str = ""
+    customer_id: int = 0
+    total: float = 0.0
+
+
+@dataclass(frozen=True)
+class InvoicePaid(DomainEvent):
+    """Emitted when an invoice reaches fully-paid status."""
+
+    aggregate_type: str = "Invoice"
+    invoice_no: str = ""
+    customer_id: int = 0
+    total: float = 0.0
+
+
+@dataclass(frozen=True)
+class PaymentReceived(DomainEvent):
+    """Emitted when a payment record moves to COMPLETED.
+
+    Invoice aggregate listens: triggers record_payment() which may
+    auto-complete the invoice.
+    """
+
+    aggregate_type: str = "PaymentRecord"
+    payment_id: int = 0
+    invoice_id: int = 0
+    customer_id: int = 0
+    amount: float = 0.0
+    method: str = ""

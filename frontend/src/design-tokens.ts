@@ -72,6 +72,8 @@ export const semantic = {
 } as const;
 
 export const space = {
+  s0: 0,
+  s2: 2,
   s4: 4,
   s8: 8,
   s12: 12,
@@ -80,6 +82,19 @@ export const space = {
   s32: 32,
   s48: 48,
   s64: 64,
+} as const;
+
+/** Common width shortcuts — maps label → px. */
+export const width = {
+  xs: 60,
+  sm: 80,
+  md: 100,
+  lg: 120,
+  xl: 140,
+  xxl: 160,
+  third: 200,
+  half: 300,
+  full: "100%" as const,
 } as const;
 
 export const radius = {

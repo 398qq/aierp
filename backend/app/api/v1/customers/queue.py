@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
 from app.api.v1.ai.customer._cleaners import to_utc
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer, CustomerFollowUp, CustomerLog
 from app.schemas.common import ok
@@ -24,7 +24,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 @router.get("/recent-activity")
-async def recent_activity(limit: int = Query(20, le=100), db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def recent_activity(
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "read")),
+):
     """Recent customer activity across all customers."""
     logs = (await db.execute(
         select(CustomerLog, Customer.name).join(
@@ -54,7 +58,10 @@ async def recent_activity(limit: int = Query(20, le=100), db: AsyncSession = Dep
 TERMINAL_FOLLOWUP_STATUSES = ("completed", "cancelled")
 
 @router.get("/overdue-followups")
-async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def overdue_followups(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "read")),
+):
     now = datetime.now(timezone.utc)
     rows = (await db.execute(
         select(CustomerFollowUp, Customer).join(Customer, CustomerFollowUp.customer_id == Customer.id).where(
@@ -92,7 +99,7 @@ async def overdue_followups(db: AsyncSession = Depends(get_db), _user: dict = De
 async def follow_up_reminders(
     days_ahead: int = Query(default=14, ge=0, le=90),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     now = datetime.now(timezone.utc)
     today = now.date()
@@ -161,7 +168,7 @@ async def global_follow_ups(
     due_bucket: str | None = Query(default=None),
     q: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     now = datetime.now(timezone.utc)
     today = now.date()

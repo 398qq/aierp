@@ -246,9 +246,11 @@ class TestCustomerAPIIntegration:
         )
         assert resp.status_code == 201
         data = resp.json()["data"]
-        assert (
-            data.get("status", "new_lead") in ("new_lead", None, "") or True
-        )  # 状态字段存在（可能默认值还未填充）
+        assert data.get("status") in (
+            "new_lead",
+            None,
+            "",
+        ), f"Expected new_lead status, got: {data.get('status')}"
 
     @pytest.mark.asyncio
     async def test_customer_stats_endpoint(

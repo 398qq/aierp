@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer, LevelRule
 from app.schemas.common import fail, ok
@@ -40,7 +40,7 @@ class LevelRuleUpdate(BaseModel):
 @router.get("/level-rules")
 async def list_level_rules(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (await db.execute(
         select(LevelRule).where(LevelRule.deleted_at.is_(None)).order_by(LevelRule.priority)
@@ -57,7 +57,7 @@ async def list_level_rules(
 async def create_level_rule(
     body: LevelRuleCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     rule = LevelRule(**body.model_dump())
     db.add(rule)
@@ -70,7 +70,7 @@ async def update_level_rule(
     rule_id: int,
     body: LevelRuleUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(LevelRule).where(LevelRule.id == rule_id, LevelRule.deleted_at.is_(None))
@@ -88,7 +88,7 @@ async def update_level_rule(
 async def delete_level_rule(
     rule_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(LevelRule).where(LevelRule.id == rule_id, LevelRule.deleted_at.is_(None))
@@ -116,7 +116,7 @@ def _compare(value: float, op: str, threshold: float) -> bool:
 @router.post("/auto-level")
 async def auto_level_customers(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     """Run auto-leveling rules on all customers."""
     from app.models.sales import SalesOrder

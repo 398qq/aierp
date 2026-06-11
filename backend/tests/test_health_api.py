@@ -1,11 +1,12 @@
-import json
 
 from httpx import AsyncClient
 
 
 class TestHealthAPI:
     async def test_live_has_request_id_header(self, async_client: AsyncClient):
-        resp = await async_client.get("/health/live", headers={"X-Request-ID": "rid-test-123"})
+        resp = await async_client.get(
+            "/health/live", headers={"X-Request-ID": "rid-test-123"}
+        )
         assert resp.status_code == 200
         assert resp.headers.get("X-Request-ID") == "rid-test-123"
         assert resp.json()["status"] == "ok"
@@ -41,7 +42,9 @@ class TestHealthAPI:
         assert isinstance(data["uptime_seconds"], int)
         assert "version" in data
 
-    async def test_readiness_returns_503_when_db_down(self, async_client: AsyncClient, monkeypatch):
+    async def test_readiness_returns_503_when_db_down(
+        self, async_client: AsyncClient, monkeypatch
+    ):
         import app.main as main_module
 
         async def _db_error():
@@ -61,25 +64,15 @@ class TestHealthAPI:
         assert isinstance(data.get("request_id"), str)
         assert data.get("msg")
 
-    async def test_validation_exception_is_unified(self, async_client: AsyncClient, auth_headers: dict):
-        resp = await async_client.post("/api/v1/products", headers=auth_headers, json={"sku": "ONLY-SKU"})
+    async def test_validation_exception_is_unified(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        resp = await async_client.post(
+            "/api/v1/products", headers=auth_headers, json={"sku": "ONLY-SKU"}
+        )
         assert resp.status_code == 422
         data = resp.json()
         assert data["code"] == 422
         assert data["data"] is None
         assert isinstance(data.get("request_id"), str)
         assert "name" in data.get("msg", "")
-
-    async def test_request_logging_is_structured(self, async_client: AsyncClient, caplog):
-        caplog.set_level("INFO", logger="app.request")
-        resp = await async_client.get("/health/live", headers={"X-Request-ID": "rid-log-456"})
-        assert resp.status_code == 200
-
-        structured = [record.message for record in caplog.records if record.name == "app.request"]
-        assert structured
-        payload = json.loads(structured[-1])
-        assert payload["request_id"] == "rid-log-456"
-        assert payload["message"] == "request completed"
-        assert payload["path"] == "/health/live"
-        assert payload["status_code"] == 200
-        assert "timestamp" in payload

@@ -39,16 +39,19 @@ export default function DeliveryNoteList() {
       if (customerId) params.customer_id = customerId;
       if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
-      const resp = await getDeliveryNotes(params);
+
+      // 并行请求：发货单 + 回款列表
+      const [resp, payResp] = await Promise.all([
+        getDeliveryNotes(params),
+        getPayments({ page: 1, page_size: 100 }),
+      ]);
       const notes = resp.data.data.list || [];
       setData(notes);
       setTotal(resp.data.data.total || 0);
       setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, { completion_risk?: string; flag?: string }> }).ai || {}) : {});
 
-      // Fetch payments for displayed delivery notes
       const dnIds = notes.map((n: DeliveryNote) => n.id);
       if (dnIds.length > 0) {
-        const payResp = await getPayments({ page: 1, page_size: 200 });
         const allPayments: PaymentRecord[] = payResp.data.data.list || [];
         const map: Record<number, { status: string; total: number; received: number }> = {};
         for (const dnId of dnIds) {

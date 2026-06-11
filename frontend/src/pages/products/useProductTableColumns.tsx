@@ -2,9 +2,16 @@
 // product workbench. Returns a memoized ColumnsType<Product>.
 
 import { useMemo } from "react";
-import { Button, Popconfirm, Progress, Space, Tooltip } from "antd";
+import { Button, Dropdown, Modal, Progress, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { DeleteOutlined, EditOutlined, EyeOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  DollarOutlined,
+  EditOutlined,
+  EllipsisOutlined,
+  EyeOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
 import { StatusTag } from "../../ui";
 import type { Product } from "../../types";
 import { formatDateTime, getAvailableQty, getStockState } from "./constants";
@@ -44,7 +51,30 @@ export function useProductTableColumns({
     },
     { title: "分类", dataIndex: "category", key: "category", width: 100, render: (v: string) => (v ? <StatusTag>{v}</StatusTag> : "-") },
     { title: "封装", dataIndex: "package_type", key: "package_type", width: 100, render: (v: string | null) => v || "-" },
-    { title: "规格", dataIndex: "specs", key: "specs", width: 220, ellipsis: true, render: (v: string | null) => v || "-" },
+    {
+      title: "规格",
+      dataIndex: "specs",
+      key: "specs",
+      width: 180,
+      render: (v: string | null) => {
+        if (!v) return "-";
+        return (
+          <Tooltip title={<div style={{ maxWidth: 520, whiteSpace: "normal", wordBreak: "break-word" }}>{v}</div>}>
+            <span
+              style={{
+                display: "block",
+                maxWidth: 164,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {v}
+            </span>
+          </Tooltip>
+        );
+      },
+    },
     { title: "单位", dataIndex: "unit", key: "unit", width: 80, render: (v: string | null) => v || "-" },
     { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 130, render: (v: string | null) => v || "-" },
     {
@@ -84,26 +114,61 @@ export function useProductTableColumns({
     {
       title: "操作",
       key: "actions",
-      width: 230,
+      width: 92,
+      align: "center",
       fixed: "right",
       render: (_: unknown, r: Product) => (
-        <Space size="small">
+        <div
+          style={{ display: "flex", justifyContent: "center", gap: 2 }}
+          onClick={(event) => event.stopPropagation()}
+        >
           <Tooltip title="查看详情">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => onOpenDetail(r)} />
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => onOpenDetail(r)}
+              aria-label={`查看产品 ${r.name}`}
+            />
           </Tooltip>
-          <Tooltip title="快捷改价">
-            <Button size="small" onClick={() => onOpenQuickPrice(r)}>改价</Button>
-          </Tooltip>
-          <Tooltip title="快捷改安全库存">
-            <Button size="small" onClick={() => onOpenQuickSafety(r)}>安库</Button>
-          </Tooltip>
-          <Tooltip title="编辑产品">
-            <Button size="small" icon={<EditOutlined />} onClick={() => onOpenEdit(r)} />
-          </Tooltip>
-          <Popconfirm title="确定删除?" onConfirm={() => onDelete(r.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
+          <Dropdown
+            trigger={["click"]}
+            placement="bottomRight"
+            menu={{
+              items: [
+                { key: "price", icon: <DollarOutlined />, label: "快捷改价" },
+                { key: "safety", icon: <SafetyCertificateOutlined />, label: "修改安全库存" },
+                { key: "edit", icon: <EditOutlined />, label: "编辑产品" },
+                { type: "divider" },
+                { key: "delete", icon: <DeleteOutlined />, label: "删除产品", danger: true },
+              ],
+              onClick: ({ key, domEvent }) => {
+                domEvent.stopPropagation();
+                if (key === "price") onOpenQuickPrice(r);
+                if (key === "safety") onOpenQuickSafety(r);
+                if (key === "edit") onOpenEdit(r);
+                if (key === "delete") {
+                  Modal.confirm({
+                    title: "确认删除产品",
+                    content: `确定要删除 ${r.name} 吗？`,
+                    okText: "删除",
+                    cancelText: "取消",
+                    okButtonProps: { danger: true },
+                    onOk: () => onDelete(r.id),
+                  });
+                }
+              },
+            }}
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<EllipsisOutlined />}
+              aria-label={`操作产品 ${r.name}`}
+              title="更多操作"
+            />
+          </Dropdown>
+        </div>
       ),
     },
   ], [onOpenDetail, onOpenEdit, onOpenQuickPrice, onOpenQuickSafety, onDelete]);

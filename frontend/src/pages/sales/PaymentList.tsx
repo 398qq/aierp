@@ -44,6 +44,7 @@ export default function PaymentList() {
       id: r.id,
       sales_order_id: r.sales_order_id,
       delivery_note_id: r.delivery_note_id ?? "",
+      invoice_no: r.invoice_no || "",
       amount: r.amount,
       payment_method: r.payment_method || "",
       payment_date: r.payment_date?.slice(0, 10) || "",
@@ -79,6 +80,7 @@ export default function PaymentList() {
             { key: "id", title: "ID" },
             { key: "sales_order_id", title: "关联订单" },
             { key: "delivery_note_id", title: "发货单" },
+            { key: "invoice_no", title: "发票" },
             { key: "amount", title: "金额" },
             { key: "payment_method", title: "方式" },
             { key: "payment_date", title: "付款日期" },
@@ -105,11 +107,22 @@ export default function PaymentList() {
             ),
           },
           {
-            title: "发货单", dataIndex: "delivery_note_id", width: 100,
+            title: "发货单", dataIndex: "delivery_note_id", width: 80,
             render: (value: number | null) => {
               if (!value) return <span style={{ color: "#999" }}>-</span>;
               return (
                 <a onClick={() => navigate(`/sales/delivery-notes/${value}`)}>#{value}</a>
+              );
+            },
+          },
+          {
+            title: "发票", dataIndex: "invoice_id", width: 110,
+            render: (value: number | null, r: PaymentRecord) => {
+              if (!value) return <span style={{ color: "#999" }}>-</span>;
+              return (
+                <Typography.Link onClick={() => navigate(`/sales/invoices/${value}`)}>
+                  {r.invoice_no || `#${value}`}
+                </Typography.Link>
               );
             },
           },

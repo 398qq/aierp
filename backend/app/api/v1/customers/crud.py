@@ -1,8 +1,6 @@
 """Customer CRUD operations — list, create, update, delete, merge, import, export."""
 
-import csv
 import hashlib
-import io
 import json
 import logging
 import os
@@ -10,21 +8,19 @@ import re
 import unicodedata
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.core.permissions import require_perm
 from app.database import get_db
-from app.models.customer import Customer, CustomerAttachment, CustomerContact, CustomerFollowUp, CustomerLog
+from app.models.customer import Customer, CustomerLog
 from app.schemas.common import fail, ok
-from app.services.cache_service import cache_bump_version, cache_get_versioned, cache_set_versioned
+from app.services.cache_service import cache_bump_version
 from app.services.customer_service import (
     calc_health,
     customer_name_conflict_message,
-    detect_duplicates as detect_dups,
     find_name_conflict,
 )
 
@@ -290,7 +286,11 @@ class BatchDelete(BaseModel):
     ids: list[int]
 
 
-def _customer_row(c: Customer, now: datetime | None = None) -> dict:
+def _customer_row(
+    c: Customer,
+    now: datetime | None = None,
+    total_amount: float | None = None,
+) -> dict:
     if now is None:
         now = datetime.now(timezone.utc)
     health_score, health_label = calc_health(c, orders=[], payments=[], now=now)
@@ -325,6 +325,8 @@ def _customer_row(c: Customer, now: datetime | None = None) -> dict:
         "currency": c.currency,
         "delivery_address": c.delivery_address,
         "default_incoterm": c.default_incoterm,
+        "status": c.status.value if hasattr(c.status, "value") else c.status,
+        "total_amount": float(total_amount) if total_amount is not None else None,
         "lifecycle": c.lifecycle,
         "last_contacted_at": str(c.last_contacted_at) if c.last_contacted_at else None,
         "created_at": str(c.created_at) if c.created_at else None,
@@ -373,7 +375,7 @@ CSV_TEMPLATE_HEADERS = ["名称", "编码", "简称", "行业", "等级", "区�
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 CUSTOMERS_LIST_CACHE_TTL = 300
-CUSTOMERS_LIST_CACHE_VERSION = "v1"
+CUSTOMERS_LIST_CACHE_VERSION = "v2"
 logger = logging.getLogger(__name__)
 
 
@@ -387,7 +389,7 @@ def _customers_cache_key(**parts: object) -> str:
 async def get_customer(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "read")),
 ):
     result = await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
@@ -396,7 +398,15 @@ async def get_customer(
     if customer is None:
         return fail("Customer not found", 404)
     now = datetime.now(timezone.utc)
-    data = _customer_row(customer, now=now)
+    from app.models.sales import SalesOrder
+
+    total_amount = await db.scalar(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+            SalesOrder.customer_id == customer_id,
+            SalesOrder.deleted_at.is_(None),
+        )
+    )
+    data = _customer_row(customer, now=now, total_amount=total_amount)
     data["contacts"] = [{
         "id": ct.id, "name": ct.name, "title": ct.title, "role": ct.role,
         "phone": ct.phone, "email": ct.email, "wechat": ct.wechat,
@@ -418,7 +428,7 @@ async def create_customer(
     body: CustomerCreate,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     data = body.model_dump()
     name_conflict = await find_name_conflict(db, data.get("name"))
@@ -459,6 +469,7 @@ async def create_customer(
         "id": customer.id,
         "name": customer.name,
         "code": customer.code,
+        "status": customer.status.value if hasattr(customer.status, "value") else customer.status,
         "created_at": str(customer.created_at) if customer.created_at else None,
     })
 
@@ -469,7 +480,7 @@ async def update_customer(
     body: CustomerUpdate,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
@@ -535,7 +546,7 @@ async def update_customer(
 async def delete_customer(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))

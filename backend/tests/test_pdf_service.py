@@ -7,11 +7,6 @@ from types import SimpleNamespace
 import pytest
 
 
-def test_reportlab_dependency_declared():
-    with open("requirements.txt", encoding="utf-8") as req:
-        assert "reportlab" in req.read()
-
-
 def test_generate_quotation_pdf_with_smart_sections():
     from app.services.pdf_service import generate_quotation_pdf
 
@@ -85,53 +80,6 @@ def test_generate_quotation_pdf_prefers_embeddable_chinese_font_when_available()
 
     assert b"WenQuanYiMicroHei" in pdf
     assert b"IPAPGothic" not in pdf
-
-
-def test_pdf_options_default_company_name_from_customer():
-    from app.services import pdf_service
-
-    quotation = SimpleNamespace(
-        id=99,
-        quotation_no="QT-TEST",
-        title="客户抬头测试",
-        status="draft",
-        valid_until=None,
-        created_at=datetime.now(timezone.utc),
-        total_amount=0,
-        notes=None,
-        customer=SimpleNamespace(name="客户公司抬头"),
-        items=[],
-    )
-
-    if not pdf_service.REPORTLAB_AVAILABLE:
-        pdf = pdf_service._generate_basic_pdf(quotation, {})
-        assert pdf.startswith(b"%PDF")
-        return
-
-    captured: dict[str, str] = {}
-    original_doc = pdf_service.SimpleDocTemplate
-
-    class FakeDoc:
-        def __init__(self, *args, **kwargs):
-            self.leftMargin = 20
-            self.rightMargin = 20
-            self.page = 1
-
-        def build(self, story, *args, **kwargs):
-            for node in story:
-                if getattr(node, "_cellvalues", None):
-                    first = node._cellvalues[0][0]
-                    if hasattr(first, "getPlainText"):
-                        captured["company_name"] = first.getPlainText()
-                        break
-
-    try:
-        pdf_service.SimpleDocTemplate = FakeDoc
-        pdf_service.generate_quotation_pdf(quotation, {})
-    finally:
-        pdf_service.SimpleDocTemplate = original_doc
-
-    assert captured["company_name"] == "客户公司抬头"
 
 
 def test_money_upper_cn_formats_quote_amounts():

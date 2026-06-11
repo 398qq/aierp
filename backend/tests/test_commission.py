@@ -3,12 +3,12 @@
 import pytest
 
 from app.domain.shared.errors import InvalidStateTransition
-from app.services.finance_service import (
+from app.domain.states import (
     COMMISSION_STATUSES,
     COMMISSION_TRANSITIONS,
-    _compute_commission_amount,
     assert_can_transition_commission,
 )
+from app.services.finance_service import _compute_commission_amount
 
 
 class TestCommissionStateMachine:

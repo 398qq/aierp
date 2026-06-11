@@ -13,16 +13,16 @@ populated by the AI restock pipeline.
 import logging
 from datetime import datetime
 
+from app.api.deps import get_current_user
+from app.database import get_db
+from app.domain.states import assert_can_transition_purchase_order
+from app.models.transaction import PurchaseOrder
+from app.schemas.common import ok
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.api.deps import get_current_user
-from app.database import get_db
-from app.models.transaction import PurchaseOrder
-from app.schemas.common import ok
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +60,23 @@ async def list_purchase_orders(
     from app.models.product import Supplier
 
     base = (
-        select(PurchaseOrder.id, PurchaseOrder.order_no, PurchaseOrder.supplier_id,
-               Supplier.name, PurchaseOrder.status, PurchaseOrder.total_amount,
-               PurchaseOrder.expected_date, PurchaseOrder.notes, PurchaseOrder.created_at)
+        select(
+            PurchaseOrder.id,
+            PurchaseOrder.order_no,
+            PurchaseOrder.supplier_id,
+            Supplier.name,
+            PurchaseOrder.status,
+            PurchaseOrder.total_amount,
+            PurchaseOrder.expected_date,
+            PurchaseOrder.notes,
+            PurchaseOrder.created_at,
+        )
         .outerjoin(Supplier, PurchaseOrder.supplier_id == Supplier.id)
         .where(PurchaseOrder.deleted_at.is_(None))
     )
-    count_base = select(func.count(PurchaseOrder.id)).where(PurchaseOrder.deleted_at.is_(None))
+    count_base = select(func.count(PurchaseOrder.id)).where(
+        PurchaseOrder.deleted_at.is_(None)
+    )
 
     if supplier_id:
         base = base.where(PurchaseOrder.supplier_id == supplier_id)
@@ -76,28 +86,55 @@ async def list_purchase_orders(
         count_base = count_base.where(PurchaseOrder.status == status)
     if date_from:
         base = base.where(PurchaseOrder.created_at >= datetime.fromisoformat(date_from))
-        count_base = count_base.where(PurchaseOrder.created_at >= datetime.fromisoformat(date_from))
+        count_base = count_base.where(
+            PurchaseOrder.created_at >= datetime.fromisoformat(date_from)
+        )
     if date_to:
-        base = base.where(PurchaseOrder.created_at <= datetime.fromisoformat(date_to + "T23:59:59"))
-        count_base = count_base.where(PurchaseOrder.created_at <= datetime.fromisoformat(date_to + "T23:59:59"))
+        base = base.where(
+            PurchaseOrder.created_at <= datetime.fromisoformat(date_to + "T23:59:59")
+        )
+        count_base = count_base.where(
+            PurchaseOrder.created_at <= datetime.fromisoformat(date_to + "T23:59:59")
+        )
 
     total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(PurchaseOrder.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).all()
+    rows = (
+        await db.execute(
+            base.order_by(PurchaseOrder.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
 
-    return ok({
-        "list": [{"id": r[0], "order_no": r[1], "supplier_id": r[2],
-                  "supplier_name": r[3] or f"#{r[2]}",
-                  "status": r[4], "total_amount": float(r[5]),
-                  "expected_date": str(r[6]) if r[6] else None,
-                  "notes": r[7], "created_at": str(r[8]) if r[8] else None} for r in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
+    return ok(
+        {
+            "list": [
+                {
+                    "id": r[0],
+                    "order_no": r[1],
+                    "supplier_id": r[2],
+                    "supplier_name": r[3] or f"#{r[2]}",
+                    "status": r[4],
+                    "total_amount": float(r[5]),
+                    "expected_date": str(r[6]) if r[6] else None,
+                    "notes": r[7],
+                    "created_at": str(r[8]) if r[8] else None,
+                }
+                for r in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @po_router.post("", status_code=201)
-async def create_purchase_order(body: POCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_purchase_order(
+    body: POCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     from app.models.transaction import PurchaseOrderItem
 
     data = body.model_dump()
@@ -107,6 +144,7 @@ async def create_purchase_order(body: POCreate, db: AsyncSession = Depends(get_d
 
     if not data.get("order_no"):
         from app.services.docno import generate_doc_no
+
         data["order_no"] = await generate_doc_no(db, "PO", PurchaseOrder, "order_no")
 
     order = PurchaseOrder(**data)
@@ -123,7 +161,13 @@ async def create_purchase_order(body: POCreate, db: AsyncSession = Depends(get_d
 
     await db.commit()
     await db.refresh(order)
-    return ok({"id": order.id, "order_no": order.order_no, "items_count": len(items_data) if items_data else 0})
+    return ok(
+        {
+            "id": order.id,
+            "order_no": order.order_no,
+            "items_count": len(items_data) if items_data else 0,
+        }
+    )
 
 
 class POUpdate(BaseModel):
@@ -145,7 +189,9 @@ async def get_purchase_order(
     result = await db.execute(
         select(PurchaseOrder)
         .where(PurchaseOrder.id == po_id, PurchaseOrder.deleted_at.is_(None))
-        .options(selectinload(PurchaseOrder.items).selectinload(PurchaseOrderItem.product))
+        .options(
+            selectinload(PurchaseOrder.items).selectinload(PurchaseOrderItem.product)
+        )
     )
     po = result.scalar_one_or_none()
     if po is None:
@@ -153,32 +199,35 @@ async def get_purchase_order(
 
     supplier_name = None
     if po.supplier_id:
-        r = await db.execute(
-            select(Supplier.name).where(Supplier.id == po.supplier_id)
-        )
+        r = await db.execute(select(Supplier.name).where(Supplier.id == po.supplier_id))
         supplier_name = r.scalar()
 
-    return ok({
-        "id": po.id,
-        "order_no": po.order_no,
-        "supplier_id": po.supplier_id,
-        "supplier_name": supplier_name or f"#{po.supplier_id}",
-        "status": po.status,
-        "total_amount": float(po.total_amount),
-        "expected_date": str(po.expected_date) if po.expected_date else None,
-        "notes": po.notes,
-        "created_at": str(po.created_at),
-        "updated_at": str(po.updated_at) if po.updated_at else None,
-        "items": [{
-            "id": i.id,
-            "product_id": i.product_id,
-            "product_name": i.product.name if i.product else f"#{i.product_id}",
-            "product_sku": i.product.sku if i.product and i.product.sku else "",
-            "quantity": i.quantity,
-            "unit_price": float(i.unit_price),
-            "amount": float(i.amount),
-        } for i in po.items],
-    })
+    return ok(
+        {
+            "id": po.id,
+            "order_no": po.order_no,
+            "supplier_id": po.supplier_id,
+            "supplier_name": supplier_name or f"#{po.supplier_id}",
+            "status": po.status,
+            "total_amount": float(po.total_amount),
+            "expected_date": str(po.expected_date) if po.expected_date else None,
+            "notes": po.notes,
+            "created_at": str(po.created_at),
+            "updated_at": str(po.updated_at) if po.updated_at else None,
+            "items": [
+                {
+                    "id": i.id,
+                    "product_id": i.product_id,
+                    "product_name": i.product.name if i.product else f"#{i.product_id}",
+                    "product_sku": i.product.sku if i.product and i.product.sku else "",
+                    "quantity": i.quantity,
+                    "unit_price": float(i.unit_price),
+                    "amount": float(i.amount),
+                }
+                for i in po.items
+            ],
+        }
+    )
 
 
 @po_router.put("/{po_id}")
@@ -233,8 +282,9 @@ async def delete_purchase_order(
     _user: dict = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(PurchaseOrder)
-        .where(PurchaseOrder.id == po_id, PurchaseOrder.deleted_at.is_(None))
+        select(PurchaseOrder).where(
+            PurchaseOrder.id == po_id, PurchaseOrder.deleted_at.is_(None)
+        )
     )
     po = result.scalar_one_or_none()
     if po is None:
@@ -271,25 +321,33 @@ async def receive_purchase_order(
     if po.status == "received":
         raise HTTPException(400, "采购订单已收货")
 
+    assert_can_transition_purchase_order(po.status, "received")
+
     received_items = []
     for item in po.items:
         if item.product_id and item.quantity > 0:
             try:
-                r = await receive_po_item(db, item.product_id, body.warehouse_id, item.quantity, po.id)
+                r = await receive_po_item(
+                    db, item.product_id, body.warehouse_id, item.quantity, po.id
+                )
                 received_items.append(r)
             except Exception as e:
-                logger.error("PO receive failed PO#%s product#%s: %s", po.id, item.product_id, e)
+                logger.error(
+                    "PO receive failed PO#%s product#%s: %s", po.id, item.product_id, e
+                )
 
     po.status = "received"
     await db.commit()
 
-    return ok({
-        "po_id": po.id,
-        "order_no": po.order_no,
-        "status": po.status,
-        "items_received": len(received_items),
-        "details": received_items,
-    })
+    return ok(
+        {
+            "po_id": po.id,
+            "order_no": po.order_no,
+            "status": po.status,
+            "items_received": len(received_items),
+            "details": received_items,
+        }
+    )
 
 
 class RestockItem(BaseModel):
@@ -310,13 +368,17 @@ async def create_po_from_restock(
     _user: dict = Depends(get_current_user),
 ):
     """One-click restock: create a purchase order from restock suggestions."""
-    from app.services.docno import generate_doc_no
-    from app.models.transaction import PurchaseOrderItem
-
     from app.models.product import Supplier
-    supplier = (await db.execute(
-        select(Supplier).where(Supplier.id == body.supplier_id, Supplier.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    from app.models.transaction import PurchaseOrderItem
+    from app.services.docno import generate_doc_no
+
+    supplier = (
+        await db.execute(
+            select(Supplier).where(
+                Supplier.id == body.supplier_id, Supplier.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if supplier is None:
         raise HTTPException(404, "供应商不存在")
 
@@ -352,10 +414,12 @@ async def create_po_from_restock(
     await db.commit()
     await db.refresh(po)
 
-    return ok({
-        "po_id": po.id,
-        "order_no": po.order_no,
-        "supplier_id": po.supplier_id,
-        "items_created": created,
-        "items_skipped": skipped,
-    })
+    return ok(
+        {
+            "po_id": po.id,
+            "order_no": po.order_no,
+            "supplier_id": po.supplier_id,
+            "items_created": created,
+            "items_skipped": skipped,
+        }
+    )

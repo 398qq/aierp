@@ -2,13 +2,38 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.domain.shared.errors import InvalidStateTransition, NotFoundError
+from app.domain.shared.errors import NotFoundError
+from app.domain.states import (
+    assert_can_transition_commission,
+    assert_can_transition_contract,
+    assert_can_transition_invoice,
+    assert_can_transition_payment,
+)
 from app.models.finance import Commission, Contract, Invoice, PaymentRecord, SalesTarget
 from app.models.sales import SalesOrder
 from app.services.docno import generate_doc_no
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+_DATE_FIELDS = {
+    "invoice_date",
+    "due_date",
+    "payment_date",
+    "signed_date",
+    "expire_date",
+}
+
+
+def _parse_dates(data: dict) -> dict:
+    """Convert ISO date strings → datetime for SQLAlchemy. Mutates and returns data."""
+    for field in _DATE_FIELDS:
+        raw = data.get(field)
+        if raw and isinstance(raw, str):
+            try:
+                data[field] = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                pass  # leave as-is; DB will reject invalid values
+    return data
 
 
 async def _apply_sales_order_customer(db: AsyncSession, data: dict) -> None:
@@ -17,7 +42,9 @@ async def _apply_sales_order_customer(db: AsyncSession, data: dict) -> None:
         return
 
     result = await db.execute(
-        select(SalesOrder.customer_id).where(SalesOrder.id == sales_order_id, SalesOrder.deleted_at.is_(None))
+        select(SalesOrder.customer_id).where(
+            SalesOrder.id == sales_order_id, SalesOrder.deleted_at.is_(None)
+        )
     )
     customer_id = result.scalar_one_or_none()
     if customer_id:
@@ -28,15 +55,25 @@ async def _apply_sales_order_customer(db: AsyncSession, data: dict) -> None:
 # Invoice CRUD
 # ============================================================
 
+
 async def list_invoices(
-    db: AsyncSession, *, page: int = 1, page_size: int = 20,
-    customer_id: int | None = None, status: str | None = None,
+    db: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    customer_id: int | None = None,
+    status: str | None = None,
     sales_order_id: int | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
+    sort_by: str = "id",
+    sort_order: str = "desc",
 ) -> dict:
     base = select(Invoice).where(Invoice.deleted_at.is_(None))
     cnt = select(func.count(Invoice.id)).where(Invoice.deleted_at.is_(None))
-    for col_name, val in [("customer_id", customer_id), ("status", status), ("sales_order_id", sales_order_id)]:
+    for col_name, val in [
+        ("customer_id", customer_id),
+        ("status", status),
+        ("sales_order_id", sales_order_id),
+    ]:
         if val is not None:
             col = getattr(Invoice, col_name)
             base = base.where(col == val)
@@ -44,7 +81,11 @@ async def list_invoices(
     total = (await db.execute(cnt)).scalar() or 0
     sort_col = getattr(Invoice, sort_by, Invoice.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
-    rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    rows = (
+        (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
@@ -56,6 +97,7 @@ async def get_invoice(db: AsyncSession, inv_id: int) -> Invoice | None:
 
 
 async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
+    _parse_dates(data)
     await _apply_sales_order_customer(db, data)
     if not data.get("invoice_no"):
         data["invoice_no"] = await generate_doc_no(db, "INV", Invoice, "invoice_no")
@@ -67,6 +109,9 @@ async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
 
 
 async def update_invoice(db: AsyncSession, inv: Invoice, data: dict) -> Invoice:
+    _parse_dates(data)
+    if "status" in data and data["status"] != inv.status:
+        assert_can_transition_invoice(inv.status, data["status"])
     await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
@@ -85,15 +130,29 @@ async def delete_invoice(db: AsyncSession, inv: Invoice) -> None:
 # Payment CRUD
 # ============================================================
 
+
 async def list_payments(
-    db: AsyncSession, *, page: int = 1, page_size: int = 20,
-    customer_id: int | None = None, status: str | None = None,
-    sales_order_id: int | None = None, delivery_note_id: int | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
+    db: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    customer_id: int | None = None,
+    status: str | None = None,
+    sales_order_id: int | None = None,
+    delivery_note_id: int | None = None,
+    invoice_id: int | None = None,
+    sort_by: str = "id",
+    sort_order: str = "desc",
 ) -> dict:
     base = select(PaymentRecord).where(PaymentRecord.deleted_at.is_(None))
     cnt = select(func.count(PaymentRecord.id)).where(PaymentRecord.deleted_at.is_(None))
-    for col_name, val in [("customer_id", customer_id), ("status", status), ("sales_order_id", sales_order_id), ("delivery_note_id", delivery_note_id)]:
+    for col_name, val in [
+        ("customer_id", customer_id),
+        ("status", status),
+        ("sales_order_id", sales_order_id),
+        ("delivery_note_id", delivery_note_id),
+        ("invoice_id", invoice_id),
+    ]:
         if val is not None:
             col = getattr(PaymentRecord, col_name)
             base = base.where(col == val)
@@ -101,34 +160,78 @@ async def list_payments(
     total = (await db.execute(cnt)).scalar() or 0
     sort_col = getattr(PaymentRecord, sort_by, PaymentRecord.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
-    rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    rows = (
+        (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 async def get_payment(db: AsyncSession, pay_id: int) -> PaymentRecord | None:
     result = await db.execute(
-        select(PaymentRecord).where(PaymentRecord.id == pay_id, PaymentRecord.deleted_at.is_(None))
+        select(PaymentRecord).where(
+            PaymentRecord.id == pay_id, PaymentRecord.deleted_at.is_(None)
+        )
     )
     return result.scalar_one_or_none()
 
 
 async def create_payment(db: AsyncSession, data: dict) -> PaymentRecord:
+    _parse_dates(data)
     await _apply_sales_order_customer(db, data)
     pay = PaymentRecord(**data)
     db.add(pay)
     await db.commit()
     await db.refresh(pay)
+
+    # Auto-reconcile linked invoice when payment is completed on creation
+    if pay.status == "completed" and pay.invoice_id:
+        await _reconcile_invoice_if_fully_paid(db, pay.invoice_id)
+
     return pay
 
 
-async def update_payment(db: AsyncSession, pay: PaymentRecord, data: dict) -> PaymentRecord:
+async def update_payment(
+    db: AsyncSession, pay: PaymentRecord, data: dict
+) -> PaymentRecord:
+    _parse_dates(data)
+    if "status" in data and data["status"] != pay.status:
+        assert_can_transition_payment(pay.status, data["status"])
     await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
             setattr(pay, k, v)
     await db.commit()
     await db.refresh(pay)
+
+    # Auto-reconcile linked invoice when payment completes
+    if pay.status == "completed" and pay.invoice_id:
+        await _reconcile_invoice_if_fully_paid(db, pay.invoice_id)
+
     return pay
+
+
+async def _reconcile_invoice_if_fully_paid(db: AsyncSession, invoice_id: int) -> None:
+    """Mark invoice as paid when all linked payments are completed."""
+    from app.models.finance import Invoice
+
+    inv = await db.scalar(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.deleted_at.is_(None))
+    )
+    if inv is None or inv.status == "paid":
+        return
+
+    total_paid = await db.scalar(
+        select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+            PaymentRecord.invoice_id == invoice_id,
+            PaymentRecord.status == "completed",
+            PaymentRecord.deleted_at.is_(None),
+        )
+    )
+    if total_paid and total_paid >= inv.amount:
+        inv.status = "paid"
+        await db.commit()
 
 
 async def delete_payment(db: AsyncSession, pay: PaymentRecord) -> None:
@@ -159,10 +262,16 @@ async def payment_stats(db: AsyncSession) -> dict:
 # Contract CRUD
 # ============================================================
 
+
 async def list_contracts(
-    db: AsyncSession, *, page: int = 1, page_size: int = 20,
-    customer_id: int | None = None, status: str | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
+    db: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    customer_id: int | None = None,
+    status: str | None = None,
+    sort_by: str = "id",
+    sort_order: str = "desc",
 ) -> dict:
     base = select(Contract).where(Contract.deleted_at.is_(None))
     cnt = select(func.count(Contract.id)).where(Contract.deleted_at.is_(None))
@@ -175,18 +284,25 @@ async def list_contracts(
     total = (await db.execute(cnt)).scalar() or 0
     sort_col = getattr(Contract, sort_by, Contract.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
-    rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    rows = (
+        (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 async def get_contract(db: AsyncSession, contract_id: int) -> Contract | None:
     result = await db.execute(
-        select(Contract).where(Contract.id == contract_id, Contract.deleted_at.is_(None))
+        select(Contract).where(
+            Contract.id == contract_id, Contract.deleted_at.is_(None)
+        )
     )
     return result.scalar_one_or_none()
 
 
 async def create_contract(db: AsyncSession, data: dict) -> Contract:
+    _parse_dates(data)
     await _apply_sales_order_customer(db, data)
     if not data.get("contract_no"):
         data["contract_no"] = await generate_doc_no(db, "CTR", Contract, "contract_no")
@@ -198,6 +314,9 @@ async def create_contract(db: AsyncSession, data: dict) -> Contract:
 
 
 async def update_contract(db: AsyncSession, contract: Contract, data: dict) -> Contract:
+    _parse_dates(data)
+    if "status" in data and data["status"] != contract.status:
+        assert_can_transition_contract(contract.status, data["status"])
     await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
@@ -216,11 +335,17 @@ async def delete_contract(db: AsyncSession, contract: Contract) -> None:
 # Sales Target CRUD
 # ============================================================
 
+
 async def list_targets(
-    db: AsyncSession, *, page: int = 1, page_size: int = 20,
-    user_id: int | None = None, status: str | None = None,
+    db: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    user_id: int | None = None,
+    status: str | None = None,
     target_type: str | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
+    sort_by: str = "id",
+    sort_order: str = "desc",
 ) -> dict:
     base = select(SalesTarget).where(SalesTarget.deleted_at.is_(None))
     cnt = select(func.count(SalesTarget.id)).where(SalesTarget.deleted_at.is_(None))
@@ -236,13 +361,19 @@ async def list_targets(
     total = (await db.execute(cnt)).scalar() or 0
     sort_col = getattr(SalesTarget, sort_by, SalesTarget.id)
     base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
-    rows = (await db.execute(base.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    rows = (
+        (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
 
 async def get_target(db: AsyncSession, target_id: int) -> SalesTarget | None:
     result = await db.execute(
-        select(SalesTarget).where(SalesTarget.id == target_id, SalesTarget.deleted_at.is_(None))
+        select(SalesTarget).where(
+            SalesTarget.id == target_id, SalesTarget.deleted_at.is_(None)
+        )
     )
     return result.scalar_one_or_none()
 
@@ -255,7 +386,9 @@ async def create_target(db: AsyncSession, data: dict) -> SalesTarget:
     return target
 
 
-async def update_target(db: AsyncSession, target: SalesTarget, data: dict) -> SalesTarget:
+async def update_target(
+    db: AsyncSession, target: SalesTarget, data: dict
+) -> SalesTarget:
     for k, v in data.items():
         if v is not None:
             setattr(target, k, v)
@@ -277,7 +410,9 @@ async def target_stats(db: AsyncSession) -> dict:
     return {
         "total_target": total_target,
         "total_actual": total_actual,
-        "achievement_pct": round(total_actual / total_target * 100, 1) if total_target > 0 else 0,
+        "achievement_pct": round(total_actual / total_target * 100, 1)
+        if total_target > 0
+        else 0,
         "count": len(rows),
         "completed": sum(1 for t in rows if t.status == "completed"),
     }
@@ -286,41 +421,17 @@ async def target_stats(db: AsyncSession) -> dict:
 # ============================================================
 # Commission CRUD + state machine
 # ============================================================
-
-COMMISSION_STATUSES = ("draft", "pending_approval", "approved", "paid", "rejected", "cancelled")
-COMMISSION_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"pending_approval", "cancelled"},
-    "pending_approval": {"approved", "rejected", "draft"},
-    "approved": {"paid", "cancelled"},
-    "paid": set(),
-    "rejected": {"draft"},
-    "cancelled": set(),
-}
-
-
-def assert_can_transition_commission(current: str, target: str) -> None:
-    """Raise InvalidStateTransition if the commission state transition is illegal."""
-    if current not in COMMISSION_STATUSES or target not in COMMISSION_STATUSES:
-        raise InvalidStateTransition(
-            f"unknown commission status: {current} → {target}",
-            current=current,
-            target=target,
-            allowed=sorted(COMMISSION_TRANSITIONS.get(current, set())),
-        )
-    allowed = COMMISSION_TRANSITIONS.get(current, set())
-    if target not in allowed:
-        raise InvalidStateTransition(
-            f"illegal commission transition: {current} → {target}",
-            current=current,
-            target=target,
-            allowed=sorted(allowed),
-        )
+# State machine definitions imported from app.domain.states
 
 
 def _compute_commission_amount(base: float, rate: float) -> float:
     """Commission = base * rate. Use Decimal internally to avoid float drift."""
-    from decimal import Decimal, ROUND_HALF_UP
-    return float(Decimal(str(base)) * Decimal(str(rate)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
+    from decimal import ROUND_HALF_UP, Decimal
+
+    return float(
+        Decimal(str(base))
+        * Decimal(str(rate)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    )
 
 
 async def list_commissions(
@@ -339,34 +450,52 @@ async def list_commissions(
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
-    items = [c.to_dict() if hasattr(c, "to_dict") else _commission_to_dict(c) for c in result.scalars().all()]
+    items = [
+        c.to_dict() if hasattr(c, "to_dict") else _commission_to_dict(c)
+        for c in result.scalars().all()
+    ]
     return {"list": items, "total": total or 0, "page": page, "page_size": page_size}
 
 
 async def get_commission(db: AsyncSession, commission_id: int) -> Commission | None:
     result = await db.execute(
-        select(Commission).where(Commission.id == commission_id, Commission.deleted_at.is_(None))
+        select(Commission).where(
+            Commission.id == commission_id, Commission.deleted_at.is_(None)
+        )
     )
     return result.scalar_one_or_none()
 
 
 async def create_commission(db: AsyncSession, data: dict) -> Commission:
     from app.models.sales import SalesOrder
+
     so = await db.scalar(
-        select(SalesOrder.customer_id).where(SalesOrder.id == data["sales_order_id"], SalesOrder.deleted_at.is_(None))
+        select(SalesOrder.customer_id).where(
+            SalesOrder.id == data["sales_order_id"], SalesOrder.deleted_at.is_(None)
+        )
     )
     if not so:
-        raise NotFoundError(f"sales_order {data['sales_order_id']} not found", entity="sales_order", id=data["sales_order_id"])
+        raise NotFoundError(
+            f"sales_order {data['sales_order_id']} not found",
+            entity="sales_order",
+            id=data["sales_order_id"],
+        )
     data["customer_id"] = so
-    data["commission_amount"] = _compute_commission_amount(data.get("base_amount", 0), data.get("rate", 0))
-    data.setdefault("commission_no", await generate_doc_no(db, "CM", Commission, "commission_no"))
+    data["commission_amount"] = _compute_commission_amount(
+        data.get("base_amount", 0), data.get("rate", 0)
+    )
+    data.setdefault(
+        "commission_no", await generate_doc_no(db, "CM", Commission, "commission_no")
+    )
     obj = Commission(**data)
     db.add(obj)
     await db.flush()
     return obj
 
 
-async def update_commission(db: AsyncSession, comm: Commission, data: dict) -> Commission:
+async def update_commission(
+    db: AsyncSession, comm: Commission, data: dict
+) -> Commission:
     if "status" in data and data["status"] != comm.status:
         assert_can_transition_commission(comm.status, data["status"])
         if data["status"] == "approved":
@@ -374,7 +503,9 @@ async def update_commission(db: AsyncSession, comm: Commission, data: dict) -> C
     for k, v in data.items():
         setattr(comm, k, v)
     if "base_amount" in data or "rate" in data:
-        comm.commission_amount = _compute_commission_amount(comm.base_amount or 0, comm.rate or 0)
+        comm.commission_amount = _compute_commission_amount(
+            comm.base_amount or 0, comm.rate or 0
+        )
     await db.flush()
     return comm
 

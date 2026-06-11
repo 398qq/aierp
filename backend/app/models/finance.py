@@ -1,6 +1,14 @@
 import datetime
 
-from sqlalchemy import DECIMAL, Boolean, CheckConstraint, DateTime, ForeignKey, String, Text
+from sqlalchemy import (
+    DECIMAL,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -12,9 +20,16 @@ class PaymentRecord(TimestampMixin, Base):
 
     sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    delivery_note_id: Mapped[int | None] = mapped_column(ForeignKey("delivery_notes.id"), nullable=True)
+    delivery_note_id: Mapped[int | None] = mapped_column(
+        ForeignKey("delivery_notes.id"), nullable=True
+    )
+    invoice_id: Mapped[int | None] = mapped_column(
+        ForeignKey("invoices.id"), nullable=True
+    )
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
-    payment_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payment_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     payment_method: Mapped[str] = mapped_column(String(30), default="bank")
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
     transaction_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -25,6 +40,7 @@ class PaymentRecord(TimestampMixin, Base):
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     customer = relationship("Customer", foreign_keys=[customer_id])
     delivery_note = relationship("DeliveryNote", foreign_keys=[delivery_note_id])
+    invoice = relationship("Invoice", foreign_keys=[invoice_id])
 
 
 class Invoice(TimestampMixin, Base):
@@ -35,17 +51,26 @@ class Invoice(TimestampMixin, Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
     tax_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
-    invoice_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invoice_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     invoice_type: Mapped[str] = mapped_column(String(20), default="普通发票")
     status: Mapped[str] = mapped_column(String(20), default="draft")
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
-    due_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     subtotal: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     customer = relationship("Customer", foreign_keys=[customer_id])
-    lines = relationship("InvoiceLine", back_populates="invoice", lazy="selectin", cascade="all, delete-orphan")
+    lines = relationship(
+        "InvoiceLine",
+        back_populates="invoice",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class SalesTarget(TimestampMixin, Base):
@@ -56,8 +81,12 @@ class SalesTarget(TimestampMixin, Base):
     target_type: Mapped[str] = mapped_column(String(20), default="monthly")
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     target_orders: Mapped[int | None] = mapped_column(nullable=True)
-    period_start: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    period_end: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    period_start: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    period_end: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     actual_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     status: Mapped[str] = mapped_column(String(20), default="active")
 
@@ -69,11 +98,17 @@ class Contract(TimestampMixin, Base):
 
     contract_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    sales_order_id: Mapped[int | None] = mapped_column(ForeignKey("sales_orders.id"), nullable=True)
+    sales_order_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sales_orders.id"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
-    signed_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    expire_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    signed_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expire_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(20), default="draft")
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
     file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -107,12 +142,17 @@ class Commission(TimestampMixin, Base):
                                   ↘ rejected → (terminal)
                                   ↘ cancelled → (terminal)
     """
+
     __tablename__ = "commissions"
 
-    commission_no: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    commission_no: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True
+    )
     sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
     sales_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id"), nullable=True
+    )
 
     base_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     rate: Mapped[float] = mapped_column(DECIMAL(8, 4), default=0)
@@ -120,9 +160,15 @@ class Commission(TimestampMixin, Base):
     paid_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
 
     status: Mapped[str] = mapped_column(String(20), default="draft")
-    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    approved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    paid_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    paid_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -142,13 +188,16 @@ class Commission(TimestampMixin, Base):
         ),
     )
 
+
 class InvoiceLine(TimestampMixin, Base):
     """Single line in an invoice — mirrors a SalesOrderItem."""
 
     __tablename__ = "invoice_lines"
 
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quantity: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)

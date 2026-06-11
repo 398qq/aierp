@@ -1,1 +1,25 @@
 Method,Name,Error,Occurrences
+GET,GET /finance/reports/pnl,CatchResponseError('GET /finance/reports/pnl -> 429'),7
+GET,GET /opportunities,CatchResponseError('GET /opportunities -> 429'),14
+GET,GET /targets/stats,CatchResponseError('GET /targets/stats -> 429'),4
+GET,GET /inventory,CatchResponseError('GET /inventory -> 429'),36
+GET,GET /quotations,CatchResponseError('GET /quotations -> 429'),9
+GET,GET /reports/predefined/sales,CatchResponseError('GET /reports/predefined/sales -> 429'),3
+GET,GET /dashboard/kpi,CatchResponseError('GET /dashboard/kpi -> 429'),7
+GET,GET /invoices,CatchResponseError('GET /invoices -> 429'),5
+GET,GET /sales-orders,CatchResponseError('GET /sales-orders -> 429'),49
+GET,GET /sales/dashboard/alerts,CatchResponseError('GET /sales/dashboard/alerts -> 429'),3
+GET,GET /payments/stats,CatchResponseError('GET /payments/stats -> 429'),6
+GET,GET /customers,CatchResponseError('GET /customers -> 429'),41
+GET,GET /customers (find id),CatchResponseError('GET /customers (find id) -> 429'),12
+GET,GET /products,CatchResponseError('GET /products -> 429'),91
+GET,GET /contracts,CatchResponseError('GET /contracts -> 429'),4
+GET,GET /reports/predefined/inventory,CatchResponseError('GET /reports/predefined/inventory -> 429'),2
+GET,GET /sales/dashboard/trends,CatchResponseError('GET /sales/dashboard/trends -> 429'),7
+GET,GET /reports/predefined/ar,CatchResponseError('GET /reports/predefined/ar -> 429'),5
+GET,GET /payments,CatchResponseError('GET /payments -> 429'),4
+GET,GET /finance/reports/ap,CatchResponseError('GET /finance/reports/ap -> 429'),5
+GET,GET /quotations/stats,CatchResponseError('GET /quotations/stats -> 429'),10
+GET,GET /users,CatchResponseError('GET /users -> 429'),16
+GET,GET /reports/predefined/procurement,CatchResponseError('GET /reports/predefined/procurement -> 429'),3
+GET,GET /sales/dashboard/overview,CatchResponseError('GET /sales/dashboard/overview -> 429'),12
