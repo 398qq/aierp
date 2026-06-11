@@ -1,0 +1,43 @@
+# Backend .dockerignore (Stage 6 Day 4)
+# Prevents large / sensitive files from being copied into Docker image.
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual env
+.venv/
+venv/
+venv312/
+ENV/
+
+# Tests (not needed in runtime image)
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Local
+.env
+.env.local
+*.log
+uploads/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Migrations data
+migrations/alembic/versions/__pycache__/

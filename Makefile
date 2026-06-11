@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-backup-remote db-backup-cron db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-backup-remote db-backup-cron db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron docker-build docker-up docker-down docker-logs docker-ps
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -240,6 +240,28 @@ ops-alert-cron: ## Show cron line to install ops-alert hourly
 	@echo "0 * * * * /home/ttdiy/aierp/scripts/ops-alert.sh >> /home/ttdiy/aierp/logs/ops-alert.log 2>&1"
 	@echo ""
 	@echo "To install: (crontab -l 2>/dev/null; cat <(echo '0 * * * * /home/ttdiy/aierp/scripts/ops-alert.sh >> /home/ttdiy/aierp/logs/ops-alert.log 2>&1')) | crontab -"
+
+# ===========================================================================
+# Docker (Stage 6 Day 4)
+# ===========================================================================
+docker-build: ## Build all Docker images (backend + frontend)
+	docker compose build
+
+docker-up: ## Start all services via docker compose (detached)
+	docker compose up -d
+	@echo ""
+	@echo "Backend:  http://localhost:8080"
+	@echo "Frontend: http://localhost:80"
+	@echo "DB:       localhost:5432 (user/pass: aierp/aierp)"
+
+docker-down: ## Stop all services
+	docker compose down
+
+docker-logs: ## Tail docker compose logs
+	docker compose logs -f --tail=100
+
+docker-ps: ## Show running containers
+	docker compose ps
 
 # ---------------------------------------------------------------------------
 # Performance baseline (Locust)
