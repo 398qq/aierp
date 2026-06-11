@@ -1,0 +1,74 @@
+# Dependabot config (Stage 12 Day 4)
+# 自动每周一检查依赖更新，PR 到 master
+# - 风险评级
+# - 自动 assign
+# - 标签
+
+version: 2
+updates:
+  # Backend Python deps (pip + requirements.txt)
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "security"
+    # 自动开 PR 但不自动 merge (等 CI + 人工 review)
+    open-pull-requests-limit: 10
+    # Group patch updates
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        update-types:
+          - "major"
+
+  # Frontend JS deps (npm + package.json)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "security"
+    open-pull-requests-limit: 10
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        update-types:
+          - "major"
+
+  # GitHub Actions itself
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    commit-message:
+      prefix: "ci(actions)"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 5
