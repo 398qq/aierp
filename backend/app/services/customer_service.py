@@ -9,6 +9,69 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.customer import Customer
 from app.services.ai.agents import EmbeddingService
+from app.services.base_crud import BaseCRUDService
+
+
+# ── Service ────────────────────────────────────────────────────────────
+
+
+class CustomerService(BaseCRUDService):
+    """Customer service.
+
+    Stage 1 refactor: this class provides a class-based entry point and
+    exposes the core read methods (``list_customers_query`` /
+    ``get_customer``) as class methods. Module-level functions below
+    remain as the canonical implementations and are also used by all
+    existing call sites; the class acts as a thin facade for new code
+    that prefers object-oriented access.
+    """
+
+    model = Customer
+
+    async def list_customers_query(
+        self,
+        db: AsyncSession,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        q: str | None = None,
+        industry: str | None = None,
+        level: str | None = None,
+        region: str | None = None,
+        source: str | None = None,
+        customer_type: str | None = None,
+        owner: str | None = None,
+        credit_level: str | None = None,
+        status: str | None = None,
+        sort_by: str = "id",
+        sort_order: str = "desc",
+    ) -> dict:
+        """Class-method wrapper around the module-level list_customers_query."""
+        return await list_customers_query(
+            db,
+            page=page,
+            page_size=page_size,
+            q=q,
+            industry=industry,
+            level=level,
+            region=region,
+            source=source,
+            customer_type=customer_type,
+            owner=owner,
+            credit_level=credit_level,
+            status=status,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+
+    async def get_customer(
+        self, db: AsyncSession, customer_id: int
+    ) -> Customer | None:
+        """Class-method wrapper around the module-level get_customer."""
+        return await get_customer(db, customer_id)
+
+
+customer_service = CustomerService()
 
 SORTABLE_COLUMNS: dict[str, any] = {
     "id": Customer.id,

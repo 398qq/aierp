@@ -57,3 +57,17 @@ class InsufficientStockError(BusinessRuleViolation):
 class ConcurrentModificationError(DomainError):
     code = "CONCURRENT_MODIFICATION"
     http_status = 409
+
+
+class ValidationError(DomainError):
+    """Input validation failure (422). Use when field-level validation fails."""
+
+    code = "VALIDATION_ERROR"
+    http_status = 422
+
+
+class ConflictError(DomainError):
+    """Conflict with current resource state (e.g. duplicate key) (409)."""
+
+    code = "CONFLICT"
+    http_status = 409
