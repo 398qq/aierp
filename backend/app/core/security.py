@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 import logging
 import uuid
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError as JWTError
 from passlib.context import CryptContext
 
 from app.config import settings
