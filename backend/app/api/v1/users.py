@@ -72,16 +72,26 @@ async def list_users(
 
     total = (await db.execute(count_base)).scalar() or 0
 
-    rows = (await db.execute(
-        base.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                base.order_by(User.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    return ok({
-        "list": [_user_row(u) for u in rows],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    })
+    return ok(
+        {
+            "list": [_user_row(u) for u in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 # --- Detail ---
@@ -91,9 +101,11 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    row = (await db.execute(
-        select(User).where(User.id == user_id, User.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    row = (
+        await db.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
 
     if not row:
         return fail("用户不存在", 404)
@@ -109,9 +121,13 @@ async def create_user(
     _user: dict = Depends(get_current_user),
 ):
     # Check duplicate username
-    existing = (await db.execute(
-        select(User).where(User.username == body.username, User.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    existing = (
+        await db.execute(
+            select(User).where(
+                User.username == body.username, User.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
 
     if existing:
         return fail("用户名已存在", 400)
@@ -122,9 +138,17 @@ async def create_user(
     await db.flush()
 
     if body.role_ids:
-        roles = (await db.execute(
-            select(Role).where(Role.id.in_(body.role_ids), Role.deleted_at.is_(None))
-        )).scalars().all()
+        roles = (
+            (
+                await db.execute(
+                    select(Role).where(
+                        Role.id.in_(body.role_ids), Role.deleted_at.is_(None)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         user.roles = roles
         await db.flush()
 
@@ -142,9 +166,11 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    row = (await db.execute(
-        select(User).where(User.id == user_id, User.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    row = (
+        await db.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
 
     if not row:
         return fail("用户不存在", 404)
@@ -156,9 +182,17 @@ async def update_user(
         row.password = hash_password(body.password)
 
     if body.role_ids is not None:
-        roles = (await db.execute(
-            select(Role).where(Role.id.in_(body.role_ids), Role.deleted_at.is_(None))
-        )).scalars().all()
+        roles = (
+            (
+                await db.execute(
+                    select(Role).where(
+                        Role.id.in_(body.role_ids), Role.deleted_at.is_(None)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         row.roles = roles
 
     await db.commit()
@@ -176,9 +210,11 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    row = (await db.execute(
-        select(User).where(User.id == user_id, User.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    row = (
+        await db.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
 
     if not row:
         return fail("用户不存在", 404)

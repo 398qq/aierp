@@ -56,12 +56,14 @@ class TestCustomers:
                 "customer_id": customer_id,
                 "status": "pending",
                 "total_amount": 12345.67,
-                "items": [{
-                    "product_name": "列表汇总产品",
-                    "quantity": 1,
-                    "unit_price": 12345.67,
-                    "total_price": 12345.67,
-                }],
+                "items": [
+                    {
+                        "product_name": "列表汇总产品",
+                        "quantity": 1,
+                        "unit_price": 12345.67,
+                        "total_price": 12345.67,
+                    }
+                ],
             },
         )
 

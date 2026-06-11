@@ -44,12 +44,16 @@ class StatusTransitionLog(TimestampMixin, Base):
     # Which aggregate
     aggregate_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     aggregate_id: Mapped[int] = mapped_column(nullable=False, index=True)
-    aggregate_no: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # e.g. order_no, invoice_no
+    aggregate_no: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )  # e.g. order_no, invoice_no
 
     # State transition
     status_before: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     status_after: Mapped[str] = mapped_column(String(20), nullable=False)
-    action: Mapped[str] = mapped_column(String(50), nullable=False)  # confirm / ship / complete / cancel / pay / issue
+    action: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # confirm / ship / complete / cancel / pay / issue
 
     # Who / when / why
     actor: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -103,5 +107,7 @@ class FieldChangeLog(TimestampMixin, Base):
 
     __table_args__ = (
         Index("ix_field_change_logs_record", "table_name", "record_id"),
-        Index("ix_field_change_logs_field_time", "table_name", "field_name", "changed_at"),
+        Index(
+            "ix_field_change_logs_field_time", "table_name", "field_name", "changed_at"
+        ),
     )

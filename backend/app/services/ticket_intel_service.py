@@ -114,7 +114,8 @@ async def suggest_ticket_response(db: AsyncSession, ticket_id: int) -> dict:
     if ticket.description:
         # Extract potential product name fragments by splitting on common delimiters
         import re
-        words = re.split(r'[,，。；;、\s\n]+', ticket.description)
+
+        words = re.split(r"[,，。；;、\s\n]+", ticket.description)
         # Filter out short words and build LIKE patterns
         meaningful = [w.strip() for w in words if len(w.strip()) >= 3]
         if meaningful:
@@ -122,6 +123,7 @@ async def suggest_ticket_response(db: AsyncSession, ticket_id: int) -> dict:
             conditions = [Product.name.ilike(f"%{w}%") for w in meaningful[:20]]
             if conditions:
                 from sqlalchemy import or_
+
                 prod_result = await db.execute(
                     select(Product.name, Product.sku, Product.category, Product.specs)
                     .where(or_(*conditions))
@@ -131,7 +133,9 @@ async def suggest_ticket_response(db: AsyncSession, ticket_id: int) -> dict:
                 if prod_rows:
                     lines = []
                     for pr in prod_rows:
-                        lines.append(f"- {pr[0]} (SKU: {pr[1] or 'N/A'}, 分类: {pr[2] or 'N/A'}, 规格: {pr[3] or 'N/A'})")
+                        lines.append(
+                            f"- {pr[0]} (SKU: {pr[1] or 'N/A'}, 分类: {pr[2] or 'N/A'}, 规格: {pr[3] or 'N/A'})"
+                        )
                     product_info = "\n".join(lines)
 
     # Find similar resolved tickets (same category, has resolution)
@@ -260,7 +264,10 @@ async def predict_ticket_resolution(db: AsyncSession, ticket_id: int) -> dict:
         result = await ai_client.chat_structured(
             [
                 {"role": "system", "content": "你是一个IT服务管理专家。"},
-                {"role": "user", "content": ticket_resolution_prediction_prompt(ticket_data)},
+                {
+                    "role": "user",
+                    "content": ticket_resolution_prediction_prompt(ticket_data),
+                },
             ],
             schema,
         )
@@ -341,7 +348,9 @@ async def cluster_tickets(db: AsyncSession) -> dict:
         )
     )
     avg_res_val = avg_res_result.scalar()
-    avg_resolution_hours = str(round(float(avg_res_val), 1)) if avg_res_val is not None else "无数据"
+    avg_resolution_hours = (
+        str(round(float(avg_res_val), 1)) if avg_res_val is not None else "无数据"
+    )
 
     # Hotspot customers (top 5 by ticket count)
     hot_cust_result = await db.execute(
@@ -357,7 +366,11 @@ async def cluster_tickets(db: AsyncSession) -> dict:
         .limit(5)
     )
     hotspot_customers = [
-        {"customer_id": row[0], "customer_name": row[1] or "未知", "ticket_count": row[2]}
+        {
+            "customer_id": row[0],
+            "customer_name": row[1] or "未知",
+            "ticket_count": row[2],
+        }
         for row in hot_cust_result.all()
     ]
 
@@ -380,7 +393,11 @@ async def cluster_tickets(db: AsyncSession) -> dict:
         for pid, pname in all_products:
             if pname and pname in combined:
                 if pid not in product_mention_count:
-                    product_mention_count[pid] = {"product_id": pid, "product_name": pname, "ticket_count": 0}
+                    product_mention_count[pid] = {
+                        "product_id": pid,
+                        "product_name": pname,
+                        "ticket_count": 0,
+                    }
                 product_mention_count[pid]["ticket_count"] += 1
 
     hotspot_products = sorted(

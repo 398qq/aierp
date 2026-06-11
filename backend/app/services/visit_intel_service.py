@@ -77,7 +77,10 @@ async def generate_visit_report(db: AsyncSession, visit_id: int) -> dict:
     }
 
     messages = [
-        {"role": "system", "content": "你是一个销售拜访分析专家。分析拜访记录，生成结构化报告并提供可执行建议。"},
+        {
+            "role": "system",
+            "content": "你是一个销售拜访分析专家。分析拜访记录，生成结构化报告并提供可执行建议。",
+        },
         {"role": "user", "content": visit_report_prompt(visit_data)},
     ]
 
@@ -177,10 +180,12 @@ async def analyze_visit_sentiment(db: AsyncSession, visit_id: int) -> dict:
         .limit(5)
     )
     history_rows = history_result.all()
-    visit_history = "\n".join(
-        f"- [{h[0]}] {h[1] or '未知类型'}: {h[3] or '无结果'}"
-        for h in history_rows
-    ) or "无历史拜访"
+    visit_history = (
+        "\n".join(
+            f"- [{h[0]}] {h[1] or '未知类型'}: {h[3] or '无结果'}" for h in history_rows
+        )
+        or "无历史拜访"
+    )
 
     # Purchase trend: orders in last 180 days
     since = datetime.now(timezone.utc) - timedelta(days=180)
@@ -188,8 +193,7 @@ async def analyze_visit_sentiment(db: AsyncSession, visit_id: int) -> dict:
         select(
             func.count(SalesOrder.id),
             func.coalesce(func.sum(SalesOrder.total_amount), 0),
-        )
-        .where(
+        ).where(
             SalesOrder.customer_id == customer_id,
             SalesOrder.created_at >= since,
             SalesOrder.deleted_at.is_(None),
@@ -200,7 +204,8 @@ async def analyze_visit_sentiment(db: AsyncSession, visit_id: int) -> dict:
     order_total = float(order_row[1])
     purchase_trend = (
         f"近180天共{order_count}笔订单，总额{order_total:,.2f}元"
-        if order_count else "近180天无订单"
+        if order_count
+        else "近180天无订单"
     )
 
     visit_data = {
@@ -214,7 +219,10 @@ async def analyze_visit_sentiment(db: AsyncSession, visit_id: int) -> dict:
     }
 
     messages = [
-        {"role": "system", "content": "你是一个客户交互分析师。通过分析拜访记录、历史互动和采购趋势评估客户情感和关系健康度。"},
+        {
+            "role": "system",
+            "content": "你是一个客户交互分析师。通过分析拜访记录、历史互动和采购趋势评估客户情感和关系健康度。",
+        },
         {"role": "user", "content": visit_sentiment_prompt(visit_data)},
     ]
 
@@ -264,8 +272,9 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
 
     # 1. Total visits
     total_result = await db.execute(
-        select(func.count(Visit.id))
-        .where(Visit.visit_date >= thirty_days_ago, Visit.deleted_at.is_(None))
+        select(func.count(Visit.id)).where(
+            Visit.visit_date >= thirty_days_ago, Visit.deleted_at.is_(None)
+        )
     )
     total_visits = total_result.scalar() or 0
 
@@ -285,15 +294,17 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
 
     # 3. Distinct customers visited
     visited_customers_result = await db.execute(
-        select(func.count(func.distinct(Visit.customer_id)))
-        .where(Visit.visit_date >= thirty_days_ago, Visit.deleted_at.is_(None))
+        select(func.count(func.distinct(Visit.customer_id))).where(
+            Visit.visit_date >= thirty_days_ago, Visit.deleted_at.is_(None)
+        )
     )
     visited_customers = visited_customers_result.scalar() or 0
 
     # 4. High-value customer coverage (level A or B)
     high_value_total_result = await db.execute(
-        select(func.count(Customer.id))
-        .where(Customer.level.in_(["A", "B"]), Customer.deleted_at.is_(None))
+        select(func.count(Customer.id)).where(
+            Customer.level.in_(["A", "B"]), Customer.deleted_at.is_(None)
+        )
     )
     high_value_total = high_value_total_result.scalar() or 0
 
@@ -313,12 +324,13 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
         )
     )
     high_value_visited = high_value_visited_result.scalar() or 0
-    high_value_coverage = round(high_value_visited / high_value_total * 100, 1) if high_value_total else 0
+    high_value_coverage = (
+        round(high_value_visited / high_value_total * 100, 1) if high_value_total else 0
+    )
 
     # 5. Unvisited customers (no visit in past 30 days)
     unvisited_result = await db.execute(
-        select(func.count(Customer.id))
-        .where(
+        select(func.count(Customer.id)).where(
             Customer.deleted_at.is_(None),
             Customer.id.notin_(
                 select(Visit.customer_id).where(
@@ -332,8 +344,7 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
 
     # 6. Opportunities created within 7 days after a visit
     opp_after_visit_result = await db.execute(
-        select(func.count(Opportunity.id))
-        .where(
+        select(func.count(Opportunity.id)).where(
             Opportunity.deleted_at.is_(None),
             Opportunity.id.in_(
                 select(Opportunity.id)
@@ -342,24 +353,27 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
                     Visit.visit_date >= thirty_days_ago,
                     Visit.deleted_at.is_(None),
                     Opportunity.created_at > Visit.visit_date,
-                    Opportunity.created_at <= Visit.visit_date + text("interval '7 days'"),
+                    Opportunity.created_at
+                    <= Visit.visit_date + text("interval '7 days'"),
                 )
             ),
         )
     )
     new_opps_after_visit = opp_after_visit_result.scalar() or 0
 
-    opp_conversion_rate = round(new_opps_after_visit / total_visits * 100, 1) if total_visits else 0
+    opp_conversion_rate = (
+        round(new_opps_after_visit / total_visits * 100, 1) if total_visits else 0
+    )
 
     # 7. Revenue from visited customers (sales orders in last 30 days)
     revenue_result = await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
-        .where(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
             SalesOrder.created_at >= thirty_days_ago,
             SalesOrder.deleted_at.is_(None),
             SalesOrder.customer_id.in_(
-                select(func.distinct(Visit.customer_id))
-                .where(Visit.visit_date >= thirty_days_ago, Visit.deleted_at.is_(None))
+                select(func.distinct(Visit.customer_id)).where(
+                    Visit.visit_date >= thirty_days_ago, Visit.deleted_at.is_(None)
+                )
             ),
         )
     )
@@ -368,7 +382,8 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
     # 8. Average visit interval (days between visits per customer)
     avg_visit_interval = (
         round(30 / (total_visits / visited_customers), 1)
-        if visited_customers and total_visits else 30
+        if visited_customers and total_visits
+        else 30
     )
 
     summary_data = {
@@ -385,14 +400,19 @@ async def evaluate_visit_effectiveness(db: AsyncSession) -> dict:
     }
 
     messages = [
-        {"role": "system", "content": "你是一个销售效率分析专家。分析销售团队拜访数据，评估效率、覆盖面和产出，给出优化建议。"},
+        {
+            "role": "system",
+            "content": "你是一个销售效率分析专家。分析销售团队拜访数据，评估效率、覆盖面和产出，给出优化建议。",
+        },
         {"role": "user", "content": visit_effectiveness_prompt(summary_data)},
     ]
 
     try:
         ai_result = await ai_client.chat_structured(messages, output_schema)
     except ValueError as e:
-        logging.getLogger(__name__).warning(f"evaluate_visit_effectiveness AI failed: {e}")
+        logging.getLogger(__name__).warning(
+            f"evaluate_visit_effectiveness AI failed: {e}"
+        )
         ai_result = {
             "effectiveness_score": 50,
             "coverage_assessment": "AI分析暂时不可用",

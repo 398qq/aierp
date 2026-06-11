@@ -1,4 +1,5 @@
 """Inventory AI endpoints."""
+
 import logging
 
 from fastapi import APIRouter, Depends, Query

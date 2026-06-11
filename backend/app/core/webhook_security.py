@@ -111,7 +111,8 @@ async def require_webhook_signature(
         logger.error(
             "Webhook source '%s' has no secret configured "
             "(set WEBHOOK_SECRET_%s env var)",
-            source, source.upper(),
+            source,
+            source.upper(),
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -119,10 +120,13 @@ async def require_webhook_signature(
         )
 
     body = await request.body()
-    if not verify_signature(secret, x_aierp_signature or "", x_aierp_timestamp or "", body):
+    if not verify_signature(
+        secret, x_aierp_signature or "", x_aierp_timestamp or "", body
+    ):
         logger.warning(
             "Webhook signature verification failed for source=%s ip=%s",
-            source, request.client.host if request.client else "unknown",
+            source,
+            request.client.host if request.client else "unknown",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -37,7 +37,9 @@ def _reset_metrics():
     _l1_epochs.clear()
 
 
-async def _seed_sales_order(async_client: AsyncClient, auth_headers: dict, customer_id: int) -> int:
+async def _seed_sales_order(
+    async_client: AsyncClient, auth_headers: dict, customer_id: int
+) -> int:
     """Helper: create a sales order to satisfy FK requirements for invoices/payments."""
     resp = await async_client.post(
         "/api/v1/sales-orders",
@@ -46,7 +48,14 @@ async def _seed_sales_order(async_client: AsyncClient, auth_headers: dict, custo
             "customer_id": customer_id,
             "status": "pending",
             "total_amount": 5000,
-            "items": [{"product_name": "Test Item", "quantity": 1, "unit_price": 5000, "total_price": 5000}],
+            "items": [
+                {
+                    "product_name": "Test Item",
+                    "quantity": 1,
+                    "unit_price": 5000,
+                    "total_price": 5000,
+                }
+            ],
         },
     )
     assert resp.status_code in (200, 201), resp.text
@@ -105,25 +114,37 @@ class TestFinanceListCache:
     async def test_payments_list_miss_then_hit(
         self, async_client: AsyncClient, auth_headers: dict
     ):
-        r1 = await async_client.get("/api/v1/payments?page=1&page_size=20", headers=auth_headers)
+        r1 = await async_client.get(
+            "/api/v1/payments?page=1&page_size=20", headers=auth_headers
+        )
         assert r1.headers.get("X-Cache") == "MISS"
-        r2 = await async_client.get("/api/v1/payments?page=1&page_size=20", headers=auth_headers)
+        r2 = await async_client.get(
+            "/api/v1/payments?page=1&page_size=20", headers=auth_headers
+        )
         assert r2.headers.get("X-Cache") == "HIT"
 
     async def test_contracts_list_miss_then_hit(
         self, async_client: AsyncClient, auth_headers: dict
     ):
-        r1 = await async_client.get("/api/v1/contracts?page=1&page_size=20", headers=auth_headers)
+        r1 = await async_client.get(
+            "/api/v1/contracts?page=1&page_size=20", headers=auth_headers
+        )
         assert r1.headers.get("X-Cache") == "MISS"
-        r2 = await async_client.get("/api/v1/contracts?page=1&page_size=20", headers=auth_headers)
+        r2 = await async_client.get(
+            "/api/v1/contracts?page=1&page_size=20", headers=auth_headers
+        )
         assert r2.headers.get("X-Cache") == "HIT"
 
     async def test_targets_list_miss_then_hit(
         self, async_client: AsyncClient, auth_headers: dict
     ):
-        r1 = await async_client.get("/api/v1/targets?page=1&page_size=20", headers=auth_headers)
+        r1 = await async_client.get(
+            "/api/v1/targets?page=1&page_size=20", headers=auth_headers
+        )
         assert r1.headers.get("X-Cache") == "MISS"
-        r2 = await async_client.get("/api/v1/targets?page=1&page_size=20", headers=auth_headers)
+        r2 = await async_client.get(
+            "/api/v1/targets?page=1&page_size=20", headers=auth_headers
+        )
         assert r2.headers.get("X-Cache") == "HIT"
 
 
@@ -149,11 +170,17 @@ class TestFinanceReportsCache:
     async def test_pnl_keys_differ_by_month(
         self, async_client: AsyncClient, admin_headers: dict
     ):
-        r1 = await async_client.get("/api/v1/finance/reports/pnl?month=2026-04", headers=admin_headers)
+        r1 = await async_client.get(
+            "/api/v1/finance/reports/pnl?month=2026-04", headers=admin_headers
+        )
         assert r1.headers.get("X-Cache") == "MISS"
-        r2 = await async_client.get("/api/v1/finance/reports/pnl?month=2026-05", headers=admin_headers)
+        r2 = await async_client.get(
+            "/api/v1/finance/reports/pnl?month=2026-05", headers=admin_headers
+        )
         assert r2.headers.get("X-Cache") == "MISS"
-        r3 = await async_client.get("/api/v1/finance/reports/pnl?month=2026-04", headers=admin_headers)
+        r3 = await async_client.get(
+            "/api/v1/finance/reports/pnl?month=2026-04", headers=admin_headers
+        )
         assert r3.headers.get("X-Cache") == "HIT"
 
     async def test_ap_report_miss_then_hit(
@@ -176,7 +203,9 @@ class TestFinanceWritePathInvalidation:
         cached = await async_client.get("/api/v1/payments/stats", headers=auth_headers)
         assert cached.headers.get("X-Cache") == "HIT"
 
-        order_id = await _seed_sales_order(async_client, auth_headers, test_customer["id"])
+        order_id = await _seed_sales_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         resp = await async_client.post(
             "/api/v1/payments",
             headers=auth_headers,
@@ -195,11 +224,17 @@ class TestFinanceWritePathInvalidation:
     async def test_invoice_create_invalidates_invoices_list(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
-        await async_client.get("/api/v1/invoices?page=1&page_size=20", headers=auth_headers)
-        cached = await async_client.get("/api/v1/invoices?page=1&page_size=20", headers=auth_headers)
+        await async_client.get(
+            "/api/v1/invoices?page=1&page_size=20", headers=auth_headers
+        )
+        cached = await async_client.get(
+            "/api/v1/invoices?page=1&page_size=20", headers=auth_headers
+        )
         assert cached.headers.get("X-Cache") == "HIT"
 
-        order_id = await _seed_sales_order(async_client, auth_headers, test_customer["id"])
+        order_id = await _seed_sales_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         resp = await async_client.post(
             "/api/v1/invoices",
             headers=auth_headers,
@@ -212,7 +247,9 @@ class TestFinanceWritePathInvalidation:
         )
         assert resp.status_code == 200, resp.text
 
-        after = await async_client.get("/api/v1/invoices?page=1&page_size=20", headers=auth_headers)
+        after = await async_client.get(
+            "/api/v1/invoices?page=1&page_size=20", headers=auth_headers
+        )
         assert after.headers.get("X-Cache") == "MISS"
 
 
@@ -247,19 +284,27 @@ class TestReportsPredefinedCache:
     async def test_predefined_ar_miss_then_hit(
         self, async_client: AsyncClient, admin_headers: dict
     ):
-        r1 = await async_client.get("/api/v1/reports/predefined/ar", headers=admin_headers)
+        r1 = await async_client.get(
+            "/api/v1/reports/predefined/ar", headers=admin_headers
+        )
         assert r1.status_code == 200, r1.text
         assert r1.headers.get("X-Cache") == "MISS"
-        r2 = await async_client.get("/api/v1/reports/predefined/ar", headers=admin_headers)
+        r2 = await async_client.get(
+            "/api/v1/reports/predefined/ar", headers=admin_headers
+        )
         assert r2.headers.get("X-Cache") == "HIT"
 
     async def test_predefined_inventory_miss_then_hit(
         self, async_client: AsyncClient, admin_headers: dict
     ):
-        r1 = await async_client.get("/api/v1/reports/predefined/inventory", headers=admin_headers)
+        r1 = await async_client.get(
+            "/api/v1/reports/predefined/inventory", headers=admin_headers
+        )
         assert r1.status_code == 200, r1.text
         assert r1.headers.get("X-Cache") == "MISS"
-        r2 = await async_client.get("/api/v1/reports/predefined/inventory", headers=admin_headers)
+        r2 = await async_client.get(
+            "/api/v1/reports/predefined/inventory", headers=admin_headers
+        )
         assert r2.headers.get("X-Cache") == "HIT"
 
     async def test_predefined_procurement_miss_then_hit(
@@ -290,17 +335,26 @@ class TestReportsTemplatesCache:
         self, async_client: AsyncClient, admin_headers: dict
     ):
         await async_client.get("/api/v1/reports/templates", headers=admin_headers)
-        cached = await async_client.get("/api/v1/reports/templates", headers=admin_headers)
+        cached = await async_client.get(
+            "/api/v1/reports/templates", headers=admin_headers
+        )
         assert cached.headers.get("X-Cache") == "HIT"
 
         resp = await async_client.post(
             "/api/v1/reports/templates",
             headers=admin_headers,
-            json={"name": "Test Template", "type": "sales", "config": {}, "is_public": False},
+            json={
+                "name": "Test Template",
+                "type": "sales",
+                "config": {},
+                "is_public": False,
+            },
         )
         assert resp.status_code == 201, resp.text
 
-        after = await async_client.get("/api/v1/reports/templates", headers=admin_headers)
+        after = await async_client.get(
+            "/api/v1/reports/templates", headers=admin_headers
+        )
         assert after.headers.get("X-Cache") == "MISS"
 
 
@@ -359,7 +413,9 @@ class TestCacheMetricsIncrement:
         await async_client.get("/api/v1/payments/stats", headers=auth_headers)
         before_epoch = _l1_epochs.get("payments:stats", 0)
 
-        order_id = await _seed_sales_order(async_client, auth_headers, test_customer["id"])
+        order_id = await _seed_sales_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         await async_client.post(
             "/api/v1/payments",
             headers=auth_headers,

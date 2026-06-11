@@ -1,4 +1,5 @@
 """Tests for RBAC permission enforcement (core/permissions.py)."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,7 +14,9 @@ class TestRequirePerm:
         db = MagicMock()
         db.scalar = AsyncMock(return_value=True)
 
-        result = await _check_perm_db(db, user_id=1, resource="customers", action="write")
+        result = await _check_perm_db(
+            db, user_id=1, resource="customers", action="write"
+        )
         assert result is True
 
     @pytest.mark.unit
@@ -40,13 +43,20 @@ class TestRequirePerm:
         """The checker dependency should allow admin users."""
         from app.core.permissions import require_perm
 
-        with patch("app.services.cache_service.cache_get", new=AsyncMock(return_value=None)):
-            with patch("app.services.cache_service.cache_set", new=AsyncMock(return_value=None)):
+        with patch(
+            "app.services.cache_service.cache_get", new=AsyncMock(return_value=None)
+        ):
+            with patch(
+                "app.services.cache_service.cache_set", new=AsyncMock(return_value=None)
+            ):
                 checker = require_perm("system", "write")
                 # Build inner function
-                inner = checker.__wrapped__ if hasattr(checker, '__wrapped__') else checker
+                inner = (
+                    checker.__wrapped__ if hasattr(checker, "__wrapped__") else checker
+                )
                 # Just verify it's a coroutine function
                 import inspect
+
                 assert inspect.iscoroutinefunction(inner)
 
     @pytest.mark.unit
@@ -60,6 +70,7 @@ class TestRequirePerm:
         with patch("app.services.cache_service.cache_get", new=mock_cache_get):
             with patch("app.services.cache_service.cache_set", new=AsyncMock()):
                 from app.core.permissions import require_perm
+
                 checker = require_perm("customers", "read")
 
                 # Mock dependencies
@@ -68,7 +79,9 @@ class TestRequirePerm:
                 db = MagicMock()
                 db.scalar = AsyncMock()  # Should not be called
 
-                result = await checker(request=request, current_user=current_user, db=db)
+                result = await checker(
+                    request=request, current_user=current_user, db=db
+                )
 
                 assert result == current_user
                 mock_cache_get.assert_called_once()
@@ -86,8 +99,14 @@ class TestWriteAuditLog:
         db.add = MagicMock()
         db.commit = AsyncMock()
 
-        await write_audit_log(db, user_id=1, username="test", action="create",
-                              resource_type="role", resource_id=1)
+        await write_audit_log(
+            db,
+            user_id=1,
+            username="test",
+            action="create",
+            resource_type="role",
+            resource_id=1,
+        )
 
         db.add.assert_called_once()
         db.commit.assert_called_once()  # Must commit, not flush
@@ -103,8 +122,14 @@ class TestWriteAuditLog:
         db.commit = AsyncMock()
 
         # Should not raise
-        await write_audit_log(db, user_id=1, username="test", action="create",
-                              resource_type="role", resource_id=1)
+        await write_audit_log(
+            db,
+            user_id=1,
+            username="test",
+            action="create",
+            resource_type="role",
+            resource_id=1,
+        )
 
     @pytest.mark.unit
     async def test_audit_log_truncates_long_fields(self):
@@ -119,9 +144,16 @@ class TestWriteAuditLog:
         long_summary = "x" * 1000
         long_ip = "y" * 100
 
-        await write_audit_log(db, user_id=1, username="test", action="create",
-                              resource_type="role", resource_id=1,
-                              summary=long_summary, ip_address=long_ip)
+        await write_audit_log(
+            db,
+            user_id=1,
+            username="test",
+            action="create",
+            resource_type="role",
+            resource_id=1,
+            summary=long_summary,
+            ip_address=long_ip,
+        )
 
         # Check that the AuditLog was created with truncated values
         call_args = db.add.call_args[0][0]
@@ -133,6 +165,7 @@ class TestResources:
     @pytest.mark.unit
     def test_resources_dict_has_all_modules(self):
         from app.core.permissions import RESOURCES
+
         assert "customers" in RESOURCES
         assert "products" in RESOURCES
         assert "sales" in RESOURCES

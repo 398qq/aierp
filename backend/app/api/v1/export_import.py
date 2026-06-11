@@ -18,11 +18,23 @@ from app.models.product import Brand, Product, Supplier
 from app.models.sales import Quotation, SalesOrder
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import fail, ok
-from app.services.customer_service import customer_name_conflict_message, find_name_conflict
+from app.services.customer_service import (
+    customer_name_conflict_message,
+    find_name_conflict,
+)
 
 router = APIRouter(tags=["import-export"])
 
-EXPORT_ENTITIES = ["customers", "products", "suppliers", "brands", "purchase_orders", "sales_orders", "quotations", "contracts"]
+EXPORT_ENTITIES = [
+    "customers",
+    "products",
+    "suppliers",
+    "brands",
+    "purchase_orders",
+    "sales_orders",
+    "quotations",
+    "contracts",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -43,23 +55,78 @@ async def export_entity(
             select(Customer).where(Customer.deleted_at.is_(None)).order_by(Customer.id)
         )
         rows = result.scalars().all()
-        headers = ["id", "name", "code", "phone", "email", "industry", "level", "source", "notes"]
-        data = [[r.id, r.name, r.code, r.phone, r.email, r.industry, r.level, r.source, r.notes] for r in rows]
+        headers = [
+            "id",
+            "name",
+            "code",
+            "phone",
+            "email",
+            "industry",
+            "level",
+            "source",
+            "notes",
+        ]
+        data = [
+            [
+                r.id,
+                r.name,
+                r.code,
+                r.phone,
+                r.email,
+                r.industry,
+                r.level,
+                r.source,
+                r.notes,
+            ]
+            for r in rows
+        ]
     elif entity == "products":
         result = await db.execute(
             select(Product).where(Product.deleted_at.is_(None)).order_by(Product.id)
         )
         rows = result.scalars().all()
-        headers = ["id", "name", "sku", "category", "brand_id", "cost_price", "selling_price", "unit"]
-        data = [[r.id, r.name, r.sku, r.category, r.brand_id, float(r.cost_price),
-                 float(r.selling_price), r.unit] for r in rows]
+        headers = [
+            "id",
+            "name",
+            "sku",
+            "category",
+            "brand_id",
+            "cost_price",
+            "selling_price",
+            "unit",
+        ]
+        data = [
+            [
+                r.id,
+                r.name,
+                r.sku,
+                r.category,
+                r.brand_id,
+                float(r.cost_price),
+                float(r.selling_price),
+                r.unit,
+            ]
+            for r in rows
+        ]
     elif entity == "suppliers":
         result = await db.execute(
             select(Supplier).where(Supplier.deleted_at.is_(None)).order_by(Supplier.id)
         )
         rows = result.scalars().all()
-        headers = ["id", "name", "code", "contact", "phone", "email", "address", "level"]
-        data = [[r.id, r.name, r.code, r.contact, r.phone, r.email, r.address, r.level] for r in rows]
+        headers = [
+            "id",
+            "name",
+            "code",
+            "contact",
+            "phone",
+            "email",
+            "address",
+            "level",
+        ]
+        data = [
+            [r.id, r.name, r.code, r.contact, r.phone, r.email, r.address, r.level]
+            for r in rows
+        ]
     elif entity == "brands":
         result = await db.execute(
             select(Brand).where(Brand.deleted_at.is_(None)).order_by(Brand.id)
@@ -69,34 +136,107 @@ async def export_entity(
         data = [[r.id, r.name, r.description] for r in rows]
     elif entity == "purchase_orders":
         result = await db.execute(
-            select(PurchaseOrder).where(PurchaseOrder.deleted_at.is_(None)).order_by(PurchaseOrder.id)
+            select(PurchaseOrder)
+            .where(PurchaseOrder.deleted_at.is_(None))
+            .order_by(PurchaseOrder.id)
         )
         rows = result.scalars().all()
-        headers = ["id", "order_no", "supplier_id", "total_amount", "status", "created_at"]
-        data = [[r.id, r.order_no, r.supplier_id, float(r.total_amount), r.status, str(r.created_at)] for r in rows]
+        headers = [
+            "id",
+            "order_no",
+            "supplier_id",
+            "total_amount",
+            "status",
+            "created_at",
+        ]
+        data = [
+            [
+                r.id,
+                r.order_no,
+                r.supplier_id,
+                float(r.total_amount),
+                r.status,
+                str(r.created_at),
+            ]
+            for r in rows
+        ]
     elif entity == "sales_orders":
         result = await db.execute(
-            select(SalesOrder).where(SalesOrder.deleted_at.is_(None)).order_by(SalesOrder.id)
+            select(SalesOrder)
+            .where(SalesOrder.deleted_at.is_(None))
+            .order_by(SalesOrder.id)
         )
         rows = result.scalars().all()
-        headers = ["id", "order_no", "customer_id", "total_amount", "status", "created_at"]
-        data = [[r.id, r.order_no, r.customer_id, float(r.total_amount), r.status, str(r.created_at)] for r in rows]
+        headers = [
+            "id",
+            "order_no",
+            "customer_id",
+            "total_amount",
+            "status",
+            "created_at",
+        ]
+        data = [
+            [
+                r.id,
+                r.order_no,
+                r.customer_id,
+                float(r.total_amount),
+                r.status,
+                str(r.created_at),
+            ]
+            for r in rows
+        ]
     elif entity == "contracts":
         result = await db.execute(
             select(Contract).where(Contract.deleted_at.is_(None)).order_by(Contract.id)
         )
         rows = result.scalars().all()
-        headers = ["id", "contract_no", "title", "customer_id", "sales_order_id", "amount", "signed_date", "expire_date", "status", "notes"]
-        data = [[r.id, r.contract_no, r.title, r.customer_id, r.sales_order_id, float(r.amount),
-                 str(r.signed_date) if r.signed_date else "", str(r.expire_date) if r.expire_date else "",
-                 r.status, r.notes or ""] for r in rows]
+        headers = [
+            "id",
+            "contract_no",
+            "title",
+            "customer_id",
+            "sales_order_id",
+            "amount",
+            "signed_date",
+            "expire_date",
+            "status",
+            "notes",
+        ]
+        data = [
+            [
+                r.id,
+                r.contract_no,
+                r.title,
+                r.customer_id,
+                r.sales_order_id,
+                float(r.amount),
+                str(r.signed_date) if r.signed_date else "",
+                str(r.expire_date) if r.expire_date else "",
+                r.status,
+                r.notes or "",
+            ]
+            for r in rows
+        ]
     else:
         result = await db.execute(
-            select(Quotation).where(Quotation.deleted_at.is_(None)).order_by(Quotation.id)
+            select(Quotation)
+            .where(Quotation.deleted_at.is_(None))
+            .order_by(Quotation.id)
         )
         rows = result.scalars().all()
         headers = ["id", "title", "customer_id", "total_amount", "status", "created_at"]
-        data = [[r.id, r.title, r.customer_id, float(r.total_amount), r.status, str(r.created_at)] for r in rows]
+        data = [
+            [
+                r.id,
+                r.title,
+                r.customer_id,
+                float(r.total_amount),
+                r.status,
+                str(r.created_at),
+            ]
+            for r in rows
+        ]
 
     if format == "xlsx":
         wb = openpyxl.Workbook()
@@ -110,7 +250,9 @@ async def export_entity(
         return StreamingResponse(
             buf,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={entity}_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"},
+            headers={
+                "Content-Disposition": f"attachment; filename={entity}_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
+            },
         )
     else:
         out = io.StringIO()
@@ -121,7 +263,9 @@ async def export_entity(
         return StreamingResponse(
             io.BytesIO(out.getvalue().encode("utf-8-sig")),
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={entity}_{datetime.datetime.now().strftime('%Y%m%d')}.csv"},
+            headers={
+                "Content-Disposition": f"attachment; filename={entity}_{datetime.datetime.now().strftime('%Y%m%d')}.csv"
+            },
         )
 
 
@@ -163,7 +307,10 @@ async def import_entity(
         if not row or all(v is None or str(v).strip() == "" for v in row):
             continue
         try:
-            row_dict = {str(headers[j]): str(row[j]) if j < len(row) else "" for j in range(len(headers))}
+            row_dict = {
+                str(headers[j]): str(row[j]) if j < len(row) else ""
+                for j in range(len(headers))
+            }
 
             if entity == "customers":
                 name = row_dict.get("name", row_dict.get("名称", ""))
@@ -184,7 +331,9 @@ async def import_entity(
                 db.add(c)
             elif entity == "products":
                 # Brand name → brand_id mapping
-                brand_name_raw = (row_dict.get("brand") or row_dict.get("品牌") or "").strip()
+                brand_name_raw = (
+                    row_dict.get("brand") or row_dict.get("品牌") or ""
+                ).strip()
                 brand_id_val: int | None = None
                 if brand_name_raw:
                     # Load all brands once for this import batch
@@ -202,7 +351,9 @@ async def import_entity(
                         }
                     cache = import_entity._brand_cache  # type: ignore
                     cn_cache = import_entity._brand_cn_cache  # type: ignore
-                    brand_id_val = cache.get(brand_name_raw.lower()) or cn_cache.get(brand_name_raw.lower())
+                    brand_id_val = cache.get(brand_name_raw.lower()) or cn_cache.get(
+                        brand_name_raw.lower()
+                    )
 
                 p = Product(
                     name=row_dict.get("name", row_dict.get("名称", "")),
@@ -233,10 +384,16 @@ async def import_entity(
                     contract_no=row_dict.get("contract_no", row_dict.get("合同号", "")),
                     title=row_dict.get("title", row_dict.get("标题", "")),
                     customer_id=int(row_dict.get("customer_id", 0)),
-                    sales_order_id=int(row_dict.get("sales_order_id")) if row_dict.get("sales_order_id") else None,
+                    sales_order_id=int(row_dict.get("sales_order_id"))
+                    if row_dict.get("sales_order_id")
+                    else None,
                     amount=float(row_dict.get("amount", row_dict.get("金额", 0))),
-                    signed_date=datetime.date.fromisoformat(signed_str) if signed_str else None,
-                    expire_date=datetime.date.fromisoformat(expire_str) if expire_str else None,
+                    signed_date=datetime.date.fromisoformat(signed_str)
+                    if signed_str
+                    else None,
+                    expire_date=datetime.date.fromisoformat(expire_str)
+                    if expire_str
+                    else None,
                     status=row_dict.get("status", row_dict.get("状态", "draft")),
                     notes=row_dict.get("notes", row_dict.get("备注", "")),
                 )
@@ -246,6 +403,10 @@ async def import_entity(
             errors.append(f"行 {i + 2}: {str(e)}")
 
     await db.commit()
-    return ok({
-        "created": created, "errors": errors, "total_rows": i + 1 if 'i' in dir() else 0,
-    })
+    return ok(
+        {
+            "created": created,
+            "errors": errors,
+            "total_rows": i + 1 if "i" in dir() else 0,
+        }
+    )

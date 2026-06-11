@@ -5,6 +5,7 @@ These replace the loose module-level sets in the legacy
 Pydantic validators, DB CHECK constraints) can share a single source of
 truth.
 """
+
 from __future__ import annotations
 
 from enum import Enum

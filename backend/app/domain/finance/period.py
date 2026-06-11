@@ -22,9 +22,9 @@ from app.domain.shared.errors import BusinessRuleViolation
 
 class PeriodStatus(str, Enum):
     OPEN = "open"
-    CLOSING = "closing"     # In-progress close (rarely used, for multi-step workflows)
+    CLOSING = "closing"  # In-progress close (rarely used, for multi-step workflows)
     CLOSED = "closed"
-    REOPENED = "reopened"   # Admin override — tracked in audit log
+    REOPENED = "reopened"  # Admin override — tracked in audit log
 
 
 @dataclass
@@ -67,6 +67,7 @@ class AccountingPeriod:
         # Last day of month = day before next month's first day
         next_month_first = date_type(self.year, self.month + 1, 1)
         from datetime import timedelta
+
         return next_month_first - timedelta(days=1)
 
     @property
@@ -91,9 +92,7 @@ class AccountingPeriod:
         if self.status == PeriodStatus.CLOSED:
             raise BusinessRuleViolation(f"会计期间 {self.period_key} 已结账")
         if self.status == PeriodStatus.CLOSING:
-            raise BusinessRuleViolation(
-                f"会计期间 {self.period_key} 正在结账中"
-            )
+            raise BusinessRuleViolation(f"会计期间 {self.period_key} 正在结账中")
         if self.status == PeriodStatus.REOPENED:
             raise BusinessRuleViolation(
                 f"会计期间 {self.period_key} 已重开，需先调用 reopen() 才能再次结账"
@@ -104,12 +103,15 @@ class AccountingPeriod:
         self.closed_by = user_id
 
         from app.domain.finance.events import PeriodClosed
-        self._events.append(PeriodClosed(
-            aggregate_id=self.id or 0,
-            aggregate_type="AccountingPeriod",
-            period_key=self.period_key,
-            closed_by=user_id,
-        ))
+
+        self._events.append(
+            PeriodClosed(
+                aggregate_id=self.id or 0,
+                aggregate_type="AccountingPeriod",
+                period_key=self.period_key,
+                closed_by=user_id,
+            )
+        )
 
     def reopen(self, user_id: int, reason: str) -> None:
         """Admin override: re-open a closed period for corrections.
@@ -125,15 +127,18 @@ class AccountingPeriod:
             raise BusinessRuleViolation("重开原因必填")
 
         from app.domain.finance.events import PeriodReopened
+
         self.status = PeriodStatus.REOPENED
         self.reopen_reason = reason
-        self._events.append(PeriodReopened(
-            aggregate_id=self.id or 0,
-            aggregate_type="AccountingPeriod",
-            period_key=self.period_key,
-            reopened_by=user_id,
-            reason=reason,
-        ))
+        self._events.append(
+            PeriodReopened(
+                aggregate_id=self.id or 0,
+                aggregate_type="AccountingPeriod",
+                period_key=self.period_key,
+                reopened_by=user_id,
+                reason=reason,
+            )
+        )
 
     def collect_events(self) -> list:
         events = self._events[:]

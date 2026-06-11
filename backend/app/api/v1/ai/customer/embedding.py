@@ -12,6 +12,7 @@ Route order is significant: literal ``/customer/embed-all`` and
 ``/customer/segments`` must register after the ``/customer/{id}`` routes
 to avoid FastAPI capturing the path-param form first.
 """
+
 from __future__ import annotations
 
 import logging
@@ -41,17 +42,21 @@ async def embed_customer(
     from app.models.customer import Customer
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
         return fail("Customer not found", 404)
 
-    embedding = await EmbeddingService.embed_customer({
-        "name": customer.name,
-        "industry": customer.industry or "",
-        "notes": customer.notes or "",
-    })
+    embedding = await EmbeddingService.embed_customer(
+        {
+            "name": customer.name,
+            "industry": customer.industry or "",
+            "notes": customer.notes or "",
+        }
+    )
     customer.embedding = embedding
     await db.commit()
     return ok({"customer_id": customer_id, "dimensions": len(embedding)})
@@ -68,7 +73,9 @@ async def similar_customers(
     from app.models.customer import Customer
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
@@ -76,7 +83,9 @@ async def similar_customers(
     if customer.embedding is None:
         return fail("Customer has no embedding, call POST embed first", 400)
 
-    similar = await EmbeddingService.similar_customers(customer.embedding, db, top_k, exclude_id=customer_id)
+    similar = await EmbeddingService.similar_customers(
+        customer.embedding, db, top_k, exclude_id=customer_id
+    )
     return ok(similar)
 
 

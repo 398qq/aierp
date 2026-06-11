@@ -64,9 +64,7 @@ class CustomerService(BaseCRUDService):
             sort_order=sort_order,
         )
 
-    async def get_customer(
-        self, db: AsyncSession, customer_id: int
-    ) -> Customer | None:
+    async def get_customer(self, db: AsyncSession, customer_id: int) -> Customer | None:
         """Class-method wrapper around the module-level get_customer."""
         return await get_customer(db, customer_id)
 

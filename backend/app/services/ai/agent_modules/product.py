@@ -3,6 +3,7 @@
 The product-domain AI agent. Powers the price-import and product
 detail AI features.
 """
+
 from __future__ import annotations
 
 import logging
@@ -44,8 +45,16 @@ class ProductAgent:
             )
         except Exception as e:
             logger.error(f"Product parse failed: {e}")
-            return {"name": "", "sku": None, "category": None, "package_type": None,
-                    "specs": {}, "brand_name": None, "unit": None, "description": f"解析失败: {e}"}
+            return {
+                "name": "",
+                "sku": None,
+                "category": None,
+                "package_type": None,
+                "specs": {},
+                "brand_name": None,
+                "unit": None,
+                "description": f"解析失败: {e}",
+            }
 
     @staticmethod
     async def parse_bom(bom_text: str) -> list[dict]:
@@ -84,7 +93,11 @@ class ProductAgent:
             )
         except Exception as e:
             logger.error(f"Substitute suggestion failed: {e}")
-            return {"direct_substitutes": [], "functional_substitutes": [], "verification_notes": [f"AI分析失败: {e}"]}
+            return {
+                "direct_substitutes": [],
+                "functional_substitutes": [],
+                "verification_notes": [f"AI分析失败: {e}"],
+            }
 
 
 WATCHTOWER_SYSTEM = """你是ERP系统的AI监控分析师。你需要扫描整个ERP系统的异常信号并生成预警报告。

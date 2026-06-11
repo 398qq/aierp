@@ -85,7 +85,9 @@ REBATE_SCHEMA = {
 
 
 def _build_credit_rating(
-    avg_payment_days: float, late_count: int, fulfillment_rate: float,
+    avg_payment_days: float,
+    late_count: int,
+    fulfillment_rate: float,
 ) -> str:
     """Derive a human-readable credit rating string from payment and order data."""
     if avg_payment_days <= 15 and late_count <= 2 and fulfillment_rate >= 90:
@@ -130,17 +132,19 @@ async def extract_contract_terms(db: AsyncSession, contract_id: int) -> dict:
         )
         so = so_result.scalar_one_or_none()
         if so:
-            linked_orders_text = (
-                f"订单号: {so.order_no or '—'}, 金额: {float(so.total_amount):.2f}, 状态: {so.status}"
-            )
+            linked_orders_text = f"订单号: {so.order_no or '—'}, 金额: {float(so.total_amount):.2f}, 状态: {so.status}"
 
     contract_data = {
         "title": contract.title,
         "contract_no": contract.contract_no or "无",
         "customer_name": customer.name,
         "amount": float(contract.amount),
-        "signed_date": contract.signed_date.strftime("%Y-%m-%d") if contract.signed_date else "无数据",
-        "expire_date": contract.expire_date.strftime("%Y-%m-%d") if contract.expire_date else "无数据",
+        "signed_date": contract.signed_date.strftime("%Y-%m-%d")
+        if contract.signed_date
+        else "无数据",
+        "expire_date": contract.expire_date.strftime("%Y-%m-%d")
+        if contract.expire_date
+        else "无数据",
         "notes": contract.notes or "无",
         "linked_orders": linked_orders_text,
     }
@@ -216,14 +220,20 @@ async def assess_contract_risk(db: AsyncSession, contract_id: int) -> dict:
             if days > 30:
                 late_count += 1
 
-    avg_payment_days = round(sum(payment_days) / len(payment_days), 1) if payment_days else 0
+    avg_payment_days = (
+        round(sum(payment_days) / len(payment_days), 1) if payment_days else 0
+    )
 
     # --- Fulfillment rate ---
     total_orders = len(sales_orders)
     completed = sum(1 for so in sales_orders if so.status == "completed")
-    fulfillment_rate = round(completed / total_orders * 100, 1) if total_orders > 0 else 0
+    fulfillment_rate = (
+        round(completed / total_orders * 100, 1) if total_orders > 0 else 0
+    )
 
-    credit_rating_str = _build_credit_rating(avg_payment_days, late_count, fulfillment_rate)
+    credit_rating_str = _build_credit_rating(
+        avg_payment_days, late_count, fulfillment_rate
+    )
 
     # Extract key terms for AI context (from notes if available, otherwise summary)
     key_terms_text = contract.notes or (
@@ -320,7 +330,9 @@ async def scan_contract_expiry(db: AsyncSession) -> dict:
             )
 
     contract_data = {
-        "expiring_contracts": "\n".join(expiring_lines) if expiring_lines else "无即将到期合同",
+        "expiring_contracts": "\n".join(expiring_lines)
+        if expiring_lines
+        else "无即将到期合同",
         "renewal_history": "\n".join(renewal_lines) if renewal_lines else "无续约历史",
     }
 
@@ -408,7 +420,9 @@ async def track_contract_rebate(db: AsyncSession, contract_id: int) -> dict:
 
     if prev_total > 0:
         pct = round((recent_total - prev_total) / prev_total * 100, 1)
-        purchase_trend = f"近3月采购{recent_total:.2f}元 vs 前3月{prev_total:.2f}元, 变化{pct}%"
+        purchase_trend = (
+            f"近3月采购{recent_total:.2f}元 vs 前3月{prev_total:.2f}元, 变化{pct}%"
+        )
     elif recent_total > 0:
         purchase_trend = f"近3月新采购{recent_total:.2f}元 (前期无采购)"
     else:

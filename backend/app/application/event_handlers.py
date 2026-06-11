@@ -118,11 +118,16 @@ def register_inventory_handlers(bus: EventBus) -> None:
                     inventory_release_failures_total.inc()
                     logger.warning(
                         "Failed to release stock for product=%s qty=%s: %s",
-                        product_id, qty, e,
+                        product_id,
+                        qty,
+                        e,
                     )
             await session.commit()
 
             logger.info(
                 "Released stock for cancelled order SO#%s: %d/%d lines, %d failed",
-                event.aggregate_id, released, len(event.lines), failed,
+                event.aggregate_id,
+                released,
+                len(event.lines),
+                failed,
             )

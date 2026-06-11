@@ -35,7 +35,11 @@ def _to_float(value: Any, default: float = 0) -> float:
     try:
         if value is None:
             return default
-        return float(Decimal(str(value).replace(",", "").replace("¥", "").replace("￥", "").strip()))
+        return float(
+            Decimal(
+                str(value).replace(",", "").replace("¥", "").replace("￥", "").strip()
+            )
+        )
     except (InvalidOperation, ValueError):
         return default
 
@@ -76,7 +80,9 @@ def _is_number_token(token: str) -> bool:
 
 
 def _line_item_from_tokens(tokens: list[str]) -> dict[str, Any] | None:
-    number_indices = [idx for idx, token in enumerate(tokens) if _is_number_token(token)]
+    number_indices = [
+        idx for idx, token in enumerate(tokens) if _is_number_token(token)
+    ]
     if len(number_indices) < 2:
         return None
 
@@ -94,13 +100,17 @@ def _line_item_from_tokens(tokens: list[str]) -> dict[str, Any] | None:
         return None
 
     name_tokens = tokens[:qty_idx]
-    if name_tokens and re.fullmatch(r"\d+|[A-Z]\d+", name_tokens[0], flags=re.IGNORECASE):
+    if name_tokens and re.fullmatch(
+        r"\d+|[A-Z]\d+", name_tokens[0], flags=re.IGNORECASE
+    ):
         name_tokens = name_tokens[1:]
     product_name = _clean_text(" ".join(name_tokens))
     if not product_name or len(product_name) < 2:
         return None
 
-    if unit_price and abs(quantity * unit_price - total_price) > max(1, total_price * 0.05):
+    if unit_price and abs(quantity * unit_price - total_price) > max(
+        1, total_price * 0.05
+    ):
         return None
 
     return {
@@ -113,9 +123,27 @@ def _line_item_from_tokens(tokens: list[str]) -> dict[str, Any] | None:
 
 def _parse_items(text: str) -> list[dict[str, Any]]:
     skip_words = (
-        "合计", "总计", "小计", "税额", "金额合计", "total", "subtotal", "amount",
-        "订单号", "客户", "买方", "卖方", "日期", "电话", "地址", "签字", "signature",
-        "product", "description", "quantity", "unit price",
+        "合计",
+        "总计",
+        "小计",
+        "税额",
+        "金额合计",
+        "total",
+        "subtotal",
+        "amount",
+        "订单号",
+        "客户",
+        "买方",
+        "卖方",
+        "日期",
+        "电话",
+        "地址",
+        "签字",
+        "signature",
+        "product",
+        "description",
+        "quantity",
+        "unit price",
     )
     items: list[dict[str, Any]] = []
     seen: set[tuple[str, float, float, float]] = set()
@@ -144,23 +172,40 @@ def _parse_items(text: str) -> list[dict[str, Any]]:
 
 def parse_sales_order_text(text: str) -> dict[str, Any]:
     normalized = text.replace("\u00a0", " ")
-    order_no = _field([
-        r"(?:销售订单号|订单编号|订单号|客户PO号|采购订单号|PO\s*No\.?|Order\s*No\.?)\s*[:：#]?\s*([^\n\r]+)",
-    ], normalized)
-    customer_name = _field([
-        r"(?:客户公司|客户名称|客户|买方|采购方|收货单位|Customer|Buyer)\s*[:：]?\s*([^\n\r]+)",
-    ], normalized)
-    order_date_raw = _field([
-        r"(?:下单日期|订单日期|日期|Order\s*Date)\s*[:：]?\s*([0-9]{4}[-/.年][0-9]{1,2}[-/.月][0-9]{1,2}日?)",
-    ], normalized)
-    delivery_date_raw = _field([
-        r"(?:交货日期|交付日期|预计交货|Delivery\s*Date)\s*[:：]?\s*([0-9]{4}[-/.年][0-9]{1,2}[-/.月][0-9]{1,2}日?)",
-    ], normalized)
-    total_raw = _field([
-        r"(?:订单总额|总金额|金额合计|Total\s*Amount|Grand\s*Total)\s*[:：]?\s*[¥￥]?\s*([0-9][0-9,]*(?:\.\d+)?)",
-    ], normalized)
+    order_no = _field(
+        [
+            r"(?:销售订单号|订单编号|订单号|客户PO号|采购订单号|PO\s*No\.?|Order\s*No\.?)\s*[:：#]?\s*([^\n\r]+)",
+        ],
+        normalized,
+    )
+    customer_name = _field(
+        [
+            r"(?:客户公司|客户名称|客户|买方|采购方|收货单位|Customer|Buyer)\s*[:：]?\s*([^\n\r]+)",
+        ],
+        normalized,
+    )
+    order_date_raw = _field(
+        [
+            r"(?:下单日期|订单日期|日期|Order\s*Date)\s*[:：]?\s*([0-9]{4}[-/.年][0-9]{1,2}[-/.月][0-9]{1,2}日?)",
+        ],
+        normalized,
+    )
+    delivery_date_raw = _field(
+        [
+            r"(?:交货日期|交付日期|预计交货|Delivery\s*Date)\s*[:：]?\s*([0-9]{4}[-/.年][0-9]{1,2}[-/.月][0-9]{1,2}日?)",
+        ],
+        normalized,
+    )
+    total_raw = _field(
+        [
+            r"(?:订单总额|总金额|金额合计|Total\s*Amount|Grand\s*Total)\s*[:：]?\s*[¥￥]?\s*([0-9][0-9,]*(?:\.\d+)?)",
+        ],
+        normalized,
+    )
     items = _parse_items(normalized)
-    total_amount = _to_float(total_raw, 0) or sum(_to_float(item.get("total_price")) for item in items)
+    total_amount = _to_float(total_raw, 0) or sum(
+        _to_float(item.get("total_price")) for item in items
+    )
 
     return {
         "order_no": order_no,
@@ -172,10 +217,14 @@ def parse_sales_order_text(text: str) -> dict[str, Any]:
     }
 
 
-async def _find_customer(db: AsyncSession, customer_name: str | None, customer_id: int | None) -> Customer | None:
+async def _find_customer(
+    db: AsyncSession, customer_name: str | None, customer_id: int | None
+) -> Customer | None:
     if customer_id:
         result = await db.execute(
-            select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+            select(Customer).where(
+                Customer.id == customer_id, Customer.deleted_at.is_(None)
+            )
         )
         return result.scalar_one_or_none()
     if not customer_name:
@@ -186,7 +235,11 @@ async def _find_customer(db: AsyncSession, customer_name: str | None, customer_i
         select(Customer)
         .where(
             Customer.deleted_at.is_(None),
-            or_(Customer.name == name, Customer.short_name == name, Customer.code == name),
+            or_(
+                Customer.name == name,
+                Customer.short_name == name,
+                Customer.code == name,
+            ),
         )
         .limit(1)
     )
@@ -218,7 +271,11 @@ async def _match_product(db: AsyncSession, product_name: str | None) -> Product 
         select(Product)
         .where(
             Product.deleted_at.is_(None),
-            or_(Product.sku == name, Product.name == name, Product.name.ilike(f"%{name}%")),
+            or_(
+                Product.sku == name,
+                Product.name == name,
+                Product.name.ilike(f"%{name}%"),
+            ),
         )
         .order_by(Product.id)
         .limit(1)
@@ -251,9 +308,21 @@ async def import_sales_order_from_pdf(
         if product:
             next_item["product_id"] = product.id
             next_item["product_name"] = product.name
-            product_matches.append({"source": item.get("product_name"), "product_id": product.id, "product_name": product.name})
+            product_matches.append(
+                {
+                    "source": item.get("product_name"),
+                    "product_id": product.id,
+                    "product_name": product.name,
+                }
+            )
         else:
-            product_matches.append({"source": item.get("product_name"), "product_id": None, "product_name": None})
+            product_matches.append(
+                {
+                    "source": item.get("product_name"),
+                    "product_id": None,
+                    "product_name": None,
+                }
+            )
         items.append(next_item)
 
     if not items:
@@ -281,7 +350,9 @@ async def import_sales_order_from_pdf(
             "item_count": len(items),
             "total_amount": float(order.total_amount or 0),
             "order_date": order.order_date.isoformat() if order.order_date else None,
-            "delivery_date": order.delivery_date.isoformat() if order.delivery_date else None,
+            "delivery_date": order.delivery_date.isoformat()
+            if order.delivery_date
+            else None,
         },
         "matched": {
             "customer_name": customer.name,

@@ -76,12 +76,20 @@ class SalesOrderService(BaseCRUDService):
         total = (await db.execute(cnt)).scalar() or 0
 
         allowed_sorts = {
-            "id", "order_no", "total_amount", "status", "order_date",
-            "delivery_date", "created_at", "updated_at",
+            "id",
+            "order_no",
+            "total_amount",
+            "status",
+            "order_date",
+            "delivery_date",
+            "created_at",
+            "updated_at",
         }
         sort_by = sort_by if sort_by in allowed_sorts else "id"
         sort_col = getattr(SalesOrder, sort_by, SalesOrder.id)
-        base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
+        base = base.order_by(
+            sort_col.desc() if sort_order == "desc" else sort_col.asc()
+        )
         rows = (
             (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
             .scalars()
@@ -90,9 +98,7 @@ class SalesOrderService(BaseCRUDService):
 
         return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
-    async def get_order(
-        self, db: AsyncSession, order_id: int
-    ) -> SalesOrder | None:
+    async def get_order(self, db: AsyncSession, order_id: int) -> SalesOrder | None:
         result = await db.execute(
             select(SalesOrder).where(
                 SalesOrder.id == order_id, SalesOrder.deleted_at.is_(None)
@@ -161,9 +167,7 @@ class SalesOrderService(BaseCRUDService):
 
         return order
 
-    async def soft_delete_order(
-        self, db: AsyncSession, order: SalesOrder
-    ) -> None:
+    async def soft_delete_order(self, db: AsyncSession, order: SalesOrder) -> None:
         order.deleted_at = datetime.now(timezone.utc)
         await db.commit()
 

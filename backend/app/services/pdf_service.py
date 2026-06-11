@@ -7,6 +7,7 @@ callers don't need to change.
 
 New code should import directly from ``app.services.pdf``.
 """
+
 from __future__ import annotations
 
 from app.services.pdf import (  # noqa: F401  (re-export back-compat)

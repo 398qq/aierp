@@ -75,7 +75,10 @@ class InventoryRepository:
             if available < qty:
                 logger.info(
                     "Insufficient stock: product=%s wh=%s available=%s requested=%s",
-                    product_id, warehouse_id, available, qty,
+                    product_id,
+                    warehouse_id,
+                    available,
+                    qty,
                 )
                 return False
 
@@ -98,7 +101,7 @@ class InventoryRepository:
                 return True
 
             inventory_concurrent_conflicts_total.inc()
-            await asyncio.sleep(0.01 * (2 ** attempt))
+            await asyncio.sleep(0.01 * (2**attempt))
 
         raise ConcurrentModificationError(
             f"无法预占库存 product={product_id} warehouse={warehouse_id}",
@@ -140,7 +143,7 @@ class InventoryRepository:
                 await self.session.flush()
                 return True
 
-            await asyncio.sleep(0.01 * (2 ** attempt))
+            await asyncio.sleep(0.01 * (2**attempt))
 
         raise ConcurrentModificationError(
             f"无法释放库存 product={product_id} warehouse={warehouse_id}",
@@ -170,7 +173,9 @@ class InventoryRepository:
 
             if inv.quantity < qty:
                 raise InsufficientStockError(
-                    product_id, qty, inv.quantity,
+                    product_id,
+                    qty,
+                    inv.quantity,
                 )
 
             release_lock = min(qty, inv.locked_quantity)
@@ -193,7 +198,7 @@ class InventoryRepository:
                 await self.session.flush()
                 return True
 
-            await asyncio.sleep(0.01 * (2 ** attempt))
+            await asyncio.sleep(0.01 * (2**attempt))
 
         raise ConcurrentModificationError(
             f"无法扣减库存 product={product_id} warehouse={warehouse_id}",
@@ -229,7 +234,9 @@ class InventoryRepository:
                     quantity=qty,
                     locked_quantity=0,
                     version=0,
-                    unit_price=Decimal(str(unit_cost)) if unit_cost is not None else None,
+                    unit_price=Decimal(str(unit_cost))
+                    if unit_cost is not None
+                    else None,
                 )
                 self.session.add(new_inv)
                 try:
@@ -237,7 +244,7 @@ class InventoryRepository:
                     return new_inv
                 except Exception:
                     await self.session.rollback()
-                    await asyncio.sleep(0.01 * (2 ** attempt))
+                    await asyncio.sleep(0.01 * (2**attempt))
                     continue
 
             # Recompute average cost if incoming unit cost was provided
@@ -274,7 +281,7 @@ class InventoryRepository:
                 return inv
 
             inventory_concurrent_conflicts_total.inc()
-            await asyncio.sleep(0.01 * (2 ** attempt))
+            await asyncio.sleep(0.01 * (2**attempt))
 
         raise ConcurrentModificationError(
             f"无法入库 product={product_id} warehouse={warehouse_id}",

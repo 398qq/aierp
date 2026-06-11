@@ -36,18 +36,26 @@ async def accepted_quotation(factory):
         session.add(q)
         await session.flush()
 
-        session.add_all([
-            QuotationItem(
-                quotation_id=q.id, product_id=product.id,
-                product_name="Product A", quantity=5, unit_price=100.0,
-                total_price=500.0,
-            ),
-            QuotationItem(
-                quotation_id=q.id, product_id=product.id,
-                product_name="Product A", quantity=3, unit_price=100.0,
-                total_price=300.0,
-            ),
-        ])
+        session.add_all(
+            [
+                QuotationItem(
+                    quotation_id=q.id,
+                    product_id=product.id,
+                    product_name="Product A",
+                    quantity=5,
+                    unit_price=100.0,
+                    total_price=500.0,
+                ),
+                QuotationItem(
+                    quotation_id=q.id,
+                    product_id=product.id,
+                    product_name="Product A",
+                    quantity=3,
+                    unit_price=100.0,
+                    total_price=300.0,
+                ),
+            ]
+        )
         await session.commit()
         return q.id, customer.id, product.id
 
@@ -79,9 +87,12 @@ class TestConvertQuotationToOrderUseCase:
 
         async with factory() as verify_session:
             from sqlalchemy import select
-            quote = (await verify_session.execute(
-                select(Quotation).where(Quotation.id == quotation_id)
-            )).scalar_one()
+
+            quote = (
+                await verify_session.execute(
+                    select(Quotation).where(Quotation.id == quotation_id)
+                )
+            ).scalar_one()
             assert quote.status == "converted"
 
     async def test_convert_nonexistent_raises_not_found(self, factory):
@@ -101,11 +112,14 @@ class TestConvertQuotationToOrderUseCase:
         async with factory() as verify_session:
             from app.models.sales import SalesOrder as SalesOrderModel
             from sqlalchemy import select
-            order = (await verify_session.execute(
-                select(SalesOrderModel).where(
-                    SalesOrderModel.quotation_id == quotation_id
+
+            order = (
+                await verify_session.execute(
+                    select(SalesOrderModel).where(
+                        SalesOrderModel.quotation_id == quotation_id
+                    )
                 )
-            )).scalar_one()
+            ).scalar_one()
             assert order.order_no is not None
             assert order.order_no.startswith("SO")
 
@@ -120,5 +134,6 @@ class TestConvertQuotationToOrderUseCase:
         async with factory() as session:
             use_case2 = ConvertQuotationToOrderUseCase(session, user_id=1)
             from app.domain.shared.errors import InvalidStateTransition
+
             with pytest.raises(InvalidStateTransition):
                 await use_case2.execute(quotation_id)

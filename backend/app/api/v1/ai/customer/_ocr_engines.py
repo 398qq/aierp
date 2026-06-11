@@ -13,6 +13,7 @@ Public surface:
     - ``_merge_card_ocr_results``        — pick the best candidate (re-exported
       for compatibility with the existing test suite)
 """
+
 from __future__ import annotations
 
 import logging
@@ -65,7 +66,12 @@ def business_card_image_variants(image: Any) -> list[tuple[str, Any]]:
 
     gray = ImageOps.grayscale(base)
     variants.append(("gray_autocontrast", ImageOps.autocontrast(gray)))
-    variants.append(("sharp_contrast", ImageEnhance.Contrast(gray.filter(ImageFilter.SHARPEN)).enhance(1.6)))
+    variants.append(
+        (
+            "sharp_contrast",
+            ImageEnhance.Contrast(gray.filter(ImageFilter.SHARPEN)).enhance(1.6),
+        )
+    )
     variants.append(("threshold_160", gray.point(lambda p: 255 if p > 160 else 0)))
     variants.append(("threshold_190", gray.point(lambda p: 255 if p > 190 else 0)))
     return variants
@@ -80,8 +86,16 @@ def ocr_with_rapidocr(image: Any) -> dict[str, Any]:
     engine = _get_rapidocr_engine()
     np_image = np.array(image.convert("RGB"))
     result = engine(np_image)
-    texts = [str(item).strip() for item in (getattr(result, "txts", None) or []) if str(item).strip()]
-    scores = [float(item) for item in (getattr(result, "scores", None) or []) if item is not None]
+    texts = [
+        str(item).strip()
+        for item in (getattr(result, "txts", None) or [])
+        if str(item).strip()
+    ]
+    scores = [
+        float(item)
+        for item in (getattr(result, "scores", None) or [])
+        if item is not None
+    ]
     confidence = round(sum(scores) / len(scores), 4) if scores else 0.0
     return {
         "text": "\n".join(texts).strip(),
@@ -130,13 +144,18 @@ def ocr_with_tesseract(image: Any) -> dict[str, Any]:
     configs = ("--oem 3 --psm 6", "--oem 3 --psm 11")
     for variant_name, variant in business_card_image_variants(image):
         for config in configs:
-            text = pytesseract.image_to_string(variant, lang="chi_sim+eng", config=config).strip()
+            text = pytesseract.image_to_string(
+                variant, lang="chi_sim+eng", config=config
+            ).strip()
             if not text:
                 continue
             confidence = 0.0
             try:
                 data = pytesseract.image_to_data(
-                    variant, lang="chi_sim+eng", config=config, output_type=pytesseract.Output.DICT
+                    variant,
+                    lang="chi_sim+eng",
+                    config=config,
+                    output_type=pytesseract.Output.DICT,
                 )
                 scores: list[float] = []
                 for score in data.get("conf", []):
@@ -149,11 +168,13 @@ def ocr_with_tesseract(image: Any) -> dict[str, Any]:
                 confidence = round(sum(scores) / len(scores), 4) if scores else 0.0
             except Exception:
                 confidence = 0.0
-            candidates.append({
-                "text": text,
-                "engine": f"tesseract:{variant_name}:{config.split()[-1]}",
-                "confidence": confidence,
-            })
+            candidates.append(
+                {
+                    "text": text,
+                    "engine": f"tesseract:{variant_name}:{config.split()[-1]}",
+                    "confidence": confidence,
+                }
+            )
 
     best = _merge_card_ocr_results(candidates)
 

@@ -33,9 +33,9 @@ from app.domain.sales.events import (
 
 
 class InvoiceStatus(str, Enum):
-    DRAFT = "draft"        # Created, not yet sent
-    ISSUED = "issued"      # Sent to customer, payment pending
-    PAID = "paid"          # Fully paid
+    DRAFT = "draft"  # Created, not yet sent
+    ISSUED = "issued"  # Sent to customer, payment pending
+    PAID = "paid"  # Fully paid
     CANCELLED = "cancelled"
 
 
@@ -48,7 +48,7 @@ _INVOICE_TRANSITIONS: dict[InvoiceStatus, set[InvoiceStatus]] = {
         InvoiceStatus.PAID,
         InvoiceStatus.CANCELLED,
     },
-    InvoiceStatus.PAID: set(),       # terminal
+    InvoiceStatus.PAID: set(),  # terminal
     InvoiceStatus.CANCELLED: set(),  # terminal
 }
 

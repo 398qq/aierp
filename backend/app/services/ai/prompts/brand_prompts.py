@@ -5,18 +5,18 @@ def brand_profile_prompt(brand_data: dict) -> str:
     return f"""为以下电子元器件品牌生成完整画像：
 
 **基础信息：**
-- 品牌名：{brand_data.get('name')}
-- 中文名：{brand_data.get('name_cn', '')}
-- 分类：{brand_data.get('category', '未知')}
-- 官网：{brand_data.get('website', '未知')}
-- 备注：{brand_data.get('notes', '')}
+- 品牌名：{brand_data.get("name")}
+- 中文名：{brand_data.get("name_cn", "")}
+- 分类：{brand_data.get("category", "未知")}
+- 官网：{brand_data.get("website", "未知")}
+- 备注：{brand_data.get("notes", "")}
 
 **产品数据：**
-- 产品总数：{brand_data.get('product_count', 0)}
-- 产品分类分布：{brand_data.get('category_distribution', '')}
-- 封装类型分布：{brand_data.get('package_distribution', '')}
-- 代表产品：{brand_data.get('sample_products', '')}
-- 供应商覆盖：{brand_data.get('supplier_count', 0)} 家
+- 产品总数：{brand_data.get("product_count", 0)}
+- 产品分类分布：{brand_data.get("category_distribution", "")}
+- 封装类型分布：{brand_data.get("package_distribution", "")}
+- 代表产品：{brand_data.get("sample_products", "")}
+- 供应商覆盖：{brand_data.get("supplier_count", 0)} 家
 
 请生成：
 1. market_position：市场地位（国际一线/国际二线/国产替代/国产新兴/专业细分）
@@ -51,15 +51,15 @@ def brand_import_prompt(raw_text: str) -> str:
 def brand_portfolio_prompt(brand_data: dict) -> str:
     return f"""分析以下电子元器件品牌的产品组合：
 
-**品牌：** {brand_data.get('name')} ({brand_data.get('name_cn', '')})
+**品牌：** {brand_data.get("name")} ({brand_data.get("name_cn", "")})
 
 **产品数据：**
-- 产品总数：{brand_data.get('product_count', 0)}
-- 分类分布：{brand_data.get('category_distribution', '')}
-- 封装分布：{brand_data.get('package_distribution', '')}
-- 价格区间：{brand_data.get('price_range', '无数据')}
-- 供应商数：{brand_data.get('supplier_count', 0)}
-- 代表产品：{brand_data.get('sample_products', '')}
+- 产品总数：{brand_data.get("product_count", 0)}
+- 分类分布：{brand_data.get("category_distribution", "")}
+- 封装分布：{brand_data.get("package_distribution", "")}
+- 价格区间：{brand_data.get("price_range", "无数据")}
+- 供应商数：{brand_data.get("supplier_count", 0)}
+- 代表产品：{brand_data.get("sample_products", "")}
 
 请分析：
 1. portfolio_strength：产品线完整度（完整/较全/聚焦/单一）
@@ -74,19 +74,19 @@ def brand_portfolio_prompt(brand_data: dict) -> str:
 def brand_compare_prompt(brand_a: dict, brand_b: dict, overlap: dict) -> str:
     return f"""对比两个电子元器件品牌：
 
-**品牌A：** {brand_a.get('name')} ({brand_a.get('name_cn', '')})
-- 分类：{brand_a.get('category')}
-- 产品数：{brand_a.get('product_count', 0)}
-- 代表产品：{brand_a.get('sample_products', '')}
+**品牌A：** {brand_a.get("name")} ({brand_a.get("name_cn", "")})
+- 分类：{brand_a.get("category")}
+- 产品数：{brand_a.get("product_count", 0)}
+- 代表产品：{brand_a.get("sample_products", "")}
 
-**品牌B：** {brand_b.get('name')} ({brand_b.get('name_cn', '')})
-- 分类：{brand_b.get('category')}
-- 产品数：{brand_b.get('product_count', 0)}
-- 代表产品：{brand_b.get('sample_products', '')}
+**品牌B：** {brand_b.get("name")} ({brand_b.get("name_cn", "")})
+- 分类：{brand_b.get("category")}
+- 产品数：{brand_b.get("product_count", 0)}
+- 代表产品：{brand_b.get("sample_products", "")}
 
 **重叠分析：**
-- 共同分类：{overlap.get('shared_categories', '')}
-- 竞争产品数：{overlap.get('overlapping_products', 0)}
+- 共同分类：{overlap.get("shared_categories", "")}
+- 竞争产品数：{overlap.get("overlapping_products", 0)}
 
 请返回：
 1. comparison_summary：对比总结（1-2句话）
@@ -100,22 +100,22 @@ def brand_compare_prompt(brand_a: dict, brand_b: dict, overlap: dict) -> str:
 def brand_health_prompt(brand_data: dict) -> str:
     return f"""你是一个电子元器件供应链分析专家。分析以下品牌经营健康度：
 
-**品牌：** {brand_data.get('name')} ({brand_data.get('name_cn', '')})
-**分类：** {brand_data.get('category', '未知')}
+**品牌：** {brand_data.get("name")} ({brand_data.get("name_cn", "")})
+**分类：** {brand_data.get("category", "未知")}
 
 **销售数据（最近12个月）：**
-- 月度收入趋势：{brand_data.get('monthly_revenue', '无数据')}
-- 月度毛利率趋势：{brand_data.get('monthly_margin', '无数据')}
-- 总订单数：{brand_data.get('total_orders', 0)}
-- 活跃客户数：{brand_data.get('active_customers', 0)}
-- 退货率：{brand_data.get('return_rate', '无数据')}%
-- 收入增长率（环比）：{brand_data.get('revenue_growth', '无数据')}%
-- 客户流失率：{brand_data.get('churn_rate', '无数据')}%
+- 月度收入趋势：{brand_data.get("monthly_revenue", "无数据")}
+- 月度毛利率趋势：{brand_data.get("monthly_margin", "无数据")}
+- 总订单数：{brand_data.get("total_orders", 0)}
+- 活跃客户数：{brand_data.get("active_customers", 0)}
+- 退货率：{brand_data.get("return_rate", "无数据")}%
+- 收入增长率（环比）：{brand_data.get("revenue_growth", "无数据")}%
+- 客户流失率：{brand_data.get("churn_rate", "无数据")}%
 
 **库存数据：**
-- 当前总库存：{brand_data.get('total_stock', 0)}
-- 库存周转率：{brand_data.get('turnover_rate', '无数据')}
-- 滞销品占比：{brand_data.get('slow_moving_pct', '无数据')}%
+- 当前总库存：{brand_data.get("total_stock", 0)}
+- 库存周转率：{brand_data.get("turnover_rate", "无数据")}
+- 滞销品占比：{brand_data.get("slow_moving_pct", "无数据")}%
 
 请返回：
 1. overall_health_score：综合健康评分 0-100
@@ -133,27 +133,27 @@ def brand_health_prompt(brand_data: dict) -> str:
 def brand_risk_prompt(brand_data: dict) -> str:
     return f"""你是一个电子元器件供应链风险管理专家。评估以下品牌的风险：
 
-**品牌：** {brand_data.get('name')} ({brand_data.get('name_cn', '')})
+**品牌：** {brand_data.get("name")} ({brand_data.get("name_cn", "")})
 
 **供应商风险：**
-- 供应商总数：{brand_data.get('supplier_count', 0)}
-- 单源产品数：{brand_data.get('single_source_count', 0)}/{brand_data.get('product_count', 0)}
-- 单源产品占比：{brand_data.get('single_source_pct', 0)}%
-- 主要供应商集中度：{brand_data.get('top_supplier_share', '无数据')}%
+- 供应商总数：{brand_data.get("supplier_count", 0)}
+- 单源产品数：{brand_data.get("single_source_count", 0)}/{brand_data.get("product_count", 0)}
+- 单源产品占比：{brand_data.get("single_source_pct", 0)}%
+- 主要供应商集中度：{brand_data.get("top_supplier_share", "无数据")}%
 
 **产品生命周期风险：**
-- 产品总数：{brand_data.get('product_count', 0)}
-- EOL/NRND 产品数：{brand_data.get('eol_count', 0)}
-- 近6月新品数：{brand_data.get('new_products_6m', 0)}
+- 产品总数：{brand_data.get("product_count", 0)}
+- EOL/NRND 产品数：{brand_data.get("eol_count", 0)}
+- 近6月新品数：{brand_data.get("new_products_6m", 0)}
 
 **客户集中度风险：**
-- 活跃客户数：{brand_data.get('active_customers', 0)}
-- Top1客户收入占比：{brand_data.get('top_customer_share', 0)}%
-- Top3客户收入占比：{brand_data.get('top3_customer_share', 0)}%
+- 活跃客户数：{brand_data.get("active_customers", 0)}
+- Top1客户收入占比：{brand_data.get("top_customer_share", 0)}%
+- Top3客户收入占比：{brand_data.get("top3_customer_share", 0)}%
 
 **市场风险：**
-- 竞争对手品牌数：{brand_data.get('competitor_count', 0)}
-- 可替代产品占比：{brand_data.get('substitutable_pct', 0)}%
+- 竞争对手品牌数：{brand_data.get("competitor_count", 0)}
+- 可替代产品占比：{brand_data.get("substitutable_pct", 0)}%
 
 请返回：
 1. risk_score：综合风险评分 0-100（越高风险越大）
@@ -170,22 +170,22 @@ def brand_risk_prompt(brand_data: dict) -> str:
 def brand_supplier_matrix_prompt(brand_data: dict) -> str:
     return f"""你是一个电子元器件采购策略专家。分析以下品牌的供应商矩阵：
 
-**品牌：** {brand_data.get('name')} ({brand_data.get('name_cn', '')})
+**品牌：** {brand_data.get("name")} ({brand_data.get("name_cn", "")})
 
 **供应商覆盖情况：**
-- 产品总数：{brand_data.get('product_count', 0)}
-- 供应商总数：{brand_data.get('supplier_count', 0)}
-- 供应商覆盖明细：{brand_data.get('supplier_details', '无数据')}
-- 平均每供应商产品数：{brand_data.get('avg_products_per_supplier', 0)}
-- 产品替代覆盖率：{brand_data.get('backup_coverage_pct', 0)}%
+- 产品总数：{brand_data.get("product_count", 0)}
+- 供应商总数：{brand_data.get("supplier_count", 0)}
+- 供应商覆盖明细：{brand_data.get("supplier_details", "无数据")}
+- 平均每供应商产品数：{brand_data.get("avg_products_per_supplier", 0)}
+- 产品替代覆盖率：{brand_data.get("backup_coverage_pct", 0)}%
 
 **价格分析：**
-- 价格区间：{brand_data.get('price_range', '无数据')}
-- 各供应商价格竞争力：{brand_data.get('supplier_price_ranking', '无数据')}
+- 价格区间：{brand_data.get("price_range", "无数据")}
+- 各供应商价格竞争力：{brand_data.get("supplier_price_ranking", "无数据")}
 
 **交期分析：**
-- 平均交期：{brand_data.get('avg_lead_time', '无数据')}天
-- 最短/最长交期：{brand_data.get('lead_time_range', '无数据')}
+- 平均交期：{brand_data.get("avg_lead_time", "无数据")}天
+- 最短/最长交期：{brand_data.get("lead_time_range", "无数据")}
 
 请返回：
 1. overall_assessment：供应商矩阵总体评估（1-2句话）
@@ -200,16 +200,16 @@ def brand_supplier_matrix_prompt(brand_data: dict) -> str:
 def brand_recommendation_prompt(brand_data: dict) -> str:
     return f"""你是一个电子元器件销售策略专家。基于品牌购买关联数据给出推荐：
 
-**源品牌：** {brand_data.get('name')} ({brand_data.get('name_cn', '')})
-**分类：** {brand_data.get('category', '未知')}
-**产品数：** {brand_data.get('product_count', 0)}
-**活跃客户数：** {brand_data.get('active_customers', 0)}
+**源品牌：** {brand_data.get("name")} ({brand_data.get("name_cn", "")})
+**分类：** {brand_data.get("category", "未知")}
+**产品数：** {brand_data.get("product_count", 0)}
+**活跃客户数：** {brand_data.get("active_customers", 0)}
 
 **关联购买数据（购买了此品牌的客户还购买了）：**
-{brand_data.get('co_purchase_data', '无数据')}
+{brand_data.get("co_purchase_data", "无数据")}
 
 **潜在可推荐品牌（含客户重叠度）：**
-{brand_data.get('candidate_brands', '无数据')}
+{brand_data.get("candidate_brands", "无数据")}
 
 请返回：
 1. recommendation_summary：推荐总结（1-2句话）

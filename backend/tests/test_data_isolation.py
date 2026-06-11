@@ -1,6 +1,5 @@
 """Tests for row-level data isolation (record ownership)."""
 
-
 from app.core.data_isolation import (
     ADMIN_ROLES,
     OWNED_RESOURCES,
@@ -48,6 +47,7 @@ class TestIsAdminOrManager:
             id = 5
             role = "admin"
             roles = []
+
         assert is_admin_or_manager(FakeUser()) is True
 
     def test_user_object_sales_role(self):
@@ -55,6 +55,7 @@ class TestIsAdminOrManager:
             id = 5
             role = "sales"
             roles = []
+
         assert is_admin_or_manager(FakeUser()) is False
 
 

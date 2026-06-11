@@ -27,6 +27,7 @@ async def uow_factory(engine, create_tables):
     yield factory
     # Reset module-level state to avoid leaking across tests
     import app.application.uow as uow_mod
+
     uow_mod._session_factory = None
     uow_mod._event_bus = None
 
@@ -47,14 +48,19 @@ class TestUnitOfWork:
             uow.session.add(inv)
         # Auto-committed on context exit
         async with uow_factory() as verify_session:
-            result = (await verify_session.execute(
-                __import__("sqlalchemy").select(Inventory).where(Inventory.quantity == 50)
-            )).scalar_one()
+            result = (
+                await verify_session.execute(
+                    __import__("sqlalchemy")
+                    .select(Inventory)
+                    .where(Inventory.quantity == 50)
+                )
+            ).scalar_one()
             assert result.quantity == 50
 
     async def test_rollback_discards_data_and_events(self, uow_factory):
         bus = EventBus()
         import app.application.uow as uow_mod
+
         uow_mod._event_bus = bus
 
         received = []
@@ -73,6 +79,7 @@ class TestUnitOfWork:
     async def test_commit_dispatches_events(self, uow_factory):
         bus = EventBus()
         import app.application.uow as uow_mod
+
         uow_mod._event_bus = bus
 
         received = []
@@ -88,6 +95,7 @@ class TestUnitOfWork:
     async def test_commit_dispatches_events_in_order(self, uow_factory):
         bus = EventBus()
         import app.application.uow as uow_mod
+
         uow_mod._event_bus = bus
 
         received_ids = []
@@ -103,6 +111,7 @@ class TestUnitOfWork:
     async def test_double_commit_is_safe(self, uow_factory):
         bus = EventBus()
         import app.application.uow as uow_mod
+
         uow_mod._event_bus = bus
 
         received = []
@@ -117,6 +126,7 @@ class TestUnitOfWork:
 
     async def test_raises_when_not_initialized(self):
         import app.application.uow as uow_mod
+
         uow_mod._session_factory = None
         with pytest.raises(RuntimeError, match="not initialized"):
             async with get_uow():

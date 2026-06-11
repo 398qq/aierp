@@ -57,6 +57,7 @@ def _extract_pdf_text(content: bytes) -> str:
     """Extract text from PDF bytes. Returns empty string on failure."""
     try:
         from PyPDF2 import PdfReader
+
         reader = PdfReader(io.BytesIO(content))
         texts = []
         for page in reader.pages:
@@ -74,6 +75,7 @@ def _ocr_pdf_content(content: bytes) -> str:
     try:
         from PIL import Image
         import pytesseract
+
         img = Image.open(io.BytesIO(content))
         return pytesseract.image_to_string(img, lang="chi_sim+eng")
     except Exception:
@@ -83,14 +85,22 @@ def _ocr_pdf_content(content: bytes) -> str:
 @router.get("/contracts")
 async def list_contracts(
     response: JSONResponse,
-    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
-    customer_id: int | None = None, status: str | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    customer_id: int | None = None,
+    status: str | None = None,
+    sort_by: str = "id",
+    sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     cache_key = _contracts_cache_key(
-        page=page, page_size=page_size, customer_id=customer_id,
-        status=status, sort_by=sort_by, sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+        customer_id=customer_id,
+        status=status,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     cached_payload = await cache_get_versioned("contracts:list", cache_key)
     if cached_payload is not None:
@@ -99,16 +109,33 @@ async def list_contracts(
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
     from app.services.finance_service import list_contracts as svc_list
-    result = await svc_list(db, page=page, page_size=page_size, customer_id=customer_id,
-                          status=status, sort_by=sort_by, sort_order=sort_order)
-    await cache_set_versioned("contracts:list", cache_key, json.dumps(result, default=str),
-                                CONTRACTS_LIST_CACHE_TTL)
+
+    result = await svc_list(
+        db,
+        page=page,
+        page_size=page_size,
+        customer_id=customer_id,
+        status=status,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+    await cache_set_versioned(
+        "contracts:list",
+        cache_key,
+        json.dumps(result, default=str),
+        CONTRACTS_LIST_CACHE_TTL,
+    )
     return ok(result)
 
 
 @router.get("/contracts/{contract_id}")
-async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def get_contract(
+    contract_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     from app.services.finance_service import get_contract as svc_get
+
     ct = await svc_get(db, contract_id)
     if not ct:
         return fail("合同不存在", 404)
@@ -116,16 +143,30 @@ async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db), _us
 
 
 @router.post("/contracts")
-async def create_contract(body: ContractCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_contract(
+    body: ContractCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     from app.services.finance_service import create_contract as svc_create
+
     ct = await svc_create(db, body.model_dump())
     await cache_bump_version("contracts:list")
     return ok(ct)
 
 
 @router.put("/contracts/{contract_id}")
-async def update_contract(contract_id: int, body: ContractUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.finance_service import get_contract as svc_get, update_contract as svc_update
+async def update_contract(
+    contract_id: int,
+    body: ContractUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import (
+        get_contract as svc_get,
+        update_contract as svc_update,
+    )
+
     ct = await svc_get(db, contract_id)
     if not ct:
         return fail("合同不存在", 404)
@@ -135,8 +176,16 @@ async def update_contract(contract_id: int, body: ContractUpdate, db: AsyncSessi
 
 
 @router.delete("/contracts/{contract_id}")
-async def delete_contract(contract_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
-    from app.services.finance_service import get_contract as svc_get, delete_contract as svc_del
+async def delete_contract(
+    contract_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import (
+        get_contract as svc_get,
+        delete_contract as svc_del,
+    )
+
     ct = await svc_get(db, contract_id)
     if not ct:
         return fail("合同不存在", 404)
@@ -170,12 +219,19 @@ async def import_contract_pdf(
         return fail("无法从 PDF 中提取文字，请确认文件是否为扫描件或图片格式 PDF")
 
     from app.services.ai.client import AIClient
+
     ai = AIClient()
     try:
         parsed = await ai.chat_structured(
             messages=[
-                {"role": "system", "content": "你是一个合同解析助手。从合同文本中提取关键信息，返回JSON。金额单位是元。日期格式YYYY-MM-DD。提取不到就省略字段，不要编造数据。"},
-                {"role": "user", "content": f"请从以下合同文本中提取关键信息:\n\n{raw_text[:4000]}"},
+                {
+                    "role": "system",
+                    "content": "你是一个合同解析助手。从合同文本中提取关键信息，返回JSON。金额单位是元。日期格式YYYY-MM-DD。提取不到就省略字段，不要编造数据。",
+                },
+                {
+                    "role": "user",
+                    "content": f"请从以下合同文本中提取关键信息:\n\n{raw_text[:4000]}",
+                },
             ],
             output_schema=CONTRACT_PARSE_SCHEMA,
             temperature=0.1,
@@ -189,6 +245,7 @@ async def import_contract_pdf(
     if buyer_name:
         from sqlalchemy import select
         from app.models.customer import Customer
+
         result = await db.execute(
             select(Customer.id).where(Customer.name.ilike(f"%{buyer_name}%"))
         )
@@ -197,9 +254,12 @@ async def import_contract_pdf(
             customer_id = cid
 
     if not customer_id:
-        return fail(f"未找到匹配客户: {buyer_name or '(未能识别买方名称)'}，请先在客户管理中创建客户")
+        return fail(
+            f"未找到匹配客户: {buyer_name or '(未能识别买方名称)'}，请先在客户管理中创建客户"
+        )
 
     from app.services.finance_service import create_contract as svc_create
+
     ct_data = {
         "title": parsed.get("title", file.filename or "未命名合同"),
         "contract_no": parsed.get("contract_no", ""),
@@ -213,12 +273,14 @@ async def import_contract_pdf(
     ct = await svc_create(db, ct_data)
     await cache_bump_version("contracts:list")
 
-    return ok({
-        "id": ct.id,
-        "parsed": {
-            "title": parsed.get("title"),
-            "amount": parsed.get("amount"),
-            "signed_date": parsed.get("signed_date"),
-            "buyer_name": buyer_name,
-        },
-    })
+    return ok(
+        {
+            "id": ct.id,
+            "parsed": {
+                "title": parsed.get("title"),
+                "amount": parsed.get("amount"),
+                "signed_date": parsed.get("signed_date"),
+                "buyer_name": buyer_name,
+            },
+        }
+    )

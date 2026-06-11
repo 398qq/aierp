@@ -148,9 +148,7 @@ class TestSalesOrderCancel:
             order.cancel(reason="too late")
 
     def test_cancel_invoiced_raises(self):
-        order = SalesOrder(
-            customer_id=1, lines=[_line()], status=OrderStatus.INVOICED
-        )
+        order = SalesOrder(customer_id=1, lines=[_line()], status=OrderStatus.INVOICED)
         with pytest.raises(InvalidStateTransition):
             order.cancel(reason="invoiced")
 

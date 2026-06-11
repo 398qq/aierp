@@ -1,6 +1,5 @@
 """Tests for SalesOrder state machine (Stage 2 Day 1)."""
 
-
 import pytest
 
 from app.domain.sales.order import (
@@ -18,7 +17,9 @@ def _make_order(**overrides):
     defaults = dict(
         customer_id=1,
         owner="Alice",
-        lines=[OrderLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)],
+        lines=[
+            OrderLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)
+        ],
     )
     defaults.update(overrides)
     return SalesOrder(**defaults)
@@ -58,7 +59,9 @@ def test_full_lifecycle_pending_to_completed():
     assert order.completed_at is not None
     events = order.collect_events()
     assert [type(e).__name__ for e in events] == [
-        "OrderConfirmed", "OrderShipped", "OrderCompleted"
+        "OrderConfirmed",
+        "OrderShipped",
+        "OrderCompleted",
     ]
     assert events[-1].owner == "Alice"
     assert events[-1].total_amount == pytest.approx(250.0)
@@ -163,7 +166,9 @@ def test_lines_locked_after_confirm():
     order = _make_order()
     order.confirm()
     with pytest.raises(InvalidStateTransition, match="confirmed 状态不可修改"):
-        order.add_line(OrderLine(product_id=20, product_name="Sensor", quantity=5, unit_price=10.0))
+        order.add_line(
+            OrderLine(product_id=20, product_name="Sensor", quantity=5, unit_price=10.0)
+        )
 
 
 def test_invalid_line_quantity_raises():
@@ -182,7 +187,9 @@ def test_invalid_line_unit_price_raises():
 def test_add_line_recalcs_total():
     order = _make_order()
     assert order.total_amount == pytest.approx(250.0)
-    order.add_line(OrderLine(product_id=20, product_name="Sensor", quantity=50, unit_price=1.0))
+    order.add_line(
+        OrderLine(product_id=20, product_name="Sensor", quantity=50, unit_price=1.0)
+    )
     assert order.total_amount == pytest.approx(300.0)
     order.remove_line(0)
     assert order.total_amount == pytest.approx(50.0)

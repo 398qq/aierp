@@ -140,9 +140,7 @@ class PurchaseOrder:
         known_ids = {line.product_id for line in self.lines}
         for pid, qty in receipts:
             if pid not in known_ids:
-                raise BusinessRuleViolation(
-                    f"采购单 {self.id} 不包含产品 {pid}"
-                )
+                raise BusinessRuleViolation(f"采购单 {self.id} 不包含产品 {pid}")
             if qty <= 0:
                 raise BusinessRuleViolation("收货数量必须大于零")
 

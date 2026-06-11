@@ -32,11 +32,18 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _http_exception_handler(request: Request, exc: HTTPException):
         rid = _request_id(request)
         message = exc.detail if isinstance(exc.detail, str) else "Request failed"
-        payload = {"code": exc.status_code, "msg": message, "data": None, "request_id": rid}
+        payload = {
+            "code": exc.status_code,
+            "msg": message,
+            "data": None,
+            "request_id": rid,
+        }
         return JSONResponse(status_code=exc.status_code, content=payload)
 
     @app.exception_handler(RequestValidationError)
-    async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def _validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
         rid = _request_id(request)
         first = exc.errors()[0] if exc.errors() else {}
         location = ".".join(str(x) for x in first.get("loc", []))

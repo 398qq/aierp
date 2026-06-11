@@ -4,6 +4,7 @@ Lazily imports OpenCV/numpy/PIL so importing this module never breaks
 when those packages are missing. Exposes ``opencv_business_card_region_variants``
 which crops and warps the most likely card rectangles from a portrait.
 """
+
 from __future__ import annotations
 
 import logging
@@ -78,7 +79,9 @@ def opencv_business_card_region_variants(image: Any) -> list[tuple[str, Any]]:
 
     longest = max(image_width, image_height)
     resize_factor = min(1.0, 1200 / longest) if longest else 1.0
-    resized = cv2.resize(np_image, None, fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_AREA)
+    resized = cv2.resize(
+        np_image, None, fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_AREA
+    )
     gray = cv2.cvtColor(resized, cv2.COLOR_RGB2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -98,7 +101,9 @@ def opencv_business_card_region_variants(image: Any) -> list[tuple[str, Any]]:
             if kernel is not None:
                 mask = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
                 mask = cv2.dilate(mask, kernel, iterations=1)
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(
+                mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
             for contour in contours:
                 if len(contour) < 4:
                     continue
@@ -108,9 +113,13 @@ def opencv_business_card_region_variants(image: Any) -> list[tuple[str, Any]]:
                     continue
 
                 box = cv2.boxPoints(rotated_rect) / resize_factor
-                rect_area = float(rect_width * rect_height) / (resize_factor * resize_factor)
+                rect_area = float(rect_width * rect_height) / (
+                    resize_factor * resize_factor
+                )
                 area_ratio = rect_area / image_area
-                aspect = max(rect_width, rect_height) / max(1.0, min(rect_width, rect_height))
+                aspect = max(rect_width, rect_height) / max(
+                    1.0, min(rect_width, rect_height)
+                )
 
                 if not (0.12 <= area_ratio <= 0.98 and 1.25 <= aspect <= 2.35):
                     continue
@@ -126,14 +135,21 @@ def opencv_business_card_region_variants(image: Any) -> list[tuple[str, Any]]:
                 )
                 center_score = max(0.0, 1.0 - center_offset)
                 score = area_score * 0.45 + aspect_score * 0.4 + center_score * 0.15
-                scored_regions.append((score, box, f"opencv_card_{kernel_name}_{canny_low}_{canny_high}"))
+                scored_regions.append(
+                    (score, box, f"opencv_card_{kernel_name}_{canny_low}_{canny_high}")
+                )
 
     variants: list[tuple[str, Any]] = []
     seen_boxes: list[Any] = []
-    for score, box, name in sorted(scored_regions, key=lambda item: item[0], reverse=True):
+    for score, box, name in sorted(
+        scored_regions, key=lambda item: item[0], reverse=True
+    ):
         if score < 0.45:
             continue
-        if any(np.linalg.norm(box.mean(axis=0) - seen.mean(axis=0)) < 24 for seen in seen_boxes):
+        if any(
+            np.linalg.norm(box.mean(axis=0) - seen.mean(axis=0)) < 24
+            for seen in seen_boxes
+        ):
             continue
         warped = _warp_business_card_region(np_image, box)
         if warped is None:
@@ -146,7 +162,10 @@ def opencv_business_card_region_variants(image: Any) -> list[tuple[str, Any]]:
     return variants
 
 
-__all__ = ["opencv_business_card_region_variants", "_opencv_business_card_region_variants"]
+__all__ = [
+    "opencv_business_card_region_variants",
+    "_opencv_business_card_region_variants",
+]
 
 
 # Back-compat alias for tests / external imports that reference the

@@ -69,13 +69,16 @@ class ConvertQuotationToOrderUseCase:
             customer_id=quote_orm.customer_id,
             quotation_no=quote_orm.quotation_no,
             title=quote_orm.title,
-            status=QuotationStatus(quote_orm.status) if quote_orm.status else QuotationStatus.DRAFT,
+            status=QuotationStatus(quote_orm.status)
+            if quote_orm.status
+            else QuotationStatus.DRAFT,
             valid_until=quote_orm.valid_until,
             notes=quote_orm.notes,
             lines=[
                 # QuotationItem doesn't have cost_price in ORM; pass None
                 # for cost in the domain line, which is fine for conversion.
-                _quote_line_from_orm(item) for item in quote_orm.items
+                _quote_line_from_orm(item)
+                for item in quote_orm.items
             ],
         )
 
@@ -98,7 +101,10 @@ class ConvertQuotationToOrderUseCase:
 
         # 4. Persist new order
         order_no = await generate_doc_no(
-            self._session, "SO", SalesOrderModel, "order_no",
+            self._session,
+            "SO",
+            SalesOrderModel,
+            "order_no",
         )
         new_order_orm = SalesOrderModel(
             order_no=order_no,
@@ -111,14 +117,16 @@ class ConvertQuotationToOrderUseCase:
         await self._session.flush()
 
         for line in domain_order.lines:
-            self._session.add(SalesOrderItem(
-                order_id=new_order_orm.id,
-                product_id=line.product_id,
-                product_name=line.product_name,
-                quantity=line.quantity,
-                unit_price=line.unit_price,
-                total_price=line.subtotal,
-            ))
+            self._session.add(
+                SalesOrderItem(
+                    order_id=new_order_orm.id,
+                    product_id=line.product_id,
+                    product_name=line.product_name,
+                    quantity=line.quantity,
+                    unit_price=line.unit_price,
+                    total_price=line.subtotal,
+                )
+            )
 
         # 5. Mark quotation as CONVERTED
         domain_quote.convert_to_order()  # Validates transition
@@ -126,7 +134,10 @@ class ConvertQuotationToOrderUseCase:
 
         logger.info(
             "Converted quotation Q#%s to order SO#%s by user#%s (%d lines)",
-            quotation_id, order_no, self._user_id, len(domain_order.lines),
+            quotation_id,
+            order_no,
+            self._user_id,
+            len(domain_order.lines),
         )
 
         await self._session.flush()
@@ -140,6 +151,7 @@ def _quote_line_from_orm(item: QuotationItem):
     domain layer.
     """
     from app.domain.sales.quotation import QuotationLine
+
     return QuotationLine(
         product_id=item.product_id,
         product_name=item.product_name or "",

@@ -52,22 +52,50 @@ async def list_tickets(
         count_base = count_base.where(Ticket.priority == priority)
 
     total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(Ticket.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                base.order_by(Ticket.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    return ok({
-        "list": [{"id": t.id, "ticket_no": t.ticket_no, "customer_id": t.customer_id,
-                  "title": t.title, "description": t.description, "status": t.status,
-                  "priority": t.priority, "category": t.category, "assigned_to": t.assigned_to,
-                  "resolved_at": str(t.resolved_at) if t.resolved_at else None,
-                  "notes": t.notes, "created_at": str(t.created_at) if t.created_at else None} for t in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
+    return ok(
+        {
+            "list": [
+                {
+                    "id": t.id,
+                    "ticket_no": t.ticket_no,
+                    "customer_id": t.customer_id,
+                    "title": t.title,
+                    "description": t.description,
+                    "status": t.status,
+                    "priority": t.priority,
+                    "category": t.category,
+                    "assigned_to": t.assigned_to,
+                    "resolved_at": str(t.resolved_at) if t.resolved_at else None,
+                    "notes": t.notes,
+                    "created_at": str(t.created_at) if t.created_at else None,
+                }
+                for t in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @ticket_router.post("", status_code=201)
-async def create_ticket(body: TicketCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_ticket(
+    body: TicketCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     data = body.model_dump()
     if data.get("customer_id") is None:
         data["customer_id"] = 214

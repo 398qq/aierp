@@ -10,6 +10,7 @@ The heavy lifting lives in ``_ocr_engines``, ``_ocr_merging``,
 ``_ocr_regions``. Public functions drop the leading underscore so
 callers (and the test suite) get a stable name to monkeypatch.
 """
+
 from __future__ import annotations
 
 import io
@@ -84,7 +85,9 @@ def extract_business_card_ocr(content: bytes) -> dict[str, Any]:
         easyocr_variants = [
             (name, variant)
             for name, variant in variants
-            if name == "original" or name == "resized" or name.startswith("opencv_card_")
+            if name == "original"
+            or name == "resized"
+            or name.startswith("opencv_card_")
         ][:4]
         for variant_name, variant in easyocr_variants:
             try:
@@ -103,7 +106,11 @@ def extract_business_card_ocr(content: bytes) -> dict[str, Any]:
                     rapid["engine"] = f"rapidocr:{variant_name}"
                     candidates.append(rapid)
             except Exception as exc:
-                logger.warning("RapidOCR failed on %s, fallback to tesseract: %s", variant_name, exc)
+                logger.warning(
+                    "RapidOCR failed on %s, fallback to tesseract: %s",
+                    variant_name,
+                    exc,
+                )
                 break
 
         try:
@@ -114,7 +121,12 @@ def extract_business_card_ocr(content: bytes) -> dict[str, Any]:
             logger.warning("Tesseract OCR failed: %s", exc)
 
         if not candidates:
-            return {"text": "", "engine": "none", "confidence": 0.0, "image_quality": image_quality}
+            return {
+                "text": "",
+                "engine": "none",
+                "confidence": 0.0,
+                "image_quality": image_quality,
+            }
 
         result = merge_card_ocr_results(candidates)
         result["image_quality"] = image_quality

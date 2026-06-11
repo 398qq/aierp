@@ -11,7 +11,9 @@ class ApprovalRule(TimestampMixin, Base):
     doc_type: Mapped[str] = mapped_column(String(50))  # quotation, purchase_order
     min_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     customer_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    flow_config: Mapped[dict] = mapped_column(JSON, default=list)  # [{level:1, approver_role:"sales_manager", approver_id:null}]
+    flow_config: Mapped[dict] = mapped_column(
+        JSON, default=list
+    )  # [{level:1, approver_role:"sales_manager", approver_id:null}]
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -21,19 +23,28 @@ class ApprovalRequest(TimestampMixin, Base):
     doc_type: Mapped[str] = mapped_column(String(50))
     doc_id: Mapped[int] = mapped_column()
     submitter_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    status: Mapped[str] = mapped_column(String(30), default="pending")  # pending, approved, rejected
+    status: Mapped[str] = mapped_column(
+        String(30), default="pending"
+    )  # pending, approved, rejected
     current_level: Mapped[int] = mapped_column(Integer, default=1)
     flow_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=0)  # optimistic lock
 
     submitter = relationship("User", foreign_keys=[submitter_id])
-    actions = relationship("ApprovalAction", back_populates="request", lazy="selectin", order_by="ApprovalAction.level")
+    actions = relationship(
+        "ApprovalAction",
+        back_populates="request",
+        lazy="selectin",
+        order_by="ApprovalAction.level",
+    )
 
 
 class ApprovalAction(TimestampMixin, Base):
     __tablename__ = "approval_actions"
 
-    request_id: Mapped[int] = mapped_column(ForeignKey("approval_requests.id", ondelete="CASCADE"))
+    request_id: Mapped[int] = mapped_column(
+        ForeignKey("approval_requests.id", ondelete="CASCADE")
+    )
     approver_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(20))  # approve, reject
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)

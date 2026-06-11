@@ -22,6 +22,7 @@ def _customer_search_ids(q: str):
         ),
     )
 
+
 def _sales_item_ids(item_model, parent_col, text_col, q: str):
     pattern = f"%{q}%"
     return select(parent_col).where(
@@ -29,9 +30,13 @@ def _sales_item_ids(item_model, parent_col, text_col, q: str):
         text_col.ilike(pattern),
     )
 
+
 QUOTE_COST_TAX_RATE = 0.13
 
-def _normalize_quotation_items(items_data: list[dict] | None) -> tuple[list[dict], float]:
+
+def _normalize_quotation_items(
+    items_data: list[dict] | None,
+) -> tuple[list[dict], float]:
     items: list[dict] = []
     total = 0.0
     for raw in items_data or []:
@@ -55,7 +60,10 @@ def _normalize_quotation_items(items_data: list[dict] | None) -> tuple[list[dict
         items.append(item)
     return items, total
 
-def _normalize_sales_order_items(items_data: list[dict] | None) -> tuple[list[dict], float]:
+
+def _normalize_sales_order_items(
+    items_data: list[dict] | None,
+) -> tuple[list[dict], float]:
     items: list[dict] = []
     total = 0.0
     for raw in items_data or []:
@@ -70,6 +78,7 @@ def _normalize_sales_order_items(items_data: list[dict] | None) -> tuple[list[di
         total += line_total
         items.append(item)
     return items, total
+
 
 # ============================================================
 # Opportunity CRUD

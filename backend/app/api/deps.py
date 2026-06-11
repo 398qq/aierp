@@ -22,15 +22,20 @@ async def get_current_user(
     # Prefer Bearer token; fall back to httpOnly cookie
     token = credentials.credentials if credentials else aierp_token
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token"
+        )
     payload = decode_access_token(token)
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
+        )
 
     # Blacklist check — if token was revoked, treat as expired
     jti = payload.get("jti")
     if jti:
         from app.core.security import is_token_revoked
+
         if await is_token_revoked(jti):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

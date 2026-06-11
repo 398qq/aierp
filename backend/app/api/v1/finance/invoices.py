@@ -54,16 +54,24 @@ async def _bump_invoice_caches() -> None:
 @router.get("/invoices")
 async def list_invoices(
     response: JSONResponse,
-    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
-    customer_id: int | None = None, status: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    customer_id: int | None = None,
+    status: str | None = None,
     sales_order_id: int | None = None,
-    sort_by: str = "id", sort_order: str = "desc",
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    sort_by: str = "id",
+    sort_order: str = "desc",
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     cache_key = _invoices_cache_key(
-        page=page, page_size=page_size, customer_id=customer_id,
-        status=status, sales_order_id=sales_order_id,
-        sort_by=sort_by, sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+        customer_id=customer_id,
+        status=status,
+        sales_order_id=sales_order_id,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     cached_payload = await cache_get_versioned("invoices:list", cache_key)
     if cached_payload is not None:
@@ -72,17 +80,46 @@ async def list_invoices(
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
     raw = await svc.list_invoices(
-        db, page=page, page_size=page_size, customer_id=customer_id,
-        status=status, sales_order_id=sales_order_id,
-        sort_by=sort_by, sort_order=sort_order,
+        db,
+        page=page,
+        page_size=page_size,
+        customer_id=customer_id,
+        status=status,
+        sales_order_id=sales_order_id,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     invoices = list(raw["list"])
     # Eager-load customer + sales_order to avoid N+1 + async lazy loads
     if invoices:
         cust_ids = list({i.customer_id for i in invoices if i.customer_id})
         so_ids = list({i.sales_order_id for i in invoices if i.sales_order_id})
-        custs = {c.id: c for c in (await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))).scalars().all()} if cust_ids else {}
-        sos = {s.id: s for s in (await db.execute(select(SalesOrder).where(SalesOrder.id.in_(so_ids)))).scalars().all()} if so_ids else {}
+        custs = (
+            {
+                c.id: c
+                for c in (
+                    await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))
+                )
+                .scalars()
+                .all()
+            }
+            if cust_ids
+            else {}
+        )
+        sos = (
+            {
+                s.id: s
+                for s in (
+                    await db.execute(
+                        select(SalesOrder).where(SalesOrder.id.in_(so_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            }
+            if so_ids
+            else {}
+        )
         for inv in invoices:
             if (c := custs.get(inv.customer_id)) is not None:
                 inv.customer = c
@@ -90,13 +127,18 @@ async def list_invoices(
                 inv.sales_order = s
     serialized_list = [serialize_invoice(i) for i in invoices]
     result = {**raw, "list": serialized_list}
-    await cache_set_versioned("invoices:list", cache_key, json.dumps(result),
-                                INVOICES_LIST_CACHE_TTL)
+    await cache_set_versioned(
+        "invoices:list", cache_key, json.dumps(result), INVOICES_LIST_CACHE_TTL
+    )
     return ok(result)
 
 
 @router.get("/invoices/{inv_id}")
-async def get_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def get_invoice(
+    inv_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     inv = await svc.get_invoice(db, inv_id)
     if not inv:
         return fail("发票不存在", 404)
@@ -106,7 +148,11 @@ async def get_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: di
 
 
 @router.post("/invoices")
-async def create_invoice(body: InvoiceCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_invoice(
+    body: InvoiceCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     inv = await svc.create_invoice(db, body.model_dump())
     await _bump_invoice_caches()
     await attach_customer_and_quotation(db, inv, type(inv))
@@ -115,7 +161,12 @@ async def create_invoice(body: InvoiceCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.put("/invoices/{inv_id}")
-async def update_invoice(inv_id: int, body: InvoiceUpdate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def update_invoice(
+    inv_id: int,
+    body: InvoiceUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     inv = await svc.get_invoice(db, inv_id)
     if not inv:
         return fail("发票不存在", 404)
@@ -127,7 +178,11 @@ async def update_invoice(inv_id: int, body: InvoiceUpdate, db: AsyncSession = De
 
 
 @router.delete("/invoices/{inv_id}")
-async def delete_invoice(inv_id: int, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def delete_invoice(
+    inv_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     inv = await svc.get_invoice(db, inv_id)
     if not inv:
         return fail("发票不存在", 404)

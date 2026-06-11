@@ -49,10 +49,28 @@ class JsonFormatter(logging.Formatter):
 
     # Standard LogRecord attributes that should NOT be duplicated as `extra`
     RESERVED = {
-        "args", "asctime", "created", "exc_info", "exc_text", "filename",
-        "funcName", "levelname", "levelno", "lineno", "module", "msecs",
-        "message", "msg", "name", "pathname", "process", "processName",
-        "relativeCreated", "stack_info", "thread", "threadName",
+        "args",
+        "asctime",
+        "created",
+        "exc_info",
+        "exc_text",
+        "filename",
+        "funcName",
+        "levelname",
+        "levelno",
+        "lineno",
+        "module",
+        "msecs",
+        "message",
+        "msg",
+        "name",
+        "pathname",
+        "process",
+        "processName",
+        "relativeCreated",
+        "stack_info",
+        "thread",
+        "threadName",
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -101,8 +119,9 @@ class JsonFormatter(logging.Formatter):
     def _format_timestamp(epoch: float) -> str:
         # ISO 8601 with milliseconds and Z suffix
         from datetime import datetime, timezone
+
         dt = datetime.fromtimestamp(epoch, tz=timezone.utc)
-        return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{int(dt.microsecond/1000):03d}Z"
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{int(dt.microsecond / 1000):03d}Z"
 
 
 def configure_json_logging(

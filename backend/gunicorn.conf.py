@@ -8,6 +8,7 @@ Or override workers via env:
 
 Worker class: uvicorn.workers.UvicornWorker (ASGI, supports WebSocket).
 """
+
 from __future__ import annotations
 
 import multiprocessing
@@ -54,10 +55,7 @@ max_requests_jitter = _env_int("WEB_MAX_REQUESTS_JITTER", 1000)
 accesslog = os.getenv("WEB_ACCESSLOG", "-")
 errorlog = os.getenv("WEB_ERRORLOG", "-")
 loglevel = os.getenv("WEB_LOGLEVEL", "info")
-access_log_format = (
-    '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s '
-    '"%(f)s" "%(a)s" %(L)s'
-)
+access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(L)s'
 
 # Process naming
 proc_name = "aierp-web"
@@ -70,7 +68,10 @@ preload_app = True
 def on_starting(server) -> None:
     server.log.info(
         "AIERP gunicorn starting: workers=%d threads=%d worker_class=%s bind=%s",
-        workers, threads, worker_class, bind,
+        workers,
+        threads,
+        worker_class,
+        bind,
     )
 
 

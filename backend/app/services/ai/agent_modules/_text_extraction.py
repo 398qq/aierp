@@ -10,16 +10,35 @@ logger = logging.getLogger(__name__)
 # Job-title vocabulary used to identify the "contact_person" line on
 # a business card (e.g. "经理", "Director", "Engineer"). Mixed CN/EN.
 BUSINESS_CARD_TITLES = (
-    "董事长", "总经理", "副总", "经理", "主管", "销售", "业务", "工程师", "采购", "负责人",
-    "CEO", "CTO", "COO", "Founder", "Manager", "Director", "Engineer", "Sales",
+    "董事长",
+    "总经理",
+    "副总",
+    "经理",
+    "主管",
+    "销售",
+    "业务",
+    "工程师",
+    "采购",
+    "负责人",
+    "CEO",
+    "CTO",
+    "COO",
+    "Founder",
+    "Manager",
+    "Director",
+    "Engineer",
+    "Sales",
 )
+
 
 def normalize_customer_source_text(text: str) -> str:
     raw = (text or "").strip()
     raw = re.sub(r"[ \t]+", " ", raw)
     raw = re.sub(r"(?<=\d)[\s\-]+(?=\d)", "", raw)
     raw = re.sub(r"(?i)\bE[-\s]*mail\b", "Email", raw)
-    raw = re.sub(r"(?i)([A-Z0-9._%+-]+)\s*@\s*([A-Z0-9.-]+)\s*\.\s*([A-Z]{2,})", r"\1@\2.\3", raw)
+    raw = re.sub(
+        r"(?i)([A-Z0-9._%+-]+)\s*@\s*([A-Z0-9.-]+)\s*\.\s*([A-Z]{2,})", r"\1@\2.\3", raw
+    )
     raw = re.sub(r"(?i)\b(?:Tel|Phone|Mobile|Mob|Cell)\s*[:：]?", "电话:", raw)
     raw = re.sub(r"(?i)\b(?:Address|Addr)\s*[:：]?", "地址:", raw)
     raw = re.sub(r"(?i)\b(?:Company|Company Name)\s*[:：]?", "公司:", raw)
@@ -28,7 +47,11 @@ def normalize_customer_source_text(text: str) -> str:
 
 
 def text_lines(text: str) -> list[str]:
-    return [line.strip(" \t,，;；:：") for line in text.splitlines() if line.strip(" \t,，;；:：")]
+    return [
+        line.strip(" \t,，;；:：")
+        for line in text.splitlines()
+        if line.strip(" \t,，;；:：")
+    ]
 
 
 def extract_email(text: str) -> str:
@@ -55,19 +78,40 @@ def extract_phone(text: str) -> str:
 
 
 def extract_contact_person(text: str) -> str:
-    contact_match = re.search(r"(?:联系人|联系人姓名|contact)[:：\s]*([A-Za-z\u4e00-\u9fa5·]{2,20})", text, re.IGNORECASE)
+    contact_match = re.search(
+        r"(?:联系人|联系人姓名|contact)[:：\s]*([A-Za-z\u4e00-\u9fa5·]{2,20})",
+        text,
+        re.IGNORECASE,
+    )
     if contact_match:
         return contact_match.group(1)
 
     for line in text_lines(text):
-        if any(token in line for token in ("有限公司", "股份", "集团", "地址", "电话", "手机", "邮箱", "Email", "@")):
+        if any(
+            token in line
+            for token in (
+                "有限公司",
+                "股份",
+                "集团",
+                "地址",
+                "电话",
+                "手机",
+                "邮箱",
+                "Email",
+                "@",
+            )
+        ):
             continue
         if not any(title.lower() in line.lower() for title in BUSINESS_CARD_TITLES):
             continue
         zh_match = re.match(r"([\u4e00-\u9fa5·]{2,4})\s*(?:/|-|,|，|\s)*", line)
         if zh_match:
             return zh_match.group(1)
-        title_words = {title.lower() for title in BUSINESS_CARD_TITLES if re.fullmatch(r"[A-Za-z]+", title)}
+        title_words = {
+            title.lower()
+            for title in BUSINESS_CARD_TITLES
+            if re.fullmatch(r"[A-Za-z]+", title)
+        }
         name_words = []
         for word in re.findall(r"[A-Z][A-Za-z]+", line):
             if word.lower() in title_words:
@@ -80,7 +124,10 @@ def extract_contact_person(text: str) -> str:
             return en_match.group(1)
 
     for line in text_lines(text):
-        if any(token in line for token in ("有限公司", "股份", "集团", "地址", "邮箱", "Email", "@")):
+        if any(
+            token in line
+            for token in ("有限公司", "股份", "集团", "地址", "邮箱", "Email", "@")
+        ):
             continue
         if not re.search(r"(?<!\d)(?:1[3-9]\d{9}|0\d{2,3}-?\d{7,8})(?!\d)", line):
             continue
@@ -121,15 +168,23 @@ def extract_company_name(text: str) -> str:
     if company_lines:
         return max(company_lines, key=len)[:80]
 
-    first_line = next((line for line in text_lines(text) if not re.search(r"[@\d]", line)), "")
+    first_line = next(
+        (line for line in text_lines(text) if not re.search(r"[@\d]", line)), ""
+    )
     return first_line[:60]
 
 
 def heuristic_customer_recognition(text: str) -> dict:
     raw = normalize_customer_source_text(text)
-    owner_match = re.search(r"(?:负责人|销售负责人|owner|sales owner)[:：\s]*([A-Za-z\u4e00-\u9fa5·]{2,20})", raw, re.IGNORECASE)
+    owner_match = re.search(
+        r"(?:负责人|销售负责人|owner|sales owner)[:：\s]*([A-Za-z\u4e00-\u9fa5·]{2,20})",
+        raw,
+        re.IGNORECASE,
+    )
     address_match = re.search(r"(?:地址|公司地址)[:：\s]*([^\n]{4,120})", raw)
-    level_match = re.search(r"(?:等级|客户等级|level)[:：\s]*([ABCD])", raw, re.IGNORECASE)
+    level_match = re.search(
+        r"(?:等级|客户等级|level)[:：\s]*([ABCD])", raw, re.IGNORECASE
+    )
     name = extract_company_name(raw)
 
     def pick(options: list[str]) -> str:
@@ -142,52 +197,78 @@ def heuristic_customer_recognition(text: str) -> dict:
                 return value
         return ""
 
-    industry = pick(["汽车电子", "消费电子", "工业控制", "通信设备", "医疗器械", "安防监控"])
+    industry = pick(
+        ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗器械", "安防监控"]
+    )
     if not industry:
-        industry = pick_by_keywords({
-            "汽车电子": ("车规", "车载", "automotive"),
-            "消费电子": ("消费类", "家电", "consumer electronics"),
-            "工业控制": ("工控", "plc", "industrial control"),
-            "通信设备": ("通信", "5g", "networking"),
-            "医疗器械": ("医疗", "医械", "medical"),
-            "安防监控": ("安防", "监控", "security camera"),
-            "其他": ("其他", "others"),
-        })
+        industry = pick_by_keywords(
+            {
+                "汽车电子": ("车规", "车载", "automotive"),
+                "消费电子": ("消费类", "家电", "consumer electronics"),
+                "工业控制": ("工控", "plc", "industrial control"),
+                "通信设备": ("通信", "5g", "networking"),
+                "医疗器械": ("医疗", "医械", "medical"),
+                "安防监控": ("安防", "监控", "security camera"),
+                "其他": ("其他", "others"),
+            }
+        )
 
     region = pick(["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"])
     if not region:
-        region = pick_by_keywords({
-            "华南": ("广东", "深圳", "广州", "东莞", "佛山", "珠海"),
-            "华东": ("上海", "江苏", "浙江", "杭州", "苏州", "宁波"),
-            "华北": ("北京", "天津", "河北", "山东", "青岛", "济南"),
-            "华中": ("湖北", "湖南", "河南", "武汉", "长沙", "郑州"),
-            "西南": ("四川", "重庆", "云南", "贵州", "成都"),
-            "西北": ("陕西", "甘肃", "宁夏", "新疆", "西安"),
-            "东北": ("辽宁", "吉林", "黑龙江", "沈阳", "大连", "哈尔滨"),
-            "海外": ("海外", "香港", "澳门", "台湾", "overseas"),
-        })
+        region = pick_by_keywords(
+            {
+                "华南": ("广东", "深圳", "广州", "东莞", "佛山", "珠海"),
+                "华东": ("上海", "江苏", "浙江", "杭州", "苏州", "宁波"),
+                "华北": ("北京", "天津", "河北", "山东", "青岛", "济南"),
+                "华中": ("湖北", "湖南", "河南", "武汉", "长沙", "郑州"),
+                "西南": ("四川", "重庆", "云南", "贵州", "成都"),
+                "西北": ("陕西", "甘肃", "宁夏", "新疆", "西安"),
+                "东北": ("辽宁", "吉林", "黑龙江", "沈阳", "大连", "哈尔滨"),
+                "海外": ("海外", "香港", "澳门", "台湾", "overseas"),
+            }
+        )
 
     source = pick(["展会", "转介绍", "线上推广", "电话开发", "公司资源"])
     if not source:
-        source = pick_by_keywords({
-            "展会": ("展会", "博览会", "expo", "fair"),
-            "转介绍": ("转介绍", "介绍", "referral"),
-            "线上推广": ("线上", "官网", "公众号", "抖音", "小红书", "广告", "线索平台", "网站留资", "website", "留资", "seo", "sem"),
-            "电话开发": ("电话开发", "cold call", "陌拜电话", "telemarketing"),
-            "公司资源": ("公司资源", "历史客户", "老客户"),
-        })
+        source = pick_by_keywords(
+            {
+                "展会": ("展会", "博览会", "expo", "fair"),
+                "转介绍": ("转介绍", "介绍", "referral"),
+                "线上推广": (
+                    "线上",
+                    "官网",
+                    "公众号",
+                    "抖音",
+                    "小红书",
+                    "广告",
+                    "线索平台",
+                    "网站留资",
+                    "website",
+                    "留资",
+                    "seo",
+                    "sem",
+                ),
+                "电话开发": ("电话开发", "cold call", "陌拜电话", "telemarketing"),
+                "公司资源": ("公司资源", "历史客户", "老客户"),
+            }
+        )
 
     customer_type = pick(["终端", "贸易商", "方案商", "OEM"])
     if not customer_type:
-        customer_type = pick_by_keywords({
-            "终端": ("终端", "终端客户", "end customer"),
-            "贸易商": ("贸易商", "分销", "distributor", "代理"),
-            "方案商": ("方案商", "系统集成", "方案公司", "si"),
-            "OEM": ("oem", "贴牌", "代工"),
-        })
+        customer_type = pick_by_keywords(
+            {
+                "终端": ("终端", "终端客户", "end customer"),
+                "贸易商": ("贸易商", "分销", "distributor", "代理"),
+                "方案商": ("方案商", "系统集成", "方案公司", "si"),
+                "OEM": ("oem", "贴牌", "代工"),
+            }
+        )
 
     credit_limit = None
-    credit_match = re.search(r"(?:授信|信用额度|额度)[:：\s]*([0-9]+(?:\.[0-9]+)?)\s*(万|w|W|千|k|K|元)?", raw)
+    credit_match = re.search(
+        r"(?:授信|信用额度|额度)[:：\s]*([0-9]+(?:\.[0-9]+)?)\s*(万|w|W|千|k|K|元)?",
+        raw,
+    )
     if credit_match:
         amount = float(credit_match.group(1))
         unit = (credit_match.group(2) or "").lower()
@@ -200,11 +281,17 @@ def heuristic_customer_recognition(text: str) -> dict:
     short_name = ""
     if name:
         short_name = re.sub(r"(股份有限公司|有限公司|集团|公司)$", "", name).strip()
-        short_name = re.sub(r"^(深圳市|上海市|北京市|广州市|杭州市|苏州市|东莞市|宁波市)", "", short_name).strip()
+        short_name = re.sub(
+            r"^(深圳市|上海市|北京市|广州市|杭州市|苏州市|东莞市|宁波市)",
+            "",
+            short_name,
+        ).strip()
         if not short_name:
             short_name = name
 
-    credit_level_match = re.search(r"(?:信用等级|授信等级|等级)[:：\s]*([ABCD])(?:级|类)?", raw, re.IGNORECASE)
+    credit_level_match = re.search(
+        r"(?:信用等级|授信等级|等级)[:：\s]*([ABCD])(?:级|类)?", raw, re.IGNORECASE
+    )
     credit_level = credit_level_match.group(1).upper() if credit_level_match else ""
     if credit_limit is not None:
         if not credit_level:
@@ -260,12 +347,12 @@ def merge_customer_recognition(ai_result: dict, text: str) -> dict:
     return merged
 
 
-def compose_customer_recognition_context(text: str, ocr_candidates: list[dict] | None = None) -> str:
+def compose_customer_recognition_context(
+    text: str, ocr_candidates: list[dict] | None = None
+) -> str:
     parts = [(text or "").strip()]
     for candidate in (ocr_candidates or [])[:6]:
         candidate_text = str(candidate.get("text") or "").strip()
         if candidate_text and candidate_text not in parts:
             parts.append(candidate_text)
     return "\n".join(part for part in parts if part)
-
-

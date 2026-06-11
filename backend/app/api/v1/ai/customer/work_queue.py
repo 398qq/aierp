@@ -8,6 +8,7 @@ sales team:
 * ``POST /customer/recommendation/{id}/status``    — adopt / dismiss
 * ``POST /customer/recommendation/{id}/feedback``  — record usefulness
 """
+
 from __future__ import annotations
 
 import logging
@@ -63,7 +64,12 @@ async def generate_work_queue(
     _user: dict = Depends(get_current_user),
 ):
     """Generate next-best-action queue for customers."""
-    from app.models.customer import Customer, CustomerAIRecommendation, CustomerAISnapshotDaily, CustomerFollowUp
+    from app.models.customer import (
+        Customer,
+        CustomerAIRecommendation,
+        CustomerAISnapshotDaily,
+        CustomerFollowUp,
+    )
     from app.models.finance import PaymentRecord
     from app.models.sales import Opportunity, SalesOrder
 
@@ -80,52 +86,74 @@ async def generate_work_queue(
     replaced = 0
     if body.replace_open and not body.dry_run:
         open_recs = (
-            await db.execute(
-                select(CustomerAIRecommendation).where(
-                    CustomerAIRecommendation.customer_id.in_(customer_ids),
-                    CustomerAIRecommendation.deleted_at.is_(None),
-                    CustomerAIRecommendation.status.in_(["open", "in_progress"]),
+            (
+                await db.execute(
+                    select(CustomerAIRecommendation).where(
+                        CustomerAIRecommendation.customer_id.in_(customer_ids),
+                        CustomerAIRecommendation.deleted_at.is_(None),
+                        CustomerAIRecommendation.status.in_(["open", "in_progress"]),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for rec in open_recs:
             rec.status = "superseded"
             replaced += 1
 
     orders = (
-        await db.execute(
-            select(SalesOrder).where(
-                SalesOrder.deleted_at.is_(None),
-                SalesOrder.customer_id.in_(customer_ids),
+        (
+            await db.execute(
+                select(SalesOrder).where(
+                    SalesOrder.deleted_at.is_(None),
+                    SalesOrder.customer_id.in_(customer_ids),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     opportunities = (
-        await db.execute(
-            select(Opportunity).where(
-                Opportunity.deleted_at.is_(None),
-                Opportunity.customer_id.in_(customer_ids),
-                Opportunity.stage.in_(["lead", "qualification", "proposal", "negotiation"]),
+        (
+            await db.execute(
+                select(Opportunity).where(
+                    Opportunity.deleted_at.is_(None),
+                    Opportunity.customer_id.in_(customer_ids),
+                    Opportunity.stage.in_(
+                        ["lead", "qualification", "proposal", "negotiation"]
+                    ),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     followups = (
-        await db.execute(
-            select(CustomerFollowUp).where(
-                CustomerFollowUp.deleted_at.is_(None),
-                CustomerFollowUp.customer_id.in_(customer_ids),
+        (
+            await db.execute(
+                select(CustomerFollowUp).where(
+                    CustomerFollowUp.deleted_at.is_(None),
+                    CustomerFollowUp.customer_id.in_(customer_ids),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     payments = (
-        await db.execute(
-            select(PaymentRecord).where(
-                PaymentRecord.deleted_at.is_(None),
-                PaymentRecord.customer_id.in_(customer_ids),
-                PaymentRecord.status != "paid",
+        (
+            await db.execute(
+                select(PaymentRecord).where(
+                    PaymentRecord.deleted_at.is_(None),
+                    PaymentRecord.customer_id.in_(customer_ids),
+                    PaymentRecord.status != "paid",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     order_map: dict[int, list[Any]] = {}
     for order in orders:
@@ -141,12 +169,17 @@ async def generate_work_queue(
         if fu.planned_at and fu.planned_at < now and fu.status != "completed":
             overdue_map[fu.customer_id] = overdue_map.get(fu.customer_id, 0) + 1
         created = to_utc(fu.created_at)
-        if created and (fu.customer_id not in followup_last_map or created > followup_last_map[fu.customer_id]):
+        if created and (
+            fu.customer_id not in followup_last_map
+            or created > followup_last_map[fu.customer_id]
+        ):
             followup_last_map[fu.customer_id] = created
 
     outstanding_map: dict[int, float] = {}
     for pay in payments:
-        outstanding_map[pay.customer_id] = outstanding_map.get(pay.customer_id, 0.0) + safe_float(pay.amount)
+        outstanding_map[pay.customer_id] = outstanding_map.get(
+            pay.customer_id, 0.0
+        ) + safe_float(pay.amount)
 
     created_items: list[dict[str, Any]] = []
     username = _user.get("username")
@@ -166,7 +199,9 @@ async def generate_work_queue(
             if created_at and created_at >= now - timedelta(days=180):
                 order_amount_180d += safe_float(order.total_amount)
 
-        last_contact_at = to_utc(customer.last_contacted_at) or followup_last_map.get(customer.id)
+        last_contact_at = to_utc(customer.last_contacted_at) or followup_last_map.get(
+            customer.id
+        )
         days_since_contact = days_since(last_contact_at, now)
         last_order_days = days_since(latest_order_at, now)
 
@@ -174,9 +209,13 @@ async def generate_work_queue(
         overdue_followups = overdue_map.get(customer.id, 0)
         outstanding_amount = outstanding_map.get(customer.id, 0.0)
         credit_limit = safe_float(customer.credit_limit)
-        outstanding_ratio = 0.0 if credit_limit <= 0 else min(2.0, outstanding_amount / credit_limit)
+        outstanding_ratio = (
+            0.0 if credit_limit <= 0 else min(2.0, outstanding_amount / credit_limit)
+        )
 
-        churn_risk_score = safe_float((customer.ai_insights or {}).get("churn", {}).get("risk_score"))
+        churn_risk_score = safe_float(
+            (customer.ai_insights or {}).get("churn", {}).get("risk_score")
+        )
         if churn_risk_score <= 0:
             churn_risk_score = 45.0
 
@@ -184,10 +223,18 @@ async def generate_work_queue(
         if health_score <= 0:
             health_score = 55.0
 
-        value_score = derive_value_score(customer.level, order_amount_180d, customer.credit_level)
-        risk_score = derive_risk_score(churn_risk_score, last_order_days, overdue_followups, outstanding_ratio)
-        urgency_score = derive_urgency_score(days_since_contact, overdue_followups, open_opportunities)
-        priority_score = round(risk_score * 0.45 + value_score * 0.35 + urgency_score * 0.2, 1)
+        value_score = derive_value_score(
+            customer.level, order_amount_180d, customer.credit_level
+        )
+        risk_score = derive_risk_score(
+            churn_risk_score, last_order_days, overdue_followups, outstanding_ratio
+        )
+        urgency_score = derive_urgency_score(
+            days_since_contact, overdue_followups, open_opportunities
+        )
+        priority_score = round(
+            risk_score * 0.45 + value_score * 0.35 + urgency_score * 0.2, 1
+        )
 
         action = next_action(
             customer_name=customer.name,
@@ -245,46 +292,59 @@ async def generate_work_queue(
         }
 
         if body.dry_run:
-            created_items.append({
-                "customer_id": customer.id,
-                "customer_name": customer.name,
-                **rec_payload,
-                "snapshot": snapshot_payload,
-            })
+            created_items.append(
+                {
+                    "customer_id": customer.id,
+                    "customer_name": customer.name,
+                    **rec_payload,
+                    "snapshot": snapshot_payload,
+                }
+            )
             continue
 
         snapshot = CustomerAISnapshotDaily(**snapshot_payload)
         db.add(snapshot)
         await db.flush()
 
-        recommendation = CustomerAIRecommendation(snapshot_id=snapshot.id, **rec_payload)
+        recommendation = CustomerAIRecommendation(
+            snapshot_id=snapshot.id, **rec_payload
+        )
         db.add(recommendation)
         await db.flush()
 
-        created_items.append({
-            "id": recommendation.id,
-            "customer_id": customer.id,
-            "customer_name": customer.name,
-            **rec_payload,
-            "snapshot": snapshot_payload,
-        })
+        created_items.append(
+            {
+                "id": recommendation.id,
+                "customer_id": customer.id,
+                "customer_name": customer.name,
+                **rec_payload,
+                "snapshot": snapshot_payload,
+            }
+        )
 
-    created_items.sort(key=lambda item: float(item.get("priority_score", 0)), reverse=True)
-    preview_items = [{
-        "id": item.get("id"),
-        "customer_id": item["customer_id"],
-        "customer_name": item["customer_name"],
-        "action_type": item["action_type"],
-        "title": item["title"],
-        "priority_score": item["priority_score"],
-        "due_at": str(item["due_at"]) if item.get("due_at") else None,
-        "status": item["status"],
-    } for item in created_items[:20]]
-    return ok({
-        "generated": len(created_items),
-        "replaced": replaced,
-        "items": preview_items,
-    })
+    created_items.sort(
+        key=lambda item: float(item.get("priority_score", 0)), reverse=True
+    )
+    preview_items = [
+        {
+            "id": item.get("id"),
+            "customer_id": item["customer_id"],
+            "customer_name": item["customer_name"],
+            "action_type": item["action_type"],
+            "title": item["title"],
+            "priority_score": item["priority_score"],
+            "due_at": str(item["due_at"]) if item.get("due_at") else None,
+            "status": item["status"],
+        }
+        for item in created_items[:20]
+    ]
+    return ok(
+        {
+            "generated": len(created_items),
+            "replaced": replaced,
+            "items": preview_items,
+        }
+    )
 
 
 @router.get("/customer/work-queue")
@@ -296,18 +356,35 @@ async def get_work_queue(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    from app.models.customer import Customer, CustomerAIFeedback, CustomerAIRecommendation, CustomerAISnapshotDaily
+    from app.models.customer import (
+        Customer,
+        CustomerAIFeedback,
+        CustomerAIRecommendation,
+        CustomerAISnapshotDaily,
+    )
 
     base = (
-        select(CustomerAIRecommendation, Customer.name, Customer.level, Customer.industry, Customer.owner, CustomerAISnapshotDaily)
+        select(
+            CustomerAIRecommendation,
+            Customer.name,
+            Customer.level,
+            Customer.industry,
+            Customer.owner,
+            CustomerAISnapshotDaily,
+        )
         .join(Customer, Customer.id == CustomerAIRecommendation.customer_id)
-        .outerjoin(CustomerAISnapshotDaily, CustomerAISnapshotDaily.id == CustomerAIRecommendation.snapshot_id)
+        .outerjoin(
+            CustomerAISnapshotDaily,
+            CustomerAISnapshotDaily.id == CustomerAIRecommendation.snapshot_id,
+        )
         .where(
             CustomerAIRecommendation.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
         )
     )
-    count_base = select(func.count(CustomerAIRecommendation.id)).where(CustomerAIRecommendation.deleted_at.is_(None))
+    count_base = select(func.count(CustomerAIRecommendation.id)).where(
+        CustomerAIRecommendation.deleted_at.is_(None)
+    )
     if status != "all":
         base = base.where(CustomerAIRecommendation.status == status)
         count_base = count_base.where(CustomerAIRecommendation.status == status)
@@ -318,7 +395,10 @@ async def get_work_queue(
     total = (await db.execute(count_base)).scalar() or 0
     rows = (
         await db.execute(
-            base.order_by(CustomerAIRecommendation.priority_score.desc(), CustomerAIRecommendation.created_at.desc())
+            base.order_by(
+                CustomerAIRecommendation.priority_score.desc(),
+                CustomerAIRecommendation.created_at.desc(),
+            )
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -329,7 +409,10 @@ async def get_work_queue(
     if rec_ids:
         fb_rows = (
             await db.execute(
-                select(CustomerAIFeedback.recommendation_id, func.count(CustomerAIFeedback.id))
+                select(
+                    CustomerAIFeedback.recommendation_id,
+                    func.count(CustomerAIFeedback.id),
+                )
                 .where(
                     CustomerAIFeedback.deleted_at.is_(None),
                     CustomerAIFeedback.recommendation_id.in_(rec_ids),
@@ -340,7 +423,14 @@ async def get_work_queue(
         feedback_map = {int(r[0]): int(r[1]) for r in fb_rows}
 
     items: list[dict[str, Any]] = []
-    for rec, customer_name, customer_level, customer_industry, customer_owner, snapshot in rows:
+    for (
+        rec,
+        customer_name,
+        customer_level,
+        customer_industry,
+        customer_owner,
+        snapshot,
+    ) in rows:
         snapshot_payload = {
             "health_score": snapshot.health_score if snapshot else None,
             "churn_risk_score": snapshot.churn_risk_score if snapshot else None,
@@ -353,44 +443,50 @@ async def get_work_queue(
             "open_opportunities": snapshot.open_opportunities if snapshot else None,
             "outstanding_amount": snapshot.outstanding_amount if snapshot else None,
         }
-        items.append({
-            "id": rec.id,
-            "customer_id": rec.customer_id,
-            "customer_name": customer_name,
-            "customer_level": customer_level,
-            "customer_industry": customer_industry,
-            "customer_owner": customer_owner,
-            "action_type": rec.action_type,
-            "title": rec.title,
-            "reason": rec.reason,
-            "confidence": rec.confidence,
-            "priority_score": rec.priority_score,
-            "expected_impact": rec.expected_impact,
-            "due_at": str(rec.due_at) if rec.due_at else None,
-            "status": rec.status,
-            "owner": rec.owner,
-            "model_version": rec.model_version,
-            "snapshot": snapshot_payload,
-            "feedback_count": feedback_map.get(rec.id, 0),
-            "created_at": str(rec.created_at) if rec.created_at else None,
-        })
+        items.append(
+            {
+                "id": rec.id,
+                "customer_id": rec.customer_id,
+                "customer_name": customer_name,
+                "customer_level": customer_level,
+                "customer_industry": customer_industry,
+                "customer_owner": customer_owner,
+                "action_type": rec.action_type,
+                "title": rec.title,
+                "reason": rec.reason,
+                "confidence": rec.confidence,
+                "priority_score": rec.priority_score,
+                "expected_impact": rec.expected_impact,
+                "due_at": str(rec.due_at) if rec.due_at else None,
+                "status": rec.status,
+                "owner": rec.owner,
+                "model_version": rec.model_version,
+                "snapshot": snapshot_payload,
+                "feedback_count": feedback_map.get(rec.id, 0),
+                "created_at": str(rec.created_at) if rec.created_at else None,
+            }
+        )
 
     status_rows = (
         await db.execute(
-            select(CustomerAIRecommendation.status, func.count(CustomerAIRecommendation.id))
+            select(
+                CustomerAIRecommendation.status, func.count(CustomerAIRecommendation.id)
+            )
             .where(CustomerAIRecommendation.deleted_at.is_(None))
             .group_by(CustomerAIRecommendation.status)
         )
     ).all()
     status_stats = {str(row[0]): int(row[1]) for row in status_rows}
 
-    return ok({
-        "list": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "status_stats": status_stats,
-    })
+    return ok(
+        {
+            "list": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "status_stats": status_stats,
+        }
+    )
 
 
 @router.post("/customer/recommendation/{recommendation_id}/status")

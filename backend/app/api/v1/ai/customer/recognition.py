@@ -11,6 +11,7 @@ All three share the bounded vocabularies in ``_vocab`` and the cleaners
 in ``_cleaners``. They talk to ``CustomerAgent`` (an AI agent from
 ``app.services.ai``) for the actual natural-language understanding.
 """
+
 from __future__ import annotations
 
 import logging
@@ -58,11 +59,15 @@ class CustomerRecognitionRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
-def _normalize_customer_recognition(recognized: dict[str, Any], fallback_text: str) -> dict[str, Any]:
+def _normalize_customer_recognition(
+    recognized: dict[str, Any], fallback_text: str
+) -> dict[str, Any]:
     payload = {
         "name": clean_text(recognized.get("name")),
         "short_name": clean_text(recognized.get("short_name")),
-        "customer_type": clean_choice(recognized.get("customer_type"), CUSTOMER_TYPE_VALUES),
+        "customer_type": clean_choice(
+            recognized.get("customer_type"), CUSTOMER_TYPE_VALUES
+        ),
         "industry": clean_choice(recognized.get("industry"), CUSTOMER_INDUSTRY_VALUES),
         "level": clean_choice(recognized.get("level"), CUSTOMER_LEVEL_VALUES),
         "region": clean_choice(recognized.get("region"), CUSTOMER_REGION_VALUES),
@@ -72,7 +77,9 @@ def _normalize_customer_recognition(recognized: dict[str, Any], fallback_text: s
         "email": clean_text(recognized.get("email")),
         "owner": clean_text(recognized.get("owner")),
         "credit_limit": clean_float(recognized.get("credit_limit")),
-        "credit_level": clean_choice(recognized.get("credit_level"), CUSTOMER_LEVEL_VALUES),
+        "credit_level": clean_choice(
+            recognized.get("credit_level"), CUSTOMER_LEVEL_VALUES
+        ),
         "address": clean_text(recognized.get("address")),
         "notes": clean_text(recognized.get("notes")),
         "confidence": clean_confidence(recognized.get("confidence")),
@@ -83,7 +90,9 @@ def _normalize_customer_recognition(recognized: dict[str, Any], fallback_text: s
     return payload
 
 
-def _customer_recognition_warnings(payload: dict[str, Any], *, is_card: bool = False) -> list[str]:
+def _customer_recognition_warnings(
+    payload: dict[str, Any], *, is_card: bool = False
+) -> list[str]:
     warnings: list[str] = []
     if not payload.get("name"):
         warnings.append("未识别到客户名称")
@@ -155,7 +164,9 @@ async def recognize_customer_card(
     payload["ocr_score"] = float(ocr_result.get("score") or 0)
     payload["ocr_candidates"] = ocr_result.get("candidates") or []
     payload["image_quality"] = ocr_result.get("image_quality") or {}
-    payload["recognition_warnings"] = _customer_recognition_warnings(payload, is_card=True)
+    payload["recognition_warnings"] = _customer_recognition_warnings(
+        payload, is_card=True
+    )
     return ok(payload)
 
 
@@ -172,7 +183,9 @@ async def recognize_followup(
     from app.models.customer import Customer, CustomerFollowUp
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:

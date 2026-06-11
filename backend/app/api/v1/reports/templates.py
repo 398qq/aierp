@@ -49,18 +49,31 @@ async def list_templates(
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
     result = await db.execute(
-        select(ReportTemplate).where(
+        select(ReportTemplate)
+        .where(
             ReportTemplate.deleted_at.is_(None),
-        ).order_by(ReportTemplate.id.desc())
+        )
+        .order_by(ReportTemplate.id.desc())
     )
     temps = result.scalars().all()
-    payload = [{
-        "id": t.id, "name": t.name, "type": t.type, "config": t.config,
-        "is_public": t.is_public, "created_by": t.created_by,
-        "created_at": str(t.created_at),
-    } for t in temps]
-    await cache_set_versioned("reports:templates:list", cache_key, json.dumps(payload, default=str),
-                                TEMPLATES_LIST_CACHE_TTL)
+    payload = [
+        {
+            "id": t.id,
+            "name": t.name,
+            "type": t.type,
+            "config": t.config,
+            "is_public": t.is_public,
+            "created_by": t.created_by,
+            "created_at": str(t.created_at),
+        }
+        for t in temps
+    ]
+    await cache_set_versioned(
+        "reports:templates:list",
+        cache_key,
+        json.dumps(payload, default=str),
+        TEMPLATES_LIST_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -79,8 +92,11 @@ async def create_template(
     current_user: dict = Depends(require_perm("reports", "write")),
 ):
     t = ReportTemplate(
-        name=body.name, type=body.type, config=body.config,
-        created_by=current_user["user_id"], is_public=body.is_public,
+        name=body.name,
+        type=body.type,
+        config=body.config,
+        created_by=current_user["user_id"],
+        is_public=body.is_public,
     )
     db.add(t)
     await db.commit()
@@ -89,13 +105,20 @@ async def create_template(
 
 
 @router.put("/templates/{template_id}")
-async def update_template(template_id: int, body: TemplateCreate,
-                          request: Request,
-                          db: AsyncSession = Depends(get_db),
-                          current_user: dict = Depends(require_perm("reports", "write"))):
-    t = (await db.execute(
-        select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def update_template(
+    template_id: int,
+    body: TemplateCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_perm("reports", "write")),
+):
+    t = (
+        await db.execute(
+            select(ReportTemplate).where(
+                ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not t:
         return fail("模板不存在")
     t.name = body.name
@@ -108,13 +131,19 @@ async def update_template(template_id: int, body: TemplateCreate,
 
 
 @router.delete("/templates/{template_id}")
-async def delete_template(template_id: int,
-                          request: Request,
-                          db: AsyncSession = Depends(get_db),
-                          current_user: dict = Depends(require_perm("reports", "write"))):
-    t = (await db.execute(
-        select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def delete_template(
+    template_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_perm("reports", "write")),
+):
+    t = (
+        await db.execute(
+            select(ReportTemplate).where(
+                ReportTemplate.id == template_id, ReportTemplate.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not t:
         return fail("模板不存在")
     t.deleted_at = datetime.datetime.now(datetime.timezone.utc)

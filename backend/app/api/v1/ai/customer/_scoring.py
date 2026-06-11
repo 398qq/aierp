@@ -4,6 +4,7 @@ Pure functions used by ``work_queue.py``. The legacy monolithic module
 inlined this logic; here it is extracted so the scoring can be unit
 tested in isolation and reused by other recommendation engines.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,7 +14,9 @@ _LEVEL_BASE: dict[str, float] = {"A": 92.0, "B": 72.0, "C": 50.0, "D": 32.0}
 _CREDIT_BASE: dict[str, float] = {"AAA": 10.0, "AA": 8.0, "A": 6.0, "B": 3.0, "C": 0.0}
 
 
-def derive_value_score(level: str | None, monetary_180d: float, credit_level: str | None) -> float:
+def derive_value_score(
+    level: str | None, monetary_180d: float, credit_level: str | None
+) -> float:
     base = _LEVEL_BASE.get((level or "").upper(), 55.0)
     revenue_bonus = min(28.0, monetary_180d / 50_000.0 * 8.0)
     credit_bonus = _CREDIT_BASE.get((credit_level or "").upper(), 2.0)
@@ -29,11 +32,18 @@ def derive_risk_score(
     order_risk = min(100.0, last_order_days / 120.0 * 100.0)
     overdue_risk = min(100.0, overdue_followups * 25.0)
     credit_risk = min(100.0, outstanding_ratio * 120.0)
-    score = churn_risk_score * 0.5 + order_risk * 0.2 + overdue_risk * 0.2 + credit_risk * 0.1
+    score = (
+        churn_risk_score * 0.5
+        + order_risk * 0.2
+        + overdue_risk * 0.2
+        + credit_risk * 0.1
+    )
     return max(0.0, min(100.0, round(score, 1)))
 
 
-def derive_urgency_score(days_since_contact: int, overdue_followups: int, open_opportunities: int) -> float:
+def derive_urgency_score(
+    days_since_contact: int, overdue_followups: int, open_opportunities: int
+) -> float:
     contact_term = max(0.0, (days_since_contact - 30) * 0.9)
     overdue_term = overdue_followups * 20.0
     opportunity_term = 18.0 if open_opportunities > 0 else 0.0

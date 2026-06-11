@@ -4,6 +4,7 @@ result merging.
 Pure functions: no I/O, no global state. Used by ``_ocr_engines.py`` and
 exercised directly by the test suite for scoring and selection rules.
 """
+
 from __future__ import annotations
 
 import re
@@ -64,11 +65,31 @@ def score_card_ocr_text(text: str, confidence: Any = 0) -> float:
 def card_ocr_key_hits(text: str) -> dict[str, bool]:
     normalized = normalize_ocr_text(text)
     return {
-        "phone": bool(re.search(r"(?<!\d)(?:1[3-9]\d{9}|0\d{2,3}-?\d{7,8})(?!\d)", normalized)),
-        "email": bool(re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", normalized)),
-        "company": bool(re.search(r"(?:有限公司|股份|集团|公司|Co\.?|Ltd\.?|Inc\.?)", normalized, re.IGNORECASE)),
-        "contact": bool(re.search(r"(?:联系人|经理|销售|工程师|Manager|Director|Engineer|Sales)", normalized, re.IGNORECASE)),
-        "address": bool(re.search(r"(?:地址|Address|Addr|园区|大厦|路|街|号)", normalized, re.IGNORECASE)),
+        "phone": bool(
+            re.search(r"(?<!\d)(?:1[3-9]\d{9}|0\d{2,3}-?\d{7,8})(?!\d)", normalized)
+        ),
+        "email": bool(
+            re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", normalized)
+        ),
+        "company": bool(
+            re.search(
+                r"(?:有限公司|股份|集团|公司|Co\.?|Ltd\.?|Inc\.?)",
+                normalized,
+                re.IGNORECASE,
+            )
+        ),
+        "contact": bool(
+            re.search(
+                r"(?:联系人|经理|销售|工程师|Manager|Director|Engineer|Sales)",
+                normalized,
+                re.IGNORECASE,
+            )
+        ),
+        "address": bool(
+            re.search(
+                r"(?:地址|Address|Addr|园区|大厦|路|街|号)", normalized, re.IGNORECASE
+            )
+        ),
     }
 
 
@@ -78,19 +99,33 @@ def card_ocr_selection_rank(item: dict[str, Any]) -> tuple[int, int, float, floa
     key_hits = sum(1 for matched in hits.values() if matched)
     engine = str(item.get("engine") or "")
     primary_engine_bonus = 1 if engine.startswith("easyocr") else 0
-    return phone_email_hits, key_hits, float(primary_engine_bonus), float(item.get("score") or 0)
+    return (
+        phone_email_hits,
+        key_hits,
+        float(primary_engine_bonus),
+        float(item.get("score") or 0),
+    )
 
 
 def is_high_signal_ocr_line(line: str) -> bool:
     normalized = normalize_ocr_text(line)
     if not normalized:
         return False
-    return any(re.search(pattern, normalized, re.IGNORECASE) for pattern in CARD_OCR_FIELD_PATTERNS) or bool(
-        re.search(r"(?:地址|Address|Addr|园区|大厦|路|街|号|官网|网址|Web|www\.)", normalized, re.IGNORECASE)
+    return any(
+        re.search(pattern, normalized, re.IGNORECASE)
+        for pattern in CARD_OCR_FIELD_PATTERNS
+    ) or bool(
+        re.search(
+            r"(?:地址|Address|Addr|园区|大厦|路|街|号|官网|网址|Web|www\.)",
+            normalized,
+            re.IGNORECASE,
+        )
     )
 
 
-def merge_high_signal_ocr_lines(best_text: str, candidates: list[dict[str, Any]]) -> str:
+def merge_high_signal_ocr_lines(
+    best_text: str, candidates: list[dict[str, Any]]
+) -> str:
     merged_lines = normalize_ocr_text(best_text).splitlines()
     seen = {line.lower() for line in merged_lines if line.strip()}
 
@@ -121,26 +156,44 @@ def card_ocr_candidate_for_ai(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge_card_ocr_results(candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    usable = [item for item in candidates if normalize_ocr_text(str(item.get("text") or ""))]
+    usable = [
+        item for item in candidates if normalize_ocr_text(str(item.get("text") or ""))
+    ]
     if not usable:
-        return {"text": "", "engine": "none", "confidence": 0.0, "score": 0.0, "candidates": []}
+        return {
+            "text": "",
+            "engine": "none",
+            "confidence": 0.0,
+            "score": 0.0,
+            "candidates": [],
+        }
 
     normalized_candidates = []
     for item in usable:
         text = normalize_ocr_text(str(item.get("text") or ""))
         confidence = clean_confidence(item.get("confidence"))
-        normalized_candidates.append({
-            **item,
-            "text": text,
-            "confidence": confidence,
-            "score": score_card_ocr_text(text, confidence),
-        })
+        normalized_candidates.append(
+            {
+                **item,
+                "text": text,
+                "confidence": confidence,
+                "score": score_card_ocr_text(text, confidence),
+            }
+        )
 
-    sorted_candidates = sorted(normalized_candidates, key=card_ocr_selection_rank, reverse=True)
+    sorted_candidates = sorted(
+        normalized_candidates, key=card_ocr_selection_rank, reverse=True
+    )
     best = max(normalized_candidates, key=card_ocr_selection_rank)
-    best["text"] = merge_high_signal_ocr_lines(str(best.get("text") or ""), normalized_candidates)
-    best["score"] = score_card_ocr_text(str(best.get("text") or ""), best.get("confidence"))
-    best["candidate_texts"] = [card_ocr_candidate_for_ai(item) for item in sorted_candidates[:6]]
+    best["text"] = merge_high_signal_ocr_lines(
+        str(best.get("text") or ""), normalized_candidates
+    )
+    best["score"] = score_card_ocr_text(
+        str(best.get("text") or ""), best.get("confidence")
+    )
+    best["candidate_texts"] = [
+        card_ocr_candidate_for_ai(item) for item in sorted_candidates[:6]
+    ]
     best["candidates"] = [
         {
             "engine": item.get("engine") or "unknown",

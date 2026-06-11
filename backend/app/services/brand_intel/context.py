@@ -27,17 +27,26 @@ async def _cached_brand_ai(brand_id: int, func_name: str, factory, ttl: int = 36
 
 async def _brand_context(db: AsyncSession, brand_id: int) -> dict:
     """Collect all context data about a brand."""
-    brand = (await db.execute(
-        select(Brand).where(Brand.id == brand_id, Brand.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    brand = (
+        await db.execute(
+            select(Brand).where(Brand.id == brand_id, Brand.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if brand is None:
         raise ValueError("Brand not found")
 
-    products = (await db.execute(
-        select(Product.id, Product.sku, Product.name, Product.category,
-               Product.package_type, Product.specs)
-        .where(Product.brand_id == brand_id, Product.deleted_at.is_(None))
-    )).all()
+    products = (
+        await db.execute(
+            select(
+                Product.id,
+                Product.sku,
+                Product.name,
+                Product.category,
+                Product.package_type,
+                Product.specs,
+            ).where(Product.brand_id == brand_id, Product.deleted_at.is_(None))
+        )
+    ).all()
 
     product_count = len(products)
 
@@ -49,34 +58,48 @@ async def _brand_context(db: AsyncSession, brand_id: int) -> dict:
         cat_counts[cat] = cat_counts.get(cat, 0) + 1
         pkg_counts[pkg] = pkg_counts.get(pkg, 0) + 1
 
-    category_dist = ", ".join(f"{k}({v})" for k, v in sorted(cat_counts.items(), key=lambda x: -x[1])[:10])
-    package_dist = ", ".join(f"{k}({v})" for k, v in sorted(pkg_counts.items(), key=lambda x: -x[1])[:8])
-
-    sample = ", ".join(
-        f"{p[2] if p[2] is not None else p[1] if p[1] is not None else '#'+str(p[0])}" for p in products[:5]
+    category_dist = ", ".join(
+        f"{k}({v})" for k, v in sorted(cat_counts.items(), key=lambda x: -x[1])[:10]
+    )
+    package_dist = ", ".join(
+        f"{k}({v})" for k, v in sorted(pkg_counts.items(), key=lambda x: -x[1])[:8]
     )
 
-    supplier_ids_subq = select(SupplierProduct.supplier_id).where(
-        SupplierProduct.product_id.in_([p[0] for p in products]),
-        SupplierProduct.deleted_at.is_(None),
-    ).distinct()
-    supplier_count = (await db.execute(
-        select(func.count()).select_from(supplier_ids_subq.subquery())
-    )).scalar() or 0
+    sample = ", ".join(
+        f"{p[2] if p[2] is not None else p[1] if p[1] is not None else '#' + str(p[0])}"
+        for p in products[:5]
+    )
 
-    price_rows = (await db.execute(
-        select(SupplierProduct.cost_price).where(
+    supplier_ids_subq = (
+        select(SupplierProduct.supplier_id)
+        .where(
             SupplierProduct.product_id.in_([p[0] for p in products]),
             SupplierProduct.deleted_at.is_(None),
-            SupplierProduct.cost_price.isnot(None),
         )
-    )).all()
+        .distinct()
+    )
+    supplier_count = (
+        await db.execute(select(func.count()).select_from(supplier_ids_subq.subquery()))
+    ).scalar() or 0
+
+    price_rows = (
+        await db.execute(
+            select(SupplierProduct.cost_price).where(
+                SupplierProduct.product_id.in_([p[0] for p in products]),
+                SupplierProduct.deleted_at.is_(None),
+                SupplierProduct.cost_price.isnot(None),
+            )
+        )
+    ).all()
     prices = [float(r[0]) for r in price_rows if r[0]]
     price_range = f"¥{min(prices):.4f}~¥{max(prices):.4f}" if prices else "无数据"
 
     return {
-        "id": brand.id, "name": brand.name, "name_cn": brand.name_cn,
-        "category": brand.category or "未知", "website": brand.website or "未知",
+        "id": brand.id,
+        "name": brand.name,
+        "name_cn": brand.name_cn,
+        "category": brand.category or "未知",
+        "website": brand.website or "未知",
         "notes": brand.notes or "",
         "product_count": product_count,
         "category_distribution": category_dist,

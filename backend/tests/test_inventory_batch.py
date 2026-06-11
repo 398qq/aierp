@@ -249,8 +249,18 @@ class TestFIFOByReceivedAllocation:
     def test_ignores_expiry(self):
         """FIFO by received_date should consume in arrival order regardless of expiry."""
         batches = [
-            _batch(batch_no="EXPIRES_SOON", received=date(2026, 6, 1), expiry=date(2026, 7, 1), qty=10),
-            _batch(batch_no="EXPIRES_LATER", received=date(2026, 1, 1), expiry=date(2030, 1, 1), qty=10),
+            _batch(
+                batch_no="EXPIRES_SOON",
+                received=date(2026, 6, 1),
+                expiry=date(2026, 7, 1),
+                qty=10,
+            ),
+            _batch(
+                batch_no="EXPIRES_LATER",
+                received=date(2026, 1, 1),
+                expiry=date(2030, 1, 1),
+                qty=10,
+            ),
         ]
         result = allocate_fifo_by_received(batches, qty=5)
         # FIFO by received_date → OLDER (EXPIRES_LATER) comes first

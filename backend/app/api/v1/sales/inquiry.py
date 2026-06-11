@@ -27,8 +27,10 @@ router = APIRouter(tags=["sales:inquiry"])
 @router.post("/inquiry/auto-reply", response_model=dict)
 async def inquiry_auto_reply(
     body: InquiryAutoReplyRequest,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     from app.services.sales_ai_service import inquiry_auto_reply as svc_auto_reply
+
     result = await svc_auto_reply(db, body.model_dump())
     return ok(result)

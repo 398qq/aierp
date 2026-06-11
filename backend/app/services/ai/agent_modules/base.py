@@ -43,7 +43,10 @@ class BaseAgent(ABC):
             return await ai_client.chat_structured(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": json.dumps(user_context, ensure_ascii=False)},
+                    {
+                        "role": "user",
+                        "content": json.dumps(user_context, ensure_ascii=False),
+                    },
                 ],
                 output_schema=schema,
                 temperature=temperature,

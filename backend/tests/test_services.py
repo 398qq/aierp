@@ -1,4 +1,5 @@
 """Unit tests for business logic services and core utilities."""
+
 import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -80,7 +81,9 @@ class TestPricingService:
     async def test_get_pricing_benchmark_empty_data(self):
         from app.services.pricing_service import get_pricing_benchmark
 
-        db = Db(DbResult(all=lambda: []), DbResult(all=lambda: []), DbResult(all=lambda: []))
+        db = Db(
+            DbResult(all=lambda: []), DbResult(all=lambda: []), DbResult(all=lambda: [])
+        )
         result = await get_pricing_benchmark(db, product_id=1)
         assert result["product_id"] == 1
         assert result["sales_history"]["count"] == 0
@@ -94,7 +97,9 @@ class TestPricingService:
 
         PriceRow = namedtuple("PriceRow", ["unit_price", "quantity", "created_at"])
         QuoteRow = namedtuple("QuoteRow", ["unit_price", "quantity"])
-        SupplierRow = namedtuple("SupplierRow", ["cost_price", "lead_time_days", "moq", "name"])
+        SupplierRow = namedtuple(
+            "SupplierRow", ["cost_price", "lead_time_days", "moq", "name"]
+        )
 
         db = Db(
             DbResult(all=lambda: [PriceRow(10.0, 100, "2025-01-01")]),

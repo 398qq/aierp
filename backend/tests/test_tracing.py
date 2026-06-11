@@ -170,6 +170,7 @@ class TestExportToLogs:
         record = next(r for r in capture_logs.records if "span_completed" in r.message)
         assert record.levelname == "ERROR"
         import json
+
         body = record.message.split("span_completed ", 1)[1]
         payload = json.loads(body)
         assert payload["span_status"] == "error"
@@ -194,11 +195,13 @@ class TestGetCurrentTraceId:
     def test_empty_when_no_active_span(self):
         # Clear any active state
         from app.core.tracing import _current_trace_id
+
         _current_trace_id.set("")
         assert get_current_trace_id() == ""
 
     def test_returns_trace_id_within_span(self):
         from app.core.tracing import _current_span
+
         _current_span.set(None)
         with tracer_backend.start_as_current_span("op") as span:
             assert get_current_trace_id() == span.trace_id
@@ -215,7 +218,9 @@ class TestRealApiRequestTracing:
 
             # DB query
             with tracer.start_as_current_span("db.query") as db_span:
-                db_span.set_attribute("db.statement", "SELECT * FROM sales_orders LIMIT 20")
+                db_span.set_attribute(
+                    "db.statement", "SELECT * FROM sales_orders LIMIT 20"
+                )
                 db_span.set_attribute("db.rows", 20)
                 time.sleep(0.001)
 

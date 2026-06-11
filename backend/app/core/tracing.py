@@ -64,18 +64,23 @@ class Span:
         self.attributes.update(attrs)
 
     def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None) -> None:
-        self.events.append({
-            "name": name,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "attributes": attributes or {},
-        })
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "attributes": attributes or {},
+            }
+        )
 
     def record_exception(self, exc: BaseException) -> None:
         self.status = SpanStatus.ERROR
-        self.add_event("exception", {
-            "type": type(exc).__name__,
-            "message": str(exc),
-        })
+        self.add_event(
+            "exception",
+            {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
 
     def set_status(self, status: SpanStatus, description: Optional[str] = None) -> None:
         self.status = status

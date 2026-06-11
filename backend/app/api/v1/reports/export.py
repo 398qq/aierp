@@ -32,16 +32,21 @@ async def export_sales_excel(
     cutoff = datetime.now(timezone.utc) - timedelta(days=365)
 
     exp_month = date_format(SalesOrder.created_at, "YYYY-MM")
-    orders = (await db.execute(
-        select(
-            exp_month.label("month"),
-            func.count(SalesOrder.id),
-            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-        ).where(
-            SalesOrder.deleted_at.is_(None),
-            SalesOrder.created_at >= cutoff,
-        ).group_by(exp_month).order_by(exp_month)
-    )).all()
+    orders = (
+        await db.execute(
+            select(
+                exp_month.label("month"),
+                func.count(SalesOrder.id),
+                func.coalesce(func.sum(SalesOrder.total_amount), 0),
+            )
+            .where(
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at >= cutoff,
+            )
+            .group_by(exp_month)
+            .order_by(exp_month)
+        )
+    ).all()
 
     csv = "月份,订单数,金额\n" + "\n".join(
         f"{m},{c},{float(a):.2f}" for m, c, a in orders
@@ -49,5 +54,7 @@ async def export_sales_excel(
     return StreamingResponse(
         io.BytesIO(csv.encode("utf-8-sig")),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=sales_report_{datetime.now().strftime('%Y%m%d')}.csv"},
+        headers={
+            "Content-Disposition": f"attachment; filename=sales_report_{datetime.now().strftime('%Y%m%d')}.csv"
+        },
     )

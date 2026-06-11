@@ -65,8 +65,8 @@ class TestHistogram:
     def test_observe_records_in_buckets(self):
         h = Histogram("test_dur", "test", ["op"], buckets=(0.1, 1.0))
         h.observe(0.05, op="a")  # ≤ 0.1
-        h.observe(0.5, op="a")   # ≤ 1.0
-        h.observe(5.0, op="a")   # > 1.0 → +Inf
+        h.observe(0.5, op="a")  # ≤ 1.0
+        h.observe(5.0, op="a")  # > 1.0 → +Inf
         snap = h.snapshot()
         key = ("a",)
         assert snap[key]["count"] == 3
@@ -77,6 +77,7 @@ class TestHistogram:
     def test_time_context_manager(self):
         h = Histogram("test_dur", "test", ["op"])
         import time
+
         with h.time(op="x"):
             time.sleep(0.01)
         snap = h.snapshot()

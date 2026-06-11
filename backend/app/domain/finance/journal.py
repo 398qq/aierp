@@ -26,11 +26,13 @@ class JournalStatus(str, Enum):
 
 class UnbalancedEntryError(BusinessRuleViolation):
     """Sum of debits does not equal sum of credits."""
+
     code = "UNBALANCED_JOURNAL_ENTRY"
 
 
 class InvalidLineError(BusinessRuleViolation):
     """A line has both debit and credit, or neither."""
+
     code = "INVALID_JOURNAL_LINE"
 
 

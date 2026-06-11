@@ -31,8 +31,11 @@ async def draft_order(use_case_factory):
         customer = Customer(name="Test Co", code="C001")
         product = Product(sku="P001", name="Product A")
         inventory = Inventory(
-            product_id=1, warehouse_id=1,
-            quantity=100, locked_quantity=0, version=0,
+            product_id=1,
+            warehouse_id=1,
+            quantity=100,
+            locked_quantity=0,
+            version=0,
         )
         session.add_all([wh, customer, product, inventory])
         await session.flush()
@@ -46,16 +49,24 @@ async def draft_order(use_case_factory):
         session.add(order)
         await session.flush()
 
-        session.add_all([
-            SalesOrderItem(
-                order_id=order.id, product_id=product.id,
-                product_name="Product A", quantity=5, unit_price=10.0,
-            ),
-            SalesOrderItem(
-                order_id=order.id, product_id=product.id,
-                product_name="Product A", quantity=3, unit_price=10.0,
-            ),
-        ])
+        session.add_all(
+            [
+                SalesOrderItem(
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name="Product A",
+                    quantity=5,
+                    unit_price=10.0,
+                ),
+                SalesOrderItem(
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name="Product A",
+                    quantity=3,
+                    unit_price=10.0,
+                ),
+            ]
+        )
         await session.commit()
         return order.id, customer.id, product.id
 
@@ -82,6 +93,7 @@ class TestConfirmSalesOrderUseCase:
         # Set up a captured-event bus for this test
         from app.core.event_bus import EventBus
         import app.application.uow as uow_mod
+
         bus = EventBus()
         uow_mod._event_bus = bus
         uow_mod._session_factory = factory
@@ -90,6 +102,7 @@ class TestConfirmSalesOrderUseCase:
         bus.subscribe(OrderConfirmed, lambda e: captured.append(e))
 
         from app.application.uow import get_uow
+
         async with get_uow() as uow:
             use_case = ConfirmSalesOrderUseCase(uow.session, user_id=42)
             domain_order = await use_case.execute(order_id)
@@ -162,15 +175,14 @@ class TestCancelSalesOrderUseCase:
             with pytest.raises(ValueError, match="reason is required"):
                 await use_case.execute(order_id, reason="   ")
 
-    async def test_cancel_emits_event_with_reason(
-        self, use_case_factory, draft_order
-    ):
+    async def test_cancel_emits_event_with_reason(self, use_case_factory, draft_order):
         order_id, _, _ = draft_order
         factory = use_case_factory
 
         from app.core.event_bus import EventBus
         import app.application.uow as uow_mod
         from app.domain.sales.events import OrderCancelled
+
         bus = EventBus()
         uow_mod._event_bus = bus
         uow_mod._session_factory = factory
@@ -179,6 +191,7 @@ class TestCancelSalesOrderUseCase:
         bus.subscribe(OrderCancelled, lambda e: captured.append(e))
 
         from app.application.uow import get_uow
+
         async with get_uow() as uow:
             # First confirm
             await ConfirmSalesOrderUseCase(uow.session, user_id=42).execute(order_id)

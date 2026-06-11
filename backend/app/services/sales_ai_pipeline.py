@@ -22,6 +22,7 @@ _ENABLED = os.getenv("SALES_AI_PIPELINE", "1") != "0"
 # Fire-and-forget enrichment hooks
 # ============================================================
 
+
 def after_opportunity_save(opp_id: int):
     """Spawn background enrichment + risk notification for an opportunity."""
     if not _ENABLED:
@@ -61,7 +62,9 @@ async def _bg_enrich_opportunity(opp_id: int):
 
             opp.ai_risk_level = risk
             opp.ai_next_action = next_action
-            opp.ai_key_concerns = json.dumps(concerns, ensure_ascii=False) if concerns else None
+            opp.ai_key_concerns = (
+                json.dumps(concerns, ensure_ascii=False) if concerns else None
+            )
             opp.ai_scored_at = datetime.datetime.now(datetime.timezone.utc)
             if win_prob is not None:
                 opp.win_probability = win_prob
@@ -70,7 +73,9 @@ async def _bg_enrich_opportunity(opp_id: int):
 
             if risk == "high":
                 await create_notification(
-                    db, user_id=1, type="risk_alert",
+                    db,
+                    user_id=1,
+                    type="risk_alert",
                     title=f"高风险商机: {opp.title}",
                     content=f"赢单概率 {win_prob or '?'}%，建议: {next_action or '无'}",
                     related_id=opp_id,
@@ -95,7 +100,9 @@ async def _bg_enrich_quotation(quote_id: int):
             prob = result.get("win_probability", 50)
             if prob < 30:
                 await create_notification(
-                    db, user_id=1, type="risk_alert",
+                    db,
+                    user_id=1,
+                    type="risk_alert",
                     title=f"低赢单概率报价: ¥{quote.total_amount:,.2f}",
                     content=f"赢单概率 {prob}%，健康度 {result.get('pricing_health', '?')}",
                     related_id=quote_id,
@@ -107,6 +114,7 @@ async def _bg_enrich_quotation(quote_id: int):
 # ============================================================
 # Flow conversion validation (advisory, not blocking)
 # ============================================================
+
 
 async def validate_quote_to_order(db: AsyncSession, quote) -> dict | None:
     """AI validation before quote→order conversion. Returns warnings or None."""
@@ -127,8 +135,13 @@ async def validate_quote_to_order(db: AsyncSession, quote) -> dict | None:
         "recommendations": ["string"],
     }
     return await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件订单审核专家。给出转换建议（仅供参考）。"},
-         {"role": "user", "content": flow_validate_quote_to_order_prompt(ctx)}],
+        [
+            {
+                "role": "system",
+                "content": "你是B2B电子元器件订单审核专家。给出转换建议（仅供参考）。",
+            },
+            {"role": "user", "content": flow_validate_quote_to_order_prompt(ctx)},
+        ],
         schema,
     )
 
@@ -150,7 +163,12 @@ async def validate_order_to_delivery(db: AsyncSession, order) -> dict | None:
         "recommendations": ["string"],
     }
     return await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件物流审核专家。给出发货建议（仅供参考）。"},
-         {"role": "user", "content": flow_validate_order_to_delivery_prompt(ctx)}],
+        [
+            {
+                "role": "system",
+                "content": "你是B2B电子元器件物流审核专家。给出发货建议（仅供参考）。",
+            },
+            {"role": "user", "content": flow_validate_order_to_delivery_prompt(ctx)},
+        ],
         schema,
     )

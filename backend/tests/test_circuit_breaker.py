@@ -129,6 +129,7 @@ class TestCallWithBreaker:
     async def test_successful_call_passes_through(self):
         async def good() -> str:
             return "ok"
+
         result = await call_with_breaker("ai", good)
         assert result == "ok"
 
@@ -136,6 +137,7 @@ class TestCallWithBreaker:
         b = get_breaker("ai")
         b.force_open()  # Open the circuit
         try:
+
             async def would_fail() -> str:
                 return "should_not_run"
 
@@ -150,8 +152,10 @@ class TestCallWithBreaker:
         b = get_breaker("ai")
         b.force_open()
         try:
+
             async def any_func() -> None:
                 pass
+
             with pytest.raises(CircuitOpenError, match="circuit open"):
                 await call_with_breaker("ai", any_func)
         finally:
@@ -181,6 +185,7 @@ class TestCallWithBreaker:
 
         async def fail() -> None:
             raise ConnectionError()
+
         async def succeed() -> str:
             return "ok"
 
@@ -208,6 +213,7 @@ class TestProtectedDecorator:
         b = get_breaker("ai")
         b.force_open()
         try:
+
             @protected("ai", fallback=lambda: "fallback")
             async def would_fail() -> str:
                 raise ConnectionError()

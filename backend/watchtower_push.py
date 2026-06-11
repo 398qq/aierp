@@ -3,6 +3,7 @@ import urllib.request, urllib.error, json, sys
 
 BASE = "http://localhost:8080"
 
+
 def api(method, path, token=None, data=None):
     url = f"{BASE}{path}"
     body = json.dumps(data).encode() if data else None
@@ -13,8 +14,11 @@ def api(method, path, token=None, data=None):
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read())
 
+
 # Step 1: login
-login = api("POST", "/api/v1/auth/login", data={"username":"admin","password":"admin123"})
+login = api(
+    "POST", "/api/v1/auth/login", data={"username": "admin", "password": "admin123"}
+)
 print("Login:", login.get("msg"))
 token = login["data"]["token"]
 print("Token obtained")

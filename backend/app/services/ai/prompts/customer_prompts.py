@@ -19,12 +19,12 @@ def rfm_prompt(customer_data: dict) -> str:
     return f"""分析以下客户的RFM数据并给出分层建议：
 
 客户数据：
-- 客户名称：{customer_data.get('name')}
-- 最后交易日期：{customer_data.get('last_order_date') or '无'}
-- 总订单数：{customer_data.get('total_orders', 0)}
-- 总交易金额：{customer_data.get('total_revenue', 0)}
-- 行业：{customer_data.get('industry') or '未分类'}
-- 最近跟进日期：{customer_data.get('last_followup_date') or '无'}
+- 客户名称：{customer_data.get("name")}
+- 最后交易日期：{customer_data.get("last_order_date") or "无"}
+- 总订单数：{customer_data.get("total_orders", 0)}
+- 总交易金额：{customer_data.get("total_revenue", 0)}
+- 行业：{customer_data.get("industry") or "未分类"}
+- 最近跟进日期：{customer_data.get("last_followup_date") or "无"}
 
 请返回：
 1. RFM评分（R/F/M各1-5分）
@@ -37,31 +37,31 @@ def churn_risk_prompt(customer_data: dict) -> str:
     return f"""评估以下客户的流失风险：
 
 **客户档案：**
-- 名称：{customer_data.get('name')}
-- 行业：{customer_data.get('industry', '未知')}
-- 等级：{customer_data.get('level', '未知')}
-- 生命周期：{customer_data.get('lifecycle', '未知')}
+- 名称：{customer_data.get("name")}
+- 行业：{customer_data.get("industry", "未知")}
+- 等级：{customer_data.get("level", "未知")}
+- 生命周期：{customer_data.get("lifecycle", "未知")}
 
 **订单行为：**
-- 历史总订单数：{customer_data.get('total_orders', 0)}
-- 总交易金额：{customer_data.get('total_revenue', 0)}
-- 最近订单日期：{customer_data.get('last_order_date') or '无'}
-- 近90天订单数：{customer_data.get('orders_last_90d', 0)}
-- 近180天订单数：{customer_data.get('orders_last_180d', 0)}
-- 订单频次趋势：{customer_data.get('order_trend', '无数据')}
+- 历史总订单数：{customer_data.get("total_orders", 0)}
+- 总交易金额：{customer_data.get("total_revenue", 0)}
+- 最近订单日期：{customer_data.get("last_order_date") or "无"}
+- 近90天订单数：{customer_data.get("orders_last_90d", 0)}
+- 近180天订单数：{customer_data.get("orders_last_180d", 0)}
+- 订单频次趋势：{customer_data.get("order_trend", "无数据")}
 
 **互动指标：**
-- 最近跟进日期：{customer_data.get('last_followup_date') or '无'}
-- 最后联系时间：{customer_data.get('last_contacted_at') or '无'}
-- 近90天询价次数：{customer_data.get('recent_inquiries', 0)}
-- 活跃商机数：{customer_data.get('active_opportunities', 0)}
-- 当前报价数：{customer_data.get('active_quotations', 0)}
+- 最近跟进日期：{customer_data.get("last_followup_date") or "无"}
+- 最后联系时间：{customer_data.get("last_contacted_at") or "无"}
+- 近90天询价次数：{customer_data.get("recent_inquiries", 0)}
+- 活跃商机数：{customer_data.get("active_opportunities", 0)}
+- 当前报价数：{customer_data.get("active_quotations", 0)}
 
 **财务指标：**
-- 信用额度利用率：{customer_data.get('credit_utilization', '无数据')}
-- AR逾期天数：{customer_data.get('ar_overdue_days', 0)}
+- 信用额度利用率：{customer_data.get("credit_utilization", "无数据")}
+- AR逾期天数：{customer_data.get("ar_overdue_days", 0)}
 
-**健康评分：** {customer_data.get('health_score', '无')}/{customer_data.get('health_label', '无')}
+**健康评分：** {customer_data.get("health_score", "无")}/{customer_data.get("health_label", "无")}
 
 请综合以上多维度数据，返回流失风险评分（0-100，100为极高风险）、风险等级（低/中/高）、关键风险因素列表、具体挽救建议。
 """
@@ -70,11 +70,11 @@ def churn_risk_prompt(customer_data: dict) -> str:
 def followup_suggestion_prompt(customer_data: dict) -> str:
     return f"""根据以下客户信息，给出跟进建议：
 
-- 客户名称：{customer_data.get('name')}
-- 行业：{customer_data.get('industry') or '未分类'}
-- 最近采购产品：{customer_data.get('recent_products') or '无'}
-- 上次跟进内容：{customer_data.get('last_followup') or '无记录'}
-- 距上次跟进天数：{customer_data.get('days_since_last_followup', 0)}
+- 客户名称：{customer_data.get("name")}
+- 行业：{customer_data.get("industry") or "未分类"}
+- 最近采购产品：{customer_data.get("recent_products") or "无"}
+- 上次跟进内容：{customer_data.get("last_followup") or "无记录"}
+- 距上次跟进天数：{customer_data.get("days_since_last_followup", 0)}
 
 请给出：
 1. 建议联系的话题
@@ -86,7 +86,7 @@ def followup_suggestion_prompt(customer_data: dict) -> str:
 def followup_analysis_prompt(followups_text: str, customer_name: str = "") -> str:
     return f"""分析以下客户跟进记录，提取洞察：
 
-客户：{customer_name or '未知'}
+客户：{customer_name or "未知"}
 跟进记录：
 {followups_text}
 
@@ -105,11 +105,11 @@ def followup_recognition_prompt(text: str, customer_data: dict, now_text: str) -
 当前时间：{now_text}
 
 客户信息：
-- 客户名称：{customer_data.get('name') or '未知'}
-- 行业：{customer_data.get('industry') or '未分类'}
-- 等级：{customer_data.get('level') or '未知'}
-- 负责人：{customer_data.get('owner') or '无'}
-- 最近跟进：{customer_data.get('last_followup') or '无记录'}
+- 客户名称：{customer_data.get("name") or "未知"}
+- 行业：{customer_data.get("industry") or "未分类"}
+- 等级：{customer_data.get("level") or "未知"}
+- 负责人：{customer_data.get("owner") or "无"}
+- 最近跟进：{customer_data.get("last_followup") or "无记录"}
 
 销售输入：
 {text}
@@ -152,19 +152,23 @@ def customer_recognition_prompt(text: str) -> str:
 """
 
 
-def customer_recognition_from_ocr_candidates_prompt(text: str, ocr_candidates: list[dict]) -> str:
+def customer_recognition_from_ocr_candidates_prompt(
+    text: str, ocr_candidates: list[dict]
+) -> str:
     candidate_blocks = []
     for index, candidate in enumerate(ocr_candidates[:6], start=1):
         key_hits = "、".join(candidate.get("key_hits") or []) or "无"
         candidate_blocks.append(
-            "\n".join([
-                f"候选 {index}",
-                f"- engine: {candidate.get('engine') or 'unknown'}",
-                f"- confidence: {candidate.get('confidence', 0)}",
-                f"- score: {candidate.get('score', 0)}",
-                f"- key_hits: {key_hits}",
-                f"- text:\n{candidate.get('text') or ''}",
-            ])
+            "\n".join(
+                [
+                    f"候选 {index}",
+                    f"- engine: {candidate.get('engine') or 'unknown'}",
+                    f"- confidence: {candidate.get('confidence', 0)}",
+                    f"- score: {candidate.get('score', 0)}",
+                    f"- key_hits: {key_hits}",
+                    f"- text:\n{candidate.get('text') or ''}",
+                ]
+            )
         )
 
     candidates_text = "\n\n".join(candidate_blocks) or "无"
@@ -203,16 +207,16 @@ OCR 多候选文本：
 def alert_enrichment_prompt(alert: dict) -> str:
     return f"""你是一个电子元器件分销行业的客户管理专家。以下是一个客户预警，请给出专业的处理建议。
 
-预警类型：{alert.get('rule_type')}
-预警名称：{alert.get('rule_name')}
-严重程度：{alert.get('severity')}
-预警详情：{alert.get('message')}
+预警类型：{alert.get("rule_type")}
+预警名称：{alert.get("rule_name")}
+严重程度：{alert.get("severity")}
+预警详情：{alert.get("message")}
 
 客户信息：
-- 名称：{alert.get('customer_name')}
-- 行业：{alert.get('industry', '')}
-- 等级：{alert.get('level', '')}
-- 最近跟进：{alert.get('last_contact', '无')}
+- 名称：{alert.get("customer_name")}
+- 行业：{alert.get("industry", "")}
+- 等级：{alert.get("level", "")}
+- 最近跟进：{alert.get("last_contact", "无")}
 
 请返回：
 1. 建议的跟进方式（电话/邮件/拜访）和时机

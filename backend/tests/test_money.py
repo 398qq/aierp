@@ -164,28 +164,36 @@ class TestExchangeRate:
     def test_rejects_zero_rate(self):
         with pytest.raises(BusinessRuleViolation, match="汇率必须为正"):
             ExchangeRate(
-                from_currency="USD", to_currency="CNY",
-                rate=Decimal("0"), effective_date=date.today(),
+                from_currency="USD",
+                to_currency="CNY",
+                rate=Decimal("0"),
+                effective_date=date.today(),
             )
 
     def test_rejects_negative_rate(self):
         with pytest.raises(BusinessRuleViolation, match="汇率必须为正"):
             ExchangeRate(
-                from_currency="USD", to_currency="CNY",
-                rate=Decimal("-1"), effective_date=date.today(),
+                from_currency="USD",
+                to_currency="CNY",
+                rate=Decimal("-1"),
+                effective_date=date.today(),
             )
 
     def test_rejects_same_currency(self):
         with pytest.raises(BusinessRuleViolation, match="不能相同"):
             ExchangeRate(
-                from_currency="USD", to_currency="USD",
-                rate=Decimal("1"), effective_date=date.today(),
+                from_currency="USD",
+                to_currency="USD",
+                rate=Decimal("1"),
+                effective_date=date.today(),
             )
 
     def test_convert_basic(self):
         r = ExchangeRate(
-            from_currency="USD", to_currency="CNY",
-            rate=Decimal("7.20"), effective_date=date(2026, 6, 1),
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7.20"),
+            effective_date=date(2026, 6, 1),
         )
         result = r.convert(Money(amount=Decimal("100"), currency="USD"))
         assert result.currency == "CNY"
@@ -193,8 +201,10 @@ class TestExchangeRate:
 
     def test_convert_rounds_to_cents(self):
         r = ExchangeRate(
-            from_currency="USD", to_currency="CNY",
-            rate=Decimal("7.2345"), effective_date=date(2026, 6, 1),
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7.2345"),
+            effective_date=date(2026, 6, 1),
         )
         result = r.convert(Money(amount=Decimal("10"), currency="USD"))
         # 10 * 7.2345 = 72.345 → rounded to 72.35
@@ -202,8 +212,10 @@ class TestExchangeRate:
 
     def test_convert_wrong_source_currency_raises(self):
         r = ExchangeRate(
-            from_currency="USD", to_currency="CNY",
-            rate=Decimal("7"), effective_date=date.today(),
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7"),
+            effective_date=date.today(),
         )
         with pytest.raises(CurrencyConversionError):
             r.convert(Money(amount=Decimal("100"), currency="EUR"))
@@ -217,8 +229,10 @@ class TestExchangeRateProvider:
     def test_add_and_get_exact_date(self):
         p = ExchangeRateProvider()
         rate = ExchangeRate(
-            from_currency="USD", to_currency="CNY",
-            rate=Decimal("7.20"), effective_date=date(2026, 6, 1),
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7.20"),
+            effective_date=date(2026, 6, 1),
         )
         p.add(rate)
         found = p.get("USD", "CNY", at=date(2026, 6, 1))

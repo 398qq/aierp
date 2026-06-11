@@ -58,7 +58,9 @@ class TestDeliveryNoteBasic:
 
     def test_add_line_after_ship_raises(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         with pytest.raises(InvalidStateTransition):
@@ -68,14 +70,18 @@ class TestDeliveryNoteBasic:
 class TestDeliveryNoteShip:
     def test_ship_moves_to_shipped(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         assert note.status == DeliveryStatus.SHIPPED
 
     def test_ship_sets_delivery_date(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         assert note.delivery_date is not None
@@ -83,7 +89,8 @@ class TestDeliveryNoteShip:
 
     def test_ship_emits_event(self):
         note = DeliveryNote(
-            sales_order_id=99, customer_id=10,
+            sales_order_id=99,
+            customer_id=10,
             lines=[_line(product_id=1, qty=5), _line(product_id=2, qty=3)],
         )
         note.ship()
@@ -100,7 +107,9 @@ class TestDeliveryNoteShip:
 
     def test_double_ship_raises(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         with pytest.raises(InvalidStateTransition):
@@ -110,7 +119,9 @@ class TestDeliveryNoteShip:
 class TestDeliveryNoteReceipt:
     def test_confirm_receipt_after_shipped(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         note.confirm_receipt()
@@ -119,7 +130,9 @@ class TestDeliveryNoteReceipt:
 
     def test_confirm_receipt_from_draft_raises(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         with pytest.raises(InvalidStateTransition):
             note.confirm_receipt()
@@ -128,14 +141,18 @@ class TestDeliveryNoteReceipt:
 class TestDeliveryNoteCancel:
     def test_cancel_draft_works(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.cancel(reason="customer changed mind")
         assert note.status == DeliveryStatus.CANCELLED
 
     def test_cancel_shipped_works(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         note.cancel(reason="wrong address")
@@ -143,7 +160,9 @@ class TestDeliveryNoteCancel:
 
     def test_cancel_received_raises(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.ship()
         note.confirm_receipt()
@@ -152,7 +171,9 @@ class TestDeliveryNoteCancel:
 
     def test_cancel_already_cancelled_raises(self):
         note = DeliveryNote(
-            sales_order_id=1, customer_id=10, lines=[_line()],
+            sales_order_id=1,
+            customer_id=10,
+            lines=[_line()],
         )
         note.cancel(reason="first cancel")
         with pytest.raises(InvalidStateTransition):

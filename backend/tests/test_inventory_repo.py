@@ -68,9 +68,7 @@ class TestInventoryRepositoryReserve:
         assert inv.locked_quantity == 0
         assert inv.version == 0  # No update happened
 
-    async def test_reserve_returns_false_for_nonexistent(
-        self, inventory_session
-    ):
+    async def test_reserve_returns_false_for_nonexistent(self, inventory_session):
         repo = InventoryRepository(inventory_session)
         ok = await repo.reserve(product_id=9999, warehouse_id=1, qty=1)
         assert ok is False
@@ -148,9 +146,7 @@ class TestInventoryRepositoryDeduct:
 
 
 class TestInventoryConcurrency:
-    async def test_concurrent_reserve_prevents_oversell(
-        self, engine, sample_inventory
-    ):
+    async def test_concurrent_reserve_prevents_oversell(self, engine, sample_inventory):
         """100 stock, 50 sequential requests for 30 each — at most 3 succeed.
 
         Note: SQLite serializes all writes, so we can't observe true races here.
@@ -179,10 +175,13 @@ class TestInventoryConcurrency:
         # Re-read final state in a fresh session
         async with session_factory() as session:
             from sqlalchemy import select
-            refreshed = (await session.execute(
-                select(Inventory).where(Inventory.id == inv.id)
-            )).scalar_one()
-            assert successes == 3, f"expected 3 successful reservations, got {successes}"
+
+            refreshed = (
+                await session.execute(select(Inventory).where(Inventory.id == inv.id))
+            ).scalar_one()
+            assert successes == 3, (
+                f"expected 3 successful reservations, got {successes}"
+            )
             assert refreshed.locked_quantity == 90
             assert refreshed.quantity == 100
             assert refreshed.locked_quantity <= 100

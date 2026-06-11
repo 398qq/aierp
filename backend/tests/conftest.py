@@ -60,7 +60,9 @@ async def create_tables(engine):
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session(engine, create_tables):
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
     async with session_factory() as session:
         yield session
 
@@ -94,7 +96,12 @@ async def test_customer(db_session) -> dict:
 
 @pytest_asyncio.fixture
 async def test_user(db_session) -> dict:
-    from app.models.rbac import Permission, Role, role_permissions_table, user_roles_table
+    from app.models.rbac import (
+        Permission,
+        Role,
+        role_permissions_table,
+        user_roles_table,
+    )
     from app.models.user import User
 
     password = "testpass123"
@@ -109,13 +116,17 @@ async def test_user(db_session) -> dict:
         db_session.add(role)
         await db_session.flush()
     permissions = (
-        await db_session.execute(
-            select(Permission).where(
-                Permission.resource == "customers",
-                Permission.action.in_(["read", "write", "delete", "export"]),
+        (
+            await db_session.execute(
+                select(Permission).where(
+                    Permission.resource == "customers",
+                    Permission.action.in_(["read", "write", "delete", "export"]),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     existing_actions = {permission.action for permission in permissions}
     for action in ("read", "write", "delete", "export"):
         if action not in existing_actions:
@@ -149,7 +160,12 @@ async def test_user(db_session) -> dict:
     for action in ("read", "write", "delete", "export"):
         await cache_delete(f"perm:{user.id}:customers:{action}")
     token = create_access_token(user.id, user.username)
-    return {"id": user.id, "username": user.username, "password": password, "token": token}
+    return {
+        "id": user.id,
+        "username": user.username,
+        "password": password,
+        "token": token,
+    }
 
 
 @pytest_asyncio.fixture
@@ -177,13 +193,19 @@ async def test_admin(db_session) -> dict:
     # Insert association directly to avoid lazy="selectin" triggering async IO
     # under aiosqlite, which would fail with MissingGreenlet
     from app.models.rbac import user_roles_table
+
     await db_session.execute(
         user_roles_table.insert().values(user_id=admin.id, role_id=admin_role.id)
     )
     await db_session.flush()
 
     token = create_access_token(admin.id, admin.username)
-    return {"id": admin.id, "username": admin.username, "password": password, "token": token}
+    return {
+        "id": admin.id,
+        "username": admin.username,
+        "password": password,
+        "token": token,
+    }
 
 
 @pytest_asyncio.fixture

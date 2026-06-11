@@ -28,8 +28,12 @@ async def list_notifications(
     _user: dict = Depends(get_current_user),
 ):
     data = await svc.get_notifications(
-        db, user_id=_user["user_id"], page=page, page_size=page_size,
-        unread_only=unread_only, type=type,
+        db,
+        user_id=_user["user_id"],
+        page=page,
+        page_size=page_size,
+        unread_only=unread_only,
+        type=type,
     )
     return {"code": 0, "msg": "success", "data": data}
 
@@ -49,7 +53,9 @@ async def mark_read(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    affected = await svc.mark_read(db, user_id=_user["user_id"], ids=body.ids, mark_all=body.all)
+    affected = await svc.mark_read(
+        db, user_id=_user["user_id"], ids=body.ids, mark_all=body.all
+    )
     return {"code": 0, "msg": "success", "data": {"affected": affected}}
 
 
@@ -62,14 +68,26 @@ async def list_templates(
     _user: dict = Depends(require_perm("system", "read")),
 ):
     result = await db.execute(
-        select(NotificationTemplate).where(NotificationTemplate.deleted_at.is_(None)).order_by(NotificationTemplate.code)
+        select(NotificationTemplate)
+        .where(NotificationTemplate.deleted_at.is_(None))
+        .order_by(NotificationTemplate.code)
     )
     temps = result.scalars().all()
-    return ok([{
-        "id": t.id, "code": t.code, "name": t.name, "channel": t.channel,
-        "event_type": t.event_type, "subject_template": t.subject_template,
-        "body_template": t.body_template, "enabled": t.enabled,
-    } for t in temps])
+    return ok(
+        [
+            {
+                "id": t.id,
+                "code": t.code,
+                "name": t.name,
+                "channel": t.channel,
+                "event_type": t.event_type,
+                "subject_template": t.subject_template,
+                "body_template": t.body_template,
+                "enabled": t.enabled,
+            }
+            for t in temps
+        ]
+    )
 
 
 class TemplateSave(BaseModel):
@@ -83,12 +101,20 @@ class TemplateSave(BaseModel):
 
 
 @router.put("/notifications/templates/{template_id}")
-async def update_template(template_id: int, body: TemplateSave,
-                          db: AsyncSession = Depends(get_db),
-                          _user: dict = Depends(require_perm("system", "write"))):
-    t = (await db.execute(
-        select(NotificationTemplate).where(NotificationTemplate.id == template_id, NotificationTemplate.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def update_template(
+    template_id: int,
+    body: TemplateSave,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("system", "write")),
+):
+    t = (
+        await db.execute(
+            select(NotificationTemplate).where(
+                NotificationTemplate.id == template_id,
+                NotificationTemplate.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
     if not t:
         return fail("模板不存在")
     t.name = body.name
@@ -116,9 +142,17 @@ async def get_preferences(
         )
     )
     prefs = result.scalars().all()
-    return ok([{
-        "id": p.id, "event_type": p.event_type, "channel": p.channel, "enabled": p.enabled,
-    } for p in prefs])
+    return ok(
+        [
+            {
+                "id": p.id,
+                "event_type": p.event_type,
+                "channel": p.channel,
+                "enabled": p.enabled,
+            }
+            for p in prefs
+        ]
+    )
 
 
 class PrefSave(BaseModel):
@@ -132,23 +166,31 @@ async def save_preferences(
     current_user: dict = Depends(get_current_user),
 ):
     # Delete existing preferences
-    existing = (await db.execute(
-        select(NotificationPreference).where(
-            NotificationPreference.user_id == current_user["user_id"],
-            NotificationPreference.deleted_at.is_(None),
+    existing = (
+        (
+            await db.execute(
+                select(NotificationPreference).where(
+                    NotificationPreference.user_id == current_user["user_id"],
+                    NotificationPreference.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     for p in existing:
         p.deleted_at = datetime.datetime.now(datetime.timezone.utc)
 
     # Insert new
     for pref in body.preferences:
-        db.add(NotificationPreference(
-            user_id=current_user["user_id"],
-            event_type=pref.get("event_type", ""),
-            channel=pref.get("channel", "in_app"),
-            enabled=pref.get("enabled", True),
-        ))
+        db.add(
+            NotificationPreference(
+                user_id=current_user["user_id"],
+                event_type=pref.get("event_type", ""),
+                channel=pref.get("channel", "in_app"),
+                enabled=pref.get("enabled", True),
+            )
+        )
 
     await db.commit()
     return ok(msg="偏好已保存")

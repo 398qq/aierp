@@ -146,9 +146,7 @@ class SalesOrder:
         ordered_total = sum(line.quantity for line in self.lines)
         is_full = shipped_total >= ordered_total
 
-        self.status = (
-            OrderStatus.SHIPPED if is_full else OrderStatus.PARTIALLY_SHIPPED
-        )
+        self.status = OrderStatus.SHIPPED if is_full else OrderStatus.PARTIALLY_SHIPPED
         self._events.append(
             OrderShipped(
                 aggregate_id=self.id or 0,
@@ -174,9 +172,7 @@ class SalesOrder:
                 aggregate_id=self.id or 0,
                 aggregate_type="SalesOrder",
                 previous_status=previous.value,
-                lines=tuple(
-                    (line.product_id, line.quantity) for line in self.lines
-                ),
+                lines=tuple((line.product_id, line.quantity) for line in self.lines),
                 reason=reason,
             )
         )

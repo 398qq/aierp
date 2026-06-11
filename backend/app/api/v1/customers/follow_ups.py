@@ -20,20 +20,35 @@ async def list_followups(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    rows = (await db.execute(
-        select(CustomerFollowUp).where(
-            CustomerFollowUp.customer_id == customer_id,
-            CustomerFollowUp.deleted_at.is_(None),
+    rows = (
+        (
+            await db.execute(
+                select(CustomerFollowUp).where(
+                    CustomerFollowUp.customer_id == customer_id,
+                    CustomerFollowUp.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().all()
-    return ok([{
-        "id": f.id, "method": f.method, "status": f.status,
-        "content": f.content, "result": f.result,
-        "planned_at": str(f.planned_at) if f.planned_at else None,
-        "completed_at": str(f.completed_at) if f.completed_at else None,
-        "priority": f.priority, "assigned_to": f.assigned_to,
-        "created_at": str(f.created_at) if f.created_at else None,
-    } for f in rows])
+        .scalars()
+        .all()
+    )
+    return ok(
+        [
+            {
+                "id": f.id,
+                "method": f.method,
+                "status": f.status,
+                "content": f.content,
+                "result": f.result,
+                "planned_at": str(f.planned_at) if f.planned_at else None,
+                "completed_at": str(f.completed_at) if f.completed_at else None,
+                "priority": f.priority,
+                "assigned_to": f.assigned_to,
+                "created_at": str(f.created_at) if f.created_at else None,
+            }
+            for f in rows
+        ]
+    )
 
 
 @router.post("/{customer_id}/follow-ups", status_code=201)
@@ -53,18 +68,22 @@ async def create_followup(
         followup = CustomerFollowUp(customer_id=customer_id, **data)
         db.add(followup)
         with db.no_autoflush:
-            result = await db.execute(select(Customer).where(Customer.id == customer_id))
+            result = await db.execute(
+                select(Customer).where(Customer.id == customer_id)
+            )
             cust = result.scalar_one_or_none()
             if cust:
                 cust.last_contacted_at = datetime.now(timezone.utc)
                 # Trigger customer state machine transition (inactive/churned -> active)
                 from app.services.customer_state_service import on_re_engage
+
                 await on_re_engage(db, customer_id)
             await db.flush()
             followup_id = followup.id
         return ok({"id": followup_id})
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return fail(str(e), 500)
 

@@ -69,7 +69,9 @@ class TestPurchaseOrderApprove:
 
     def test_approve_emits_event(self):
         po = PurchaseOrder(
-            supplier_id=42, order_no="PO-001", lines=[_line()],
+            supplier_id=42,
+            order_no="PO-001",
+            lines=[_line()],
         )
         po.approve()
         events = po.collect_events()

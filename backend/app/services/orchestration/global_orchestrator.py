@@ -26,14 +26,15 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     now = datetime.datetime.now(datetime.timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     quarter_start_month = ((now.month - 1) // 3) * 3 + 1
-    quarter_start = now.replace(month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
+    quarter_start = now.replace(
+        month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0
+    )
     year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     thirty_days_ago = now - datetime.timedelta(days=30)
 
     # --- 1. Sales Overview: MTD/QTD/YTD revenue, top products/customers ---
     mtd_rev_result = await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
-        .where(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
             SalesOrder.created_at >= month_start,
             SalesOrder.deleted_at.is_(None),
         )
@@ -41,8 +42,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     mtd_revenue = float(mtd_rev_result.scalar() or 0)
 
     qtd_rev_result = await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
-        .where(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
             SalesOrder.created_at >= quarter_start,
             SalesOrder.deleted_at.is_(None),
         )
@@ -50,8 +50,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     qtd_revenue = float(qtd_rev_result.scalar() or 0)
 
     ytd_rev_result = await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
-        .where(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
             SalesOrder.created_at >= year_start,
             SalesOrder.deleted_at.is_(None),
         )
@@ -99,30 +98,37 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     )
     top_customers = top_customers_result.all()
 
-    sales_overview = json.dumps({
-        "mtd_revenue": round(mtd_revenue, 2),
-        "qtd_revenue": round(qtd_revenue, 2),
-        "ytd_revenue": round(ytd_revenue, 2),
-        "top_products_30d": [
-            {"id": r[0], "name": r[1], "sku": r[2], "revenue": round(float(r[3]), 2)}
-            for r in top_products
-        ],
-        "top_customers_30d": [
-            {"id": r[0], "name": r[1], "revenue": round(float(r[2]), 2)}
-            for r in top_customers
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    sales_overview = json.dumps(
+        {
+            "mtd_revenue": round(mtd_revenue, 2),
+            "qtd_revenue": round(qtd_revenue, 2),
+            "ytd_revenue": round(ytd_revenue, 2),
+            "top_products_30d": [
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "sku": r[2],
+                    "revenue": round(float(r[3]), 2),
+                }
+                for r in top_products
+            ],
+            "top_customers_30d": [
+                {"id": r[0], "name": r[1], "revenue": round(float(r[2]), 2)}
+                for r in top_customers
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 2. Customer Overview: total, active, new, churning ---
     total_cust_result = await db.execute(
-        select(func.count(Customer.id))
-        .where(Customer.deleted_at.is_(None))
+        select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
     )
     total_customers = total_cust_result.scalar() or 0
 
     new_cust_result = await db.execute(
-        select(func.count(Customer.id))
-        .where(
+        select(func.count(Customer.id)).where(
             Customer.deleted_at.is_(None),
             Customer.created_at >= thirty_days_ago,
         )
@@ -130,28 +136,32 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     new_customers = new_cust_result.scalar() or 0
 
     active_cust_result = await db.execute(
-        select(func.count(func.distinct(SalesOrder.customer_id)))
-        .where(
+        select(func.count(func.distinct(SalesOrder.customer_id))).where(
             SalesOrder.deleted_at.is_(None),
             SalesOrder.created_at >= thirty_days_ago,
         )
     )
     active_customers = active_cust_result.scalar() or 0
 
-    customer_overview = json.dumps({
-        "total_customers": total_customers,
-        "new_customers_30d": new_customers,
-        "active_customers_30d": active_customers,
-        "activity_rate_pct": round(active_customers / total_customers * 100, 1) if total_customers else 0,
-    }, ensure_ascii=False, default=_safe_json)
+    customer_overview = json.dumps(
+        {
+            "total_customers": total_customers,
+            "new_customers_30d": new_customers,
+            "active_customers_30d": active_customers,
+            "activity_rate_pct": round(active_customers / total_customers * 100, 1)
+            if total_customers
+            else 0,
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 3. Supply Chain Overview: pending POs, low stock, top suppliers ---
     pending_po_result = await db.execute(
         select(
             func.count(PurchaseOrder.id),
             func.coalesce(func.sum(PurchaseOrder.total_amount), 0),
-        )
-        .where(
+        ).where(
             PurchaseOrder.deleted_at.is_(None),
             PurchaseOrder.status.not_in(["cancelled", "received"]),
         )
@@ -159,8 +169,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     pending_po = pending_po_result.one()
 
     low_stock_result = await db.execute(
-        select(func.count(func.distinct(Inventory.product_id)))
-        .where(
+        select(func.count(func.distinct(Inventory.product_id))).where(
             Inventory.deleted_at.is_(None),
             Inventory.quantity > 0,
             Inventory.quantity <= Inventory.safety_stock,
@@ -169,8 +178,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     low_stock_count = low_stock_result.scalar() or 0
 
     out_of_stock_result = await db.execute(
-        select(func.count(func.distinct(Inventory.product_id)))
-        .where(
+        select(func.count(func.distinct(Inventory.product_id))).where(
             Inventory.deleted_at.is_(None),
             Inventory.quantity <= 0,
         )
@@ -196,24 +204,27 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     )
     top_suppliers = top_suppliers_result.all()
 
-    supply_chain_overview = json.dumps({
-        "pending_po_count": int(pending_po[0]),
-        "pending_po_amount": round(float(pending_po[1]), 2),
-        "low_stock_product_count": low_stock_count,
-        "out_of_stock_product_count": out_of_stock_count,
-        "top_suppliers_30d": [
-            {"id": r[0], "name": r[1], "total": round(float(r[2]), 2)}
-            for r in top_suppliers
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    supply_chain_overview = json.dumps(
+        {
+            "pending_po_count": int(pending_po[0]),
+            "pending_po_amount": round(float(pending_po[1]), 2),
+            "low_stock_product_count": low_stock_count,
+            "out_of_stock_product_count": out_of_stock_count,
+            "top_suppliers_30d": [
+                {"id": r[0], "name": r[1], "total": round(float(r[2]), 2)}
+                for r in top_suppliers
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 4. Finance Overview: AR, AP ---
     ar_result = await db.execute(
         select(
             func.count(Invoice.id),
             func.coalesce(func.sum(Invoice.amount), 0),
-        )
-        .where(
+        ).where(
             Invoice.deleted_at.is_(None),
             Invoice.status != "paid",
         )
@@ -221,8 +232,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     ar = ar_result.one()
 
     overdue_result = await db.execute(
-        select(func.coalesce(func.sum(Invoice.amount), 0))
-        .where(
+        select(func.coalesce(func.sum(Invoice.amount), 0)).where(
             Invoice.deleted_at.is_(None),
             Invoice.status != "paid",
             Invoice.invoice_date < thirty_days_ago,
@@ -231,8 +241,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     overdue_ar = float(overdue_result.scalar() or 0)
 
     ap_result = await db.execute(
-        select(func.coalesce(func.sum(PurchaseOrder.total_amount), 0))
-        .where(
+        select(func.coalesce(func.sum(PurchaseOrder.total_amount), 0)).where(
             PurchaseOrder.deleted_at.is_(None),
             PurchaseOrder.status.not_in(["cancelled", "paid"]),
         )
@@ -240,8 +249,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     ap_amount = float(ap_result.scalar() or 0)
 
     receipts_mtd_result = await db.execute(
-        select(func.coalesce(func.sum(Payment.amount), 0))
-        .where(
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
             Payment.deleted_at.is_(None),
             Payment.type == "receipt",
             Payment.paid_at >= month_start,
@@ -250,8 +258,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     receipts_mtd = float(receipts_mtd_result.scalar() or 0)
 
     payments_mtd_result = await db.execute(
-        select(func.coalesce(func.sum(Payment.amount), 0))
-        .where(
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
             Payment.deleted_at.is_(None),
             Payment.type == "payment",
             Payment.paid_at >= month_start,
@@ -259,20 +266,23 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     )
     payments_mtd = float(payments_mtd_result.scalar() or 0)
 
-    finance_overview = json.dumps({
-        "total_ar": round(float(ar[1]), 2),
-        "open_invoice_count": int(ar[0]),
-        "overdue_ar": round(overdue_ar, 2),
-        "total_ap": round(ap_amount, 2),
-        "receipts_mtd": round(receipts_mtd, 2),
-        "payments_mtd": round(payments_mtd, 2),
-        "net_cash_flow_mtd": round(receipts_mtd - payments_mtd, 2),
-    }, ensure_ascii=False, default=_safe_json)
+    finance_overview = json.dumps(
+        {
+            "total_ar": round(float(ar[1]), 2),
+            "open_invoice_count": int(ar[0]),
+            "overdue_ar": round(overdue_ar, 2),
+            "total_ap": round(ap_amount, 2),
+            "receipts_mtd": round(receipts_mtd, 2),
+            "payments_mtd": round(payments_mtd, 2),
+            "net_cash_flow_mtd": round(receipts_mtd - payments_mtd, 2),
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 5. Ticket Overview: open tickets, avg resolution, hotspots ---
     open_tickets_result = await db.execute(
-        select(func.count(Ticket.id))
-        .where(
+        select(func.count(Ticket.id)).where(
             Ticket.deleted_at.is_(None),
             Ticket.status == "open",
         )
@@ -284,8 +294,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
             func.avg(
                 func.extract("epoch", Ticket.resolved_at - Ticket.created_at) / 3600
             )
-        )
-        .where(
+        ).where(
             Ticket.deleted_at.is_(None),
             Ticket.status == "resolved",
             Ticket.resolved_at.isnot(None),
@@ -309,19 +318,27 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     )
     hotspots = hotspot_result.all()
 
-    ticket_overview = json.dumps({
-        "open_tickets": open_tickets,
-        "avg_resolution_hours": round(float(avg_resolution_hours), 1) if avg_resolution_hours else None,
-        "hotspot_categories": [
-            {"category": r[0] or "未分类", "count": int(r[1])}
-            for r in hotspots
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    ticket_overview = json.dumps(
+        {
+            "open_tickets": open_tickets,
+            "avg_resolution_hours": round(float(avg_resolution_hours), 1)
+            if avg_resolution_hours
+            else None,
+            "hotspot_categories": [
+                {"category": r[0] or "未分类", "count": int(r[1])} for r in hotspots
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 6. Anomalies Overview ---
-    anomalies_overview = json.dumps({
-        "message": "异常检测需通过 /api/v1/watchtower 接口获取完整扫描结果",
-    }, ensure_ascii=False)
+    anomalies_overview = json.dumps(
+        {
+            "message": "异常检测需通过 /api/v1/watchtower 接口获取完整扫描结果",
+        },
+        ensure_ascii=False,
+    )
 
     # --- Build AI prompt data ---
     ai_input = {
@@ -384,29 +401,84 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
         "executive_summary": baseline_summary,
         "top_opportunities": [],
         "top_risks": [
-            {"area": "财务", "description": f"逾期应收账款 ¥{overdue:,.0f}", "severity": "高" if overdue > ytd_rev * 0.1 else "中"}
-            if overdue > 0 else None,
-            {"area": "供应链", "description": f"{low_stock} 个产品库存低于安全水位", "severity": "中" if low_stock > 0 else "低"}
-            if low_stock > 0 else None,
-            {"area": "客户成功", "description": f"{open_tickets} 个工单待处理", "severity": "中" if open_tickets > 5 else "低"}
-            if open_tickets > 0 else None,
+            {
+                "area": "财务",
+                "description": f"逾期应收账款 ¥{overdue:,.0f}",
+                "severity": "高" if overdue > ytd_rev * 0.1 else "中",
+            }
+            if overdue > 0
+            else None,
+            {
+                "area": "供应链",
+                "description": f"{low_stock} 个产品库存低于安全水位",
+                "severity": "中" if low_stock > 0 else "低",
+            }
+            if low_stock > 0
+            else None,
+            {
+                "area": "客户成功",
+                "description": f"{open_tickets} 个工单待处理",
+                "severity": "中" if open_tickets > 5 else "低",
+            }
+            if open_tickets > 0
+            else None,
         ],
         "cross_domain_correlations": [],
         "strategic_recommendations": [
-            {"recommendation": "跟进逾期应收，提高现金回收", "domain": "财务", "priority": "高", "rationale": f"逾期金额 ¥{overdue:,.0f}"} if overdue > 0 else None,
-            {"recommendation": "补货预警产品，避免断货影响订单", "domain": "供应链", "priority": "中", "rationale": f"{low_stock} 个 SKU 触发预警"} if low_stock > 0 else None,
+            {
+                "recommendation": "跟进逾期应收，提高现金回收",
+                "domain": "财务",
+                "priority": "高",
+                "rationale": f"逾期金额 ¥{overdue:,.0f}",
+            }
+            if overdue > 0
+            else None,
+            {
+                "recommendation": "补货预警产品，避免断货影响订单",
+                "domain": "供应链",
+                "priority": "中",
+                "rationale": f"{low_stock} 个 SKU 触发预警",
+            }
+            if low_stock > 0
+            else None,
         ],
         "kpi_health": [
-            {"kpi": "MTD 营收", "current": f"¥{mtd_rev:,.0f}", "target": "—", "status": "达标" if mtd_rev > 0 else "低于"},
-            {"kpi": "活跃客户", "current": str(total_cust), "target": "—", "status": "达标" if total_cust > 0 else "低于"},
-            {"kpi": "未收发票", "current": str(open_inv), "target": "0", "status": "达标" if open_inv == 0 else "低于"},
-            {"kpi": "待处理工单", "current": str(open_tickets), "target": "<5", "status": "达标" if open_tickets < 5 else "低于"},
+            {
+                "kpi": "MTD 营收",
+                "current": f"¥{mtd_rev:,.0f}",
+                "target": "—",
+                "status": "达标" if mtd_rev > 0 else "低于",
+            },
+            {
+                "kpi": "活跃客户",
+                "current": str(total_cust),
+                "target": "—",
+                "status": "达标" if total_cust > 0 else "低于",
+            },
+            {
+                "kpi": "未收发票",
+                "current": str(open_inv),
+                "target": "0",
+                "status": "达标" if open_inv == 0 else "低于",
+            },
+            {
+                "kpi": "待处理工单",
+                "current": str(open_tickets),
+                "target": "<5",
+                "status": "达标" if open_tickets < 5 else "低于",
+            },
         ],
-        "focus_areas": ["应收账款", "库存预警"] if overdue > 0 or low_stock > 0 else ["客户活跃"],
+        "focus_areas": ["应收账款", "库存预警"]
+        if overdue > 0 or low_stock > 0
+        else ["客户活跃"],
     }
     # Drop None entries
-    heuristic_insights["top_risks"] = [r for r in heuristic_insights["top_risks"] if r is not None]  # type: ignore[union-attr,attr-defined]
-    heuristic_insights["strategic_recommendations"] = [r for r in heuristic_insights["strategic_recommendations"] if r is not None]  # type: ignore[union-attr,attr-defined]
+    heuristic_insights["top_risks"] = [
+        r for r in heuristic_insights["top_risks"] if r is not None
+    ]  # type: ignore[union-attr,attr-defined]
+    heuristic_insights["strategic_recommendations"] = [
+        r for r in heuristic_insights["strategic_recommendations"] if r is not None
+    ]  # type: ignore[union-attr,attr-defined]
 
     # --- AI Output Schema ---
     output_schema = {
@@ -418,14 +490,17 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
         "top_risks": [
             {"area": "string", "description": "string", "severity": "string"}
         ],
-        "cross_domain_correlations": [
-            {"domains": "string", "finding": "string"}
-        ],
+        "cross_domain_correlations": [{"domains": "string", "finding": "string"}],
         "strategic_recommendations": [
             {"recommendation": "string", "domain": "string", "priority": "string"}
         ],
         "kpi_health": [
-            {"kpi": "string", "current": "string", "target": "string", "status": "string"}
+            {
+                "kpi": "string",
+                "current": "string",
+                "target": "string",
+                "status": "string",
+            }
         ],
         "focus_areas": ["string"],
     }
@@ -436,7 +511,10 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
         async with asyncio.timeout(20):
             ai_insights = await ai_client.chat_structured(
                 [
-                    {"role": "system", "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。"},
+                    {
+                        "role": "system",
+                        "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。",
+                    },
                     {"role": "user", "content": orchestrate_global_prompt(ai_input)},
                 ],
                 output_schema,
@@ -471,14 +549,17 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
         "top_risks": [
             {"area": "string", "description": "string", "severity": "string"}
         ],
-        "cross_domain_correlations": [
-            {"domains": "string", "finding": "string"}
-        ],
+        "cross_domain_correlations": [{"domains": "string", "finding": "string"}],
         "strategic_recommendations": [
             {"recommendation": "string", "domain": "string", "priority": "string"}
         ],
         "kpi_health": [
-            {"kpi": "string", "current": "string", "target": "string", "status": "string"}
+            {
+                "kpi": "string",
+                "current": "string",
+                "target": "string",
+                "status": "string",
+            }
         ],
         "focus_areas": ["string"],
     }
@@ -497,7 +578,10 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     try:
         ai_insights = await ai_client.chat_structured(
             [
-                {"role": "system", "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。"},
+                {
+                    "role": "system",
+                    "content": "你是一个电子元器件ERP系统智能总控。整合分析企业全局数据。",
+                },
                 {"role": "user", "content": orchestrate_global_prompt(ai_input)},
             ],
             output_schema,

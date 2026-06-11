@@ -12,6 +12,7 @@ Per-domain:
 - ``product``     — ``ProductAgent`` (parse, BOM, substitute matching)
 - ``_text_extraction`` — OCR / business-card text parsing helpers
 """
+
 from __future__ import annotations
 
 from app.services.ai.agent_modules._text_extraction import (

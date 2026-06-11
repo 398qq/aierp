@@ -9,6 +9,7 @@ Each sub-router is independently importable so tests can target a
 single bounded context (e.g. ``from app.api.v1.ai.customer.recognition
 import _normalize_customer_recognition``).
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter

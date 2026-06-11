@@ -18,9 +18,13 @@ async def match_supplier_to_products(
     catalog_text: str | None = None,
 ) -> list[dict]:
     """AI matches a supplier's product lines text to known products in the system."""
-    supplier = (await db.execute(
-        select(Supplier).where(Supplier.id == supplier_id, Supplier.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    supplier = (
+        await db.execute(
+            select(Supplier).where(
+                Supplier.id == supplier_id, Supplier.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if supplier is None:
         raise ValueError("Supplier not found")
 
@@ -29,13 +33,22 @@ async def match_supplier_to_products(
         return []
 
     # Get all products with brand info for matching
-    rows = (await db.execute(
-        select(Product.id, Product.sku, Product.name, Product.category,
-               Product.package_type, Brand.name, Brand.name_cn)
-        .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.deleted_at.is_(None))
-        .order_by(Product.id)
-    )).all()
+    rows = (
+        await db.execute(
+            select(
+                Product.id,
+                Product.sku,
+                Product.name,
+                Product.category,
+                Product.package_type,
+                Brand.name,
+                Brand.name_cn,
+            )
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(Product.deleted_at.is_(None))
+            .order_by(Product.id)
+        )
+    ).all()
 
     if not rows:
         return []
@@ -64,8 +77,14 @@ async def match_supplier_to_products(
     }
     result = await ai_client.chat_structured(
         [
-            {"role": "system", "content": "你是一个电子元器件数据匹配专家。精确匹配供应商型号与系统产品。"},
-            {"role": "user", "content": supplier_match_prompt(source_text, product_list[:3000])},
+            {
+                "role": "system",
+                "content": "你是一个电子元器件数据匹配专家。精确匹配供应商型号与系统产品。",
+            },
+            {
+                "role": "user",
+                "content": supplier_match_prompt(source_text, product_list[:3000]),
+            },
         ],
         schema,
     )
@@ -79,39 +98,53 @@ async def get_pricing_benchmark(
     """Get price benchmarks for a product from historical data and supplier costs."""
     # Historical sales prices (last 6 months)
     six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
-    sales_prices = (await db.execute(
-        select(SalesOrderItem.unit_price, SalesOrderItem.quantity, SalesOrderItem.created_at)
-        .where(
-            SalesOrderItem.product_id == product_id,
-            SalesOrderItem.deleted_at.is_(None),
-            SalesOrderItem.created_at >= six_months_ago,
+    sales_prices = (
+        await db.execute(
+            select(
+                SalesOrderItem.unit_price,
+                SalesOrderItem.quantity,
+                SalesOrderItem.created_at,
+            )
+            .where(
+                SalesOrderItem.product_id == product_id,
+                SalesOrderItem.deleted_at.is_(None),
+                SalesOrderItem.created_at >= six_months_ago,
+            )
+            .order_by(SalesOrderItem.created_at.desc())
+            .limit(50)
         )
-        .order_by(SalesOrderItem.created_at.desc())
-        .limit(50)
-    )).all()
+    ).all()
 
     # Quotation prices (active)
-    quote_prices = (await db.execute(
-        select(QuotationItem.unit_price, QuotationItem.quantity)
-        .where(
-            QuotationItem.product_id == product_id,
-            QuotationItem.deleted_at.is_(None),
+    quote_prices = (
+        await db.execute(
+            select(QuotationItem.unit_price, QuotationItem.quantity)
+            .where(
+                QuotationItem.product_id == product_id,
+                QuotationItem.deleted_at.is_(None),
+            )
+            .order_by(QuotationItem.created_at.desc())
+            .limit(20)
         )
-        .order_by(QuotationItem.created_at.desc())
-        .limit(20)
-    )).all()
+    ).all()
 
     # Supplier costs
-    supplier_costs = (await db.execute(
-        select(SupplierProduct.cost_price, SupplierProduct.lead_time_days,
-               SupplierProduct.moq, Supplier.name)
-        .join(Supplier, SupplierProduct.supplier_id == Supplier.id)
-        .where(
-            SupplierProduct.product_id == product_id,
-            SupplierProduct.deleted_at.is_(None),
-            Supplier.deleted_at.is_(None),
+    supplier_costs = (
+        await db.execute(
+            select(
+                SupplierProduct.cost_price,
+                SupplierProduct.lead_time_days,
+                SupplierProduct.moq,
+                Supplier.name,
+            )
+            .join(Supplier, SupplierProduct.supplier_id == Supplier.id)
+            .where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+                Supplier.deleted_at.is_(None),
+            )
         )
-    )).all()
+    ).all()
 
     def _stats(prices: list[float]) -> dict:
         if not prices:
@@ -134,8 +167,10 @@ async def get_pricing_benchmark(
         "sales_history": {
             "count": len(sales_price_list),
             "stats": _stats(sales_price_list),
-            "recent": [{"price": float(r[0]), "qty": r[1], "date": str(r[2])}
-                       for r in sales_prices[:5]],
+            "recent": [
+                {"price": float(r[0]), "qty": r[1], "date": str(r[2])}
+                for r in sales_prices[:5]
+            ],
         },
         "active_quotations": {
             "count": len(quote_price_list),
@@ -144,9 +179,15 @@ async def get_pricing_benchmark(
         "supplier_costs": {
             "count": len(supplier_costs),
             "stats": _stats(cost_list),
-            "suppliers": [{"name": r[3], "cost_price": float(r[0]) if r[0] else None,
-                           "lead_time_days": r[1], "moq": r[2]}
-                          for r in supplier_costs],
+            "suppliers": [
+                {
+                    "name": r[3],
+                    "cost_price": float(r[0]) if r[0] else None,
+                    "lead_time_days": r[1],
+                    "moq": r[2],
+                }
+                for r in supplier_costs
+            ],
         },
     }
 
@@ -162,38 +203,56 @@ async def recommend_price(
     from app.models.customer import Customer
 
     # Product with brand
-    prod_row = (await db.execute(
-        select(Product.sku, Product.name, Product.category, Brand.name, Brand.name_cn)
-        .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).first()
+    prod_row = (
+        await db.execute(
+            select(
+                Product.sku, Product.name, Product.category, Brand.name, Brand.name_cn
+            )
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(Product.id == product_id, Product.deleted_at.is_(None))
+        )
+    ).first()
     if prod_row is None:
         raise ValueError("Product not found")
 
     # Supplier costs
-    supplier_rows = (await db.execute(
-        select(SupplierProduct.cost_price, SupplierProduct.lead_time_days,
-               SupplierProduct.moq)
-        .where(SupplierProduct.product_id == product_id,
-               SupplierProduct.deleted_at.is_(None))
-    )).all()
+    supplier_rows = (
+        await db.execute(
+            select(
+                SupplierProduct.cost_price,
+                SupplierProduct.lead_time_days,
+                SupplierProduct.moq,
+            ).where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+            )
+        )
+    ).all()
     cost_price = min((float(r[0]) for r in supplier_rows if r[0]), default=None)
     lead_time = min((r[1] for r in supplier_rows if r[1]), default=None)
     supplier_count = len(supplier_rows)
 
     # Current stock
     from app.models.product import Inventory
-    stock_qty = (await db.execute(
-        select(func.coalesce(func.sum(Inventory.quantity), 0))
-        .where(Inventory.product_id == product_id, Inventory.deleted_at.is_(None))
-    )).scalar() or 0
+
+    stock_qty = (
+        await db.execute(
+            select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
+                Inventory.product_id == product_id, Inventory.deleted_at.is_(None)
+            )
+        )
+    ).scalar() or 0
 
     # Customer info
     customer_name, customer_level, customer_industry = "未知", "未知", "未知"
     if customer_id:
-        cust = (await db.execute(
-            select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
-        )).scalar_one_or_none()
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == customer_id, Customer.deleted_at.is_(None)
+                )
+            )
+        ).scalar_one_or_none()
         if cust:
             customer_name = cust.name
             customer_level = cust.level or "未知"
@@ -202,18 +261,20 @@ async def recommend_price(
     # Historical prices for this product-customer combo
     historical = []
     if customer_id:
-        hist_rows = (await db.execute(
-            select(SalesOrderItem.unit_price, SalesOrderItem.quantity)
-            .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
-            .where(
-                SalesOrderItem.product_id == product_id,
-                SalesOrderItem.deleted_at.is_(None),
-                SalesOrder.customer_id == customer_id,
-                SalesOrder.deleted_at.is_(None),
+        hist_rows = (
+            await db.execute(
+                select(SalesOrderItem.unit_price, SalesOrderItem.quantity)
+                .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+                .where(
+                    SalesOrderItem.product_id == product_id,
+                    SalesOrderItem.deleted_at.is_(None),
+                    SalesOrder.customer_id == customer_id,
+                    SalesOrder.deleted_at.is_(None),
+                )
+                .order_by(SalesOrderItem.created_at.desc())
+                .limit(5)
             )
-            .order_by(SalesOrderItem.created_at.desc())
-            .limit(5)
-        )).all()
+        ).all()
         historical = [f"{float(r[0])}元 (x{r[1]})" for r in hist_rows if r[0]]
 
     # Determine market condition
@@ -256,7 +317,10 @@ async def recommend_price(
     }
     result = await ai_client.chat_structured(
         [
-            {"role": "system", "content": "你是一个电子元器件分销行业定价专家。基于成本、市场和客户关系给出精准定价。"},
+            {
+                "role": "system",
+                "content": "你是一个电子元器件分销行业定价专家。基于成本、市场和客户关系给出精准定价。",
+            },
             {"role": "user", "content": pricing_recommend_prompt(context)},
         ],
         schema,

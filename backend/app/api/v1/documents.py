@@ -18,15 +18,19 @@ from app.schemas.common import fail, ok
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
 ALLOWED_MIME = {
-    "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "image/jpeg", "image/png", "image/gif", "text/csv",
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "text/csv",
     "application/vnd.ms-excel",
 }
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 # Characters banned from user-provided filenames to prevent path traversal
-_FORBIDDEN_PATH_CHARS = re.compile(r'[/\\x00]')
+_FORBIDDEN_PATH_CHARS = re.compile(r"[/\\x00]")
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -96,16 +100,26 @@ async def list_documents(
             Document.entity_type == entity_type,
             Document.entity_id == entity_id,
             Document.deleted_at.is_(None),
-        ).order_by(Document.id.desc())
+        )
+        .order_by(Document.id.desc())
     )
     docs = result.scalars().all()
-    return ok([{
-        "id": d.id, "entity_type": d.entity_type, "entity_id": d.entity_id,
-        "filename": d.filename, "file_size": d.file_size, "mime_type": d.mime_type,
-        "uploaded_by": d.uploaded_by,
-        "uploader_name": d.uploader.username if d.uploader else "",
-        "created_at": str(d.created_at),
-    } for d in docs])
+    return ok(
+        [
+            {
+                "id": d.id,
+                "entity_type": d.entity_type,
+                "entity_id": d.entity_id,
+                "filename": d.filename,
+                "file_size": d.file_size,
+                "mime_type": d.mime_type,
+                "uploaded_by": d.uploaded_by,
+                "uploader_name": d.uploader.username if d.uploader else "",
+                "created_at": str(d.created_at),
+            }
+            for d in docs
+        ]
+    )
 
 
 @router.get("/{doc_id}/download")
@@ -114,9 +128,11 @@ async def download_document(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    doc = (await db.execute(
-        select(Document).where(Document.id == doc_id, Document.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    doc = (
+        await db.execute(
+            select(Document).where(Document.id == doc_id, Document.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not doc:
         return fail("文件不存在")
 
@@ -125,7 +141,9 @@ async def download_document(
         return fail("文件已丢失")
 
     return FileResponse(
-        file_path, filename=doc.filename, media_type=doc.mime_type or "application/octet-stream"
+        file_path,
+        filename=doc.filename,
+        media_type=doc.mime_type or "application/octet-stream",
     )
 
 
@@ -135,9 +153,11 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    doc = (await db.execute(
-        select(Document).where(Document.id == doc_id, Document.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    doc = (
+        await db.execute(
+            select(Document).where(Document.id == doc_id, Document.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not doc:
         return fail("文件不存在")
     doc.deleted_at = datetime.datetime.now(datetime.timezone.utc)

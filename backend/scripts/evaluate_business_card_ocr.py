@@ -17,13 +17,17 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-DEFAULT_FIXTURE = BACKEND_DIR / "tests" / "fixtures" / "business_card_eval" / "sample.jsonl"
+DEFAULT_FIXTURE = (
+    BACKEND_DIR / "tests" / "fixtures" / "business_card_eval" / "sample.jsonl"
+)
 FIELDS = ("name", "contact_person", "phone", "email", "address")
 
 
 def _load_cases(path: Path) -> list[dict[str, Any]]:
     cases = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         try:
@@ -64,7 +68,9 @@ async def _recognize(case: dict[str, Any], *, use_ai: bool) -> dict[str, Any]:
     raw_text = str(case.get("raw_text") or "")
     candidates = case.get("ocr_candidates") or []
     if use_ai:
-        return await CustomerAgent.recognize_customer(raw_text, ocr_candidates=candidates)
+        return await CustomerAgent.recognize_customer(
+            raw_text, ocr_candidates=candidates
+        )
 
     combined_text = "\n".join(
         [raw_text, *[str(candidate.get("text") or "") for candidate in candidates]]
@@ -93,7 +99,17 @@ async def _main() -> int:
     passed = sum(result["passed"] for result in results)
     total = sum(result["total"] for result in results)
     accuracy = round(passed / total, 4) if total else 1.0
-    print(json.dumps({"cases": len(results), "passed": passed, "total": total, "accuracy": accuracy}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "cases": len(results),
+                "passed": passed,
+                "total": total,
+                "accuracy": accuracy,
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0 if passed == total else 1
 
 

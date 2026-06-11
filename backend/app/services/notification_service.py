@@ -50,21 +50,25 @@ class NotificationService(BaseCRUDService):
             cnt = cnt.where(Notification.type == type)
         total = (await db.execute(cnt)).scalar() or 0
         rows = (
-            (await db.execute(
-                base.order_by(Notification.id.desc())
-                .offset((page - 1) * page_size)
-                .limit(page_size)
-            ))
+            (
+                await db.execute(
+                    base.order_by(Notification.id.desc())
+                    .offset((page - 1) * page_size)
+                    .limit(page_size)
+                )
+            )
             .scalars()
             .all()
         )
-        unread = (await db.execute(
-            select(func.count(Notification.id)).where(
-                Notification.deleted_at.is_(None),
-                Notification.user_id == user_id,
-                ~Notification.is_read,
+        unread = (
+            await db.execute(
+                select(func.count(Notification.id)).where(
+                    Notification.deleted_at.is_(None),
+                    Notification.user_id == user_id,
+                    ~Notification.is_read,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
         return {
             "list": rows,
             "total": total,
@@ -73,9 +77,7 @@ class NotificationService(BaseCRUDService):
             "unread_count": unread,
         }
 
-    async def get_unread_count(
-        self, db: AsyncSession, *, user_id: int
-    ) -> int:
+    async def get_unread_count(self, db: AsyncSession, *, user_id: int) -> int:
         result = await db.execute(
             select(func.count(Notification.id)).where(
                 Notification.deleted_at.is_(None),
@@ -152,12 +154,21 @@ class NotificationService(BaseCRUDService):
 
 
 async def get_notifications(
-    db: AsyncSession, *, user_id: int, page: int = 1, page_size: int = 20,
-    unread_only: bool = False, type: str | None = None,
+    db: AsyncSession,
+    *,
+    user_id: int,
+    page: int = 1,
+    page_size: int = 20,
+    unread_only: bool = False,
+    type: str | None = None,
 ) -> dict:
     return await notification_service.list_notifications(
-        db, user_id=user_id, page=page, page_size=page_size,
-        unread_only=unread_only, type=type,
+        db,
+        user_id=user_id,
+        page=page,
+        page_size=page_size,
+        unread_only=unread_only,
+        type=type,
     )
 
 
@@ -166,21 +177,36 @@ async def get_unread_count(db: AsyncSession, *, user_id: int) -> int:
 
 
 async def mark_read(
-    db: AsyncSession, *, user_id: int, ids: list[int] | None = None, mark_all: bool = False,
+    db: AsyncSession,
+    *,
+    user_id: int,
+    ids: list[int] | None = None,
+    mark_all: bool = False,
 ) -> int:
     return await notification_service.mark_read(
-        db, user_id=user_id, ids=ids, mark_all=mark_all,
+        db,
+        user_id=user_id,
+        ids=ids,
+        mark_all=mark_all,
     )
 
 
 async def create_notification(
-    db: AsyncSession, *,
-    user_id: int, type: str = "system", title: str = "",
-    content: str | None = None, related_id: int | None = None,
+    db: AsyncSession,
+    *,
+    user_id: int,
+    type: str = "system",
+    title: str = "",
+    content: str | None = None,
+    related_id: int | None = None,
 ) -> Notification:
     return await notification_service.create_notification(
-        db, user_id=user_id, type=type, title=title,
-        content=content, related_id=related_id,
+        db,
+        user_id=user_id,
+        type=type,
+        title=title,
+        content=content,
+        related_id=related_id,
     )
 
 

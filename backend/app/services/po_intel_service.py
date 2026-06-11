@@ -18,27 +18,35 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
     from app.services.ai.prompts import po_optimization_prompt
 
     # Query PO with supplier
-    po = (await db.execute(
-        select(PurchaseOrder).where(
-            PurchaseOrder.id == order_id, PurchaseOrder.deleted_at.is_(None)
+    po = (
+        await db.execute(
+            select(PurchaseOrder).where(
+                PurchaseOrder.id == order_id, PurchaseOrder.deleted_at.is_(None)
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if not po:
         raise ValueError("Purchase order not found")
 
-    supplier = (await db.execute(
-        select(Supplier).where(Supplier.id == po.supplier_id, Supplier.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    supplier = (
+        await db.execute(
+            select(Supplier).where(
+                Supplier.id == po.supplier_id, Supplier.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
 
     # Get items with product info
-    item_rows = (await db.execute(
-        select(PurchaseOrderItem, Product)
-        .join(Product, PurchaseOrderItem.product_id == Product.id)
-        .where(
-            PurchaseOrderItem.order_id == order_id,
-            PurchaseOrderItem.deleted_at.is_(None),
+    item_rows = (
+        await db.execute(
+            select(PurchaseOrderItem, Product)
+            .join(Product, PurchaseOrderItem.product_id == Product.id)
+            .where(
+                PurchaseOrderItem.order_id == order_id,
+                PurchaseOrderItem.deleted_at.is_(None),
+            )
         )
-    )).all()
+    ).all()
 
     if not item_rows:
         raise ValueError("Purchase order has no items")
@@ -54,23 +62,37 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
     items_detail = "\n".join(items_detail_lines)
 
     # Get inventory for these products
-    inv_rows = (await db.execute(
-        select(Inventory, Product)
-        .join(Product, Inventory.product_id == Product.id)
-        .where(
-            Inventory.product_id.in_(product_ids),
-            Inventory.deleted_at.is_(None),
+    inv_rows = (
+        (
+            await db.execute(
+                select(Inventory, Product)
+                .join(Product, Inventory.product_id == Product.id)
+                .where(
+                    Inventory.product_id.in_(product_ids),
+                    Inventory.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        if product_ids
+        else []
+    )
+
+    current_stock = (
+        ", ".join(
+            [
+                f"{p.name}: {inv.quantity} (安全库存:{inv.safety_stock})"
+                for inv, p in inv_rows
+            ]
         )
-    )).all() if product_ids else []
+        if inv_rows
+        else "无库存数据"
+    )
 
-    current_stock = ", ".join(
-        [f"{p.name}: {inv.quantity} (安全库存:{inv.safety_stock})"
-         for inv, p in inv_rows]
-    ) if inv_rows else "无库存数据"
-
-    safety_stock = ", ".join(
-        [f"{p.name}: {inv.safety_stock}" for inv, p in inv_rows]
-    ) if inv_rows else "无数据"
+    safety_stock = (
+        ", ".join([f"{p.name}: {inv.safety_stock}" for inv, p in inv_rows])
+        if inv_rows
+        else "无数据"
+    )
 
     # Daily consumption from recent inventory transactions (stock_out, last 30 days)
     now = datetime.now(timezone.utc)
@@ -78,19 +100,22 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
     daily_consumption = "无数据"
     if product_ids:
         from app.models.product import InventoryTransaction
-        tx_rows = (await db.execute(
-            select(
-                InventoryTransaction.product_id,
-                func.coalesce(func.sum(InventoryTransaction.quantity), 0),
+
+        tx_rows = (
+            await db.execute(
+                select(
+                    InventoryTransaction.product_id,
+                    func.coalesce(func.sum(InventoryTransaction.quantity), 0),
+                )
+                .where(
+                    InventoryTransaction.product_id.in_(product_ids),
+                    InventoryTransaction.type == "stock_out",
+                    InventoryTransaction.created_at >= d30,
+                    InventoryTransaction.deleted_at.is_(None),
+                )
+                .group_by(InventoryTransaction.product_id)
             )
-            .where(
-                InventoryTransaction.product_id.in_(product_ids),
-                InventoryTransaction.type == "stock_out",
-                InventoryTransaction.created_at >= d30,
-                InventoryTransaction.deleted_at.is_(None),
-            )
-            .group_by(InventoryTransaction.product_id)
-        )).all()
+        ).all()
         if tx_rows:
             inv_map = {p.id: p.name for _, p in inv_rows}
             parts = []
@@ -100,20 +125,22 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
             daily_consumption = ", ".join(parts)
 
     # Alternative supplier quotes for the same products (excluding the PO's supplier)
-    alt_quote_rows = (await db.execute(
-        select(SupplierProduct, Product, Supplier)
-        .join(Product, SupplierProduct.product_id == Product.id)
-        .join(Supplier, SupplierProduct.supplier_id == Supplier.id)
-        .where(
-            SupplierProduct.product_id.in_(product_ids),
-            SupplierProduct.supplier_id != po.supplier_id,
-            SupplierProduct.deleted_at.is_(None),
-            Product.deleted_at.is_(None),
-            Supplier.deleted_at.is_(None),
+    alt_quote_rows = (
+        await db.execute(
+            select(SupplierProduct, Product, Supplier)
+            .join(Product, SupplierProduct.product_id == Product.id)
+            .join(Supplier, SupplierProduct.supplier_id == Supplier.id)
+            .where(
+                SupplierProduct.product_id.in_(product_ids),
+                SupplierProduct.supplier_id != po.supplier_id,
+                SupplierProduct.deleted_at.is_(None),
+                Product.deleted_at.is_(None),
+                Supplier.deleted_at.is_(None),
+            )
+            .order_by(SupplierProduct.cost_price.asc())
+            .limit(20)
         )
-        .order_by(SupplierProduct.cost_price.asc())
-        .limit(20)
-    )).all()
+    ).all()
 
     if alt_quote_rows:
         alt_lines = []
@@ -141,11 +168,21 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
     schema = {
         "optimization_score": "integer 0-100",
         "quantity_advice": [
-            {"product_name": "string", "ordered": "integer", "suggested": "integer", "reason": "string"}
+            {
+                "product_name": "string",
+                "ordered": "integer",
+                "suggested": "integer",
+                "reason": "string",
+            }
         ],
         "supplier_split": [
-            {"supplier_name": "string", "product_name": "string", "quantity": "integer",
-             "price": "number", "saving": "number"}
+            {
+                "supplier_name": "string",
+                "product_name": "string",
+                "quantity": "integer",
+                "price": "number",
+                "saving": "number",
+            }
         ],
         "timing_advice": "string",
         "risk_flags": ["string"],
@@ -153,8 +190,10 @@ async def optimize_purchase_order(db: AsyncSession, order_id: int) -> dict:
     }
     try:
         result = await ai_client.chat_structured(
-            [{"role": "system", "content": "你是一个电子元器件采购优化专家。"},
-             {"role": "user", "content": po_optimization_prompt(po_data)}],
+            [
+                {"role": "system", "content": "你是一个电子元器件采购优化专家。"},
+                {"role": "user", "content": po_optimization_prompt(po_data)},
+            ],
             schema,
         )
     except ValueError as e:
@@ -177,18 +216,20 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
     from app.services.ai.prompts import po_auto_suggest_prompt
 
     # Find all products below safety stock
-    low_stock_rows = (await db.execute(
-        select(Inventory, Product)
-        .join(Product, Inventory.product_id == Product.id)
-        .where(
-            Inventory.quantity < Inventory.safety_stock,
-            Inventory.safety_stock > 0,
-            Inventory.deleted_at.is_(None),
-            Product.deleted_at.is_(None),
+    low_stock_rows = (
+        await db.execute(
+            select(Inventory, Product)
+            .join(Product, Inventory.product_id == Product.id)
+            .where(
+                Inventory.quantity < Inventory.safety_stock,
+                Inventory.safety_stock > 0,
+                Inventory.deleted_at.is_(None),
+                Product.deleted_at.is_(None),
+            )
+            .order_by((Inventory.safety_stock - Inventory.quantity).desc())
+            .limit(50)
         )
-        .order_by((Inventory.safety_stock - Inventory.quantity).desc())
-        .limit(50)
-    )).all()
+    ).all()
 
     if not low_stock_rows:
         return {
@@ -220,20 +261,24 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
     low_stock_items = "\n".join(low_stock_items_lines)
 
     # Get supplier quotes for these low-stock products
-    supplier_quote_rows = (await db.execute(
-        select(SupplierProduct, Product, Supplier)
-        .join(Product, SupplierProduct.product_id == Product.id)
-        .join(Supplier, SupplierProduct.supplier_id == Supplier.id)
-        .where(
-            SupplierProduct.product_id.in_(low_stock_product_ids),
-            SupplierProduct.cost_price.isnot(None),
-            SupplierProduct.deleted_at.is_(None),
-            Product.deleted_at.is_(None),
-            Supplier.deleted_at.is_(None),
+    supplier_quote_rows = (
+        await db.execute(
+            select(SupplierProduct, Product, Supplier)
+            .join(Product, SupplierProduct.product_id == Product.id)
+            .join(Supplier, SupplierProduct.supplier_id == Supplier.id)
+            .where(
+                SupplierProduct.product_id.in_(low_stock_product_ids),
+                SupplierProduct.cost_price.isnot(None),
+                SupplierProduct.deleted_at.is_(None),
+                Product.deleted_at.is_(None),
+                Supplier.deleted_at.is_(None),
+            )
+            .order_by(
+                SupplierProduct.is_preferred.desc(), SupplierProduct.cost_price.asc()
+            )
+            .limit(200)
         )
-        .order_by(SupplierProduct.is_preferred.desc(), SupplierProduct.cost_price.asc())
-        .limit(200)
-    )).all()
+    ).all()
 
     if supplier_quote_rows:
         quote_lines = []
@@ -258,21 +303,23 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
     # Purchase frequency: count POs for these products in the last 90 days
     now = datetime.now(timezone.utc)
     d90 = now - timedelta(days=90)
-    freq_rows = (await db.execute(
-        select(
-            Product.name,
-            func.count(PurchaseOrderItem.id),
-            func.coalesce(func.sum(PurchaseOrderItem.quantity), 0),
+    freq_rows = (
+        await db.execute(
+            select(
+                Product.name,
+                func.count(PurchaseOrderItem.id),
+                func.coalesce(func.sum(PurchaseOrderItem.quantity), 0),
+            )
+            .join(Product, PurchaseOrderItem.product_id == Product.id)
+            .where(
+                PurchaseOrderItem.product_id.in_(low_stock_product_ids),
+                PurchaseOrderItem.created_at >= d90,
+                PurchaseOrderItem.deleted_at.is_(None),
+                Product.deleted_at.is_(None),
+            )
+            .group_by(Product.name)
         )
-        .join(Product, PurchaseOrderItem.product_id == Product.id)
-        .where(
-            PurchaseOrderItem.product_id.in_(low_stock_product_ids),
-            PurchaseOrderItem.created_at >= d90,
-            PurchaseOrderItem.deleted_at.is_(None),
-            Product.deleted_at.is_(None),
-        )
-        .group_by(Product.name)
-    )).all()
+    ).all()
 
     if freq_rows:
         freq_lines = [
@@ -293,9 +340,15 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
     schema = {
         "urgency_level": "string: 低/中/高/紧急",
         "suggested_pos": [
-            {"supplier_name": "string", "product_name": "string", "quantity": "integer",
-             "estimated_price": "number", "estimated_amount": "number",
-             "urgency": "string", "reason": "string"}
+            {
+                "supplier_name": "string",
+                "product_name": "string",
+                "quantity": "integer",
+                "estimated_price": "number",
+                "estimated_amount": "number",
+                "urgency": "string",
+                "reason": "string",
+            }
         ],
         "total_estimated_amount": "number",
         "prioritization": "string",
@@ -303,8 +356,10 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
     }
     try:
         result = await ai_client.chat_structured(
-            [{"role": "system", "content": "你是一个电子元器件库存管理专家。"},
-             {"role": "user", "content": po_auto_suggest_prompt(po_data)}],
+            [
+                {"role": "system", "content": "你是一个电子元器件库存管理专家。"},
+                {"role": "user", "content": po_auto_suggest_prompt(po_data)},
+            ],
             schema,
         )
     except ValueError as e:
@@ -318,7 +373,9 @@ async def suggest_purchase_orders(db: AsyncSession) -> dict:
         }
     result["context"] = {
         "low_stock_count": len(low_stock_rows),
-        "supplier_count": len(set(r[2].id for r in supplier_quote_rows)) if supplier_quote_rows else 0,
+        "supplier_count": len(set(r[2].id for r in supplier_quote_rows))
+        if supplier_quote_rows
+        else 0,
     }
     return result
 
@@ -329,27 +386,35 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
     from app.services.ai.prompts import po_risk_assessment_prompt
 
     # Query PO with supplier
-    po = (await db.execute(
-        select(PurchaseOrder).where(
-            PurchaseOrder.id == order_id, PurchaseOrder.deleted_at.is_(None)
+    po = (
+        await db.execute(
+            select(PurchaseOrder).where(
+                PurchaseOrder.id == order_id, PurchaseOrder.deleted_at.is_(None)
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if not po:
         raise ValueError("Purchase order not found")
 
-    supplier = (await db.execute(
-        select(Supplier).where(Supplier.id == po.supplier_id, Supplier.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    supplier = (
+        await db.execute(
+            select(Supplier).where(
+                Supplier.id == po.supplier_id, Supplier.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
 
     # Get items with product info
-    item_rows = (await db.execute(
-        select(PurchaseOrderItem, Product)
-        .join(Product, PurchaseOrderItem.product_id == Product.id)
-        .where(
-            PurchaseOrderItem.order_id == order_id,
-            PurchaseOrderItem.deleted_at.is_(None),
+    item_rows = (
+        await db.execute(
+            select(PurchaseOrderItem, Product)
+            .join(Product, PurchaseOrderItem.product_id == Product.id)
+            .where(
+                PurchaseOrderItem.order_id == order_id,
+                PurchaseOrderItem.deleted_at.is_(None),
+            )
         )
-    )).all()
+    ).all()
 
     if not item_rows:
         raise ValueError("Purchase order has no items")
@@ -361,44 +426,59 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
     d365 = now - timedelta(days=365)
 
     # Total POs for this supplier in the last 12 months
-    total_pos = (await db.execute(
-        select(func.count(PurchaseOrder.id))
-        .where(
-            PurchaseOrder.supplier_id == po.supplier_id,
-            PurchaseOrder.id != order_id,
-            PurchaseOrder.created_at >= d365,
-            PurchaseOrder.deleted_at.is_(None),
+    total_pos = (
+        await db.execute(
+            select(func.count(PurchaseOrder.id)).where(
+                PurchaseOrder.supplier_id == po.supplier_id,
+                PurchaseOrder.id != order_id,
+                PurchaseOrder.created_at >= d365,
+                PurchaseOrder.deleted_at.is_(None),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Delayed/overdue POs: status not in terminal completed states AND expected_date past
-    delayed_pos = (await db.execute(
-        select(func.count(PurchaseOrder.id))
-        .where(
-            PurchaseOrder.supplier_id == po.supplier_id,
-            PurchaseOrder.id != order_id,
-            PurchaseOrder.expected_date.isnot(None),
-            PurchaseOrder.expected_date < now,
-            PurchaseOrder.status.notin_(["received", "completed", "cancelled"]),
-            PurchaseOrder.deleted_at.is_(None),
+    delayed_pos = (
+        await db.execute(
+            select(func.count(PurchaseOrder.id)).where(
+                PurchaseOrder.supplier_id == po.supplier_id,
+                PurchaseOrder.id != order_id,
+                PurchaseOrder.expected_date.isnot(None),
+                PurchaseOrder.expected_date < now,
+                PurchaseOrder.status.notin_(["received", "completed", "cancelled"]),
+                PurchaseOrder.deleted_at.is_(None),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     supplier_delay_rate = round((delayed_pos / max(total_pos, 1)) * 100, 1)
 
     # --- Quality issues from notes ---
-    quality_issue_rows = (await db.execute(
-        select(PurchaseOrder.notes)
-        .where(
-            PurchaseOrder.supplier_id == po.supplier_id,
-            PurchaseOrder.id != order_id,
-            PurchaseOrder.deleted_at.is_(None),
-            PurchaseOrder.notes.isnot(None),
+    quality_issue_rows = (
+        await db.execute(
+            select(PurchaseOrder.notes)
+            .where(
+                PurchaseOrder.supplier_id == po.supplier_id,
+                PurchaseOrder.id != order_id,
+                PurchaseOrder.deleted_at.is_(None),
+                PurchaseOrder.notes.isnot(None),
+            )
+            .limit(100)
         )
-        .limit(100)
-    )).all()
+    ).all()
 
-    quality_keywords = ["质量", "缺陷", "退货", "不良", "损坏", "quality", "defect", "damage", "返工", "NG"]
+    quality_keywords = [
+        "质量",
+        "缺陷",
+        "退货",
+        "不良",
+        "损坏",
+        "quality",
+        "defect",
+        "damage",
+        "返工",
+        "NG",
+    ]
     quality_issue_count = 0
     quality_notes = []
     for (note,) in quality_issue_rows:
@@ -414,29 +494,33 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
     if supplier and supplier.notes:
         if any(kw in (supplier.notes or "").lower() for kw in ["稳定", "良好", "优质"]):
             supplier_financial = "稳定"
-        elif any(kw in (supplier.notes or "").lower() for kw in ["风险", "困难", "预警"]):
+        elif any(
+            kw in (supplier.notes or "").lower() for kw in ["风险", "困难", "预警"]
+        ):
             supplier_financial = "需关注"
 
     # --- Item risks ---
     item_risk_lines = []
     for item, prod in item_rows:
         # Check inventory
-        inv = (await db.execute(
-            select(func.coalesce(func.sum(Inventory.quantity), 0))
-            .where(
-                Inventory.product_id == prod.id,
-                Inventory.deleted_at.is_(None),
+        inv = (
+            await db.execute(
+                select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
+                    Inventory.product_id == prod.id,
+                    Inventory.deleted_at.is_(None),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
         # Check supplier count for this product
-        sup_count = (await db.execute(
-            select(func.count(SupplierProduct.id))
-            .where(
-                SupplierProduct.product_id == prod.id,
-                SupplierProduct.deleted_at.is_(None),
+        sup_count = (
+            await db.execute(
+                select(func.count(SupplierProduct.id)).where(
+                    SupplierProduct.product_id == prod.id,
+                    SupplierProduct.deleted_at.is_(None),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
         risk_tags = []
         if sup_count == 0:
@@ -455,22 +539,22 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
 
     # --- Market context ---
     # Aggregate categories from PO items
-    categories = list(set(
-        prod.category for _, prod in item_rows if prod.category
-    ))
+    categories = list(set(prod.category for _, prod in item_rows if prod.category))
     market_supply = "未知"
     market_price_trend = "未知"
     if categories:
         # Check if these categories have many competing suppliers (crude proxy)
-        cat_sup_count = (await db.execute(
-            select(func.count(func.distinct(SupplierProduct.supplier_id)))
-            .join(Product, SupplierProduct.product_id == Product.id)
-            .where(
-                Product.category.in_(categories),
-                SupplierProduct.deleted_at.is_(None),
-                Product.deleted_at.is_(None),
+        cat_sup_count = (
+            await db.execute(
+                select(func.count(func.distinct(SupplierProduct.supplier_id)))
+                .join(Product, SupplierProduct.product_id == Product.id)
+                .where(
+                    Product.category.in_(categories),
+                    SupplierProduct.deleted_at.is_(None),
+                    Product.deleted_at.is_(None),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
         if cat_sup_count >= 5:
             market_supply = "供应充足"
         elif cat_sup_count >= 2:
@@ -480,31 +564,37 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
 
         # Price trend: compare recent SupplierProduct costs vs older ones
         d90 = now - timedelta(days=90)
-        recent_cost = (await db.execute(
-            select(func.avg(SupplierProduct.cost_price))
-            .join(Product, SupplierProduct.product_id == Product.id)
-            .where(
-                Product.category.in_(categories),
-                SupplierProduct.created_at >= d90,
-                SupplierProduct.cost_price.isnot(None),
-                SupplierProduct.deleted_at.is_(None),
-                Product.deleted_at.is_(None),
+        recent_cost = (
+            await db.execute(
+                select(func.avg(SupplierProduct.cost_price))
+                .join(Product, SupplierProduct.product_id == Product.id)
+                .where(
+                    Product.category.in_(categories),
+                    SupplierProduct.created_at >= d90,
+                    SupplierProduct.cost_price.isnot(None),
+                    SupplierProduct.deleted_at.is_(None),
+                    Product.deleted_at.is_(None),
+                )
             )
-        )).scalar()
-        older_cost = (await db.execute(
-            select(func.avg(SupplierProduct.cost_price))
-            .join(Product, SupplierProduct.product_id == Product.id)
-            .where(
-                Product.category.in_(categories),
-                SupplierProduct.created_at < d90,
-                SupplierProduct.cost_price.isnot(None),
-                SupplierProduct.deleted_at.is_(None),
-                Product.deleted_at.is_(None),
+        ).scalar()
+        older_cost = (
+            await db.execute(
+                select(func.avg(SupplierProduct.cost_price))
+                .join(Product, SupplierProduct.product_id == Product.id)
+                .where(
+                    Product.category.in_(categories),
+                    SupplierProduct.created_at < d90,
+                    SupplierProduct.cost_price.isnot(None),
+                    SupplierProduct.deleted_at.is_(None),
+                    Product.deleted_at.is_(None),
+                )
             )
-        )).scalar()
+        ).scalar()
 
         if recent_cost and older_cost:
-            change_pct = (float(recent_cost) - float(older_cost)) / float(older_cost) * 100
+            change_pct = (
+                (float(recent_cost) - float(older_cost)) / float(older_cost) * 100
+            )
             if change_pct > 5:
                 market_price_trend = f"上涨({change_pct:.1f}%)"
             elif change_pct < -5:
@@ -541,8 +631,10 @@ async def assess_po_risk(db: AsyncSession, order_id: int) -> dict:
     }
     try:
         result = await ai_client.chat_structured(
-            [{"role": "system", "content": "你是一个电子元器件采购风控专家。"},
-             {"role": "user", "content": po_risk_assessment_prompt(po_data)}],
+            [
+                {"role": "system", "content": "你是一个电子元器件采购风控专家。"},
+                {"role": "user", "content": po_risk_assessment_prompt(po_data)},
+            ],
             schema,
         )
     except ValueError as e:

@@ -2,12 +2,22 @@
 
 from app.services.brand_intel.auto_complete import auto_complete_brand
 from app.services.brand_intel.comparison import compare_brands, find_similar_brands
-from app.services.brand_intel.context import _brand_context, _brand_cache_key, _cached_brand_ai
+from app.services.brand_intel.context import (
+    _brand_context,
+    _brand_cache_key,
+    _cached_brand_ai,
+)
 from app.services.brand_intel.eol import scan_eol_alerts, suggest_eol_alternatives
 from app.services.brand_intel.health import get_brand_health
 from app.services.brand_intel.import_brand import import_brand_from_text
-from app.services.brand_intel.lifecycle import get_brand_price_trends, predict_brand_lifecycle
-from app.services.brand_intel.performance import get_brand_customer_penetration, get_brand_product_performance
+from app.services.brand_intel.lifecycle import (
+    get_brand_price_trends,
+    predict_brand_lifecycle,
+)
+from app.services.brand_intel.performance import (
+    get_brand_customer_penetration,
+    get_brand_product_performance,
+)
 from app.services.brand_intel.portfolio import analyze_brand_portfolio
 from app.services.brand_intel.profile import generate_brand_profile
 from app.services.brand_intel.recommendation import recommend_brands

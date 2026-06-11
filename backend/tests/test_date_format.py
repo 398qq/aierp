@@ -27,7 +27,10 @@ _T = Table(
 )
 
 
-@pytest.mark.parametrize("dialect_name, dialect", [("postgresql", postgresql.dialect()), ("sqlite", sqlite.dialect())])
+@pytest.mark.parametrize(
+    "dialect_name, dialect",
+    [("postgresql", postgresql.dialect()), ("sqlite", sqlite.dialect())],
+)
 @pytest.mark.parametrize("fmt", ["YYYY-MM", "YYYYMM", "YYYY"])
 def test_date_format_generates_cast_for_postgres(dialect_name, dialect, fmt):
     """Both Date and DateTime columns must be wrapped with CAST(... AS VARCHAR)."""
@@ -36,21 +39,29 @@ def test_date_format_generates_cast_for_postgres(dialect_name, dialect, fmt):
     assert "CAST(" in sql.upper() or "::" in sql, (
         f"[{dialect_name}] date_format({fmt}) must generate a CAST; got: {sql}"
     )
-    assert "SUBSTR(" in sql.upper(), f"[{dialect_name}] date_format must wrap substr; got: {sql}"
+    assert "SUBSTR(" in sql.upper(), (
+        f"[{dialect_name}] date_format must wrap substr; got: {sql}"
+    )
 
 
 @pytest.mark.parametrize("col", [_T.c.d, _T.c.ts])
 def test_date_format_works_with_both_date_and_timestamp(col):
     """Both Date and DateTime must work (PG used to fail on DateTime)."""
-    sql_pg = str(select(date_format(col, "YYYY-MM")).compile(dialect=postgresql.dialect()))
-    sql_sqlite = str(select(date_format(col, "YYYY-MM")).compile(dialect=sqlite.dialect()))
+    sql_pg = str(
+        select(date_format(col, "YYYY-MM")).compile(dialect=postgresql.dialect())
+    )
+    sql_sqlite = str(
+        select(date_format(col, "YYYY-MM")).compile(dialect=sqlite.dialect())
+    )
     assert "CAST(" in sql_pg.upper() or "::" in sql_pg
     assert "CAST(" in sql_sqlite.upper() or "::" in sql_sqlite
 
 
 def test_date_format_yyyymm_concatenates():
     """YYYYMM must concatenate chars 1-4 + 6-2 of the cast text."""
-    sql = str(select(date_format(_T.c.d, "YYYYMM")).compile(dialect=postgresql.dialect()))
+    sql = str(
+        select(date_format(_T.c.d, "YYYYMM")).compile(dialect=postgresql.dialect())
+    )
     # Expect two substr calls concatenated
     assert sql.upper().count("SUBSTR(") == 2
     assert "+" in sql
@@ -70,7 +81,7 @@ def test_date_format_yyyy_uses_chars_1_to_4():
 
 def test_date_format_unknown_fmt_returns_cast_unchanged():
     """Unknown format returns the cast expression unmodified (graceful fallback)."""
-    sql = str(select(date_format(_T.c.d, "UNKNOWN")).compile(dialect=postgresql.dialect()))
+    sql = str(
+        select(date_format(_T.c.d, "UNKNOWN")).compile(dialect=postgresql.dialect())
+    )
     assert "CAST(" in sql.upper()
-
-

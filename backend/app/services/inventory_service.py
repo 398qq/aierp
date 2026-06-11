@@ -8,7 +8,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.persistence.inventory_repo import InventoryRepository
-from app.models.product import Brand, Inventory, InventoryTransaction, Product, SupplierProduct
+from app.models.product import (
+    Brand,
+    Inventory,
+    InventoryTransaction,
+    Product,
+    SupplierProduct,
+)
 from app.models.sales import SalesOrder, SalesOrderItem
 
 logger = logging.getLogger(__name__)
@@ -16,17 +22,22 @@ logger = logging.getLogger(__name__)
 
 async def get_inventory_overview(db: AsyncSession) -> dict:
     """High-level inventory summary with AI context."""
-    total_qty = (await db.execute(
-        select(func.coalesce(func.sum(Inventory.quantity), 0))
-        .where(Inventory.deleted_at.is_(None))
-    )).scalar() or 0
-
-    low_stock_count = (await db.execute(
-        select(func.count(Inventory.id)).where(
-            Inventory.deleted_at.is_(None),
-            Inventory.quantity <= Inventory.safety_stock,
+    total_qty = (
+        await db.execute(
+            select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
+                Inventory.deleted_at.is_(None)
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
+
+    low_stock_count = (
+        await db.execute(
+            select(func.count(Inventory.id)).where(
+                Inventory.deleted_at.is_(None),
+                Inventory.quantity <= Inventory.safety_stock,
+            )
+        )
+    ).scalar() or 0
 
     dead_stock = await _detect_dead_stock(db)
     restock = await _predict_restock(db)
@@ -47,8 +58,12 @@ async def _detect_dead_stock(db: AsyncSession, days_threshold: int = 180) -> lis
     # Products with stock but no recent sales
     result = await db.execute(
         select(
-            Product.id, Product.sku, Product.name, Product.category,
-            Inventory.quantity, Inventory.warehouse_id,
+            Product.id,
+            Product.sku,
+            Product.name,
+            Product.category,
+            Inventory.quantity,
+            Inventory.warehouse_id,
         )
         .join(Inventory, Product.id == Inventory.product_id)
         .where(
@@ -56,9 +71,9 @@ async def _detect_dead_stock(db: AsyncSession, days_threshold: int = 180) -> lis
             Product.deleted_at.is_(None),
             Inventory.quantity > 0,
             ~Product.id.in_(
-                select(SalesOrderItem.product_id).join(
-                    SalesOrder, SalesOrderItem.order_id == SalesOrder.id
-                ).where(
+                select(SalesOrderItem.product_id)
+                .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+                .where(
                     SalesOrder.created_at >= threshold_date,
                     SalesOrder.deleted_at.is_(None),
                     SalesOrderItem.deleted_at.is_(None),
@@ -71,8 +86,12 @@ async def _detect_dead_stock(db: AsyncSession, days_threshold: int = 180) -> lis
     rows = result.all()
     return [
         {
-            "product_id": r[0], "sku": r[1], "name": r[2], "category": r[3],
-            "quantity": r[4], "warehouse_id": r[5],
+            "product_id": r[0],
+            "sku": r[1],
+            "name": r[2],
+            "category": r[3],
+            "quantity": r[4],
+            "warehouse_id": r[5],
             "days_untouched": days_threshold,
             "suggestion": "建议促销或联系供应商退货",
         }
@@ -88,7 +107,10 @@ async def _predict_restock(db: AsyncSession) -> list[dict]:
     # Sales velocity for each product in last 90 days
     result = await db.execute(
         select(
-            Product.id, Product.sku, Product.name, Product.category,
+            Product.id,
+            Product.sku,
+            Product.name,
+            Product.category,
             func.coalesce(func.sum(SalesOrderItem.quantity), 0).label("sold_qty"),
             Inventory.quantity,
             Inventory.safety_stock,
@@ -121,14 +143,25 @@ async def _predict_restock(db: AsyncSession) -> list[dict]:
         target_qty = max(safety, int(monthly_rate * 3))  # 3 months coverage
 
         if current_qty < target_qty and months_remaining < 3:
-            suggestions.append({
-                "product_id": r[0], "sku": r[1], "name": r[2], "category": r[3],
-                "sold_90d": sold_90d, "current_qty": current_qty,
-                "safety_stock": safety, "monthly_rate": round(monthly_rate, 1),
-                "months_remaining": round(months_remaining, 1),
-                "suggested_order": target_qty - current_qty,
-                "urgency": "紧急" if months_remaining < 1 else "建议" if months_remaining < 2 else "计划",
-            })
+            suggestions.append(
+                {
+                    "product_id": r[0],
+                    "sku": r[1],
+                    "name": r[2],
+                    "category": r[3],
+                    "sold_90d": sold_90d,
+                    "current_qty": current_qty,
+                    "safety_stock": safety,
+                    "monthly_rate": round(monthly_rate, 1),
+                    "months_remaining": round(months_remaining, 1),
+                    "suggested_order": target_qty - current_qty,
+                    "urgency": "紧急"
+                    if months_remaining < 1
+                    else "建议"
+                    if months_remaining < 2
+                    else "计划",
+                }
+            )
 
     suggestions.sort(key=lambda x: x["months_remaining"])
     return suggestions
@@ -152,7 +185,9 @@ async def adjust_inventory(
     inv = result.scalar_one_or_none()
     if inv is None:
         # Auto-create inventory record if needed
-        inv = Inventory(product_id=product_id, warehouse_id=warehouse_id, quantity=0, safety_stock=0)
+        inv = Inventory(
+            product_id=product_id, warehouse_id=warehouse_id, quantity=0, safety_stock=0
+        )
         db.add(inv)
         await db.flush()
 
@@ -163,7 +198,11 @@ async def adjust_inventory(
     txn = InventoryTransaction(
         product_id=product_id,
         warehouse_id=warehouse_id,
-        type="adjust" if reason == "manual" else "stock_in" if adjustment > 0 else "stock_out",
+        type="adjust"
+        if reason == "manual"
+        else "stock_in"
+        if adjustment > 0
+        else "stock_out",
         quantity=adjustment,
         before_qty=before,
         after_qty=after,
@@ -174,13 +213,18 @@ async def adjust_inventory(
     await db.flush()
 
     return {
-        "product_id": product_id, "warehouse_id": warehouse_id,
-        "before": before, "after": after, "adjustment": adjustment,
+        "product_id": product_id,
+        "warehouse_id": warehouse_id,
+        "before": before,
+        "after": after,
+        "adjustment": adjustment,
         "transaction_id": txn.id,
     }
 
 
-async def _ensure_inventory(db: AsyncSession, product_id: int, warehouse_id: int) -> Inventory:
+async def _ensure_inventory(
+    db: AsyncSession, product_id: int, warehouse_id: int
+) -> Inventory:
     """Get or create an inventory record."""
     result = await db.execute(
         select(Inventory).where(
@@ -191,7 +235,13 @@ async def _ensure_inventory(db: AsyncSession, product_id: int, warehouse_id: int
     )
     inv = result.scalar_one_or_none()
     if inv is None:
-        inv = Inventory(product_id=product_id, warehouse_id=warehouse_id, quantity=0, safety_stock=0, locked_quantity=0)
+        inv = Inventory(
+            product_id=product_id,
+            warehouse_id=warehouse_id,
+            quantity=0,
+            safety_stock=0,
+            locked_quantity=0,
+        )
         db.add(inv)
         await db.flush()
     return inv
@@ -233,7 +283,12 @@ async def receive_po_item(
     )
     db.add(txn)
     await db.flush()
-    return {"product_id": product_id, "before": before, "after": after, "transaction_id": txn.id}
+    return {
+        "product_id": product_id,
+        "before": before,
+        "after": after,
+        "transaction_id": txn.id,
+    }
 
 
 async def deduct_for_delivery(
@@ -268,11 +323,17 @@ async def deduct_for_delivery(
         after_qty=after,
         reference_type="sales_delivery",
         reference_id=delivery_id,
-        notes=f"销售出库: DN#{delivery_id} -{quantity}" + (f" (释放锁定{release_qty})" if release_qty > 0 else ""),
+        notes=f"销售出库: DN#{delivery_id} -{quantity}"
+        + (f" (释放锁定{release_qty})" if release_qty > 0 else ""),
     )
     db.add(txn)
     await db.flush()
-    return {"product_id": product_id, "before": before, "after": after, "transaction_id": txn.id}
+    return {
+        "product_id": product_id,
+        "before": before,
+        "after": after,
+        "transaction_id": txn.id,
+    }
 
 
 async def lock_for_sales_order(
@@ -307,14 +368,22 @@ async def lock_for_sales_order(
         after_qty=inv_check.quantity,
         reference_type="sales_order_lock",
         reference_id=order_id,
-        notes=f"订单锁定: SO#{order_id} 锁定{lockable}/{quantity}" + (" (部分锁定)" if lockable < quantity else ""),
+        notes=f"订单锁定: SO#{order_id} 锁定{lockable}/{quantity}"
+        + (" (部分锁定)" if lockable < quantity else ""),
     )
     db.add(txn)
     await db.flush()
-    return {"product_id": product_id, "locked": lockable, "requested": quantity, "transaction_id": txn.id}
+    return {
+        "product_id": product_id,
+        "locked": lockable,
+        "requested": quantity,
+        "transaction_id": txn.id,
+    }
 
 
-async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: int = 20) -> list[dict]:
+async def forecast_demand(
+    db: AsyncSession, category: str | None = None, top_k: int = 20
+) -> list[dict]:
     """Enhanced demand forecasting with seasonality, trend, and lead-time detection.
 
     Returns list of dicts with monthly_forecast, trend, seasonal_factor, suggested_safety_stock, confidence.
@@ -326,9 +395,14 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
     # Base query: products with sales history
     base_q = (
         select(
-            Product.id, Product.sku, Product.name, Product.category,
+            Product.id,
+            Product.sku,
+            Product.name,
+            Product.category,
             func.coalesce(func.sum(SalesOrderItem.quantity), 0).label("sold_365d"),
-            func.coalesce(func.sum(SalesOrderItem.quantity * SalesOrderItem.unit_price), 0).label("revenue_365d"),
+            func.coalesce(
+                func.sum(SalesOrderItem.quantity * SalesOrderItem.unit_price), 0
+            ).label("revenue_365d"),
             func.max(SalesOrder.created_at).label("last_sold"),
         )
         .join(SalesOrderItem, Product.id == SalesOrderItem.product_id)
@@ -344,7 +418,9 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
     if category:
         base_q = base_q.where(Product.category == category)
 
-    base_q = base_q.order_by(func.sum(SalesOrderItem.quantity * SalesOrderItem.unit_price).desc()).limit(top_k)
+    base_q = base_q.order_by(
+        func.sum(SalesOrderItem.quantity * SalesOrderItem.unit_price).desc()
+    ).limit(top_k)
     rows = (await db.execute(base_q)).all()
 
     results = []
@@ -354,53 +430,73 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
         last_sold_str = str(r[6]) if r[6] else ""
 
         # Lead time from supplier linkage
-        lead_time = (await db.execute(
-            select(func.coalesce(func.min(SupplierProduct.lead_time_days), 21)).where(
-                SupplierProduct.product_id == pid,
-                SupplierProduct.deleted_at.is_(None),
+        lead_time = (
+            await db.execute(
+                select(
+                    func.coalesce(func.min(SupplierProduct.lead_time_days), 21)
+                ).where(
+                    SupplierProduct.product_id == pid,
+                    SupplierProduct.deleted_at.is_(None),
+                )
             )
-        )).scalar() or 21
+        ).scalar() or 21
 
         # Inventory on hand
-        current_qty = (await db.execute(
-            select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
-                Inventory.product_id == pid,
-                Inventory.deleted_at.is_(None),
+        current_qty = (
+            await db.execute(
+                select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
+                    Inventory.product_id == pid,
+                    Inventory.deleted_at.is_(None),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
-        safety_stock = (await db.execute(
-            select(func.max(Inventory.safety_stock)).where(
-                Inventory.product_id == pid,
-                Inventory.deleted_at.is_(None),
+        safety_stock = (
+            await db.execute(
+                select(func.max(Inventory.safety_stock)).where(
+                    Inventory.product_id == pid,
+                    Inventory.deleted_at.is_(None),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
         # Trend detection: compare first 45d vs last 45d velocity
-        first_45d = (await db.execute(
-            select(func.coalesce(func.sum(SalesOrderItem.quantity), 0)).select_from(SalesOrderItem)
-            .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
-            .where(
-                SalesOrderItem.product_id == pid,
-                SalesOrderItem.deleted_at.is_(None),
-                SalesOrder.deleted_at.is_(None),
-                SalesOrder.created_at.between(d365, d365 + timedelta(days=45)),
+        first_45d = (
+            await db.execute(
+                select(func.coalesce(func.sum(SalesOrderItem.quantity), 0))
+                .select_from(SalesOrderItem)
+                .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+                .where(
+                    SalesOrderItem.product_id == pid,
+                    SalesOrderItem.deleted_at.is_(None),
+                    SalesOrder.deleted_at.is_(None),
+                    SalesOrder.created_at.between(d365, d365 + timedelta(days=45)),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
-        last_45d = (await db.execute(
-            select(func.coalesce(func.sum(SalesOrderItem.quantity), 0)).select_from(SalesOrderItem)
-            .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
-            .where(
-                SalesOrderItem.product_id == pid,
-                SalesOrderItem.deleted_at.is_(None),
-                SalesOrder.deleted_at.is_(None),
-                SalesOrder.created_at.between(d45, now),
+        last_45d = (
+            await db.execute(
+                select(func.coalesce(func.sum(SalesOrderItem.quantity), 0))
+                .select_from(SalesOrderItem)
+                .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+                .where(
+                    SalesOrderItem.product_id == pid,
+                    SalesOrderItem.deleted_at.is_(None),
+                    SalesOrder.deleted_at.is_(None),
+                    SalesOrder.created_at.between(d45, now),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
         if first_45d > 0 and last_45d > 0:
-            trend_direction = "上升" if last_45d > first_45d * 1.2 else "下降" if last_45d < first_45d * 0.8 else "持平"
+            trend_direction = (
+                "上升"
+                if last_45d > first_45d * 1.2
+                else "下降"
+                if last_45d < first_45d * 0.8
+                else "持平"
+            )
             trend_score = round(last_45d / max(first_45d, 1), 2)
         elif last_45d > 0:
             trend_direction = "新增长"
@@ -443,29 +539,39 @@ async def forecast_demand(db: AsyncSession, category: str | None = None, top_k: 
             avg_monthly = sold_365 / max(len(monthly_values), 1)
             seasonal_factor = 1.0
 
-        monthly_forecast = round(avg_monthly * trend_score if trend_score > 0 else avg_monthly, 1)
+        monthly_forecast = round(
+            avg_monthly * trend_score if trend_score > 0 else avg_monthly, 1
+        )
 
         # Suggested safety stock: base + lead time buffer + seasonal buffer
         lead_time_months = max(1, lead_time / 30.0)
-        suggested_safety = round(monthly_forecast * lead_time_months * max(1, seasonal_factor), 0)
+        suggested_safety = round(
+            monthly_forecast * lead_time_months * max(1, seasonal_factor), 0
+        )
 
-        results.append({
-            "product_id": pid,
-            "sku": sku or "",
-            "name": name,
-            "category": cat or "",
-            "monthly_forecast": monthly_forecast,
-            "trend": trend_direction,
-            "trend_score": trend_score,
-            "seasonal_factor": seasonal_factor,
-            "suggested_safety_stock": int(suggested_safety),
-            "current_safety_stock": int(safety_stock),
-            "current_quantity": int(current_qty),
-            "lead_time_days": lead_time,
-            "confidence": "高" if len(monthly_values) >= 9 and trend_score >= 0.8 else "中" if len(monthly_values) >= 4 else "低",
-            "last_sold": last_sold_str[:10] if last_sold_str else "",
-            "monthly_history": {k[:10]: v for k, v in monthly_sales.items()},
-        })
+        results.append(
+            {
+                "product_id": pid,
+                "sku": sku or "",
+                "name": name,
+                "category": cat or "",
+                "monthly_forecast": monthly_forecast,
+                "trend": trend_direction,
+                "trend_score": trend_score,
+                "seasonal_factor": seasonal_factor,
+                "suggested_safety_stock": int(suggested_safety),
+                "current_safety_stock": int(safety_stock),
+                "current_quantity": int(current_qty),
+                "lead_time_days": lead_time,
+                "confidence": "高"
+                if len(monthly_values) >= 9 and trend_score >= 0.8
+                else "中"
+                if len(monthly_values) >= 4
+                else "低",
+                "last_sold": last_sold_str[:10] if last_sold_str else "",
+                "monthly_history": {k[:10]: v for k, v in monthly_sales.items()},
+            }
+        )
 
     results.sort(key=lambda x: x["monthly_forecast"], reverse=True)
     return results
@@ -478,16 +584,25 @@ async def find_substitutes_for_stockout(
 ) -> list[dict]:
     """Find in-stock similar products as substitutes for a low-stock item."""
 
-    prod = (await db.execute(
-        select(Product).where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    prod = (
+        await db.execute(
+            select(Product).where(
+                Product.id == product_id, Product.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if prod is None or prod.embedding is None:
         return []
 
     result = await db.execute(
         select(
-            Product.id, Product.sku, Product.name, Product.category,
-            Product.package_type, Inventory.quantity, Brand.name,
+            Product.id,
+            Product.sku,
+            Product.name,
+            Product.category,
+            Product.package_type,
+            Inventory.quantity,
+            Brand.name,
             Product.embedding.cosine_distance(prod.embedding).label("distance"),
         )
         .join(Inventory, Product.id == Inventory.product_id)
@@ -505,8 +620,13 @@ async def find_substitutes_for_stockout(
     rows = result.all()
     return [
         {
-            "id": r[0], "sku": r[1], "name": r[2], "category": r[3],
-            "package_type": r[4], "in_stock": r[5], "brand": r[6],
+            "id": r[0],
+            "sku": r[1],
+            "name": r[2],
+            "category": r[3],
+            "package_type": r[4],
+            "in_stock": r[5],
+            "brand": r[6],
             "similarity": round(1 - float(r[7]), 4),
         }
         for r in rows

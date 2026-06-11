@@ -13,4 +13,6 @@ class User(TimestampMixin, Base):
     role: Mapped[str] = mapped_column(Text, default="sales")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    roles = relationship("Role", secondary="user_roles", back_populates="users", lazy="selectin")
+    roles = relationship(
+        "Role", secondary="user_roles", back_populates="users", lazy="selectin"
+    )

@@ -75,9 +75,13 @@ class WeightedAverageCost(CostStrategy):
             # No new stock — cost unchanged
             return current_avg_cost.quantize(self.QUANTIZE, rounding=ROUND_HALF_UP)
 
-        total_value = (current_qty * current_avg_cost) + (incoming_qty * incoming_unit_cost)
+        total_value = (current_qty * current_avg_cost) + (
+            incoming_qty * incoming_unit_cost
+        )
         total_qty = current_qty + incoming_qty
-        new_cost = (total_value / total_qty).quantize(self.QUANTIZE, rounding=ROUND_HALF_UP)
+        new_cost = (total_value / total_qty).quantize(
+            self.QUANTIZE, rounding=ROUND_HALF_UP
+        )
         return new_cost
 
 

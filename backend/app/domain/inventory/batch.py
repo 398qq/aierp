@@ -65,10 +65,7 @@ class InventoryBatch:
 
     @property
     def is_expired(self) -> bool:
-        return (
-            self.expiry_date is not None
-            and self.expiry_date <= date_type.today()
-        )
+        return self.expiry_date is not None and self.expiry_date <= date_type.today()
 
     def consume(self, qty: int) -> "InventoryBatch":
         """Consume `qty` from this batch.
@@ -175,12 +172,14 @@ def allocate_fefo(
         if remaining <= 0:
             break
         take = min(remaining, batch.quantity)
-        result.allocations.append(BatchAllocation(
-            batch_id=batch.id,
-            batch_no=batch.batch_no,
-            quantity=take,
-            unit_cost=batch.unit_cost,
-        ))
+        result.allocations.append(
+            BatchAllocation(
+                batch_id=batch.id,
+                batch_no=batch.batch_no,
+                quantity=take,
+                unit_cost=batch.unit_cost,
+            )
+        )
         remaining -= take
 
     result.unfilled_qty = remaining
@@ -208,12 +207,14 @@ def allocate_fifo_by_received(
         if remaining <= 0:
             break
         take = min(remaining, batch.quantity)
-        result.allocations.append(BatchAllocation(
-            batch_id=batch.id,
-            batch_no=batch.batch_no,
-            quantity=take,
-            unit_cost=batch.unit_cost,
-        ))
+        result.allocations.append(
+            BatchAllocation(
+                batch_id=batch.id,
+                batch_no=batch.batch_no,
+                quantity=take,
+                unit_cost=batch.unit_cost,
+            )
+        )
         remaining -= take
 
     result.unfilled_qty = remaining

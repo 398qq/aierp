@@ -8,6 +8,7 @@ working so existing callers don't need to change.
 New code should import directly from ``app.services.ai.agent_modules``
 or from the top-level ``app.services.ai`` package.
 """
+
 from __future__ import annotations
 
 from app.services.ai.agent_modules import (  # noqa: F401  (re-export back-compat)

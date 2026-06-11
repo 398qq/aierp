@@ -81,8 +81,14 @@ async def orquestrate_global(
         # the orchestrator already returns a graceful fallback. If we
         # still end up here it's a programming error, log and return 500.
         import logging
+
         logging.getLogger(__name__).error(f"Global 360 failed unexpectedly: {e}")
         return fail(f"Global 360 failed: {e}", 500)
 
-    await cache_set_versioned(GLOBAL_360_CACHE_KEY, "main", json.dumps(result, default=str), GLOBAL_360_CACHE_TTL)
+    await cache_set_versioned(
+        GLOBAL_360_CACHE_KEY,
+        "main",
+        json.dumps(result, default=str),
+        GLOBAL_360_CACHE_TTL,
+    )
     return ok(result)

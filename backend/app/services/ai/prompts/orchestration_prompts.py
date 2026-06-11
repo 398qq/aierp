@@ -4,29 +4,29 @@
 def orchestrate_customer_prompt(customer_data: dict) -> str:
     return f"""你是一个电子元器件ERP系统智能总控。整合分析客户全维度数据：
 
-**客户：** {customer_data.get('name', '无数据')}
-**等级：** {customer_data.get('level', '无数据')}
+**客户：** {customer_data.get("name", "无数据")}
+**等级：** {customer_data.get("level", "无数据")}
 
 **1. 交易健康度：**
-{customer_data.get('transaction_health', '无数据')}
+{customer_data.get("transaction_health", "无数据")}
 
 **2. 商机管道：**
-{customer_data.get('opportunity_pipeline', '无数据')}
+{customer_data.get("opportunity_pipeline", "无数据")}
 
 **3. 应收账款：**
-{customer_data.get('ar_status', '无数据')}
+{customer_data.get("ar_status", "无数据")}
 
 **4. 最近拜访：**
-{customer_data.get('recent_visits', '无数据')}
+{customer_data.get("recent_visits", "无数据")}
 
 **5. 活跃工单：**
-{customer_data.get('active_tickets', '无数据')}
+{customer_data.get("active_tickets", "无数据")}
 
 **6. 合同状态：**
-{customer_data.get('contract_status', '无数据')}
+{customer_data.get("contract_status", "无数据")}
 
 **7. 样品申请：**
-{customer_data.get('sample_status', '无数据')}
+{customer_data.get("sample_status", "无数据")}
 
 请返回一个综合分析：
 1. customer_360_score：客户360评分 0-100
@@ -45,27 +45,27 @@ def orchestrate_customer_prompt(customer_data: dict) -> str:
 def orchestrate_product_prompt(product_data: dict) -> str:
     return f"""你是一个电子元器件ERP系统智能总控。整合分析产品全维度数据：
 
-**产品：** {product_data.get('name', '无数据')}
-**品牌：** {product_data.get('brand_name', '无数据')}
-**品类：** {product_data.get('category', '无数据')}
+**产品：** {product_data.get("name", "无数据")}
+**品牌：** {product_data.get("brand_name", "无数据")}
+**品类：** {product_data.get("category", "无数据")}
 
 **1. 销售表现：**
-{product_data.get('sales_performance', '无数据')}
+{product_data.get("sales_performance", "无数据")}
 
 **2. 库存状态：**
-{product_data.get('inventory_status', '无数据')}
+{product_data.get("inventory_status", "无数据")}
 
 **3. 供应商情况：**
-{product_data.get('supplier_status', '无数据')}
+{product_data.get("supplier_status", "无数据")}
 
 **4. 客户覆盖：**
-{product_data.get('customer_coverage', '无数据')}
+{product_data.get("customer_coverage", "无数据")}
 
 **5. 质量/工单：**
-{product_data.get('quality_issues', '无数据')}
+{product_data.get("quality_issues", "无数据")}
 
 **6. 生命周期：**
-{product_data.get('lifecycle_status', '无数据')}
+{product_data.get("lifecycle_status", "无数据")}
 
 请返回一个综合分析：
 1. product_360_score：产品360评分 0-100
@@ -85,22 +85,22 @@ def orchestrate_global_prompt(global_data: dict) -> str:
     return f"""你是一个电子元器件ERP系统智能总控。整合分析企业全局数据：
 
 **1. 销售总览：**
-{global_data.get('sales_overview', '无数据')}
+{global_data.get("sales_overview", "无数据")}
 
 **2. 客户总览：**
-{global_data.get('customer_overview', '无数据')}
+{global_data.get("customer_overview", "无数据")}
 
 **3. 供应链总览：**
-{global_data.get('supply_chain_overview', '无数据')}
+{global_data.get("supply_chain_overview", "无数据")}
 
 **4. 财务总览：**
-{global_data.get('finance_overview', '无数据')}
+{global_data.get("finance_overview", "无数据")}
 
 **5. 工单/质量总览：**
-{global_data.get('ticket_overview', '无数据')}
+{global_data.get("ticket_overview", "无数据")}
 
 **6. 异常/告警总览：**
-{global_data.get('anomalies_overview', '无数据')}
+{global_data.get("anomalies_overview", "无数据")}
 
 请返回：
 1. enterprise_health_score：企业健康评分 0-100

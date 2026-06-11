@@ -86,7 +86,9 @@ class FollowUpCreate(BaseModel):
 
 class AlertRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    rule_type: str = Field(min_length=1, max_length=50)  # no_order, credit_over, order_drop, ar_overdue
+    rule_type: str = Field(
+        min_length=1, max_length=50
+    )  # no_order, credit_over, order_drop, ar_overdue
     threshold_days: int | None = None
     threshold_pct: float | None = None
     threshold_amount: float | None = None
@@ -107,7 +109,9 @@ class AlertRuleUpdate(BaseModel):
 class LevelRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     target_level: str = Field(min_length=1, max_length=20)  # A, B, C, D
-    condition_type: str = Field(min_length=1, max_length=50)  # revenue, order_count, days
+    condition_type: str = Field(
+        min_length=1, max_length=50
+    )  # revenue, order_count, days
     operator: str = Field(min_length=1, max_length=10)  # >, <, >=, <=
     threshold_value: float
     period_days: int | None = None

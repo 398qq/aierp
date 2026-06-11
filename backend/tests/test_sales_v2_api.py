@@ -82,11 +82,16 @@ async def sample_quotation(integration_setup):
         session.add(q)
         await session.flush()
 
-        session.add(QuotationItem(
-            quotation_id=q.id, product_id=product.id,
-            product_name="Product A", quantity=5, unit_price=100.0,
-            total_price=500.0,
-        ))
+        session.add(
+            QuotationItem(
+                quotation_id=q.id,
+                product_id=product.id,
+                product_name="Product A",
+                quantity=5,
+                unit_price=100.0,
+                total_price=500.0,
+            )
+        )
         await session.commit()
         return q.id, customer.id, product.id
 
@@ -107,11 +112,16 @@ class TestSalesV2ConfirmOrder:
             )
             session.add(order)
             await session.flush()
-            session.add(SalesOrderItem(
-                order_id=order.id, product_id=product.id,
-                product_name="Prod", quantity=10, unit_price=10.0,
-                total_price=100.0,
-            ))
+            session.add(
+                SalesOrderItem(
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name="Prod",
+                    quantity=10,
+                    unit_price=10.0,
+                    total_price=100.0,
+                )
+            )
             await session.commit()
             order_id = order.id
 
@@ -155,11 +165,16 @@ class TestSalesV2ConfirmOrder:
             )
             session.add(order)
             await session.flush()
-            session.add(SalesOrderItem(
-                order_id=order.id, product_id=product.id,
-                product_name="Prod", quantity=10, unit_price=10.0,
-                total_price=100.0,
-            ))
+            session.add(
+                SalesOrderItem(
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name="Prod",
+                    quantity=10,
+                    unit_price=10.0,
+                    total_price=100.0,
+                )
+            )
             await session.commit()
             order_id = order.id
 
@@ -171,9 +186,11 @@ class TestSalesV2ConfirmOrder:
         # was dispatched via the app-level bus, not the test bus.
         # We verify the side effect (order state changed) instead.
         async with factory() as verify_session:
-            updated = (await verify_session.execute(
-                select(SalesOrder).where(SalesOrder.id == order_id)
-            )).scalar_one()
+            updated = (
+                await verify_session.execute(
+                    select(SalesOrder).where(SalesOrder.id == order_id)
+                )
+            ).scalar_one()
             assert updated.status == "confirmed"
 
 
@@ -193,11 +210,16 @@ class TestSalesV2CancelOrder:
             )
             session.add(order)
             await session.flush()
-            session.add(SalesOrderItem(
-                order_id=order.id, product_id=product.id,
-                product_name="Prod", quantity=5, unit_price=10.0,
-                total_price=50.0,
-            ))
+            session.add(
+                SalesOrderItem(
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name="Prod",
+                    quantity=5,
+                    unit_price=10.0,
+                    total_price=50.0,
+                )
+            )
             await session.commit()
             order_id = order.id
 
@@ -211,7 +233,9 @@ class TestSalesV2CancelOrder:
 
 
 class TestSalesV2ConvertQuotation:
-    async def test_convert_quotation_to_order(self, integration_setup, sample_quotation):
+    async def test_convert_quotation_to_order(
+        self, integration_setup, sample_quotation
+    ):
         client, _ = integration_setup
         quotation_id, _, _ = sample_quotation
 

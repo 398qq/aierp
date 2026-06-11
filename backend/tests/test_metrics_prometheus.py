@@ -36,10 +36,17 @@ class TestRenderPrometheusText:
         assert 'orders_confirmed_total{customer_tier="B"} 1' in text
 
     def test_multi_label_counter(self):
-        orders_cancelled_total.inc(previous_status="confirmed", reason="customer_request")
-        orders_cancelled_total.inc(previous_status="confirmed", reason="customer_request")
+        orders_cancelled_total.inc(
+            previous_status="confirmed", reason="customer_request"
+        )
+        orders_cancelled_total.inc(
+            previous_status="confirmed", reason="customer_request"
+        )
         text = render_prometheus_text()
-        assert 'orders_cancelled_total{previous_status="confirmed",reason="customer_request"} 2' in text
+        assert (
+            'orders_cancelled_total{previous_status="confirmed",reason="customer_request"} 2'
+            in text
+        )
 
     def test_histogram_renders_buckets(self):
         ai_call_duration_seconds.observe(0.005, agent="customer", outcome="success")
@@ -49,14 +56,31 @@ class TestRenderPrometheusText:
         # Buckets are cumulative
         # success: 0.005 falls in le=0.005, 0.5 falls in le=0.5
         # So le=0.005 has 1, le=0.5 has 2, le=+Inf has 2
-        assert 'ai_call_duration_seconds_bucket{agent="customer",outcome="success",le="0.005"} 1' in text
-        assert 'ai_call_duration_seconds_bucket{agent="customer",outcome="success",le="0.5"} 2' in text
-        assert 'ai_call_duration_seconds_bucket{agent="customer",outcome="success",le="+Inf"} 2' in text
+        assert (
+            'ai_call_duration_seconds_bucket{agent="customer",outcome="success",le="0.005"} 1'
+            in text
+        )
+        assert (
+            'ai_call_duration_seconds_bucket{agent="customer",outcome="success",le="0.5"} 2'
+            in text
+        )
+        assert (
+            'ai_call_duration_seconds_bucket{agent="customer",outcome="success",le="+Inf"} 2'
+            in text
+        )
         # error: 5.0 is > 5 (boundary), so falls in le=+Inf
-        assert 'ai_call_duration_seconds_bucket{agent="customer",outcome="error",le="+Inf"} 1' in text
+        assert (
+            'ai_call_duration_seconds_bucket{agent="customer",outcome="error",le="+Inf"} 1'
+            in text
+        )
         # Sum and count
-        assert 'ai_call_duration_seconds_count{agent="customer",outcome="success"} 2' in text
-        assert 'ai_call_duration_seconds_count{agent="customer",outcome="error"} 1' in text
+        assert (
+            'ai_call_duration_seconds_count{agent="customer",outcome="success"} 2'
+            in text
+        )
+        assert (
+            'ai_call_duration_seconds_count{agent="customer",outcome="error"} 1' in text
+        )
 
     def test_label_escaping(self):
         # Special characters in labels should be escaped

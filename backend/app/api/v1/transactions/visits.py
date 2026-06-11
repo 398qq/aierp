@@ -59,25 +59,54 @@ async def list_visits(
         count_base = count_base.where(Visit.type == type)
 
     total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(Visit.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                base.order_by(Visit.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    return ok({
-        "list": [{"id": v.id, "visit_no": v.visit_no, "customer_id": v.customer_id,
-                  "title": v.title, "visit_date": str(v.visit_date) if v.visit_date else None,
-                  "type": v.type, "status": v.status, "content": v.content,
-                  "result": v.result, "next_plan": v.next_plan, "stage": v.stage,
-                  "purpose": v.purpose, "main_product": v.main_product,
-                  "key_points": v.key_points,
-                  "followup_date": str(v.followup_date) if v.followup_date else None,
-                  "created_at": str(v.created_at)} for v in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
+    return ok(
+        {
+            "list": [
+                {
+                    "id": v.id,
+                    "visit_no": v.visit_no,
+                    "customer_id": v.customer_id,
+                    "title": v.title,
+                    "visit_date": str(v.visit_date) if v.visit_date else None,
+                    "type": v.type,
+                    "status": v.status,
+                    "content": v.content,
+                    "result": v.result,
+                    "next_plan": v.next_plan,
+                    "stage": v.stage,
+                    "purpose": v.purpose,
+                    "main_product": v.main_product,
+                    "key_points": v.key_points,
+                    "followup_date": str(v.followup_date) if v.followup_date else None,
+                    "created_at": str(v.created_at),
+                }
+                for v in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @visit_router.post("", status_code=201)
-async def create_visit(body: VisitCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_visit(
+    body: VisitCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     data = body.model_dump()
     for date_field in ("visit_date", "followup_date"):
         if data.get(date_field):

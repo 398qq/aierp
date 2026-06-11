@@ -21,7 +21,9 @@ from app.models.sales import Opportunity, SalesOrder
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import ok
 from app.services.cache_service import (
-    cache_bump_version, cache_get_versioned, cache_set_versioned,
+    cache_bump_version,
+    cache_get_versioned,
+    cache_set_versioned,
 )
 
 router = APIRouter(tags=["sales-dashboard"])
@@ -29,11 +31,11 @@ router = APIRouter(tags=["sales-dashboard"])
 logger = logging.getLogger(__name__)
 
 # Cache TTLs (seconds). Dashboard stats can be slightly stale.
-DASHBOARD_OVERVIEW_CACHE_TTL = 300    # 5min
-DASHBOARD_TRENDS_CACHE_TTL = 600      # 10min
-DASHBOARD_ALERTS_CACHE_TTL = 60       # 1min (alerts need fresh data)
-DASHBOARD_WIDGETS_CACHE_TTL = 600     # 10min
-DASHBOARD_KPI_CACHE_TTL = 120         # 2min (KPI needs to be fresh)
+DASHBOARD_OVERVIEW_CACHE_TTL = 300  # 5min
+DASHBOARD_TRENDS_CACHE_TTL = 600  # 10min
+DASHBOARD_ALERTS_CACHE_TTL = 60  # 1min (alerts need fresh data)
+DASHBOARD_WIDGETS_CACHE_TTL = 600  # 10min
+DASHBOARD_KPI_CACHE_TTL = 120  # 2min (KPI needs to be fresh)
 
 
 def _dashboard_cache_key(**parts: object) -> str:
@@ -45,7 +47,8 @@ def _dashboard_cache_key(**parts: object) -> str:
 @router.get("/sales/dashboard/overview")
 async def dashboard_overview(
     response: JSONResponse,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     from app.models.sales import Opportunity, Quotation, SalesOrder, DeliveryNote
 
@@ -57,46 +60,64 @@ async def dashboard_overview(
     response.headers["X-Cache"] = "MISS"
 
     # Funnel counts
-    opp_count = (await db.execute(
-        select(func.count(Opportunity.id)).where(Opportunity.deleted_at.is_(None))
-    )).scalar() or 0
-    opp_open = (await db.execute(
-        select(func.count(Opportunity.id)).where(
-            Opportunity.deleted_at.is_(None), Opportunity.status == "active"
+    opp_count = (
+        await db.execute(
+            select(func.count(Opportunity.id)).where(Opportunity.deleted_at.is_(None))
         )
-    )).scalar() or 0
-    opp_won = (await db.execute(
-        select(func.count(Opportunity.id)).where(
-            Opportunity.deleted_at.is_(None), Opportunity.status == "won"
+    ).scalar() or 0
+    opp_open = (
+        await db.execute(
+            select(func.count(Opportunity.id)).where(
+                Opportunity.deleted_at.is_(None), Opportunity.status == "active"
+            )
         )
-    )).scalar() or 0
-    opp_amount = (await db.execute(
-        select(func.coalesce(func.sum(Opportunity.amount), 0)).where(
-            Opportunity.deleted_at.is_(None)
+    ).scalar() or 0
+    opp_won = (
+        await db.execute(
+            select(func.count(Opportunity.id)).where(
+                Opportunity.deleted_at.is_(None), Opportunity.status == "won"
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
+    opp_amount = (
+        await db.execute(
+            select(func.coalesce(func.sum(Opportunity.amount), 0)).where(
+                Opportunity.deleted_at.is_(None)
+            )
+        )
+    ).scalar() or 0
 
-    quote_count = (await db.execute(
-        select(func.count(Quotation.id)).where(Quotation.deleted_at.is_(None))
-    )).scalar() or 0
-    quote_amount = (await db.execute(
-        select(func.coalesce(func.sum(Quotation.total_amount), 0)).where(
-            Quotation.deleted_at.is_(None)
+    quote_count = (
+        await db.execute(
+            select(func.count(Quotation.id)).where(Quotation.deleted_at.is_(None))
         )
-    )).scalar() or 0
-
-    order_count = (await db.execute(
-        select(func.count(SalesOrder.id)).where(SalesOrder.deleted_at.is_(None))
-    )).scalar() or 0
-    order_amount = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
-            SalesOrder.deleted_at.is_(None)
+    ).scalar() or 0
+    quote_amount = (
+        await db.execute(
+            select(func.coalesce(func.sum(Quotation.total_amount), 0)).where(
+                Quotation.deleted_at.is_(None)
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
-    delivery_count = (await db.execute(
-        select(func.count(DeliveryNote.id)).where(DeliveryNote.deleted_at.is_(None))
-    )).scalar() or 0
+    order_count = (
+        await db.execute(
+            select(func.count(SalesOrder.id)).where(SalesOrder.deleted_at.is_(None))
+        )
+    ).scalar() or 0
+    order_amount = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+                SalesOrder.deleted_at.is_(None)
+            )
+        )
+    ).scalar() or 0
+
+    delivery_count = (
+        await db.execute(
+            select(func.count(DeliveryNote.id)).where(DeliveryNote.deleted_at.is_(None))
+        )
+    ).scalar() or 0
 
     # Conversion rates
     quote_to_order = round(order_count / quote_count * 100, 1) if quote_count > 0 else 0
@@ -116,8 +137,10 @@ async def dashboard_overview(
         "opp_to_quote_rate": opp_to_quote,
     }
     await cache_set_versioned(
-        "dashboard:overview", cache_key,
-        json.dumps(result, default=str), DASHBOARD_OVERVIEW_CACHE_TTL,
+        "dashboard:overview",
+        cache_key,
+        json.dumps(result, default=str),
+        DASHBOARD_OVERVIEW_CACHE_TTL,
     )
     return ok(result)
 
@@ -126,7 +149,8 @@ async def dashboard_overview(
 async def dashboard_trends(
     response: JSONResponse,
     months: int = Query(12, ge=1, le=24),
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     from app.models.sales import Opportunity, SalesOrder
 
@@ -140,7 +164,9 @@ async def dashboard_trends(
     now = datetime.now(timezone.utc)
     trend = []
     for i in range(months - 1, -1, -1):
-        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc) - timedelta(days=30 * i)
+        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc) - timedelta(
+            days=30 * i
+        )
         if i == 0:
             month_end = now
         else:
@@ -151,46 +177,57 @@ async def dashboard_trends(
                 y = now.year
                 m = now.month - i
             import calendar
+
             last_day = calendar.monthrange(y, m)[1]
             month_end = datetime(y, m, last_day, 23, 59, 59, tzinfo=timezone.utc)
             month_start = datetime(y, m, 1, tzinfo=timezone.utc)
 
         label = month_start.strftime("%Y-%m")
 
-        opp_created = (await db.execute(
-            select(func.count(Opportunity.id)).where(
-                Opportunity.deleted_at.is_(None),
-                Opportunity.created_at >= month_start,
-                Opportunity.created_at <= month_end,
+        opp_created = (
+            await db.execute(
+                select(func.count(Opportunity.id)).where(
+                    Opportunity.deleted_at.is_(None),
+                    Opportunity.created_at >= month_start,
+                    Opportunity.created_at <= month_end,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
-        orders_created = (await db.execute(
-            select(func.count(SalesOrder.id)).where(
-                SalesOrder.deleted_at.is_(None),
-                SalesOrder.created_at >= month_start,
-                SalesOrder.created_at <= month_end,
+        orders_created = (
+            await db.execute(
+                select(func.count(SalesOrder.id)).where(
+                    SalesOrder.deleted_at.is_(None),
+                    SalesOrder.created_at >= month_start,
+                    SalesOrder.created_at <= month_end,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
-        order_amount = (await db.execute(
-            select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
-                SalesOrder.deleted_at.is_(None),
-                SalesOrder.created_at >= month_start,
-                SalesOrder.created_at <= month_end,
+        order_amount = (
+            await db.execute(
+                select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+                    SalesOrder.deleted_at.is_(None),
+                    SalesOrder.created_at >= month_start,
+                    SalesOrder.created_at <= month_end,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
-        trend.append({
-            "month": label,
-            "opportunities": opp_created,
-            "orders": orders_created,
-            "revenue": float(order_amount),
-        })
+        trend.append(
+            {
+                "month": label,
+                "opportunities": opp_created,
+                "orders": orders_created,
+                "revenue": float(order_amount),
+            }
+        )
     result = {"trends": trend}
     await cache_set_versioned(
-        "dashboard:trends", cache_key,
-        json.dumps(result, default=str), DASHBOARD_TRENDS_CACHE_TTL,
+        "dashboard:trends",
+        cache_key,
+        json.dumps(result, default=str),
+        DASHBOARD_TRENDS_CACHE_TTL,
     )
     return ok(result)
 
@@ -199,7 +236,8 @@ async def dashboard_trends(
 async def dashboard_alerts(
     response: JSONResponse,
     limit: int = Query(10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     from app.models.finance import Notification
 
@@ -210,13 +248,24 @@ async def dashboard_alerts(
         return ok(json.loads(cached))
     response.headers["X-Cache"] = "MISS"
 
-    alerts = (await db.execute(
-        select(Notification).where(
-            Notification.deleted_at.is_(None),
-            ~Notification.is_read,
-            Notification.type.in_(["risk_alert", "overdue", "target_warning", "contract_expiry"]),
-        ).order_by(Notification.id.desc()).limit(limit)
-    )).scalars().all()
+    alerts = (
+        (
+            await db.execute(
+                select(Notification)
+                .where(
+                    Notification.deleted_at.is_(None),
+                    ~Notification.is_read,
+                    Notification.type.in_(
+                        ["risk_alert", "overdue", "target_warning", "contract_expiry"]
+                    ),
+                )
+                .order_by(Notification.id.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     result = {
         "alerts": [
@@ -231,8 +280,10 @@ async def dashboard_alerts(
         ],
     }
     await cache_set_versioned(
-        "dashboard:alerts", cache_key,
-        json.dumps(result, default=str), DASHBOARD_ALERTS_CACHE_TTL,
+        "dashboard:alerts",
+        cache_key,
+        json.dumps(result, default=str),
+        DASHBOARD_ALERTS_CACHE_TTL,
     )
     return ok(result)
 
@@ -255,20 +306,33 @@ async def list_widgets(
     response.headers["X-Cache"] = "MISS"
 
     result = await db.execute(
-        select(DashboardWidget).where(
+        select(DashboardWidget)
+        .where(
             DashboardWidget.user_id == user_id,
             DashboardWidget.deleted_at.is_(None),
-        ).order_by(DashboardWidget.position_y, DashboardWidget.position_x)
+        )
+        .order_by(DashboardWidget.position_y, DashboardWidget.position_x)
     )
     widgets = result.scalars().all()
-    payload = [{
-        "id": w.id, "widget_type": w.widget_type, "title": w.title,
-        "config": w.config, "position_x": w.position_x, "position_y": w.position_y,
-        "width": w.width, "height": w.height, "enabled": w.enabled,
-    } for w in widgets]
+    payload = [
+        {
+            "id": w.id,
+            "widget_type": w.widget_type,
+            "title": w.title,
+            "config": w.config,
+            "position_x": w.position_x,
+            "position_y": w.position_y,
+            "width": w.width,
+            "height": w.height,
+            "enabled": w.enabled,
+        }
+        for w in widgets
+    ]
     await cache_set_versioned(
-        "dashboard:widgets", cache_key,
-        json.dumps(payload, default=str), DASHBOARD_WIDGETS_CACHE_TTL,
+        "dashboard:widgets",
+        cache_key,
+        json.dumps(payload, default=str),
+        DASHBOARD_WIDGETS_CACHE_TTL,
     )
     return ok(payload)
 
@@ -284,28 +348,36 @@ async def save_widgets(
     current_user: dict = Depends(get_current_user),
 ):
     # Delete existing
-    existing = (await db.execute(
-        select(DashboardWidget).where(
-            DashboardWidget.user_id == current_user["user_id"],
-            DashboardWidget.deleted_at.is_(None),
+    existing = (
+        (
+            await db.execute(
+                select(DashboardWidget).where(
+                    DashboardWidget.user_id == current_user["user_id"],
+                    DashboardWidget.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     for w in existing:
         w.deleted_at = datetime.now(timezone.utc)
 
     # Insert new
     for wi in body.widgets:
-        db.add(DashboardWidget(
-            user_id=current_user["user_id"],
-            widget_type=wi.get("widget_type", "kpi_card"),
-            title=wi.get("title", ""),
-            config=wi.get("config", {}),
-            position_x=wi.get("position_x", 0),
-            position_y=wi.get("position_y", 0),
-            width=wi.get("width", 3),
-            height=wi.get("height", 2),
-            enabled=wi.get("enabled", True),
-        ))
+        db.add(
+            DashboardWidget(
+                user_id=current_user["user_id"],
+                widget_type=wi.get("widget_type", "kpi_card"),
+                title=wi.get("title", ""),
+                config=wi.get("config", {}),
+                position_x=wi.get("position_x", 0),
+                position_y=wi.get("position_y", 0),
+                width=wi.get("width", 3),
+                height=wi.get("height", 2),
+                enabled=wi.get("enabled", True),
+            )
+        )
 
     await db.commit()
     await cache_bump_version("dashboard:widgets")
@@ -329,63 +401,79 @@ async def dashboard_kpi(
     month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
 
     # Revenue this month
-    month_revenue = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
-            SalesOrder.deleted_at.is_(None),
-            SalesOrder.created_at >= month_start,
+    month_revenue = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at >= month_start,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # New customers this month
-    new_customers = (await db.execute(
-        select(func.count(Customer.id)).where(
-            Customer.deleted_at.is_(None),
-            Customer.created_at >= month_start,
+    new_customers = (
+        await db.execute(
+            select(func.count(Customer.id)).where(
+                Customer.deleted_at.is_(None),
+                Customer.created_at >= month_start,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Open opportunities
-    open_opps = (await db.execute(
-        select(func.count(Opportunity.id)).where(
-            Opportunity.deleted_at.is_(None),
-            Opportunity.status == "active",
+    open_opps = (
+        await db.execute(
+            select(func.count(Opportunity.id)).where(
+                Opportunity.deleted_at.is_(None),
+                Opportunity.status == "active",
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Pending purchase orders
-    pending_pos = (await db.execute(
-        select(func.count(PurchaseOrder.id)).where(
-            PurchaseOrder.deleted_at.is_(None),
-            PurchaseOrder.status.in_(["draft", "submitted", "approved"]),
+    pending_pos = (
+        await db.execute(
+            select(func.count(PurchaseOrder.id)).where(
+                PurchaseOrder.deleted_at.is_(None),
+                PurchaseOrder.status.in_(["draft", "submitted", "approved"]),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Outstanding AR
-    outstanding_ar = (await db.execute(
-        select(func.coalesce(func.sum(Invoice.amount), 0)).where(
-            Invoice.deleted_at.is_(None),
-            Invoice.status.in_(["sent", "overdue", "partial"]),
+    outstanding_ar = (
+        await db.execute(
+            select(func.coalesce(func.sum(Invoice.amount), 0)).where(
+                Invoice.deleted_at.is_(None),
+                Invoice.status.in_(["sent", "overdue", "partial"]),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Low stock products
-    low_stock = (await db.execute(
-        select(func.count(Inventory.id)).where(
-            Inventory.deleted_at.is_(None),
-            Inventory.quantity <= Inventory.safety_stock,
-            Inventory.safety_stock > 0,
+    low_stock = (
+        await db.execute(
+            select(func.count(Inventory.id)).where(
+                Inventory.deleted_at.is_(None),
+                Inventory.quantity <= Inventory.safety_stock,
+                Inventory.safety_stock > 0,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Total products
-    total_products = (await db.execute(
-        select(func.count(Product.id)).where(Product.deleted_at.is_(None))
-    )).scalar() or 0
+    total_products = (
+        await db.execute(
+            select(func.count(Product.id)).where(Product.deleted_at.is_(None))
+        )
+    ).scalar() or 0
 
     # Total customers
-    total_customers = (await db.execute(
-        select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
-    )).scalar() or 0
+    total_customers = (
+        await db.execute(
+            select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
+        )
+    ).scalar() or 0
 
     result = {
         "month_revenue": float(month_revenue),
@@ -398,8 +486,10 @@ async def dashboard_kpi(
         "total_customers": total_customers,
     }
     await cache_set_versioned(
-        "dashboard:kpi", cache_key,
-        json.dumps(result, default=str), DASHBOARD_KPI_CACHE_TTL,
+        "dashboard:kpi",
+        cache_key,
+        json.dumps(result, default=str),
+        DASHBOARD_KPI_CACHE_TTL,
     )
     return ok(result)
 
@@ -407,6 +497,7 @@ async def dashboard_kpi(
 # ===========================================================================
 # Stage 7: 跟单全流程关键指标
 # ===========================================================================
+
 
 @router.get("/sales/lifecycle-metrics")
 async def sales_lifecycle_metrics(
@@ -434,12 +525,18 @@ async def sales_lifecycle_metrics(
 
     # 1. avg_time_to_confirm
     # Find PENDING → CONFIRMED transitions in the time window
-    pending_to_confirmed = (await db.execute(
-        select(StatusTransitionLog).where(
-            StatusTransitionLog.action == "confirm",
-            StatusTransitionLog.transitioned_at >= cutoff,
+    pending_to_confirmed = (
+        (
+            await db.execute(
+                select(StatusTransitionLog).where(
+                    StatusTransitionLog.action == "confirm",
+                    StatusTransitionLog.transitioned_at >= cutoff,
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     confirm_hours = []
     for log in pending_to_confirmed:
@@ -454,50 +551,68 @@ async def sales_lifecycle_metrics(
         if prev:
             delta = (log.transitioned_at - prev.transitioned_at).total_seconds() / 3600
             confirm_hours.append(delta)
-    avg_time_to_confirm_hours = round(sum(confirm_hours) / len(confirm_hours), 1) if confirm_hours else None
+    avg_time_to_confirm_hours = (
+        round(sum(confirm_hours) / len(confirm_hours), 1) if confirm_hours else None
+    )
 
     # 2. cancellation_rate (within window)
-    cancelled_count = (await db.scalar(
-        select(func.count(StatusTransitionLog.id)).where(
-            StatusTransitionLog.action == "cancel",
-            StatusTransitionLog.transitioned_at >= cutoff,
+    cancelled_count = (
+        await db.scalar(
+            select(func.count(StatusTransitionLog.id)).where(
+                StatusTransitionLog.action == "cancel",
+                StatusTransitionLog.transitioned_at >= cutoff,
+            )
         )
-    )) or 0
-    completed_count = (await db.scalar(
-        select(func.count(StatusTransitionLog.id)).where(
-            StatusTransitionLog.action == "complete",
-            StatusTransitionLog.transitioned_at >= cutoff,
+    ) or 0
+    completed_count = (
+        await db.scalar(
+            select(func.count(StatusTransitionLog.id)).where(
+                StatusTransitionLog.action == "complete",
+                StatusTransitionLog.transitioned_at >= cutoff,
+            )
         )
-    )) or 0
+    ) or 0
     total_outcomes = cancelled_count + completed_count
-    cancellation_rate_pct = round(cancelled_count / total_outcomes * 100, 1) if total_outcomes > 0 else None
+    cancellation_rate_pct = (
+        round(cancelled_count / total_outcomes * 100, 1) if total_outcomes > 0 else None
+    )
 
     # 3. stage_conversion
     # Count distinct orders that reached PENDING, then COMPLETED
-    pending_orders = (await db.execute(
-        select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
-            StatusTransitionLog.action == "create",  # initial
-            StatusTransitionLog.transitioned_at >= cutoff,
+    pending_orders = (
+        await db.execute(
+            select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
+                StatusTransitionLog.action == "create",  # initial
+                StatusTransitionLog.transitioned_at >= cutoff,
+            )
         )
-    )).scalar() or 0
-    completed_orders = (await db.scalar(
-        select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
-            StatusTransitionLog.action == "complete",
-            StatusTransitionLog.transitioned_at >= cutoff,
+    ).scalar() or 0
+    completed_orders = (
+        await db.scalar(
+            select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
+                StatusTransitionLog.action == "complete",
+                StatusTransitionLog.transitioned_at >= cutoff,
+            )
         )
-    )).scalar() or 0
-    stage_conversion_pct = round(completed_orders / pending_orders * 100, 1) if pending_orders > 0 else None
+    ).scalar() or 0
+    stage_conversion_pct = (
+        round(completed_orders / pending_orders * 100, 1)
+        if pending_orders > 0
+        else None
+    )
 
-    return ok({
-        "window_days": days_back,
-        "avg_time_to_confirm_hours": avg_time_to_confirm_hours,
-        "cancellation_rate_pct": cancellation_rate_pct,
-        "stage_conversion_pct": stage_conversion_pct,
-        "sample_counts": {
-            "confirm_transitions": len(confirm_hours),
-            "cancelled": cancelled_count,
-            "completed": completed_count,
-            "pending_orders": pending_orders,
-            "completed_orders": completed_orders,
-        },
-    })
+    return ok(
+        {
+            "window_days": days_back,
+            "avg_time_to_confirm_hours": avg_time_to_confirm_hours,
+            "cancellation_rate_pct": cancellation_rate_pct,
+            "stage_conversion_pct": stage_conversion_pct,
+            "sample_counts": {
+                "confirm_transitions": len(confirm_hours),
+                "cancelled": cancelled_count,
+                "completed": completed_count,
+                "pending_orders": pending_orders,
+                "completed_orders": completed_orders,
+            },
+        }
+    )

@@ -65,8 +65,11 @@ class CancelSalesOrderUseCase:
 
         logger.info(
             "Order cancelled SO#%s by user#%s: %s → %s, reason=%r",
-            order_id, self._user_id,
-            previous_status.value, domain_order.status.value, reason,
+            order_id,
+            self._user_id,
+            previous_status.value,
+            domain_order.status.value,
+            reason,
         )
 
         await self._session.flush()

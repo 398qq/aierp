@@ -78,12 +78,18 @@ class QuotationService(BaseCRUDService):
         total = (await db.execute(cnt)).scalar() or 0
 
         allowed_sorts = {
-            "id", "quotation_no", "total_amount", "status",
-            "created_at", "updated_at",
+            "id",
+            "quotation_no",
+            "total_amount",
+            "status",
+            "created_at",
+            "updated_at",
         }
         sort_by = sort_by if sort_by in allowed_sorts else "id"
         sort_col = getattr(Quotation, sort_by, Quotation.id)
-        base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
+        base = base.order_by(
+            sort_col.desc() if sort_order == "desc" else sort_col.asc()
+        )
         rows = (
             (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
             .scalars()
@@ -92,9 +98,7 @@ class QuotationService(BaseCRUDService):
 
         return {"list": rows, "total": total, "page": page, "page_size": page_size}
 
-    async def get_quotation(
-        self, db: AsyncSession, quote_id: int
-    ) -> Quotation | None:
+    async def get_quotation(self, db: AsyncSession, quote_id: int) -> Quotation | None:
         result = await db.execute(
             select(Quotation).where(
                 Quotation.id == quote_id, Quotation.deleted_at.is_(None)
@@ -120,7 +124,8 @@ class QuotationService(BaseCRUDService):
 
         by_status = {
             status or "unknown": {
-                "count": int(count or 0), "amount": float(amount or 0),
+                "count": int(count or 0),
+                "amount": float(amount or 0),
             }
             for status, count, amount in rows
         }
@@ -169,7 +174,9 @@ class QuotationService(BaseCRUDService):
             "expiring_soon": int(expiring_soon),
             "expired": int(expired),
             "converted": int(converted),
-            "quote_to_order_rate": round((int(converted) / total * 100), 1) if total else 0,
+            "quote_to_order_rate": round((int(converted) / total * 100), 1)
+            if total
+            else 0,
             "by_status": by_status,
         }
 
@@ -270,15 +277,11 @@ class QuotationService(BaseCRUDService):
         await db.refresh(new_quote)
         return new_quote
 
-    async def soft_delete_quotation(
-        self, db: AsyncSession, quote: Quotation
-    ) -> None:
+    async def soft_delete_quotation(self, db: AsyncSession, quote: Quotation) -> None:
         quote.deleted_at = datetime.now(timezone.utc)
         await db.commit()
 
-    async def send_quotation(
-        self, db: AsyncSession, quote: Quotation
-    ) -> Quotation:
+    async def send_quotation(self, db: AsyncSession, quote: Quotation) -> Quotation:
         """Mark quotation as sent and trigger WeCom notification."""
         quote.status = "sent"
         await db.commit()
@@ -317,7 +320,8 @@ class QuotationService(BaseCRUDService):
             title=title or f"询价单 #{inquiry_id} 报价",
             total_amount=0,
             status="draft",
-            valid_until=valid_until or (datetime.now(timezone.utc) + timedelta(days=30)),
+            valid_until=valid_until
+            or (datetime.now(timezone.utc) + timedelta(days=30)),
             notes=notes,
         )
         db.add(quote)
@@ -331,7 +335,9 @@ class QuotationService(BaseCRUDService):
         else:
             try:
                 matched = (
-                    json.loads(inquiry.matched_products) if inquiry.matched_products else []
+                    json.loads(inquiry.matched_products)
+                    if inquiry.matched_products
+                    else []
                 )
             except Exception:
                 matched = []

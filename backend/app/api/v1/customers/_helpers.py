@@ -5,6 +5,7 @@ These functions are imported by ``crud.py``, ``list.py``, and
 and a leading underscore module name) so consumers always reach them
 through the re-exports in ``crud.py``.
 """
+
 from __future__ import annotations
 
 import re
@@ -123,7 +124,11 @@ async def _find_code_number_conflict(
         if not row.code:
             continue
         row_number = _extract_code_number(row.code)
-        if row_number and row_number == number and (not region or not row.region or row.region == region):
+        if (
+            row_number
+            and row_number == number
+            and (not region or not row.region or row.region == region)
+        ):
             return row
     return None
 
@@ -139,7 +144,9 @@ async def _generate_unique_code(
     number = start_number
     while number < start_number + 10000:
         candidate = _generate_code(number, region)
-        if not await _find_code_number_conflict(db, str(number), region=region, exclude_id=exclude_id):
+        if not await _find_code_number_conflict(
+            db, str(number), region=region, exclude_id=exclude_id
+        ):
             return candidate
         number += 1
     return _generate_code(start_number, region)

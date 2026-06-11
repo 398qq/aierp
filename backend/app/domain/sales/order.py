@@ -35,9 +35,9 @@ from app.domain.sales.events import (
 
 
 class OrderStatus(str, Enum):
-    PENDING = "pending"      # Just created (or converted from quotation)
+    PENDING = "pending"  # Just created (or converted from quotation)
     CONFIRMED = "confirmed"  # Customer confirmed (locks inventory)
-    SHIPPED = "shipped"      # First shipment dispatched
+    SHIPPED = "shipped"  # First shipment dispatched
     COMPLETED = "completed"  # Fully delivered + invoiced
     CANCELLED = "cancelled"  # Cancelled at any stage
 
@@ -163,9 +163,7 @@ class SalesOrder:
                 order_no=self.order_no or "",
                 customer_id=self.customer_id,
                 owner=self.owner,
-                lines=tuple(
-                    (line.product_id, line.quantity) for line in self.lines
-                ),
+                lines=tuple((line.product_id, line.quantity) for line in self.lines),
             )
         )
 

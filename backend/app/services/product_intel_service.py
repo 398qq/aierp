@@ -17,40 +17,67 @@ async def generate_product_profile(db: AsyncSession, product_id: int) -> dict:
     from app.services.ai.client import ai_client
     from app.services.ai.prompts import product_profile_prompt
 
-    prod_row = (await db.execute(
-        select(Product.sku, Product.name, Product.category, Product.package_type,
-               Product.specs, Product.notes, Brand.name, Brand.name_cn, Product.brand_id)
-        .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).first()
+    prod_row = (
+        await db.execute(
+            select(
+                Product.sku,
+                Product.name,
+                Product.category,
+                Product.package_type,
+                Product.specs,
+                Product.notes,
+                Brand.name,
+                Brand.name_cn,
+                Product.brand_id,
+            )
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(Product.id == product_id, Product.deleted_at.is_(None))
+        )
+    ).first()
     if prod_row is None:
         raise ValueError("Product not found")
 
     # Business context
-    total_sold = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrderItem.quantity), 0))
-        .where(SalesOrderItem.product_id == product_id, SalesOrderItem.deleted_at.is_(None))
-    )).scalar() or 0
+    total_sold = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesOrderItem.quantity), 0)).where(
+                SalesOrderItem.product_id == product_id,
+                SalesOrderItem.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
 
-    active_customers = (await db.execute(
-        select(func.count(func.distinct(SalesOrder.customer_id)))
-        .select_from(SalesOrderItem)
-        .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
-        .where(SalesOrderItem.product_id == product_id,
-               SalesOrderItem.deleted_at.is_(None),
-               SalesOrder.deleted_at.is_(None),
-               SalesOrder.created_at >= datetime.now(timezone.utc) - timedelta(days=365))
-    )).scalar() or 0
+    active_customers = (
+        await db.execute(
+            select(func.count(func.distinct(SalesOrder.customer_id)))
+            .select_from(SalesOrderItem)
+            .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+            .where(
+                SalesOrderItem.product_id == product_id,
+                SalesOrderItem.deleted_at.is_(None),
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at
+                >= datetime.now(timezone.utc) - timedelta(days=365),
+            )
+        )
+    ).scalar() or 0
 
-    supplier_count = (await db.execute(
-        select(func.count(SupplierProduct.id)).where(
-            SupplierProduct.product_id == product_id, SupplierProduct.deleted_at.is_(None))
-    )).scalar() or 0
+    supplier_count = (
+        await db.execute(
+            select(func.count(SupplierProduct.id)).where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
 
-    stock_qty = (await db.execute(
-        select(func.coalesce(func.sum(Inventory.quantity), 0))
-        .where(Inventory.product_id == product_id, Inventory.deleted_at.is_(None))
-    )).scalar() or 0
+    stock_qty = (
+        await db.execute(
+            select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
+                Inventory.product_id == product_id, Inventory.deleted_at.is_(None)
+            )
+        )
+    ).scalar() or 0
 
     stock_health = "正常"
     if stock_qty == 0:
@@ -85,8 +112,13 @@ async def generate_product_profile(db: AsyncSession, product_id: int) -> dict:
         "risk_factors": ["string"],
     }
     result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件产品专家，精通元件市场分析、竞争情报和产品生命周期管理。"},
-         {"role": "user", "content": product_profile_prompt(context)}],
+        [
+            {
+                "role": "system",
+                "content": "你是一个电子元器件产品专家，精通元件市场分析、竞争情报和产品生命周期管理。",
+            },
+            {"role": "user", "content": product_profile_prompt(context)},
+        ],
         schema,
     )
     result["context"] = context
@@ -98,9 +130,13 @@ async def normalize_specs(db: AsyncSession, product_id: int) -> dict:
     from app.services.ai.client import ai_client
     from app.services.ai.prompts import spec_normalize_prompt
 
-    prod = (await db.execute(
-        select(Product.specs, Product.notes).where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).first()
+    prod = (
+        await db.execute(
+            select(Product.specs, Product.notes).where(
+                Product.id == product_id, Product.deleted_at.is_(None)
+            )
+        )
+    ).first()
     if prod is None:
         raise ValueError("Product not found")
 
@@ -110,58 +146,86 @@ async def normalize_specs(db: AsyncSession, product_id: int) -> dict:
 
     schema = {
         "parameters": [
-            {"key": "string", "value": "string", "unit": "string | null",
-             "display": "string, Chinese display name"}
+            {
+                "key": "string",
+                "value": "string",
+                "unit": "string | null",
+                "display": "string, Chinese display name",
+            }
         ]
     }
     result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件参数解析专家。精确提取和标准化技术参数。"},
-         {"role": "user", "content": spec_normalize_prompt(raw_text)}],
+        [
+            {
+                "role": "system",
+                "content": "你是一个电子元器件参数解析专家。精确提取和标准化技术参数。",
+            },
+            {"role": "user", "content": spec_normalize_prompt(raw_text)},
+        ],
         schema,
     )
     # Persist normalized specs back to product
     import json
+
     normalized = result.get("parameters", [])
-    prod_obj = (await db.execute(
-        select(Product).where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    prod_obj = (
+        await db.execute(
+            select(Product).where(
+                Product.id == product_id, Product.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if prod_obj and normalized:
-        prod_obj.specs = json.dumps({p["key"]: f"{p['value']}{p.get('unit', '')}" for p in normalized}, ensure_ascii=False)
+        prod_obj.specs = json.dumps(
+            {p["key"]: f"{p['value']}{p.get('unit', '')}" for p in normalized},
+            ensure_ascii=False,
+        )
         await db.flush()
     return {"parameters": normalized, "raw": raw_text}
 
 
-async def get_product_associations(db: AsyncSession, product_id: int, top_k: int = 10) -> dict:
+async def get_product_associations(
+    db: AsyncSession, product_id: int, top_k: int = 10
+) -> dict:
     """Find associated products via collaborative filtering (co-purchase analysis)."""
     datetime.now(timezone.utc) - timedelta(days=90)
 
     # Find orders containing this product
     order_ids_subq = (
         select(SalesOrderItem.order_id)
-        .where(SalesOrderItem.product_id == product_id, SalesOrderItem.deleted_at.is_(None))
+        .where(
+            SalesOrderItem.product_id == product_id, SalesOrderItem.deleted_at.is_(None)
+        )
         .distinct()
     )
 
     # Products co-purchased in the same orders
-    co_rows = (await db.execute(
-        select(
-            Product.id, Product.sku, Product.name, Product.category,
-            Product.package_type, Brand.name, Brand.name_cn,
-            func.count(func.distinct(SalesOrderItem.order_id)).label("co_count"),
-            func.sum(SalesOrderItem.quantity).label("co_qty"),
+    co_rows = (
+        await db.execute(
+            select(
+                Product.id,
+                Product.sku,
+                Product.name,
+                Product.category,
+                Product.package_type,
+                Brand.name,
+                Brand.name_cn,
+                func.count(func.distinct(SalesOrderItem.order_id)).label("co_count"),
+                func.sum(SalesOrderItem.quantity).label("co_qty"),
+            )
+            .join(SalesOrderItem, Product.id == SalesOrderItem.product_id)
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(
+                SalesOrderItem.order_id.in_(order_ids_subq),
+                Product.id != product_id,
+                Product.deleted_at.is_(None),
+                SalesOrderItem.deleted_at.is_(None),
+            )
+            .group_by(Product.id, Brand.name, Brand.name_cn)
+            .order_by(func.count(func.distinct(SalesOrderItem.order_id)).desc())
+            .limit(top_k)
         )
-        .join(SalesOrderItem, Product.id == SalesOrderItem.product_id)
-        .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(
-            SalesOrderItem.order_id.in_(order_ids_subq),
-            Product.id != product_id,
-            Product.deleted_at.is_(None),
-            SalesOrderItem.deleted_at.is_(None),
-        )
-        .group_by(Product.id, Brand.name, Brand.name_cn)
-        .order_by(func.count(func.distinct(SalesOrderItem.order_id)).desc())
-        .limit(top_k)
-    )).all()
+    ).all()
 
     if not co_rows:
         return {"associations": [], "target_product_id": product_id}
@@ -170,9 +234,14 @@ async def get_product_associations(db: AsyncSession, product_id: int, top_k: int
         "target_product_id": product_id,
         "associations": [
             {
-                "product_id": r[0], "sku": r[1], "name": r[2], "category": r[3],
-                "package_type": r[4], "brand_name": r[5] or r[6],
-                "co_purchase_count": r[7], "co_quantity": int(r[8] or 0),
+                "product_id": r[0],
+                "sku": r[1],
+                "name": r[2],
+                "category": r[3],
+                "package_type": r[4],
+                "brand_name": r[5] or r[6],
+                "co_purchase_count": r[7],
+                "co_quantity": int(r[8] or 0),
             }
             for r in co_rows
         ],
@@ -188,33 +257,54 @@ async def optimize_procurement(
     from app.services.ai.client import ai_client
     from app.services.ai.prompts import procurement_optimize_prompt
 
-    prod_row = (await db.execute(
-        select(Product.sku, Product.name, Product.category, Brand.name, Brand.name_cn)
-        .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).first()
+    prod_row = (
+        await db.execute(
+            select(
+                Product.sku, Product.name, Product.category, Brand.name, Brand.name_cn
+            )
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(Product.id == product_id, Product.deleted_at.is_(None))
+        )
+    ).first()
     if prod_row is None:
         raise ValueError("Product not found")
 
-    supplier_rows = (await db.execute(
-        select(Supplier.name, SupplierProduct.cost_price, SupplierProduct.lead_time_days,
-               SupplierProduct.moq, SupplierProduct.is_preferred)
-        .join(SupplierProduct, Supplier.id == SupplierProduct.supplier_id)
-        .where(SupplierProduct.product_id == product_id,
-               SupplierProduct.deleted_at.is_(None),
-               Supplier.deleted_at.is_(None))
-        .order_by(SupplierProduct.is_preferred.desc(), SupplierProduct.cost_price.asc())
-    )).all()
+    supplier_rows = (
+        await db.execute(
+            select(
+                Supplier.name,
+                SupplierProduct.cost_price,
+                SupplierProduct.lead_time_days,
+                SupplierProduct.moq,
+                SupplierProduct.is_preferred,
+            )
+            .join(SupplierProduct, Supplier.id == SupplierProduct.supplier_id)
+            .where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+                Supplier.deleted_at.is_(None),
+            )
+            .order_by(
+                SupplierProduct.is_preferred.desc(), SupplierProduct.cost_price.asc()
+            )
+        )
+    ).all()
 
-    stock_qty = (await db.execute(
-        select(func.coalesce(func.sum(Inventory.quantity), 0))
-        .where(Inventory.product_id == product_id, Inventory.deleted_at.is_(None))
-    )).scalar() or 0
+    stock_qty = (
+        await db.execute(
+            select(func.coalesce(func.sum(Inventory.quantity), 0)).where(
+                Inventory.product_id == product_id, Inventory.deleted_at.is_(None)
+            )
+        )
+    ).scalar() or 0
 
     suppliers = [
         {
-            "name": r[0], "cost_price": float(r[1]) if r[1] else None,
-            "lead_time": r[2], "moq": r[3], "is_preferred": r[4],
+            "name": r[0],
+            "cost_price": float(r[1]) if r[1] else None,
+            "lead_time": r[2],
+            "moq": r[3],
+            "is_preferred": r[4],
         }
         for r in supplier_rows
     ]
@@ -225,8 +315,14 @@ async def optimize_procurement(
     schema = {
         "recommended_plan": "string",
         "allocations": [
-            {"supplier_name": "string", "quantity": "integer", "unit_cost": "number",
-             "subtotal": "number", "delivery_days": "integer", "reason": "string"}
+            {
+                "supplier_name": "string",
+                "quantity": "integer",
+                "unit_cost": "number",
+                "subtotal": "number",
+                "delivery_days": "integer",
+                "reason": "string",
+            }
         ],
         "total_cost": "number",
         "avg_unit_cost": "number",
@@ -235,15 +331,25 @@ async def optimize_procurement(
         "negotiation_tips": ["string"],
     }
     result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件供应链采购专家，精通多源采购策略和成本优化。"},
-         {"role": "user", "content": procurement_optimize_prompt(
-             suppliers,
-             {"part_number": f"{prod_row[0] or ''} {prod_row[1]}".strip(),
-              "brand": prod_row[3] or prod_row[4] or "未知",
-              "stock_qty": stock_qty,
-              "market_condition": "正常" if suppliers else "供应紧张"},
-             quantity,
-         )}],
+        [
+            {
+                "role": "system",
+                "content": "你是一个电子元器件供应链采购专家，精通多源采购策略和成本优化。",
+            },
+            {
+                "role": "user",
+                "content": procurement_optimize_prompt(
+                    suppliers,
+                    {
+                        "part_number": f"{prod_row[0] or ''} {prod_row[1]}".strip(),
+                        "brand": prod_row[3] or prod_row[4] or "未知",
+                        "stock_qty": stock_qty,
+                        "market_condition": "正常" if suppliers else "供应紧张",
+                    },
+                    quantity,
+                ),
+            },
+        ],
         schema,
     )
     result["context"] = {
@@ -260,12 +366,20 @@ async def analyze_lifecycle(db: AsyncSession, product_id: int) -> dict:
     from app.services.ai.client import ai_client
     from app.services.ai.prompts import lifecycle_warning_prompt
 
-    prod_row = (await db.execute(
-        select(Product.sku, Product.name, Product.category, Brand.name, Brand.name_cn,
-               Product.created_at)
-        .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).first()
+    prod_row = (
+        await db.execute(
+            select(
+                Product.sku,
+                Product.name,
+                Product.category,
+                Brand.name,
+                Brand.name_cn,
+                Product.created_at,
+            )
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(Product.id == product_id, Product.deleted_at.is_(None))
+        )
+    ).first()
     if prod_row is None:
         raise ValueError("Product not found")
 
@@ -274,36 +388,55 @@ async def analyze_lifecycle(db: AsyncSession, product_id: int) -> dict:
     d6m = now - timedelta(days=180)
 
     # Sales trends
-    sales_6m = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrderItem.quantity), 0))
-        .where(SalesOrderItem.product_id == product_id,
-               SalesOrderItem.deleted_at.is_(None),
-               SalesOrderItem.created_at >= d6m)
-    )).scalar() or 0
+    sales_6m = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesOrderItem.quantity), 0)).where(
+                SalesOrderItem.product_id == product_id,
+                SalesOrderItem.deleted_at.is_(None),
+                SalesOrderItem.created_at >= d6m,
+            )
+        )
+    ).scalar() or 0
 
-    sales_3m = (await db.execute(
-        select(func.coalesce(func.sum(SalesOrderItem.quantity), 0))
-        .where(SalesOrderItem.product_id == product_id,
-               SalesOrderItem.deleted_at.is_(None),
-               SalesOrderItem.created_at >= d3m)
-    )).scalar() or 0
+    sales_3m = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesOrderItem.quantity), 0)).where(
+                SalesOrderItem.product_id == product_id,
+                SalesOrderItem.deleted_at.is_(None),
+                SalesOrderItem.created_at >= d3m,
+            )
+        )
+    ).scalar() or 0
 
     sales_before_3m = sales_6m - sales_3m
-    trend_6m = "增长" if sales_3m > sales_before_3m * 1.2 else "下降" if sales_3m < sales_before_3m * 0.7 else "稳定"
+    trend_6m = (
+        "增长"
+        if sales_3m > sales_before_3m * 1.2
+        else "下降"
+        if sales_3m < sales_before_3m * 0.7
+        else "稳定"
+    )
     trend_3m_desc = f"近3月:{sales_3m} vs 前3月:{sales_before_3m}({trend_6m})"
 
     # Supplier trends
-    supplier_count = (await db.execute(
-        select(func.count(SupplierProduct.id)).where(
-            SupplierProduct.product_id == product_id, SupplierProduct.deleted_at.is_(None))
-    )).scalar() or 0
+    supplier_count = (
+        await db.execute(
+            select(func.count(SupplierProduct.id)).where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
 
-    active_6m = (await db.execute(
-        select(func.count(SupplierProduct.id)).where(
-            SupplierProduct.product_id == product_id,
-            SupplierProduct.deleted_at.is_(None),
-            SupplierProduct.created_at >= d6m)
-    )).scalar() or 0
+    active_6m = (
+        await db.execute(
+            select(func.count(SupplierProduct.id)).where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+                SupplierProduct.created_at >= d6m,
+            )
+        )
+    ).scalar() or 0
 
     supplier_trend = "稳定"
     if active_6m == 0 and supplier_count > 0:
@@ -312,14 +445,18 @@ async def analyze_lifecycle(db: AsyncSession, product_id: int) -> dict:
         supplier_trend = "活跃"
 
     # Price trend from supplier costs
-    cost_rows = (await db.execute(
-        select(SupplierProduct.cost_price)
-        .where(SupplierProduct.product_id == product_id,
-               SupplierProduct.deleted_at.is_(None),
-               SupplierProduct.cost_price.isnot(None))
-        .order_by(SupplierProduct.created_at.desc())
-        .limit(10)
-    )).all()
+    cost_rows = (
+        await db.execute(
+            select(SupplierProduct.cost_price)
+            .where(
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.deleted_at.is_(None),
+                SupplierProduct.cost_price.isnot(None),
+            )
+            .order_by(SupplierProduct.created_at.desc())
+            .limit(10)
+        )
+    ).all()
     price_trend = "无数据"
     if len(cost_rows) >= 3:
         recent_avg = sum(float(r[0]) for r in cost_rows[:3]) / 3
@@ -355,8 +492,13 @@ async def analyze_lifecycle(db: AsyncSession, product_id: int) -> dict:
         "urgency": "string: 紧急/建议关注/正常",
     }
     result = await ai_client.chat_structured(
-        [{"role": "system", "content": "你是一个电子元器件生命周期管理专家，精通产品EOL预测和备货策略。"},
-         {"role": "user", "content": lifecycle_warning_prompt(context)}],
+        [
+            {
+                "role": "system",
+                "content": "你是一个电子元器件生命周期管理专家，精通产品EOL预测和备货策略。",
+            },
+            {"role": "user", "content": lifecycle_warning_prompt(context)},
+        ],
         schema,
     )
     result["context"] = context

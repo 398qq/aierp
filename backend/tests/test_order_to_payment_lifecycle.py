@@ -71,26 +71,60 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
         customer_id=customer_id,
         id=quotation_id,
         quotation_no="Q20260611001",
-        lines=[QuotationLine(product_id=10, product_name="MCU", quantity=100, unit_price=Decimal("2.5"))],
+        lines=[
+            QuotationLine(
+                product_id=10,
+                product_name="MCU",
+                quantity=100,
+                unit_price=Decimal("2.5"),
+            )
+        ],
     )
     await log_transition(
-        db, "Quotation", quotation_id, None, "draft", "create",
-        aggregate_no="Q20260611001", customer_id=customer_id,
+        db,
+        "Quotation",
+        quotation_id,
+        None,
+        "draft",
+        "create",
+        aggregate_no="Q20260611001",
+        customer_id=customer_id,
     )
     quotation.send()
     await log_transition(
-        db, "Quotation", quotation_id, "draft", "sent", "send",
-        aggregate_no="Q20260611001", customer_id=customer_id, actor="sales_alice",
+        db,
+        "Quotation",
+        quotation_id,
+        "draft",
+        "sent",
+        "send",
+        aggregate_no="Q20260611001",
+        customer_id=customer_id,
+        actor="sales_alice",
     )
     quotation.accept()
     await log_transition(
-        db, "Quotation", quotation_id, "sent", "accepted", "accept",
-        aggregate_no="Q20260611001", customer_id=customer_id, actor="customer",
+        db,
+        "Quotation",
+        quotation_id,
+        "sent",
+        "accepted",
+        "accept",
+        aggregate_no="Q20260611001",
+        customer_id=customer_id,
+        actor="customer",
     )
     quotation.convert_to_order()
     await log_transition(
-        db, "Quotation", quotation_id, "accepted", "converted", "convert_to_order",
-        aggregate_no="Q20260611001", customer_id=customer_id, actor="system",
+        db,
+        "Quotation",
+        quotation_id,
+        "accepted",
+        "converted",
+        "convert_to_order",
+        aggregate_no="Q20260611001",
+        customer_id=customer_id,
+        actor="system",
     )
 
     # 2. SalesOrder lifecycle (PENDING → CONFIRMED → SHIPPED → COMPLETED)
@@ -100,22 +134,44 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
         order_no="SO20260611001",
         quotation_id=quotation_id,
         owner="sales_alice",
-        lines=[OrderLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)],
+        lines=[
+            OrderLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)
+        ],
     )
     await log_transition(
-        db, "SalesOrder", order_id, None, "pending", "create",
-        aggregate_no="SO20260611001", customer_id=customer_id,
+        db,
+        "SalesOrder",
+        order_id,
+        None,
+        "pending",
+        "create",
+        aggregate_no="SO20260611001",
+        customer_id=customer_id,
     )
     order.confirm()
     await log_transition(
-        db, "SalesOrder", order_id, "pending", "confirmed", "confirm",
-        aggregate_no="SO20260611001", customer_id=customer_id, actor="sales_alice",
+        db,
+        "SalesOrder",
+        order_id,
+        "pending",
+        "confirmed",
+        "confirm",
+        aggregate_no="SO20260611001",
+        customer_id=customer_id,
+        actor="sales_alice",
         sales_order_id=order_id,
     )
     order.ship()
     await log_transition(
-        db, "SalesOrder", order_id, "confirmed", "shipped", "ship",
-        aggregate_no="SO20260611001", customer_id=customer_id, actor="warehouse_bob",
+        db,
+        "SalesOrder",
+        order_id,
+        "confirmed",
+        "shipped",
+        "ship",
+        aggregate_no="SO20260611001",
+        customer_id=customer_id,
+        actor="warehouse_bob",
         sales_order_id=order_id,
     )
 
@@ -128,13 +184,27 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
         lines=[DeliveryLine(product_id=10, product_name="MCU", quantity=100)],
     )
     await log_transition(
-        db, "DeliveryNote", delivery_id, None, "pending", "create",
-        aggregate_no="DN20260611001", customer_id=customer_id, sales_order_id=order_id,
+        db,
+        "DeliveryNote",
+        delivery_id,
+        None,
+        "pending",
+        "create",
+        aggregate_no="DN20260611001",
+        customer_id=customer_id,
+        sales_order_id=order_id,
     )
     delivery.ship()
     await log_transition(
-        db, "DeliveryNote", delivery_id, "pending", "shipped", "ship",
-        aggregate_no="DN20260611001", customer_id=customer_id, actor="warehouse_bob",
+        db,
+        "DeliveryNote",
+        delivery_id,
+        "pending",
+        "shipped",
+        "ship",
+        aggregate_no="DN20260611001",
+        customer_id=customer_id,
+        actor="warehouse_bob",
         sales_order_id=order_id,
     )
 
@@ -144,16 +214,32 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
         sales_order_id=order_id,
         id=invoice_id,
         invoice_no="INV20260611001",
-        lines=[InvoiceLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)],
+        lines=[
+            InvoiceLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)
+        ],
     )
     await log_transition(
-        db, "Invoice", invoice_id, None, "draft", "create",
-        aggregate_no="INV20260611001", customer_id=customer_id, sales_order_id=order_id,
+        db,
+        "Invoice",
+        invoice_id,
+        None,
+        "draft",
+        "create",
+        aggregate_no="INV20260611001",
+        customer_id=customer_id,
+        sales_order_id=order_id,
     )
     invoice.issue()
     await log_transition(
-        db, "Invoice", invoice_id, "draft", "issued", "issue",
-        aggregate_no="INV20260611001", customer_id=customer_id, actor="finance_carol",
+        db,
+        "Invoice",
+        invoice_id,
+        "draft",
+        "issued",
+        "issue",
+        aggregate_no="INV20260611001",
+        customer_id=customer_id,
+        actor="finance_carol",
         sales_order_id=order_id,
     )
 
@@ -167,13 +253,26 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
         payment_method="bank_transfer",
     )
     await log_transition(
-        db, "PaymentRecord", payment_id, None, "pending", "create",
-        customer_id=customer_id, sales_order_id=order_id,
+        db,
+        "PaymentRecord",
+        payment_id,
+        None,
+        "pending",
+        "create",
+        customer_id=customer_id,
+        sales_order_id=order_id,
     )
     payment.complete()
     await log_transition(
-        db, "PaymentRecord", payment_id, "pending", "completed", "complete",
-        actor="finance_carol", customer_id=customer_id, sales_order_id=order_id,
+        db,
+        "PaymentRecord",
+        payment_id,
+        "pending",
+        "completed",
+        "complete",
+        actor="finance_carol",
+        customer_id=customer_id,
+        sales_order_id=order_id,
     )
 
     # Cross-aggregate: payment event triggers invoice record_payment
@@ -181,16 +280,30 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
     invoice.record_payment(payment_event.amount)
     if invoice.status.value == "paid":
         await log_transition(
-            db, "Invoice", invoice_id, "issued", "paid", "pay_full",
-            aggregate_no="INV20260611001", customer_id=customer_id,
-            actor="system", sales_order_id=order_id,
+            db,
+            "Invoice",
+            invoice_id,
+            "issued",
+            "paid",
+            "pay_full",
+            aggregate_no="INV20260611001",
+            customer_id=customer_id,
+            actor="system",
+            sales_order_id=order_id,
         )
 
     # 6. Order COMPLETED (after invoice paid)
     order.complete()
     await log_transition(
-        db, "SalesOrder", order_id, "shipped", "completed", "complete",
-        aggregate_no="SO20260611001", customer_id=customer_id, actor="system",
+        db,
+        "SalesOrder",
+        order_id,
+        "shipped",
+        "completed",
+        "complete",
+        aggregate_no="SO20260611001",
+        customer_id=customer_id,
+        actor="system",
         sales_order_id=order_id,
     )
 
@@ -199,7 +312,10 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
     # Verify: every aggregate has a complete audit trail
     so_timeline = await get_aggregate_timeline(db, "SalesOrder", order_id)
     assert [t.status_after for t in so_timeline] == [
-        "pending", "confirmed", "shipped", "completed"
+        "pending",
+        "confirmed",
+        "shipped",
+        "completed",
     ]
 
     invoice_timeline = await get_aggregate_timeline(db, "Invoice", invoice_id)
@@ -210,7 +326,9 @@ async def test_quotation_to_completion_emits_expected_event_sequence(db: AsyncSe
 
     # Customer timeline contains entries from all aggregates
     cust_timeline = await get_customer_timeline(db, customer_id)
-    assert len(cust_timeline) >= 13  # 4 quotation + 4 order + 2 delivery + 3 invoice + 2 payment
+    assert (
+        len(cust_timeline) >= 13
+    )  # 4 quotation + 4 order + 2 delivery + 3 invoice + 2 payment
 
 
 # ── Cross-aggregate: payment auto-completes invoice ──────────────────
@@ -230,7 +348,9 @@ async def test_partial_then_full_payment_drive_invoice_to_paid(db: AsyncSession)
         customer_id=customer_id,
         id=invoice_id,
         invoice_no="INV001",
-        lines=[InvoiceLine(product_id=10, product_name="X", quantity=100, unit_price=10.0)],
+        lines=[
+            InvoiceLine(product_id=10, product_name="X", quantity=100, unit_price=10.0)
+        ],
     )
     await log_transition(
         db, "Invoice", invoice_id, None, "draft", "create", customer_id=customer_id
@@ -242,7 +362,11 @@ async def test_partial_then_full_payment_drive_invoice_to_paid(db: AsyncSession)
     assert invoice.total == pytest.approx(1130.0)  # 100 * 10 * 1.13
 
     # 3 partial payments
-    for pid, amount in [(payment1_id, 500.0), (payment2_id, 300.0), (payment3_id, 330.0)]:
+    for pid, amount in [
+        (payment1_id, 500.0),
+        (payment2_id, 300.0),
+        (payment3_id, 330.0),
+    ]:
         p = PaymentRecord(
             customer_id=customer_id,
             amount=amount,
@@ -256,7 +380,13 @@ async def test_partial_then_full_payment_drive_invoice_to_paid(db: AsyncSession)
             db, "PaymentRecord", pid, None, "pending", "create", customer_id=customer_id
         )
         await log_transition(
-            db, "PaymentRecord", pid, "pending", "completed", "complete", customer_id=customer_id
+            db,
+            "PaymentRecord",
+            pid,
+            "pending",
+            "completed",
+            "complete",
+            customer_id=customer_id,
         )
         invoice.record_payment(event.amount)
 
@@ -288,22 +418,37 @@ async def test_cancel_from_confirmed_order_blocks_remaining_lifecycle(db: AsyncS
         id=order_id,
         order_no="SO100",
         owner="alice",
-        lines=[OrderLine(product_id=10, product_name="X", quantity=10, unit_price=10.0)],
+        lines=[
+            OrderLine(product_id=10, product_name="X", quantity=10, unit_price=10.0)
+        ],
     )
     order.confirm()
     await log_transition(
         db, "SalesOrder", order_id, None, "pending", "create", customer_id=customer_id
     )
     await log_transition(
-        db, "SalesOrder", order_id, "pending", "confirmed", "confirm",
-        customer_id=customer_id, actor="alice"
+        db,
+        "SalesOrder",
+        order_id,
+        "pending",
+        "confirmed",
+        "confirm",
+        customer_id=customer_id,
+        actor="alice",
     )
 
     # Customer reverses
     order.cancel("客户临时取消")
     await log_transition(
-        db, "SalesOrder", order_id, "confirmed", "cancelled", "cancel",
-        customer_id=customer_id, actor="customer", reason="客户临时取消"
+        db,
+        "SalesOrder",
+        order_id,
+        "confirmed",
+        "cancelled",
+        "cancel",
+        customer_id=customer_id,
+        actor="customer",
+        reason="客户临时取消",
     )
     await db.commit()
 
@@ -352,13 +497,15 @@ async def test_audit_log_can_reconstruct_aggregate_lifecycle(db: AsyncSession):
     timeline = await get_aggregate_timeline(db, "SalesOrder", order_id)
     reconstructed = []
     for t in timeline:
-        reconstructed.append({
-            "from": t.status_before,
-            "to": t.status_after,
-            "action": t.action,
-            "actor": t.actor,
-            "at": t.transitioned_at.isoformat(),
-        })
+        reconstructed.append(
+            {
+                "from": t.status_before,
+                "to": t.status_after,
+                "action": t.action,
+                "actor": t.actor,
+                "at": t.transitioned_at.isoformat(),
+            }
+        )
 
     # Final state is reconstructed correctly
     assert reconstructed[-1]["to"] == "completed"
@@ -385,7 +532,9 @@ async def test_illegal_transition_does_not_create_audit_entry(db: AsyncSession):
         customer_id=customer_id,
         id=order_id,
         owner="alice",
-        lines=[OrderLine(product_id=10, product_name="X", quantity=10, unit_price=10.0)],
+        lines=[
+            OrderLine(product_id=10, product_name="X", quantity=10, unit_price=10.0)
+        ],
     )
     with pytest.raises(Exception):
         order.ship()
@@ -405,7 +554,9 @@ async def test_failed_payment_does_not_advance_invoice(db: AsyncSession):
     invoice = Invoice(
         customer_id=customer_id,
         id=invoice_id,
-        lines=[InvoiceLine(product_id=10, product_name="X", quantity=10, unit_price=10.0)],
+        lines=[
+            InvoiceLine(product_id=10, product_name="X", quantity=10, unit_price=10.0)
+        ],
     )
     invoice.issue()
     assert invoice.paid_amount == 0.0
@@ -446,7 +597,13 @@ async def test_lifecycle_audit_supports_dwell_time_analysis(db: AsyncSession):
 
     # Confirm (no sleep — sqlite in-memory is too fast to time-resolve)
     await log_transition(
-        db, "SalesOrder", order_id, "pending", "confirmed", "confirm", customer_id=customer_id
+        db,
+        "SalesOrder",
+        order_id,
+        "pending",
+        "confirmed",
+        "confirm",
+        customer_id=customer_id,
     )
     await db.commit()
 

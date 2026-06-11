@@ -1,4 +1,15 @@
-from sqlalchemy import DECIMAL, Boolean, Date, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DECIMAL,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -10,8 +21,12 @@ class Account(TimestampMixin, Base):
 
     code: Mapped[str] = mapped_column(String(30), unique=True)
     name: Mapped[str] = mapped_column(String(100))
-    type: Mapped[str] = mapped_column(String(20))  # asset/liability/equity/income/expense
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
+    type: Mapped[str] = mapped_column(
+        String(20)
+    )  # asset/liability/equity/income/expense
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -24,9 +39,15 @@ class JournalEntry(TimestampMixin, Base):
     entry_no: Mapped[str] = mapped_column(String(50))
     entry_date: Mapped[Date] = mapped_column(Date)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft/posted/reversed
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    posted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="draft"
+    )  # draft/posted/reversed
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    posted_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     posted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     lines = relationship("JournalEntryLine", back_populates="entry", lazy="selectin")
@@ -50,15 +71,23 @@ class JournalEntryLine(TimestampMixin, Base):
 class BankReconciliation(TimestampMixin, Base):
     __tablename__ = "bank_reconciliations"
 
-    payment_id: Mapped[int | None] = mapped_column(ForeignKey("payment_records.id"), nullable=True)
+    payment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payment_records.id"), nullable=True
+    )
     bank_txn_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     bank_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
     bank_amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     bank_description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    match_type: Mapped[str] = mapped_column(String(20), default="auto")  # auto/manual/unmatched
+    match_type: Mapped[str] = mapped_column(
+        String(20), default="auto"
+    )  # auto/manual/unmatched
     difference: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
-    reconciled_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    reconciled_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reconciled_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    reconciled_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     payment = relationship("PaymentRecord", foreign_keys=[payment_id])
     reconciler = relationship("User", foreign_keys=[reconciled_by])
@@ -79,7 +108,9 @@ class AccountingPeriodORM(TimestampMixin, Base):
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     month: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="open")
-    closed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     closed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     reopen_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -91,7 +122,9 @@ class NotificationTemplate(TimestampMixin, Base):
 
     code: Mapped[str] = mapped_column(String(50), unique=True)
     name: Mapped[str] = mapped_column(String(100))
-    channel: Mapped[str] = mapped_column(String(30), default="in_app")  # in_app/email/wecom_webhook
+    channel: Mapped[str] = mapped_column(
+        String(30), default="in_app"
+    )  # in_app/email/wecom_webhook
     event_type: Mapped[str] = mapped_column(String(50))
     subject_template: Mapped[str | None] = mapped_column(String(255), nullable=True)
     body_template: Mapped[str] = mapped_column(Text)

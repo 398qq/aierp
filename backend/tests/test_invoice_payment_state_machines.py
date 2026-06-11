@@ -24,7 +24,9 @@ def _make_invoice(**overrides):
     defaults = dict(
         customer_id=1,
         sales_order_id=100,
-        lines=[InvoiceLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)],
+        lines=[
+            InvoiceLine(product_id=10, product_name="MCU", quantity=100, unit_price=2.5)
+        ],
     )
     defaults.update(overrides)
     return Invoice(**defaults)
@@ -121,7 +123,11 @@ def test_lines_locked_after_issue():
     inv = _make_invoice()
     inv.issue()
     with pytest.raises(InvalidStateTransition, match="issued 状态不可修改"):
-        inv.add_line(InvoiceLine(product_id=20, product_name="Sensor", quantity=5, unit_price=10.0))
+        inv.add_line(
+            InvoiceLine(
+                product_id=20, product_name="Sensor", quantity=5, unit_price=10.0
+            )
+        )
 
 
 # ── PaymentRecord ─────────────────────────────────────────────────────

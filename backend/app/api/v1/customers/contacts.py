@@ -20,17 +20,34 @@ async def list_contacts(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    rows = (await db.execute(
-        select(CustomerContact).where(
-            CustomerContact.customer_id == customer_id,
-            CustomerContact.deleted_at.is_(None),
+    rows = (
+        (
+            await db.execute(
+                select(CustomerContact).where(
+                    CustomerContact.customer_id == customer_id,
+                    CustomerContact.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().all()
-    return ok([{
-        "id": c.id, "name": c.name, "title": c.title, "role": c.role,
-        "phone": c.phone, "email": c.email, "wechat": c.wechat,
-        "is_primary": c.is_primary, "notes": c.notes,
-    } for c in rows])
+        .scalars()
+        .all()
+    )
+    return ok(
+        [
+            {
+                "id": c.id,
+                "name": c.name,
+                "title": c.title,
+                "role": c.role,
+                "phone": c.phone,
+                "email": c.email,
+                "wechat": c.wechat,
+                "is_primary": c.is_primary,
+                "notes": c.notes,
+            }
+            for c in rows
+        ]
+    )
 
 
 @router.post("/{customer_id}/contacts", status_code=201)
@@ -112,12 +129,18 @@ async def set_primary_contact(
         return fail("Contact not found", 404)
 
     # Unset primary flag on all other contacts for this customer
-    all_contacts = (await db.execute(
-        select(CustomerContact).where(
-            CustomerContact.customer_id == customer_id,
-            CustomerContact.deleted_at.is_(None),
+    all_contacts = (
+        (
+            await db.execute(
+                select(CustomerContact).where(
+                    CustomerContact.customer_id == customer_id,
+                    CustomerContact.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     for c in all_contacts:
         c.is_primary = False
     contact.is_primary = True

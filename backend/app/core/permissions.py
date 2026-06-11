@@ -32,23 +32,32 @@ PERM_CACHE_TTL = 10  # seconds — brief window limits stale-cache attack surfac
 async def _invalidate_perm_cache():
     """Drop all permission cache entries after any RBAC change."""
     from app.services.cache_service import cache_delete
+
     await cache_delete("perm:*")
 
 
-async def _check_perm_db(db: AsyncSession, user_id: int, resource: str, action: str) -> bool:
+async def _check_perm_db(
+    db: AsyncSession, user_id: int, resource: str, action: str
+) -> bool:
     return await db.scalar(
-        select(select(Role.id).where(
-            Role.deleted_at.is_(None),
-            Role.users.any(and_(User.id == user_id, User.deleted_at.is_(None))),
-            or_(
-                Role.name == "admin",
-                Role.permissions.any(and_(
-                    Permission.resource == resource,
-                    Permission.action == action,
-                    Permission.deleted_at.is_(None),
-                )),
-            ),
-        ).exists())
+        select(
+            select(Role.id)
+            .where(
+                Role.deleted_at.is_(None),
+                Role.users.any(and_(User.id == user_id, User.deleted_at.is_(None))),
+                or_(
+                    Role.name == "admin",
+                    Role.permissions.any(
+                        and_(
+                            Permission.resource == resource,
+                            Permission.action == action,
+                            Permission.deleted_at.is_(None),
+                        )
+                    ),
+                ),
+            )
+            .exists()
+        )
     )
 
 
@@ -70,11 +79,14 @@ def require_perm(resource: str, action: str):
 
         # Try Redis cache first
         from app.services.cache_service import cache_get, cache_set
+
         cached = await cache_get(cache_key)
         if cached is not None:
             if json.loads(cached) is True:
                 return current_user
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+            )
 
         has_perm = await _check_perm_db(db, user_id, resource, action)
 
@@ -82,7 +94,9 @@ def require_perm(resource: str, action: str):
         await cache_set(cache_key, json.dumps(has_perm), PERM_CACHE_TTL)
 
         if not has_perm:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+            )
 
         return current_user
 
@@ -118,4 +132,6 @@ async def write_audit_log(
         db.add(log_entry)
         await db.commit()
     except Exception:
-        logger.error("Audit log write failed — audit trail integrity compromised", exc_info=True)
+        logger.error(
+            "Audit log write failed — audit trail integrity compromised", exc_info=True
+        )

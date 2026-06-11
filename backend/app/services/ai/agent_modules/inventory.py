@@ -3,6 +3,7 @@
 Lightweight agent that interprets inventory snapshots and flags
 low-stock or over-stock situations.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,11 +27,15 @@ class InventoryAgent:
         }
         try:
             import json
+
             data_text = json.dumps(inventory_data, ensure_ascii=False, default=str)
             result = await ai_client.chat_structured(
                 [
                     {"role": "system", "content": INVENTORY_AGENT_SYSTEM},
-                    {"role": "user", "content": f"分析以下库存数据，给出采购建议和预警：\n{data_text}"},
+                    {
+                        "role": "user",
+                        "content": f"分析以下库存数据，给出采购建议和预警：\n{data_text}",
+                    },
                 ],
                 schema,
             )
@@ -43,5 +48,3 @@ class InventoryAgent:
                 "stockout_risks": [],
                 "overall_assessment": f"AI分析暂时不可用: {e}",
             }
-
-

@@ -27,10 +27,14 @@ def _env_int(name: str, default: int) -> int:
     try:
         value = int(raw)
     except ValueError:
-        logger.warning("rate_limit: non-integer %s=%r, using default %s", name, raw, default)
+        logger.warning(
+            "rate_limit: non-integer %s=%r, using default %s", name, raw, default
+        )
         return default
     if value <= 0:
-        logger.warning("rate_limit: %s=%r must be positive, using default %s", name, raw, default)
+        logger.warning(
+            "rate_limit: %s=%r must be positive, using default %s", name, raw, default
+        )
         return default
     return value
 
@@ -44,6 +48,7 @@ RATE_LIMIT_KEY_PREFIX = "aierp:rl:"
 async def _get_redis():
     try:
         from app.services.cache_service import get_redis
+
         return await get_redis()
     except Exception:
         return None
@@ -59,7 +64,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         # Skip health checks and non-API paths
         path = request.url.path
-        if path.startswith("/health") or path in ("/docs", "/openapi.json") or path.startswith("/api/v1/auth"):
+        if (
+            path.startswith("/health")
+            or path in ("/docs", "/openapi.json")
+            or path.startswith("/api/v1/auth")
+        ):
             return await call_next(request)
 
         client_ip = self._client_ip(request)
@@ -88,7 +97,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             if current_count >= RATE_LIMIT_CALLS:
                 retry_after = int(RATE_LIMIT_WINDOW - (now - window_start))
-                request_id = getattr(getattr(request, "state", None), "request_id", None)
+                request_id = getattr(
+                    getattr(request, "state", None), "request_id", None
+                )
                 return JSONResponse(
                     status_code=429,
                     content={

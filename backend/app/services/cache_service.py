@@ -10,6 +10,7 @@ Version-bump invalidation:
     `INCR version` — old L2 entries become unreachable and expire on their own;
     L1 entries use a per-family `epoch` that is checked on every read.
 """
+
 import json
 import logging
 import os
@@ -17,7 +18,9 @@ import time
 
 from app.config import settings
 from app.core.observability.metrics import (
-    cache_hits_total, cache_invalidations_total, cache_lookup_duration_seconds,
+    cache_hits_total,
+    cache_invalidations_total,
+    cache_lookup_duration_seconds,
     cache_misses_total,
 )
 
@@ -25,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── L1 in-process LRU ─────────────────────────────────────────────────────
+
 
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name)
@@ -41,6 +45,7 @@ L1_ENABLED = os.getenv("AIERP_CACHE_L1_ENABLED", "1") not in ("0", "false", "Fal
 
 try:
     from cachetools import LRUCache as _LRUCache
+
     _l1_cache: _LRUCache | None = _LRUCache(maxsize=L1_MAX_SIZE) if L1_ENABLED else None
     # Per-family epoch: bumped on invalidation to invalidate L1 entries atomically
     _l1_epochs: dict[str, int] = {}
@@ -93,6 +98,7 @@ def l1_stats() -> dict:
         "curr_size": _l1_cache.currsize,
         "epochs": dict(_l1_epochs),
     }
+
 
 _redis = None
 
@@ -217,11 +223,15 @@ async def cache_get_versioned(family: str, key_suffix: str) -> str | None:
         cache_lookup_duration_seconds.observe(elapsed, family=family, outcome=outcome)
         return value
     except Exception:
-        logger.debug("cache_get_versioned failed for family=%s key=%s", family, key_suffix)
+        logger.debug(
+            "cache_get_versioned failed for family=%s key=%s", family, key_suffix
+        )
         return None
 
 
-async def cache_set_versioned(family: str, key_suffix: str, value: str, ttl: int = 300) -> None:
+async def cache_set_versioned(
+    family: str, key_suffix: str, value: str, ttl: int = 300
+) -> None:
     """Set a versioned entry."""
     _l1_set(family, key_suffix, value)
     r = await get_redis()

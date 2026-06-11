@@ -83,13 +83,18 @@ def apply_visibility_filter(
     if user_id is None:
         # No user — return empty result
         from sqlalchemy import false
+
         return stmt.where(false())
 
     entity = stmt.column_descriptions[0]["entity"]
     column = getattr(entity, col, None)
     if column is None:
         # Entity doesn't have the configured ownership column — skip filter
-        logger.warning("Entity %s has no column %s, skipping visibility filter", entity.__name__, col)
+        logger.warning(
+            "Entity %s has no column %s, skipping visibility filter",
+            entity.__name__,
+            col,
+        )
         return stmt
 
     # String columns (e.g. `owner` on Quotation) need special handling
@@ -128,7 +133,9 @@ async def visible_customers_for_user(
 
     user_id = user.get("user_id") if isinstance(user, dict) else user.id
     if is_admin_or_manager(user):
-        result = await db.execute(select(Customer.id).where(Customer.deleted_at.is_(None)))
+        result = await db.execute(
+            select(Customer.id).where(Customer.deleted_at.is_(None))
+        )
     else:
         # Customers are visible if: (a) assigned to user, (b) user is owner,
         # (c) unassigned (orphaned records still visible for claiming)

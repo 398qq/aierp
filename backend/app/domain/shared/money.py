@@ -17,9 +17,19 @@ from app.domain.shared.errors import BusinessRuleViolation
 
 
 # ISO 4217 currency codes we support out of the box
-SUPPORTED_CURRENCIES = frozenset({
-    "CNY", "USD", "EUR", "JPY", "HKD", "GBP", "KRW", "TWD", "SGD",
-})
+SUPPORTED_CURRENCIES = frozenset(
+    {
+        "CNY",
+        "USD",
+        "EUR",
+        "JPY",
+        "HKD",
+        "GBP",
+        "KRW",
+        "TWD",
+        "SGD",
+    }
+)
 
 
 class CurrencyConversionError(BusinessRuleViolation):
@@ -181,7 +191,8 @@ class ExchangeRateProvider:
         at = at or date_type.today()
         # Search for the most recent rate on or before `at`
         candidates = [
-            (k, v) for k, v in self._rates.items()
+            (k, v)
+            for k, v in self._rates.items()
             if k[0] == from_currency and k[1] == to_currency and k[2] <= at
         ]
         if not candidates:
@@ -204,9 +215,7 @@ def convert(
         return amount
     rate = provider.get(amount.currency, to_currency, at)
     if rate is None:
-        raise CurrencyConversionError(
-            f"找不到 {amount.currency}→{to_currency} 的汇率"
-        )
+        raise CurrencyConversionError(f"找不到 {amount.currency}→{to_currency} 的汇率")
     return rate.convert(amount)
 
 
@@ -227,12 +236,14 @@ def build_triangulation(
 
     # Find all rates in the "to base" direction (A → base)
     to_base = [
-        v for v in provider._rates.values()
+        v
+        for v in provider._rates.values()
         if v.to_currency == base and v.from_currency != base
     ]
     # Find all rates in the "from base" direction (base → B)
     from_base = [
-        v for v in provider._rates.values()
+        v
+        for v in provider._rates.values()
         if v.from_currency == base and v.to_currency != base
     ]
 
@@ -246,7 +257,9 @@ def build_triangulation(
             new_rate = ExchangeRate(
                 from_currency=a,
                 to_currency=b,
-                rate=(r1.rate * r2.rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                rate=(r1.rate * r2.rate).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
                 effective_date=max(r1.effective_date, r2.effective_date),
                 source="triangulated",
             )

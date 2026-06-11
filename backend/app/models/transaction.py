@@ -15,7 +15,9 @@ class PurchaseOrder(TimestampMixin, Base):
     incoterms: Mapped[str | None] = mapped_column(String(20), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
     total_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
-    expected_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expected_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     logistics_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     logistics_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -35,7 +37,9 @@ class PurchaseOrderItem(TimestampMixin, Base):
     unit_price: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
 
-    order = relationship("PurchaseOrder", back_populates="items", foreign_keys=[order_id])
+    order = relationship(
+        "PurchaseOrder", back_populates="items", foreign_keys=[order_id]
+    )
     product = relationship("Product", foreign_keys=[product_id])
 
 
@@ -53,7 +57,9 @@ class GoodsReceipt(TimestampMixin, Base):
     received_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow
     )
-    received_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    received_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(20), default="received")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     inspected: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -63,8 +69,10 @@ class GoodsReceipt(TimestampMixin, Base):
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
     receiver = relationship("User", foreign_keys=[received_by])
     items = relationship(
-        "GoodsReceiptItem", back_populates="receipt",
-        cascade="all, delete-orphan", lazy="selectin",
+        "GoodsReceiptItem",
+        back_populates="receipt",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
 
@@ -139,12 +147,18 @@ class Payment(TimestampMixin, Base):
     __tablename__ = "payments"
 
     payment_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
-    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id"), nullable=True
+    )
+    supplier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suppliers.id"), nullable=True
+    )
     type: Mapped[str] = mapped_column(String(20), default="receipt")
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
     method: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    paid_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", foreign_keys=[customer_id])
@@ -155,27 +169,36 @@ class Ticket(TimestampMixin, Base):
     __tablename__ = "tickets"
 
     ticket_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="open")
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     category: Mapped[str | None] = mapped_column(String(30), nullable=True)
     assigned_to: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    resolved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", back_populates="tickets")
+
 
 class Visit(TimestampMixin, Base):
     __tablename__ = "visits"
 
     visit_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    contact_id: Mapped[int | None] = mapped_column(ForeignKey("customer_contacts.id"), nullable=True)
+    contact_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customer_contacts.id"), nullable=True
+    )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    visit_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    visit_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -185,7 +208,9 @@ class Visit(TimestampMixin, Base):
     purpose: Mapped[str | None] = mapped_column(String(100), nullable=True)
     main_product: Mapped[str | None] = mapped_column(String(255), nullable=True)
     key_points: Mapped[str | None] = mapped_column(Text, nullable=True)
-    followup_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    followup_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     customer = relationship("Customer", back_populates="visits")
     contact = relationship("CustomerContact", foreign_keys=[contact_id])
@@ -195,12 +220,20 @@ class Sample(TimestampMixin, Base):
     __tablename__ = "samples"
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
     quantity: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    apply_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    ship_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    receive_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    apply_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ship_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    receive_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(30), default="requested")
     tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

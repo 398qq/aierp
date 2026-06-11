@@ -94,8 +94,10 @@ class ConfirmSalesOrderUseCase:
 
         logger.info(
             "Order confirmed SO#%s by user#%s: %s → %s, %d lines",
-            order_id, self._user_id,
-            previous_status.value, domain_order.status.value,
+            order_id,
+            self._user_id,
+            previous_status.value,
+            domain_order.status.value,
             len(domain_order.lines),
         )
 

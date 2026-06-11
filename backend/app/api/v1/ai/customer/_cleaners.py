@@ -5,6 +5,7 @@ these at module scope, which made them impossible to import for unit tests
 without pulling in OCR dependencies. They live here so `recognition.py`,
 `insights.py`, and `work_queue.py` can share a single cleaner module.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

@@ -24,8 +24,10 @@ class TestEventBus:
 
     def test_async_handler_receives_event(self, bus):
         received = []
+
         async def handler(event):
             received.append(event)
+
         bus.subscribe(OrderConfirmed, handler)
         event = OrderConfirmed(aggregate_id=2)
         asyncio.run(bus.publish(event))
@@ -47,8 +49,10 @@ class TestEventBus:
 
     def test_failing_sync_handler_does_not_break_publisher(self, bus):
         received = []
+
         def bad(event):
             raise ValueError("boom")
+
         bus.subscribe(OrderConfirmed, bad)
         bus.subscribe(OrderConfirmed, lambda e: received.append(e))
         asyncio.run(bus.publish(OrderConfirmed(aggregate_id=1)))
@@ -56,10 +60,13 @@ class TestEventBus:
 
     def test_failing_async_handler_does_not_break_publisher(self, bus):
         received = []
+
         async def bad(event):
             raise ValueError("boom")
+
         async def good(event):
             received.append(event)
+
         bus.subscribe(OrderConfirmed, bad)
         bus.subscribe(OrderConfirmed, good)
         asyncio.run(bus.publish(OrderConfirmed(aggregate_id=1)))
@@ -74,6 +81,9 @@ class TestEventBus:
     def test_handler_count(self, bus):
         bus.subscribe(OrderConfirmed, lambda e: None)
         bus.subscribe(OrderConfirmed, lambda e: None)
-        async def h(event): pass
+
+        async def h(event):
+            pass
+
         bus.subscribe(OrderConfirmed, h)
         assert bus.handler_count(OrderConfirmed) == 3

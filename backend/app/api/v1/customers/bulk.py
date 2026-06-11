@@ -210,7 +210,9 @@ async def export_customers(
     stmt = select(Customer).where(Customer.deleted_at.is_(None))
     conditions = []
     if ids:
-        selected_ids = [int(value) for value in ids.split(",") if value.strip().isdigit()]
+        selected_ids = [
+            int(value) for value in ids.split(",") if value.strip().isdigit()
+        ]
         if selected_ids:
             conditions.append(Customer.id.in_(selected_ids))
         else:

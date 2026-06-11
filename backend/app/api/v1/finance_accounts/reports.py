@@ -54,22 +54,30 @@ async def profit_and_loss(
     response.headers["X-Cache"] = "MISS"
     month_expr = date_format(JournalEntry.entry_date, "YYYY-MM")
 
-    lines = (await db.execute(
-        select(Account.type, func.sum(JournalEntryLine.debit).label("debit"),
-               func.sum(JournalEntryLine.credit).label("credit"))
-        .select_from(JournalEntryLine)
-        .join(JournalEntry, JournalEntryLine.entry_id == JournalEntry.id)
-        .join(Account, JournalEntryLine.account_id == Account.id)
-        .where(
-            JournalEntry.status == "posted",
-            month_expr == month,
-            JournalEntry.deleted_at.is_(None),
-            JournalEntryLine.deleted_at.is_(None),
+    lines = (
+        await db.execute(
+            select(
+                Account.type,
+                func.sum(JournalEntryLine.debit).label("debit"),
+                func.sum(JournalEntryLine.credit).label("credit"),
+            )
+            .select_from(JournalEntryLine)
+            .join(JournalEntry, JournalEntryLine.entry_id == JournalEntry.id)
+            .join(Account, JournalEntryLine.account_id == Account.id)
+            .where(
+                JournalEntry.status == "posted",
+                month_expr == month,
+                JournalEntry.deleted_at.is_(None),
+                JournalEntryLine.deleted_at.is_(None),
+            )
+            .group_by(Account.type)
         )
-        .group_by(Account.type)
-    )).all()
+    ).all()
 
-    totals = {row[0]: {"debit": float(row[1] or 0), "credit": float(row[2] or 0)} for row in lines}
+    totals = {
+        row[0]: {"debit": float(row[1] or 0), "credit": float(row[2] or 0)}
+        for row in lines
+    }
 
     income = totals.get("income", {"debit": 0, "credit": 0})
     expense = totals.get("expense", {"debit": 0, "credit": 0})
@@ -84,10 +92,16 @@ async def profit_and_loss(
         "cost_of_goods": round(cost, 2),
         "gross_profit": round(revenue - cost, 2),
         "net_profit": round(net_profit, 2),
-        "details": {k: {"debit": v["debit"], "credit": v["credit"]} for k, v in totals.items()},
+        "details": {
+            k: {"debit": v["debit"], "credit": v["credit"]} for k, v in totals.items()
+        },
     }
-    await cache_set_versioned("finance:reports:pnl", cache_key, json.dumps(payload, default=str),
-                                PNL_REPORT_CACHE_TTL)
+    await cache_set_versioned(
+        "finance:reports:pnl",
+        cache_key,
+        json.dumps(payload, default=str),
+        PNL_REPORT_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -108,14 +122,18 @@ async def accounts_payable(
     from app.models.transaction import PurchaseOrder
     from app.models.product import Supplier
 
-    pos = (await db.execute(
-        select(PurchaseOrder, Supplier.name)
-        .join(Supplier, PurchaseOrder.supplier_id == Supplier.id)
-        .where(
-            PurchaseOrder.deleted_at.is_(None),
-            PurchaseOrder.status.in_(["approved", "in_transit", "partial", "received"]),
+    pos = (
+        await db.execute(
+            select(PurchaseOrder, Supplier.name)
+            .join(Supplier, PurchaseOrder.supplier_id == Supplier.id)
+            .where(
+                PurchaseOrder.deleted_at.is_(None),
+                PurchaseOrder.status.in_(
+                    ["approved", "in_transit", "partial", "received"]
+                ),
+            )
         )
-    )).all()
+    ).all()
 
     now = datetime.datetime.now(datetime.timezone.utc)
     items = []
@@ -123,12 +141,22 @@ async def accounts_payable(
     for po, sup_name in pos:
         age_days = (now - po.created_at).days if po.created_at else 0
         total_ap += float(po.total_amount)
-        items.append({
-            "po_id": po.id, "order_no": po.order_no, "supplier": sup_name,
-            "amount": float(po.total_amount), "status": po.status, "age_days": age_days,
-        })
+        items.append(
+            {
+                "po_id": po.id,
+                "order_no": po.order_no,
+                "supplier": sup_name,
+                "amount": float(po.total_amount),
+                "status": po.status,
+                "age_days": age_days,
+            }
+        )
 
     payload = {"total_ap": round(total_ap, 2), "items": items}
-    await cache_set_versioned("finance:reports:ap", cache_key, json.dumps(payload, default=str),
-                                AP_REPORT_CACHE_TTL)
+    await cache_set_versioned(
+        "finance:reports:ap",
+        cache_key,
+        json.dumps(payload, default=str),
+        AP_REPORT_CACHE_TTL,
+    )
     return ok(payload)

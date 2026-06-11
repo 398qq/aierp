@@ -26,25 +26,41 @@ def _gr(pid: int, qty: int = 10, cost: Decimal = Decimal("10.00")) -> GRLineSnap
     return GRLineSnapshot(product_id=pid, quantity_received=qty, unit_cost=cost)
 
 
-def _inv(pid: int, qty: int = 10, price: Decimal = Decimal("10.00"),
-         amount: Decimal = Decimal("100.00")) -> InvoiceLineSnapshot:
+def _inv(
+    pid: int,
+    qty: int = 10,
+    price: Decimal = Decimal("10.00"),
+    amount: Decimal = Decimal("100.00"),
+) -> InvoiceLineSnapshot:
     return InvoiceLineSnapshot(
-        product_id=pid, quantity=qty, unit_price=price, amount=amount,
+        product_id=pid,
+        quantity=qty,
+        unit_price=price,
+        amount=amount,
     )
 
 
 class TestMatchTolerance:
     def test_within_tolerance_exact(self):
-        assert MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("10.00")) is True
+        assert (
+            MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("10.00")) is True
+        )
 
     def test_within_tolerance_at_boundary(self):
         # 0.1% of 10.00 = 0.01 — within relative tolerance
-        assert MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("10.01")) is True
+        assert (
+            MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("10.01")) is True
+        )
 
     def test_outside_tolerance(self):
         # Diff is 5.00, exceeds both 1.00 absolute and 0.1% relative (0.01)
-        assert MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("15.00")) is False
-        assert MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("100.00")) is False
+        assert (
+            MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("15.00")) is False
+        )
+        assert (
+            MatchTolerance.within_tolerance(Decimal("10.00"), Decimal("100.00"))
+            is False
+        )
 
     def test_zero_reference_uses_absolute(self):
         # When reference is 0, fall back to absolute tolerance (¥1.00)
@@ -57,7 +73,9 @@ class TestThreeWayMatchHappyPath:
         result = match_po_gr_invoice(
             po_lines=[_po(1, qty=10, price=Decimal("10.00"))],
             gr_lines=[_gr(1, qty=10)],
-            invoice_lines=[_inv(1, qty=10, price=Decimal("10.00"), amount=Decimal("100"))],
+            invoice_lines=[
+                _inv(1, qty=10, price=Decimal("10.00"), amount=Decimal("100"))
+            ],
         )
         assert result.status == MatchStatus.MATCHED
         assert result.invoice_total == Decimal("100")
@@ -68,7 +86,10 @@ class TestThreeWayMatchHappyPath:
 
     def test_multiple_lines_all_match(self):
         result = match_po_gr_invoice(
-            po_lines=[_po(1, qty=5, price=Decimal("20")), _po(2, qty=3, price=Decimal("50"))],
+            po_lines=[
+                _po(1, qty=5, price=Decimal("20")),
+                _po(2, qty=3, price=Decimal("50")),
+            ],
             gr_lines=[_gr(1, qty=5), _gr(2, qty=3)],
             invoice_lines=[
                 _inv(1, qty=5, price=Decimal("20"), amount=Decimal("100")),
@@ -111,7 +132,9 @@ class TestThreeWayMatchPriceMismatch:
         result = match_po_gr_invoice(
             po_lines=[_po(1, qty=10, price=Decimal("10.00"))],
             gr_lines=[_gr(1, qty=10)],
-            invoice_lines=[_inv(1, qty=10, price=Decimal("12.00"), amount=Decimal("120"))],
+            invoice_lines=[
+                _inv(1, qty=10, price=Decimal("12.00"), amount=Decimal("120"))
+            ],
         )
         assert result.status == MatchStatus.PRICE_MISMATCH
         assert result.discrepancies[0].discrepancy_type == "price"
@@ -122,7 +145,9 @@ class TestThreeWayMatchPriceMismatch:
         result = match_po_gr_invoice(
             po_lines=[_po(1, qty=10, price=Decimal("10.00"))],
             gr_lines=[_gr(1, qty=10)],
-            invoice_lines=[_inv(1, qty=10, price=Decimal("10.005"), amount=Decimal("100.05"))],
+            invoice_lines=[
+                _inv(1, qty=10, price=Decimal("10.005"), amount=Decimal("100.05"))
+            ],
         )
         assert result.status == MatchStatus.MATCHED
 
@@ -157,7 +182,9 @@ class TestThreeWayMatchEdgeCases:
         types = {d.discrepancy_type for d in result.discrepancies}
         assert "qty" in types
         assert "price" in types
-        price_disc = next(d for d in result.discrepancies if d.discrepancy_type == "price")
+        price_disc = next(
+            d for d in result.discrepancies if d.discrepancy_type == "price"
+        )
         assert price_disc.expected == Decimal("0")
 
     def test_invoice_with_product_not_in_gr(self):
@@ -220,5 +247,5 @@ class TestThreeWayMatchResultTotals:
         )
         # Even when status is MATCHED, all three totals are populated
         assert result.po_total == Decimal("100")  # 10 * 10
-        assert result.gr_total == Decimal("90")   # 10 * 9 (cost, not price)
+        assert result.gr_total == Decimal("90")  # 10 * 9 (cost, not price)
         assert result.invoice_total == Decimal("100")

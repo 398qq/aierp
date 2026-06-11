@@ -16,18 +16,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["public"])
 
 
-async def _send_wecom_notification(inquiry_id: int, contact_name: str,
-                                    contact_info: str, inquiry_text: str,
-                                    reply_text: str, summary: str) -> None:
+async def _send_wecom_notification(
+    inquiry_id: int,
+    contact_name: str,
+    contact_info: str,
+    inquiry_text: str,
+    reply_text: str,
+    summary: str,
+) -> None:
     """
     Send WeCom/WeChat webhook notification to sales team.
     Falls back to logging if webhook URL is not configured.
     """
     try:
         from app.config import settings
+
         webhook_url = getattr(settings, "WECOM_WEBHOOK_URL", None)
         if not webhook_url:
-            logger.warning("[Public Inquiry] WECOM_WEBHOOK_URL not configured, skipping notification")
+            logger.warning(
+                "[Public Inquiry] WECOM_WEBHOOK_URL not configured, skipping notification"
+            )
             return
 
         # Build message payload
@@ -45,13 +53,15 @@ async def _send_wecom_notification(inquiry_id: int, contact_name: str,
         if info_line:
             content_lines.append(info_line)
 
-        content_lines.extend([
-            "",
-            f"**AI 回复摘要**：{summary}",
-            "",
-            f"⏰ 时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
-            f"🔗 InquiryID：{inquiry_id}",
-        ])
+        content_lines.extend(
+            [
+                "",
+                f"**AI 回复摘要**：{summary}",
+                "",
+                f"⏰ 时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
+                f"🔗 InquiryID：{inquiry_id}",
+            ]
+        )
 
         payload = {
             "msgtype": "markdown",
@@ -61,12 +71,17 @@ async def _send_wecom_notification(inquiry_id: int, contact_name: str,
         }
 
         import httpx
+
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(webhook_url, json=payload)
             if resp.status_code == 200:
-                logger.info(f"[Public Inquiry] WeCom notification sent for inquiry {inquiry_id}")
+                logger.info(
+                    f"[Public Inquiry] WeCom notification sent for inquiry {inquiry_id}"
+                )
             else:
-                logger.warning(f"[Public Inquiry] WeCom notification failed: {resp.status_code} {resp.text}")
+                logger.warning(
+                    f"[Public Inquiry] WeCom notification failed: {resp.status_code} {resp.text}"
+                )
 
     except Exception as e:
         logger.exception(f"[Public Inquiry] Failed to send WeCom notification: {e}")

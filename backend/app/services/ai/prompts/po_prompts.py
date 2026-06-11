@@ -4,20 +4,20 @@
 def po_optimization_prompt(po_data: dict) -> str:
     return f"""你是一个电子元器件采购优化专家。优化采购订单：
 
-**采购单：** {po_data.get('order_no', '无')}
-**供应商：** {po_data.get('supplier_name', '无数据')}
-**总金额：** {po_data.get('total_amount', 0)}
+**采购单：** {po_data.get("order_no", "无")}
+**供应商：** {po_data.get("supplier_name", "无数据")}
+**总金额：** {po_data.get("total_amount", 0)}
 
 **采购明细：**
-{po_data.get('items_detail', '无数据')}
+{po_data.get("items_detail", "无数据")}
 
 **库存状态：**
-- 相关产品当前库存：{po_data.get('current_stock', '无数据')}
-- 安全库存：{po_data.get('safety_stock', '无数据')}
-- 近30天日均消耗：{po_data.get('daily_consumption', '无数据')}
+- 相关产品当前库存：{po_data.get("current_stock", "无数据")}
+- 安全库存：{po_data.get("safety_stock", "无数据")}
+- 近30天日均消耗：{po_data.get("daily_consumption", "无数据")}
 
 **其他供应商报价：**
-{po_data.get('alternative_quotes', '无替代报价')}
+{po_data.get("alternative_quotes", "无替代报价")}
 
 请返回：
 1. optimization_score：优化评分 0-100
@@ -33,15 +33,15 @@ def po_auto_suggest_prompt(po_data: dict) -> str:
     return f"""你是一个电子元器件库存管理专家。根据库存状态建议采购：
 
 **库存告警：**
-{po_data.get('stock_alerts', '无数据')}
+{po_data.get("stock_alerts", "无数据")}
 
 **低库存产品：**
-{po_data.get('low_stock_items', '无数据')}
+{po_data.get("low_stock_items", "无数据")}
 
 **历史采购参考：**
-- 近90天采购频率：{po_data.get('purchase_frequency', '无数据')}
-- 供应商报价：{po_data.get('supplier_quotes', '无数据')}
-- 最小起订量：{po_data.get('moq_info', '无数据')}
+- 近90天采购频率：{po_data.get("purchase_frequency", "无数据")}
+- 供应商报价：{po_data.get("supplier_quotes", "无数据")}
+- 最小起订量：{po_data.get("moq_info", "无数据")}
 
 请返回：
 1. urgency_level：紧急程度（低/中/高/紧急）
@@ -55,22 +55,22 @@ def po_auto_suggest_prompt(po_data: dict) -> str:
 def po_risk_assessment_prompt(po_data: dict) -> str:
     return f"""你是一个电子元器件采购风控专家。评估采购订单风险：
 
-**采购单：** {po_data.get('order_no', '无')}
-**供应商：** {po_data.get('supplier_name', '无数据')}
-**金额：** {po_data.get('total_amount', 0)}
-**预计交期：** {po_data.get('expected_date', '无数据')}
+**采购单：** {po_data.get("order_no", "无")}
+**供应商：** {po_data.get("supplier_name", "无数据")}
+**金额：** {po_data.get("total_amount", 0)}
+**预计交期：** {po_data.get("expected_date", "无数据")}
 
 **供应商风险：**
-- 历史延迟率：{po_data.get('supplier_delay_rate', '无数据')}%
-- 质量问题率：{po_data.get('supplier_quality_rate', '无数据')}%
-- 财务稳定性：{po_data.get('supplier_financial', '未知')}
+- 历史延迟率：{po_data.get("supplier_delay_rate", "无数据")}%
+- 质量问题率：{po_data.get("supplier_quality_rate", "无数据")}%
+- 财务稳定性：{po_data.get("supplier_financial", "未知")}
 
 **单品风险：**
-{po_data.get('item_risks', '无数据')}
+{po_data.get("item_risks", "无数据")}
 
 **市场风险：**
-- 品类供需状态：{po_data.get('market_supply', '未知')}
-- 价格趋势：{po_data.get('price_trend', '未知')}
+- 品类供需状态：{po_data.get("market_supply", "未知")}
+- 价格趋势：{po_data.get("price_trend", "未知")}
 
 请返回：
 1. overall_risk：整体风险等级（低/中/高）

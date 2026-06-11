@@ -20,16 +20,20 @@ class TestWeightedAverageCost:
     def test_first_receipt_sets_cost(self):
         wac = WeightedAverageCost()
         cost = wac.compute_new_unit_cost(
-            current_qty=D(0), current_avg_cost=D(0),
-            incoming_qty=D(100), incoming_unit_cost=D(50),
+            current_qty=D(0),
+            current_avg_cost=D(0),
+            incoming_qty=D(100),
+            incoming_unit_cost=D(50),
         )
         assert cost == D("50.0000")
 
     def test_no_incoming_keeps_current_cost(self):
         wac = WeightedAverageCost()
         cost = wac.compute_new_unit_cost(
-            current_qty=D(100), current_avg_cost=D(50),
-            incoming_qty=D(0), incoming_unit_cost=D(99),
+            current_qty=D(100),
+            current_avg_cost=D(50),
+            incoming_qty=D(0),
+            incoming_unit_cost=D(99),
         )
         assert cost == D("50.0000")
 
@@ -42,8 +46,10 @@ class TestWeightedAverageCost:
         """100 @ 50 + 100 @ 60 → new avg = 55"""
         wac = WeightedAverageCost()
         cost = wac.compute_new_unit_cost(
-            current_qty=D(100), current_avg_cost=D(50),
-            incoming_qty=D(100), incoming_unit_cost=D(60),
+            current_qty=D(100),
+            current_avg_cost=D(50),
+            incoming_qty=D(100),
+            incoming_unit_cost=D(60),
         )
         assert cost == D("55.0000")
 
@@ -51,8 +57,10 @@ class TestWeightedAverageCost:
         """10 @ 100 + 90 @ 50 → (1000 + 4500) / 100 = 55"""
         wac = WeightedAverageCost()
         cost = wac.compute_new_unit_cost(
-            current_qty=D(10), current_avg_cost=D(100),
-            incoming_qty=D(90), incoming_unit_cost=D(50),
+            current_qty=D(10),
+            current_avg_cost=D(100),
+            incoming_qty=D(90),
+            incoming_unit_cost=D(50),
         )
         assert cost == D("55.0000")
 
@@ -60,8 +68,10 @@ class TestWeightedAverageCost:
         """0.1 + 0.2 = 0.3 (no float drift)"""
         wac = WeightedAverageCost()
         cost = wac.compute_new_unit_cost(
-            current_qty=D(1), current_avg_cost=D("0.1"),
-            incoming_qty=D(1), incoming_unit_cost=D("0.2"),
+            current_qty=D(1),
+            current_avg_cost=D("0.1"),
+            incoming_qty=D(1),
+            incoming_unit_cost=D("0.2"),
         )
         # (1 * 0.1 + 1 * 0.2) / 2 = 0.15
         assert cost == D("0.1500")
@@ -93,10 +103,13 @@ class TestWeightedAverageCost:
 class TestFIFOCost:
     def test_incoming_keeps_own_cost(self):
         from app.domain.inventory import FIFOCost
+
         fifo = FIFOCost()
         cost = fifo.compute_new_unit_cost(
-            current_qty=D(100), current_avg_cost=D(50),
-            incoming_qty=D(50), incoming_unit_cost=D(80),
+            current_qty=D(100),
+            current_avg_cost=D(50),
+            incoming_qty=D(50),
+            incoming_unit_cost=D(80),
         )
         assert cost == D("80.0000")
 
@@ -153,8 +166,10 @@ class TestStandardCost:
     def test_standard_cost_ignores_incoming(self):
         std = StandardCost(D(50))
         cost = std.compute_new_unit_cost(
-            current_qty=D(100), current_avg_cost=D(50),
-            incoming_qty=D(10), incoming_unit_cost=D(99),  # ignored
+            current_qty=D(100),
+            current_avg_cost=D(50),
+            incoming_qty=D(10),
+            incoming_unit_cost=D(99),  # ignored
         )
         assert cost == D("50.0000")
 
@@ -182,6 +197,7 @@ class TestCostStrategyFactory:
 
     def test_make_fifo(self):
         from app.domain.inventory import FIFOCost
+
         s = make_cost_strategy("fifo")
         assert isinstance(s, FIFOCost)
 
@@ -207,6 +223,7 @@ class TestCostStrategyContract:
 
     def test_cannot_instantiate_abstract(self):
         from app.domain.inventory.cost_strategy import CostStrategy
+
         with pytest.raises(TypeError):
             CostStrategy()
 

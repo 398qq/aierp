@@ -132,7 +132,12 @@ async def test_aggregate_timeline_returns_oldest_first(db: AsyncSession):
 
     timeline = await get_aggregate_timeline(db, "SalesOrder", 100)
     assert len(timeline) == 4
-    assert [t.status_after for t in timeline] == ["pending", "confirmed", "shipped", "completed"]
+    assert [t.status_after for t in timeline] == [
+        "pending",
+        "confirmed",
+        "shipped",
+        "completed",
+    ]
     assert [t.action for t in timeline] == ["create", "confirm", "ship", "complete"]
 
 
@@ -171,9 +176,13 @@ async def test_aggregate_timeline_filters_by_aggregate_type(db: AsyncSession):
 @pytest.mark.asyncio
 async def test_customer_timeline_returns_newest_first(db: AsyncSession):
     # 2 transitions for customer 1
-    await log_transition(db, "SalesOrder", 100, None, "pending", "create", customer_id=1)
+    await log_transition(
+        db, "SalesOrder", 100, None, "pending", "create", customer_id=1
+    )
     await db.commit()
-    await log_transition(db, "SalesOrder", 100, "pending", "confirmed", "confirm", customer_id=1)
+    await log_transition(
+        db, "SalesOrder", 100, "pending", "confirmed", "confirm", customer_id=1
+    )
     await db.commit()
 
     timeline = await get_customer_timeline(db, customer_id=1)
@@ -185,8 +194,12 @@ async def test_customer_timeline_returns_newest_first(db: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_customer_timeline_filters_by_customer(db: AsyncSession):
-    await log_transition(db, "SalesOrder", 100, None, "pending", "create", customer_id=1)
-    await log_transition(db, "SalesOrder", 200, None, "pending", "create", customer_id=2)
+    await log_transition(
+        db, "SalesOrder", 100, None, "pending", "create", customer_id=1
+    )
+    await log_transition(
+        db, "SalesOrder", 200, None, "pending", "create", customer_id=2
+    )
     await db.commit()
 
     cust_1 = await get_customer_timeline(db, customer_id=1)
@@ -211,13 +224,12 @@ async def test_customer_timeline_respects_limit(db: AsyncSession):
 @pytest.mark.asyncio
 async def test_audit_log_does_not_commit(db: AsyncSession):
     """log_transition only flushes; caller controls commit atomicity."""
-    await log_transition(
-        db, "SalesOrder", 100, None, "pending", "create"
-    )
+    await log_transition(db, "SalesOrder", 100, None, "pending", "create")
     # No commit yet
     # Verify it's visible within session (flushed)
     from sqlalchemy import select
     from app.models.audit import StatusTransitionLog
+
     result = await db.execute(select(StatusTransitionLog))
     assert len(result.scalars().all()) == 1
 

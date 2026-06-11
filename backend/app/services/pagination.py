@@ -18,14 +18,14 @@ async def paginate(
     page_size: int = 20,
 ) -> dict:
     """Execute a query with pagination and return {list, total, page, page_size}."""
-    total = (await db.scalar(
-        select(func.count()).select_from(base_query.subquery())
-    )) or 0
+    total = (
+        await db.scalar(select(func.count()).select_from(base_query.subquery()))
+    ) or 0
 
     offset = (page - 1) * page_size
-    rows = (await db.execute(
-        base_query.offset(offset).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (await db.execute(base_query.offset(offset).limit(page_size))).scalars().all()
+    )
 
     return {
         "list": rows,

@@ -54,7 +54,9 @@ class DeliveryNoteService(BaseCRUDService):
         sort_order: str = "desc",
     ) -> dict:
         base = select(DeliveryNote).where(DeliveryNote.deleted_at.is_(None))
-        cnt = select(func.count(DeliveryNote.id)).where(DeliveryNote.deleted_at.is_(None))
+        cnt = select(func.count(DeliveryNote.id)).where(
+            DeliveryNote.deleted_at.is_(None)
+        )
 
         if customer_id:
             base = base.where(DeliveryNote.customer_id == customer_id)
@@ -91,12 +93,19 @@ class DeliveryNoteService(BaseCRUDService):
         total = (await db.execute(cnt)).scalar() or 0
 
         allowed_sorts = {
-            "id", "delivery_no", "status", "delivery_date",
-            "received_date", "created_at", "updated_at",
+            "id",
+            "delivery_no",
+            "status",
+            "delivery_date",
+            "received_date",
+            "created_at",
+            "updated_at",
         }
         sort_by = sort_by if sort_by in allowed_sorts else "id"
         sort_col = getattr(DeliveryNote, sort_by, DeliveryNote.id)
-        base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
+        base = base.order_by(
+            sort_col.desc() if sort_order == "desc" else sort_col.asc()
+        )
         rows = (
             (await db.execute(base.offset((page - 1) * page_size).limit(page_size)))
             .scalars()
@@ -154,7 +163,9 @@ class DeliveryNoteService(BaseCRUDService):
         data: dict,
         items_data: list[dict] | None = None,
     ) -> DeliveryNote:
-        items_data = await self._apply_sales_order_to_delivery_data(db, data, items_data)
+        items_data = await self._apply_sales_order_to_delivery_data(
+            db, data, items_data
+        )
         if not data.get("delivery_no"):
             data["delivery_no"] = await generate_doc_no(
                 db, "DN", DeliveryNote, "delivery_no"
@@ -275,12 +286,12 @@ class DeliveryNoteService(BaseCRUDService):
                 except Exception as e:
                     logger.error(
                         "Auto-deduct failed DN#%s product#%s: %s",
-                        note.id, item.product_id, e,
+                        note.id,
+                        item.product_id,
+                        e,
                     )
 
-    async def _auto_lock_sales_order(
-        self, db: AsyncSession, order: SalesOrder
-    ) -> None:
+    async def _auto_lock_sales_order(self, db: AsyncSession, order: SalesOrder) -> None:
         """Auto-lock inventory per item on sales order confirmed."""
         result = await db.execute(select(Warehouse.id).limit(1))
         warehouse_id = result.scalar() or 1
@@ -298,19 +309,24 @@ class DeliveryNoteService(BaseCRUDService):
                 except InsufficientStockError as e:
                     logger.warning(
                         "Auto-lock short SO#%s product#%s requested=%s available=%s",
-                        order.id, item.product_id,
-                        e.context.get("requested"), e.context.get("available"),
+                        order.id,
+                        item.product_id,
+                        e.context.get("requested"),
+                        e.context.get("available"),
                     )
                 except Exception as e:
                     logger.error(
                         "Auto-lock failed SO#%s product#%s: %s",
-                        order.id, item.product_id, e,
+                        order.id,
+                        item.product_id,
+                        e,
                     )
 
         if total_requested > 0 and total_locked == 0:
             logger.warning(
                 "Order SO#%s confirmed but NO stock locked (%s requested)",
-                order.id, total_requested,
+                order.id,
+                total_requested,
             )
 
 

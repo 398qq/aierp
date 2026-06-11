@@ -15,14 +15,16 @@ from app.domain.procurement.three_way_match import (
 
 def _po(product_id: int, qty: int = 10, price: str = "100.0") -> POLineSnapshot:
     return POLineSnapshot(
-        product_id=product_id, quantity=qty,
+        product_id=product_id,
+        quantity=qty,
         unit_price=Decimal(price),
     )
 
 
 def _gr(product_id: int, qty: int = 10, cost: str = "100.0") -> GRLineSnapshot:
     return GRLineSnapshot(
-        product_id=product_id, quantity_received=qty,
+        product_id=product_id,
+        quantity_received=qty,
         unit_cost=Decimal(cost),
     )
 
@@ -31,8 +33,10 @@ def _inv(
     product_id: int, qty: int = 10, price: str = "100.0", amount: str = "1000.0"
 ) -> InvoiceLineSnapshot:
     return InvoiceLineSnapshot(
-        product_id=product_id, quantity=qty,
-        unit_price=Decimal(price), amount=Decimal(amount),
+        product_id=product_id,
+        quantity=qty,
+        unit_price=Decimal(price),
+        amount=Decimal(amount),
     )
 
 
@@ -41,27 +45,25 @@ class TestMatchTolerance:
         assert MatchTolerance.within_tolerance(Decimal("100"), Decimal("100")) is True
 
     def test_within_1_yuan_tolerance(self):
-        assert MatchTolerance.within_tolerance(
-            Decimal("100"), Decimal("100.5")
-        ) is True
+        assert MatchTolerance.within_tolerance(Decimal("100"), Decimal("100.5")) is True
 
     def test_within_pct_tolerance(self):
         # 0.05% off
-        assert MatchTolerance.within_tolerance(
-            Decimal("10000"), Decimal("10005")
-        ) is True
+        assert (
+            MatchTolerance.within_tolerance(Decimal("10000"), Decimal("10005")) is True
+        )
 
     def test_outside_both_tolerances(self):
         # 5% off
-        assert MatchTolerance.within_tolerance(
-            Decimal("1000"), Decimal("1050")
-        ) is False
+        assert (
+            MatchTolerance.within_tolerance(Decimal("1000"), Decimal("1050")) is False
+        )
 
     def test_pct_uses_actual_not_expected(self):
         # 0.5% off, just outside
-        assert MatchTolerance.within_tolerance(
-            Decimal("10000"), Decimal("10050")
-        ) is False
+        assert (
+            MatchTolerance.within_tolerance(Decimal("10000"), Decimal("10050")) is False
+        )
 
 
 class TestThreeWayMatchHappyPath:

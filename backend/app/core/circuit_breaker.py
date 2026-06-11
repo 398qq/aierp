@@ -106,14 +106,17 @@ class CircuitBreaker:
 
         if self._state == CircuitState.HALF_OPEN:
             # Trial failed → back to OPEN
-            logger.warning("Circuit breaker '%s' re-OPENED after trial failure", self.name)
+            logger.warning(
+                "Circuit breaker '%s' re-OPENED after trial failure", self.name
+            )
             self._state = CircuitState.OPEN
             self._opened_at = time.monotonic()
         elif self._state == CircuitState.CLOSED:
             if self._consecutive_failures >= self.fail_max:
                 logger.warning(
                     "Circuit breaker '%s' OPENED after %d consecutive failures",
-                    self.name, self._consecutive_failures,
+                    self.name,
+                    self._consecutive_failures,
                 )
                 self._state = CircuitState.OPEN
                 self._opened_at = time.monotonic()
@@ -151,8 +154,12 @@ class CircuitOpenError(Exception):
 
 ai_breaker = CircuitBreaker(name="ai_provider", fail_max=5, reset_timeout=60)
 ocr_breaker = CircuitBreaker(name="ocr_service", fail_max=10, reset_timeout=30)
-notification_breaker = CircuitBreaker(name="notification_service", fail_max=20, reset_timeout=30)
-logistics_breaker = CircuitBreaker(name="logistics_service", fail_max=5, reset_timeout=120)
+notification_breaker = CircuitBreaker(
+    name="notification_service", fail_max=20, reset_timeout=30
+)
+logistics_breaker = CircuitBreaker(
+    name="logistics_service", fail_max=5, reset_timeout=120
+)
 
 _REGISTRY: dict[str, CircuitBreaker] = {
     "ai": ai_breaker,
@@ -221,9 +228,14 @@ def protected(
         async def call_ai(...):
             ...
     """
+
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
-            return await call_with_breaker(name, func, *args, fallback=fallback, **kwargs)
+            return await call_with_breaker(
+                name, func, *args, fallback=fallback, **kwargs
+            )
+
         return wrapper
+
     return decorator

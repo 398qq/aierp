@@ -74,7 +74,9 @@ def _run_kmeans(
 
 class EmbeddingService(BaseAgent):
     name = "embedding"
-    description = "Vector embeddings and similarity search for customers, products, suppliers."
+    description = (
+        "Vector embeddings and similarity search for customers, products, suppliers."
+    )
 
     # ---- Text builders ----
 
@@ -119,15 +121,21 @@ class EmbeddingService(BaseAgent):
 
     @staticmethod
     async def embed_customer(customer_data: dict) -> list[float]:
-        return await ai_client.embed_single(EmbeddingService._customer_text(customer_data))
+        return await ai_client.embed_single(
+            EmbeddingService._customer_text(customer_data)
+        )
 
     @staticmethod
     async def embed_product(product_data: dict) -> list[float]:
-        return await ai_client.embed_single(EmbeddingService._product_text(product_data))
+        return await ai_client.embed_single(
+            EmbeddingService._product_text(product_data)
+        )
 
     @staticmethod
     async def embed_supplier(supplier_data: dict) -> list[float]:
-        return await ai_client.embed_single(EmbeddingService._supplier_text(supplier_data))
+        return await ai_client.embed_single(
+            EmbeddingService._supplier_text(supplier_data)
+        )
 
     # ---- Similarity search ----
 
@@ -147,7 +155,10 @@ class EmbeddingService(BaseAgent):
 
         result = await db_session.execute(
             select(
-                Customer.id, Customer.name, Customer.industry, Customer.region,
+                Customer.id,
+                Customer.name,
+                Customer.industry,
+                Customer.region,
                 Customer.embedding.cosine_distance(embedding).label("distance"),
             )
             .where(*cond)
@@ -157,7 +168,10 @@ class EmbeddingService(BaseAgent):
         rows = result.all()
         return [
             {
-                "id": r[0], "name": r[1], "industry": r[2], "region": r[3],
+                "id": r[0],
+                "name": r[1],
+                "industry": r[2],
+                "region": r[3],
                 "similarity": round(1 - float(r[4]) / 2, 4),
             }
             for r in rows
@@ -177,12 +191,16 @@ class EmbeddingService(BaseAgent):
         exclude_id: int | None = None,
     ) -> list[dict]:
         from app.models.product import Supplier
+
         cond: list = [Supplier.embedding.isnot(None), Supplier.deleted_at.is_(None)]
         if exclude_id is not None:
             cond.append(Supplier.id != exclude_id)
         result = await db_session.execute(
             select(
-                Supplier.id, Supplier.name, Supplier.product_lines, Supplier.region,
+                Supplier.id,
+                Supplier.name,
+                Supplier.product_lines,
+                Supplier.region,
                 Supplier.embedding.cosine_distance(embedding).label("distance"),
             )
             .where(*cond)
@@ -192,14 +210,19 @@ class EmbeddingService(BaseAgent):
         rows = result.all()
         return [
             {
-                "id": r[0], "name": r[1], "product_lines": r[2], "region": r[3],
+                "id": r[0],
+                "name": r[1],
+                "product_lines": r[2],
+                "region": r[3],
                 "similarity": round(1 - float(r[4]) / 2, 4),
             }
             for r in rows
         ]
 
     @staticmethod
-    async def similar_suppliers_by_text(query: str, db_session, top_k: int = 10) -> list[dict]:
+    async def similar_suppliers_by_text(
+        query: str, db_session, top_k: int = 10
+    ) -> list[dict]:
         embedding = await ai_client.embed_single(query)
         return await EmbeddingService.similar_suppliers(embedding, db_session, top_k)
 
@@ -210,29 +233,48 @@ class EmbeddingService(BaseAgent):
         """Generate embeddings for all customers that lack them. Cursor-paginated."""
         from app.models.customer import Customer
 
-        id_rows = (await db_session.execute(
-            select(Customer.id).where(
-                Customer.deleted_at.is_(None), Customer.embedding.is_(None)
+        id_rows = (
+            (
+                await db_session.execute(
+                    select(Customer.id).where(
+                        Customer.deleted_at.is_(None), Customer.embedding.is_(None)
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
 
         indexed, errors = 0, 0
         total = len(id_rows)
         processed = 0
 
         while processed < total:
-            batch_ids = id_rows[processed: processed + batch_size]
-            batch = (await db_session.execute(
-                select(Customer).where(Customer.id.in_(batch_ids))
-            )).scalars().all()
+            batch_ids = id_rows[processed : processed + batch_size]
+            batch = (
+                (
+                    await db_session.execute(
+                        select(Customer).where(Customer.id.in_(batch_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
             processed += len(batch_ids)
 
             texts = [
-                EmbeddingService._customer_text({
-                    "name": c.name, "industry": c.industry, "region": c.region,
-                    "customer_type": c.customer_type, "level": c.level,
-                    "credit_level": c.credit_level, "source": c.source, "notes": c.notes,
-                })
+                EmbeddingService._customer_text(
+                    {
+                        "name": c.name,
+                        "industry": c.industry,
+                        "region": c.region,
+                        "customer_type": c.customer_type,
+                        "level": c.level,
+                        "credit_level": c.credit_level,
+                        "source": c.source,
+                        "notes": c.notes,
+                    }
+                )
                 for c in batch
             ]
             try:
@@ -242,28 +284,47 @@ class EmbeddingService(BaseAgent):
                 indexed += len(batch)
                 await db_session.flush()
             except Exception:
-                logger.exception("Embed customer batch offset %s failed", processed - batch_size)
+                logger.exception(
+                    "Embed customer batch offset %s failed", processed - batch_size
+                )
                 errors += len(batch)
 
-        return {"indexed": indexed, "skipped": total - indexed - errors, "errors": errors}
+        return {
+            "indexed": indexed,
+            "skipped": total - indexed - errors,
+            "errors": errors,
+        }
 
     @staticmethod
     async def index_all_products(db_session, batch_size: int = 50) -> dict:
         from app.models.product import Product
-        id_rows = (await db_session.execute(
-            select(Product.id).where(
-                Product.deleted_at.is_(None), Product.embedding.is_(None)
+
+        id_rows = (
+            (
+                await db_session.execute(
+                    select(Product.id).where(
+                        Product.deleted_at.is_(None), Product.embedding.is_(None)
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
 
         indexed, errors = 0, 0
         total = len(id_rows)
         processed = 0
         while processed < total:
-            batch_ids = id_rows[processed: processed + batch_size]
-            batch = (await db_session.execute(
-                select(Product).where(Product.id.in_(batch_ids))
-            )).scalars().all()
+            batch_ids = id_rows[processed : processed + batch_size]
+            batch = (
+                (
+                    await db_session.execute(
+                        select(Product).where(Product.id.in_(batch_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
             processed += len(batch_ids)
             texts = [
                 f"型号：{p.sku or ''}，名称：{p.name}，品类：{p.category or ''}，"
@@ -277,26 +338,45 @@ class EmbeddingService(BaseAgent):
                 indexed += len(batch)
                 await db_session.flush()
             except Exception:
-                logger.exception("Embed product batch offset %s failed", processed - batch_size)
+                logger.exception(
+                    "Embed product batch offset %s failed", processed - batch_size
+                )
                 errors += len(batch)
-        return {"indexed": indexed, "skipped": total - indexed - errors, "errors": errors}
+        return {
+            "indexed": indexed,
+            "skipped": total - indexed - errors,
+            "errors": errors,
+        }
 
     @staticmethod
     async def index_all_suppliers(db_session, batch_size: int = 50) -> dict:
         from app.models.product import Supplier
-        id_rows = (await db_session.execute(
-            select(Supplier.id).where(
-                Supplier.deleted_at.is_(None), Supplier.embedding.is_(None)
+
+        id_rows = (
+            (
+                await db_session.execute(
+                    select(Supplier.id).where(
+                        Supplier.deleted_at.is_(None), Supplier.embedding.is_(None)
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         indexed, errors = 0, 0
         total = len(id_rows)
         processed = 0
         while processed < total:
-            batch_ids = id_rows[processed: processed + batch_size]
-            batch = (await db_session.execute(
-                select(Supplier).where(Supplier.id.in_(batch_ids))
-            )).scalars().all()
+            batch_ids = id_rows[processed : processed + batch_size]
+            batch = (
+                (
+                    await db_session.execute(
+                        select(Supplier).where(Supplier.id.in_(batch_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
             processed += len(batch_ids)
             texts = [
                 f"供应商：{s.name}，产品线：{s.product_lines or ''}，"
@@ -312,9 +392,15 @@ class EmbeddingService(BaseAgent):
                 indexed += len(batch)
                 await db_session.flush()
             except Exception:
-                logger.exception("Embed supplier batch offset %s failed", processed - batch_size)
+                logger.exception(
+                    "Embed supplier batch offset %s failed", processed - batch_size
+                )
                 errors += len(batch)
-        return {"indexed": indexed, "skipped": total - indexed - errors, "errors": errors}
+        return {
+            "indexed": indexed,
+            "skipped": total - indexed - errors,
+            "errors": errors,
+        }
 
     @staticmethod
     async def index_all(db_session, batch_size: int = 50) -> dict:
@@ -326,8 +412,12 @@ class EmbeddingService(BaseAgent):
             "customers": customers,
             "products": products,
             "suppliers": suppliers,
-            "total_indexed": customers["indexed"] + products["indexed"] + suppliers["indexed"],
-            "total_errors": customers["errors"] + products["errors"] + suppliers["errors"],
+            "total_indexed": customers["indexed"]
+            + products["indexed"]
+            + suppliers["indexed"],
+            "total_errors": customers["errors"]
+            + products["errors"]
+            + suppliers["errors"],
         }
 
     # ---- Clustering ----
@@ -342,21 +432,34 @@ class EmbeddingService(BaseAgent):
         from app.models.customer import Customer
 
         result = await db_session.execute(
-            select(Customer.id, Customer.name, Customer.embedding, Customer.industry, Customer.level)
-            .where(Customer.embedding.isnot(None), Customer.deleted_at.is_(None))
+            select(
+                Customer.id,
+                Customer.name,
+                Customer.embedding,
+                Customer.industry,
+                Customer.level,
+            ).where(Customer.embedding.isnot(None), Customer.deleted_at.is_(None))
         )
         rows = result.all()
         if len(rows) < n_clusters:
-            return {"clusters": [], "error": f"Need at least {n_clusters} customers with embeddings"}
+            return {
+                "clusters": [],
+                "error": f"Need at least {n_clusters} customers with embeddings",
+            }
 
         embeddings = [list(r[2]) for r in rows]
         labels, centroids = await asyncio.to_thread(_run_kmeans, embeddings, n_clusters)
 
         clusters: dict[int, list[dict]] = defaultdict(list)
         for i, r in enumerate(rows):
-            clusters[labels[i]].append({
-                "id": r[0], "name": r[1], "industry": r[3], "level": r[4],
-            })
+            clusters[labels[i]].append(
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "industry": r[3],
+                    "level": r[4],
+                }
+            )
 
         # Map member id → its embedding index
         id_to_idx = {r[0]: i for i, r in enumerate(rows)}
@@ -369,7 +472,8 @@ class EmbeddingService(BaseAgent):
             avg_sim = (
                 sum(1 - _euclidean_sq(e, centroid) ** 0.5 / dim for e in member_embs)
                 / len(members)
-                if members else 0
+                if members
+                else 0
             )
             avg_sim = round(avg_sim, 4)
 
@@ -381,18 +485,26 @@ class EmbeddingService(BaseAgent):
 
             industries = [m["industry"] for m in members]
             levels = [m["level"] for m in members]
-            common_industry = max(set(industries), key=lambda x: industries.count(x)) if industries else None
-            common_level = max(set(levels), key=lambda x: levels.count(x)) if levels else None
+            common_industry = (
+                max(set(industries), key=lambda x: industries.count(x))
+                if industries
+                else None
+            )
+            common_level = (
+                max(set(levels), key=lambda x: levels.count(x)) if levels else None
+            )
 
-            result_clusters.append({
-                "id": j,
-                "size": len(members),
-                "avg_similarity": avg_sim,
-                "sample_names": sample_names,
-                "common_industry": common_industry,
-                "common_level": common_level,
-                "label": f"群组{j + 1} ({common_industry or '未知行业'}·{common_level or '未知等级'})",
-            })
+            result_clusters.append(
+                {
+                    "id": j,
+                    "size": len(members),
+                    "avg_similarity": avg_sim,
+                    "sample_names": sample_names,
+                    "common_industry": common_industry,
+                    "common_level": common_level,
+                    "label": f"群组{j + 1} ({common_industry or '未知行业'}·{common_level or '未知等级'})",
+                }
+            )
 
         result_clusters.sort(key=lambda x: -int(x["size"]))
         return {"clusters": result_clusters, "total": len(rows)}

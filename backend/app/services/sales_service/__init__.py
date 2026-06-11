@@ -12,6 +12,7 @@ Public surface (re-exported here for back-compat):
 - :mod:`.targets`        — Sales target CRUD + stats
 - :mod:`._helpers`       — search-id and item-normalize helpers
 """
+
 from __future__ import annotations
 
 from app.services.sales_service.delivery_notes import (

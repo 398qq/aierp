@@ -54,24 +54,50 @@ async def list_samples(
         count_base = count_base.where(Sample.status == status)
 
     total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(Sample.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                base.order_by(Sample.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    return ok({
-        "list": [{"id": s.id, "customer_id": s.customer_id, "product_id": s.product_id,
-                  "quantity": s.quantity, "unit": s.unit,
-                  "apply_date": str(s.apply_date) if s.apply_date else None,
-                  "ship_date": str(s.ship_date) if s.ship_date else None,
-                  "receive_date": str(s.receive_date) if s.receive_date else None,
-                  "status": s.status, "tracking_number": s.tracking_number,
-                  "notes": s.notes, "created_at": str(s.created_at)} for s in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
+    return ok(
+        {
+            "list": [
+                {
+                    "id": s.id,
+                    "customer_id": s.customer_id,
+                    "product_id": s.product_id,
+                    "quantity": s.quantity,
+                    "unit": s.unit,
+                    "apply_date": str(s.apply_date) if s.apply_date else None,
+                    "ship_date": str(s.ship_date) if s.ship_date else None,
+                    "receive_date": str(s.receive_date) if s.receive_date else None,
+                    "status": s.status,
+                    "tracking_number": s.tracking_number,
+                    "notes": s.notes,
+                    "created_at": str(s.created_at),
+                }
+                for s in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @sample_router.post("", status_code=201)
-async def create_sample(body: SampleCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_sample(
+    body: SampleCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     data = body.model_dump()
     for date_field in ("apply_date", "ship_date", "receive_date"):
         if data.get(date_field):

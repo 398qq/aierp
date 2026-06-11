@@ -64,7 +64,9 @@ _EARLY_WARNING_SCHEMA = {
             "reason": "string",
         }
     ],
-    "top_performers": [{"user_name": "string", "attainment_pct": "number", "highlight": "string"}],
+    "top_performers": [
+        {"user_name": "string", "attainment_pct": "number", "highlight": "string"}
+    ],
     "systemic_issues": ["string: issues affecting team-wide attainment"],
     "recommendations": ["string: management recommendations"],
     "forecast_attainment": "number: projected final attainment percentage",
@@ -125,7 +127,9 @@ async def recommend_targets(db: AsyncSession, user_id: int) -> dict:
     last_attainment = round(last_actual / last_target * 100, 1) if last_target else 0
 
     monthly_totals = [float(t.actual_amount) for t in targets if t.actual_amount]
-    monthly_avg = round(sum(monthly_totals) / len(monthly_totals), 2) if monthly_totals else 0
+    monthly_avg = (
+        round(sum(monthly_totals) / len(monthly_totals), 2) if monthly_totals else 0
+    )
 
     # YoY growth: compare this-year vs last-year same month
     yoy_growth = 0
@@ -229,7 +233,9 @@ async def predict_attainment(db: AsyncSession, target_id: int) -> dict:
 
     target_amount = float(target.target_amount)
     actual_amount = float(target.actual_amount or 0)
-    attainment_pct = round(actual_amount / target_amount * 100, 1) if target_amount else 0
+    attainment_pct = (
+        round(actual_amount / target_amount * 100, 1) if target_amount else 0
+    )
     user_name = await _get_user_name(db, target.user_id)
 
     # -- Remaining days --
@@ -280,7 +286,12 @@ async def predict_attainment(db: AsyncSession, target_id: int) -> dict:
 
     # -- Pipeline opportunities for this target's user --
     pipeline_rows = await db.execute(
-        select(Opportunity.name, Opportunity.amount, Opportunity.stage, Opportunity.probability).where(
+        select(
+            Opportunity.name,
+            Opportunity.amount,
+            Opportunity.stage,
+            Opportunity.probability,
+        ).where(
             Opportunity.deleted_at.is_(None),
             Opportunity.stage.notin_(["won", "lost"]),
         )
@@ -292,7 +303,11 @@ async def predict_attainment(db: AsyncSession, target_id: int) -> dict:
     ]
     # Expected conversion = sum(amount * probability)
     expected_conversion = round(
-        sum(float(o.amount or 0) * (int(o.probability or 0) / 100) for o in pipeline_opps), 2
+        sum(
+            float(o.amount or 0) * (int(o.probability or 0) / 100)
+            for o in pipeline_opps
+        ),
+        2,
     )
 
     prompt_data = {
@@ -303,7 +318,9 @@ async def predict_attainment(db: AsyncSession, target_id: int) -> dict:
         "recent_monthly_avg": recent_monthly_avg,
         "mtd_amount": mtd_amount,
         "mom_growth": mom_growth,
-        "pipeline_opportunities": json.dumps(pipeline_opportunities, ensure_ascii=False, default=str),
+        "pipeline_opportunities": json.dumps(
+            pipeline_opportunities, ensure_ascii=False, default=str
+        ),
         "expected_conversion": expected_conversion,
     }
 
@@ -325,7 +342,11 @@ async def predict_attainment(db: AsyncSession, target_id: int) -> dict:
             "predicted_amount": actual_amount + expected_conversion,
             "gap": max(0, target_amount - actual_amount - expected_conversion),
             "confidence": 30,
-            "trend": "差距大" if attainment_pct < 70 else "接近" if attainment_pct < 95 else "达成",
+            "trend": "差距大"
+            if attainment_pct < 70
+            else "接近"
+            if attainment_pct < 95
+            else "达成",
             "key_opportunities": [],
             "catch_up_plan": [],
             "early_warning": attainment_pct < 60,
@@ -392,19 +413,23 @@ async def scan_target_early_warning(db: AsyncSession) -> dict:
         pct = round(amt / tgt * 100, 1) if tgt else 0
         company_target += tgt
         company_actual += amt
-        user_summaries.append({
-            "id": t_id,
-            "user_id": u_id,
-            "user_name": username,
-            "target": tgt,
-            "actual": amt,
-            "attainment_pct": pct,
-            "target_type": t_type,
-            "period_start": p_start.isoformat() if p_start else None,
-            "period_end": p_end.isoformat() if p_end else None,
-        })
+        user_summaries.append(
+            {
+                "id": t_id,
+                "user_id": u_id,
+                "user_name": username,
+                "target": tgt,
+                "actual": amt,
+                "attainment_pct": pct,
+                "target_type": t_type,
+                "period_start": p_start.isoformat() if p_start else None,
+                "period_end": p_end.isoformat() if p_end else None,
+            }
+        )
 
-    overall_attainment = round(company_actual / company_target * 100, 1) if company_target else 0
+    overall_attainment = (
+        round(company_actual / company_target * 100, 1) if company_target else 0
+    )
 
     # Time progress: compute average elapsed fraction across all targets
     time_progress = 0.0
@@ -450,17 +475,31 @@ async def scan_target_early_warning(db: AsyncSession) -> dict:
                 "target": u["target"],
                 "actual": u["actual"],
                 "attainment_pct": u["attainment_pct"],
-                "risk_level": "高" if u["attainment_pct"] < 60 else "中" if u["attainment_pct"] < 80 else "低",
+                "risk_level": "高"
+                if u["attainment_pct"] < 60
+                else "中"
+                if u["attainment_pct"] < 80
+                else "低",
                 "reason": f"达成率仅{u['attainment_pct']}%，时间进度{time_progress}%",
             }
-            for u in user_summaries if u["attainment_pct"] < 80
+            for u in user_summaries
+            if u["attainment_pct"] < 80
         ]
         top_performers = [
-            {"user_name": u["user_name"], "attainment_pct": u["attainment_pct"], "highlight": "超额完成"}
-            for u in user_summaries if u["attainment_pct"] >= 100
+            {
+                "user_name": u["user_name"],
+                "attainment_pct": u["attainment_pct"],
+                "highlight": "超额完成",
+            }
+            for u in user_summaries
+            if u["attainment_pct"] >= 100
         ]
         return {
-            "overall_status": "预警" if overall_attainment < time_progress * 0.8 else "关注" if overall_attainment < time_progress else "健康",
+            "overall_status": "预警"
+            if overall_attainment < time_progress * 0.8
+            else "关注"
+            if overall_attainment < time_progress
+            else "健康",
             "risk_targets": risk_targets,
             "top_performers": top_performers,
             "systemic_issues": [],

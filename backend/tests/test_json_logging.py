@@ -24,8 +24,13 @@ def _format_record(record: logging.LogRecord) -> str:
 class TestJsonFormatterBasic:
     def test_emits_valid_json(self):
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="x.py", lineno=10,
-            msg="hello %s", args=("world",), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="x.py",
+            lineno=10,
+            msg="hello %s",
+            args=("world",),
+            exc_info=None,
         )
         out = _format_record(record)
         payload = json.loads(out)
@@ -38,7 +43,13 @@ class TestJsonFormatterBasic:
     def test_includes_request_id_from_context(self):
         set_request_id("req_abc123")
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="m", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="m",
+            args=(),
+            exc_info=None,
         )
         payload = json.loads(_format_record(record))
         assert payload["request_id"] == "req_abc123"
@@ -47,7 +58,13 @@ class TestJsonFormatterBasic:
     def test_includes_user_id_from_context(self):
         set_user_id(42)
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="m", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="m",
+            args=(),
+            exc_info=None,
         )
         payload = json.loads(_format_record(record))
         assert payload["user_id"] == 42
@@ -55,7 +72,13 @@ class TestJsonFormatterBasic:
 
     def test_passes_through_extra(self):
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="m", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="m",
+            args=(),
+            exc_info=None,
         )
         record.order_id = "SO001"
         record.amount = 1500
@@ -66,7 +89,13 @@ class TestJsonFormatterBasic:
     def test_extra_override_takes_precedence(self):
         """Built-in fields should not be duplicated by extras with same name."""
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="m", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="m",
+            args=(),
+            exc_info=None,
         )
         record.level = "WRONG"  # Should not override the actual level
         payload = json.loads(_format_record(record))
@@ -74,12 +103,20 @@ class TestJsonFormatterBasic:
 
     def test_handles_non_serializable_extra(self):
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="m", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="m",
+            args=(),
+            exc_info=None,
         )
+
         # Pass an unserializable object
         class Opaque:
             def __repr__(self):
                 return "Opaque()"
+
         record.obj = Opaque()
         payload = json.loads(_format_record(record))
         assert payload["obj"] == "Opaque()"
@@ -89,9 +126,15 @@ class TestJsonFormatterBasic:
             raise ValueError("boom")
         except ValueError:
             import sys
+
             record = logging.LogRecord(
-                name="t", level=logging.ERROR, pathname="x", lineno=1, msg="failed",
-                args=(), exc_info=sys.exc_info(),
+                name="t",
+                level=logging.ERROR,
+                pathname="x",
+                lineno=1,
+                msg="failed",
+                args=(),
+                exc_info=sys.exc_info(),
             )
         payload = json.loads(_format_record(record))
         assert "exception" in payload
@@ -101,7 +144,13 @@ class TestJsonFormatterBasic:
 
     def test_timestamp_is_iso8601(self):
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="m", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="m",
+            args=(),
+            exc_info=None,
         )
         payload = json.loads(_format_record(record))
         ts = payload["ts"]
@@ -111,7 +160,13 @@ class TestJsonFormatterBasic:
 
     def test_chinese_message_preserved(self):
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1, msg="订单确认", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="订单确认",
+            args=(),
+            exc_info=None,
         )
         payload = json.loads(_format_record(record))
         assert payload["message"] == "订单确认"
@@ -208,8 +263,13 @@ class TestJsonLineFormat:
     def test_one_record_one_line(self):
         """Critical: each log record must be a single line for log shippers."""
         record = logging.LogRecord(
-            name="t", level=logging.INFO, pathname="x", lineno=1,
-            msg="multi\nline\nmessage", args=(), exc_info=None,
+            name="t",
+            level=logging.INFO,
+            pathname="x",
+            lineno=1,
+            msg="multi\nline\nmessage",
+            args=(),
+            exc_info=None,
         )
         out = _format_record(record)
         assert out.count("\n") == 0  # No actual newlines in the output

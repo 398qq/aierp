@@ -6,9 +6,11 @@ Helpers used by both the quotation and sales-order PDF builders:
   PDF option dict
 - ``default_terms`` — stock "payment terms" footer text
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 
 def pdf_text(value: Any) -> str:
     text = str(value)
@@ -29,8 +31,14 @@ def pdf_options(options: dict[str, Any] | None) -> dict[str, Any]:
     show_notes = bool(options.get("show_notes", True))
     show_internal_metrics = bool(options.get("show_internal_metrics", False))
     show_signature = bool(options.get("show_signature", True))
-    company_name = str(options.get("company_name") or "深圳天允电子有限公司").strip() or "深圳天允电子有限公司"
-    document_title = str(options.get("document_title") or "正式报价单 / QUOTATION").strip() or "正式报价单 / QUOTATION"
+    company_name = (
+        str(options.get("company_name") or "深圳天允电子有限公司").strip()
+        or "深圳天允电子有限公司"
+    )
+    document_title = (
+        str(options.get("document_title") or "正式报价单 / QUOTATION").strip()
+        or "正式报价单 / QUOTATION"
+    )
     prepared_by = str(options.get("prepared_by") or "").strip()
     contact_phone = str(options.get("contact_phone") or "").strip()
     terms_text = str(options.get("terms") or "").strip()
@@ -56,7 +64,6 @@ def default_terms() -> list[str]:
         "2. 税率、付款方式、运输方式如未单独约定，以双方最终合同或订单确认为准。",
         "3. 如报价已过有效期，建议重新核价后再作为采购依据。",
     ]
-
 
 
 __all__ = [

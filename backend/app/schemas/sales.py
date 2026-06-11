@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 # Opportunity
 # ============================================================
 
+
 class OpportunityCreate(BaseModel):
     customer_id: int
     product_id: int | None = None
@@ -63,6 +64,7 @@ class OpportunityResponse(BaseModel):
 # ============================================================
 # Quotation
 # ============================================================
+
 
 class QuotationItemCreate(BaseModel):
     product_id: int | None = None
@@ -193,6 +195,7 @@ class QuotationResponse(BaseModel):
 # Sales Order
 # ============================================================
 
+
 class SalesOrderItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
@@ -309,6 +312,7 @@ class SalesOrderResponse(BaseModel):
 # Delivery Note
 # ============================================================
 
+
 class DeliveryNoteItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
@@ -395,6 +399,7 @@ class DeliveryNoteResponse(BaseModel):
 # AI Insight Types (returned when include_ai=true)
 # ============================================================
 
+
 class OpportunityAI(BaseModel):
     risk_level: str = "low"  # low / medium / high
     win_probability: int = 50
@@ -426,6 +431,7 @@ class DeliveryNoteAI(BaseModel):
 # List AI insight map {entity_id: insight}
 # ============================================================
 
+
 class ListAIInsights(BaseModel):
     opportunities: dict[int, OpportunityAI] = {}
     quotations: dict[int, QuotationAI] = {}
@@ -436,6 +442,7 @@ class ListAIInsights(BaseModel):
 # ============================================================
 # Batch Operations
 # ============================================================
+
 
 class BatchDeleteRequest(BaseModel):
     ids: list[int]
@@ -450,6 +457,7 @@ class OpportunityBatchUpdate(BaseModel):
 # ============================================================
 # Flow Conversion
 # ============================================================
+
 
 class ConversionValidation(BaseModel):
     risk_level: str = "low"
@@ -467,6 +475,7 @@ class ConvertResponse(BaseModel):
 # ============================================================
 # Sales Targets
 # ============================================================
+
 
 class TargetCreate(BaseModel):
     user_id: int
@@ -496,10 +505,15 @@ class TargetUpdate(BaseModel):
 # Inquiry / Auto-Reply
 # ============================================================
 
+
 class InquiryAutoReplyRequest(BaseModel):
     """Request body for AI-powered inquiry auto-reply."""
-    inquiry_text: str = Field(min_length=1, max_length=5000,
-                               description="客户询价原文，支持型号/品牌/数量描述")
+
+    inquiry_text: str = Field(
+        min_length=1,
+        max_length=5000,
+        description="客户询价原文，支持型号/品牌/数量描述",
+    )
     customer_id: int | None = Field(None, description="客户ID（已知客户）")
     contact_name: str | None = Field(None, max_length=100)
     contact_info: str | None = Field(None, max_length=255, description="邮箱或电话")
@@ -518,6 +532,7 @@ class MatchedProductItem(BaseModel):
 
 class InquiryAutoReplyResponse(BaseModel):
     """Response from AI-powered inquiry auto-reply."""
+
     inquiry_id: int
     reply_text: str
     confidence: float | None

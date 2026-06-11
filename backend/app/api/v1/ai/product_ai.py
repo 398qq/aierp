@@ -21,7 +21,9 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 
 
 @router.post("/products/parse")
-async def ai_parse_product(text: str = Query(...), _user: dict = Depends(get_current_user)):
+async def ai_parse_product(
+    text: str = Query(...), _user: dict = Depends(get_current_user)
+):
     """AI parses raw part-number/description text into structured product fields."""
     result = await ProductAgent.parse_product(text)
     return ok(result)
@@ -66,18 +68,23 @@ async def ai_product_search(
         .limit(top_k)
     )
     rows = result.all()
-    return ok([{
-        "id": r[0],
-        "sku": r[1],
-        "name": r[2],
-        "category": r[3],
-        "package_type": r[4],
-        "specs": r[5],
-        "unit": r[6],
-        "brand_id": r[7],
-        "brand_name": r[8] or r[9],
-        "similarity": round(1 - float(r[10]), 4),
-    } for r in rows])
+    return ok(
+        [
+            {
+                "id": r[0],
+                "sku": r[1],
+                "name": r[2],
+                "category": r[3],
+                "package_type": r[4],
+                "specs": r[5],
+                "unit": r[6],
+                "brand_id": r[7],
+                "brand_name": r[8] or r[9],
+                "similarity": round(1 - float(r[10]), 4),
+            }
+            for r in rows
+        ]
+    )
 
 
 @router.post("/products/{product_id}/embed")
@@ -90,7 +97,8 @@ async def embed_product(
     from app.models.product import Brand, Product
 
     result = await db.execute(
-        select(Product).outerjoin(Brand, Product.brand_id == Brand.id)
+        select(Product)
+        .outerjoin(Brand, Product.brand_id == Brand.id)
         .where(Product.id == product_id, Product.deleted_at.is_(None))
     )
     row = result.first()
@@ -99,18 +107,22 @@ async def embed_product(
     p = row[0]
     b = row[1] if len(row) > 1 else None
 
-    embedding = await EmbeddingService.embed_product({
-        "part_number": f"{p.sku or ''} {p.name}".strip(),
-        "description": p.specs or p.notes or "",
-        "brand_name": b.name if b else "",
-    })
+    embedding = await EmbeddingService.embed_product(
+        {
+            "part_number": f"{p.sku or ''} {p.name}".strip(),
+            "description": p.specs or p.notes or "",
+            "brand_name": b.name if b else "",
+        }
+    )
     p.embedding = embedding
     await db.commit()
     return ok({"product_id": product_id, "dimensions": len(embedding)})
 
 
 @router.post("/products/embed-all")
-async def embed_all_products(db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def embed_all_products(
+    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)
+):
     """Batch generate embeddings for all products that lack them."""
     from app.models.product import Brand, Product
 
@@ -122,10 +134,12 @@ async def embed_all_products(db: AsyncSession = Depends(get_db), _user: dict = D
     batch_size = 50
 
     for i in range(0, len(products), batch_size):
-        batch = products[i:i + batch_size]
+        batch = products[i : i + batch_size]
         texts = []
         for p in batch:
-            b_result = await db.execute(select(Brand.name).where(Brand.id == p.brand_id))
+            b_result = await db.execute(
+                select(Brand.name).where(Brand.id == p.brand_id)
+            )
             brand_name = b_result.scalar() or ""
             texts.append(
                 f"型号：{p.sku or ''} {p.name}，描述：{p.specs or ''}，品牌：{brand_name}"
@@ -153,9 +167,13 @@ async def similar_products(
     """Find similar products via pgvector cosine distance."""
     from app.models.product import Brand, Product
 
-    prod = (await db.execute(
-        select(Product).where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    prod = (
+        await db.execute(
+            select(Product).where(
+                Product.id == product_id, Product.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if prod is None:
         return fail("Product not found", 404)
     if prod.embedding is None:
@@ -174,21 +192,30 @@ async def similar_products(
             Product.embedding.cosine_distance(prod.embedding).label("distance"),
         )
         .outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.deleted_at.is_(None), Product.id != product_id, Product.embedding.isnot(None))
+        .where(
+            Product.deleted_at.is_(None),
+            Product.id != product_id,
+            Product.embedding.isnot(None),
+        )
         .order_by(Product.embedding.cosine_distance(prod.embedding))
         .limit(top_k)
     )
     rows = result.all()
-    return ok([{
-        "id": r[0],
-        "sku": r[1],
-        "name": r[2],
-        "category": r[3],
-        "package_type": r[4],
-        "unit": r[5],
-        "brand_name": r[6] or r[7],
-        "similarity": round(1 - float(r[8]), 4),
-    } for r in rows])
+    return ok(
+        [
+            {
+                "id": r[0],
+                "sku": r[1],
+                "name": r[2],
+                "category": r[3],
+                "package_type": r[4],
+                "unit": r[5],
+                "brand_name": r[6] or r[7],
+                "similarity": round(1 - float(r[8]), 4),
+            }
+            for r in rows
+        ]
+    )
 
 
 @router.get("/products/{product_id}/substitutes")
@@ -200,10 +227,13 @@ async def product_substitutes(
     """AI-recommended substitute parts for a product."""
     from app.models.product import Brand, Product
 
-    prod = (await db.execute(
-        select(Product).outerjoin(Brand, Product.brand_id == Brand.id)
-        .where(Product.id == product_id, Product.deleted_at.is_(None))
-    )).first()
+    prod = (
+        await db.execute(
+            select(Product)
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(Product.id == product_id, Product.deleted_at.is_(None))
+        )
+    ).first()
     if prod is None:
         return fail("Product not found", 404)
 

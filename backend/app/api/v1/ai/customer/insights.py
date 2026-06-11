@@ -11,6 +11,7 @@ operational recommendations:
 * ``GET  /customer/{id}/summary``        — one-shot AI summary view
 * ``POST /alert/{id}/enrich``            — alert enrichment
 """
+
 from __future__ import annotations
 
 import logging
@@ -44,7 +45,9 @@ async def analyze_rfm(
     from app.models.sales import SalesOrder
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
@@ -59,7 +62,9 @@ async def analyze_rfm(
                 func.count(SalesOrder.id),
                 func.coalesce(func.sum(SalesOrder.total_amount), 0),
                 func.max(SalesOrder.created_at),
-            ).where(SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None))
+            ).where(
+                SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None)
+            )
         )
     ).first()
 
@@ -81,8 +86,12 @@ async def analyze_rfm(
         "total_orders": order_stats[0] or 0,
         "total_revenue": float(order_stats[1]) if order_stats[1] else 0,
         "last_order_date": str(order_stats[2]) if order_stats[2] else None,
-        "last_contacted_at": str(customer.last_contacted_at) if customer.last_contacted_at else None,
-        "last_followup": str(last_fu.planned_at) if last_fu and last_fu.planned_at else None,
+        "last_contacted_at": str(customer.last_contacted_at)
+        if customer.last_contacted_at
+        else None,
+        "last_followup": str(last_fu.planned_at)
+        if last_fu and last_fu.planned_at
+        else None,
     }
     analysis = await CustomerAgent.rfm_analysis(data)
     return ok(analysis)
@@ -100,7 +109,9 @@ async def analyze_churn(
     from app.models.sales import Opportunity, Quotation, SalesOrder
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
@@ -121,7 +132,9 @@ async def analyze_churn(
                 func.max(SalesOrder.created_at),
                 func.count(SalesOrder.id).filter(SalesOrder.created_at >= d90),
                 func.count(SalesOrder.id).filter(SalesOrder.created_at >= d180),
-            ).where(SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None))
+            ).where(
+                SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None)
+            )
         )
     ).first()
 
@@ -130,7 +143,9 @@ async def analyze_churn(
             select(func.count(Opportunity.id)).where(
                 Opportunity.customer_id == customer_id,
                 Opportunity.deleted_at.is_(None),
-                Opportunity.stage.in_(["lead", "qualification", "proposal", "negotiation"]),
+                Opportunity.stage.in_(
+                    ["lead", "qualification", "proposal", "negotiation"]
+                ),
             )
         )
     ).scalar() or 0
@@ -174,23 +189,37 @@ async def analyze_churn(
         )
     ).scalar_one_or_none()
     if oldest_unpaid and oldest_unpaid.created_at:
-        ar_overdue_days = (now - oldest_unpaid.created_at.replace(tzinfo=timezone.utc)).days
+        ar_overdue_days = (
+            now - oldest_unpaid.created_at.replace(tzinfo=timezone.utc)
+        ).days
 
     payments_for_health = (
-        await db.execute(
-            select(PaymentRecord).where(
-                PaymentRecord.customer_id == customer_id, PaymentRecord.deleted_at.is_(None)
+        (
+            await db.execute(
+                select(PaymentRecord).where(
+                    PaymentRecord.customer_id == customer_id,
+                    PaymentRecord.deleted_at.is_(None),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     orders_for_health = (
-        await db.execute(
-            select(SalesOrder).where(
-                SalesOrder.customer_id == customer_id, SalesOrder.deleted_at.is_(None)
+        (
+            await db.execute(
+                select(SalesOrder).where(
+                    SalesOrder.customer_id == customer_id,
+                    SalesOrder.deleted_at.is_(None),
+                )
             )
         )
-    ).scalars().all()
-    health_score, health_label = calc_health(customer, list(orders_for_health), list(payments_for_health), now)
+        .scalars()
+        .all()
+    )
+    health_score, health_label = calc_health(
+        customer, list(orders_for_health), list(payments_for_health), now
+    )
 
     orders_90d = order_stats[3] or 0
     orders_180d = order_stats[4] or 0
@@ -225,8 +254,12 @@ async def analyze_churn(
         "orders_last_90d": orders_90d,
         "orders_last_180d": orders_180d,
         "order_trend": order_trend,
-        "last_followup_date": str(last_fu.planned_at) if last_fu and last_fu.planned_at else None,
-        "last_contacted_at": str(customer.last_contacted_at) if customer.last_contacted_at else None,
+        "last_followup_date": str(last_fu.planned_at)
+        if last_fu and last_fu.planned_at
+        else None,
+        "last_contacted_at": str(customer.last_contacted_at)
+        if customer.last_contacted_at
+        else None,
         "active_opportunities": active_opps,
         "active_quotations": active_quotations,
         "credit_utilization": credit_util,
@@ -248,7 +281,9 @@ async def suggest_followup(
     from app.models.customer import Customer, CustomerFollowUp
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
@@ -272,7 +307,9 @@ async def suggest_followup(
         "notes": customer.notes or "",
         "level": customer.level or "",
         "last_followup_content": last_fu.content if last_fu else None,
-        "last_followup_date": str(last_fu.planned_at) if last_fu and last_fu.planned_at else None,
+        "last_followup_date": str(last_fu.planned_at)
+        if last_fu and last_fu.planned_at
+        else None,
     }
     suggestion = await CustomerAgent.followup_suggestion(data)
     return ok(suggestion)
@@ -288,26 +325,35 @@ async def analyze_followups(
     from app.models.customer import Customer, CustomerFollowUp
 
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
         return fail("Customer not found", 404)
 
     followups = (
-        await db.execute(
-            select(CustomerFollowUp)
-            .where(
-                CustomerFollowUp.customer_id == customer_id,
-                CustomerFollowUp.deleted_at.is_(None),
+        (
+            await db.execute(
+                select(CustomerFollowUp)
+                .where(
+                    CustomerFollowUp.customer_id == customer_id,
+                    CustomerFollowUp.deleted_at.is_(None),
+                )
+                .order_by(CustomerFollowUp.created_at.desc())
+                .limit(20)
             )
-            .order_by(CustomerFollowUp.created_at.desc())
-            .limit(20)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     analysis = await CustomerAgent.analyze_followups(
-        [{"method": f.method, "content": f.content, "result": f.result} for f in followups],
+        [
+            {"method": f.method, "content": f.content, "result": f.result}
+            for f in followups
+        ],
         customer_name=customer.name,
     )
     return ok(analysis)
@@ -320,11 +366,17 @@ async def customer_ai_summary(
     _user: dict = Depends(get_current_user),
 ):
     """Compact AI summary: customer + latest snapshot + next best actions."""
-    from app.models.customer import Customer, CustomerAIRecommendation, CustomerAISnapshotDaily
+    from app.models.customer import (
+        Customer,
+        CustomerAIRecommendation,
+        CustomerAISnapshotDaily,
+    )
 
     customer = (
         await db.execute(
-            select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+            select(Customer).where(
+                Customer.id == customer_id, Customer.deleted_at.is_(None)
+            )
         )
     ).scalar_one_or_none()
     if customer is None:
@@ -343,49 +395,77 @@ async def customer_ai_summary(
     ).scalar_one_or_none()
 
     next_actions = (
-        await db.execute(
-            select(CustomerAIRecommendation)
-            .where(
-                CustomerAIRecommendation.customer_id == customer_id,
-                CustomerAIRecommendation.deleted_at.is_(None),
-                CustomerAIRecommendation.status.in_(["open", "in_progress"]),
+        (
+            await db.execute(
+                select(CustomerAIRecommendation)
+                .where(
+                    CustomerAIRecommendation.customer_id == customer_id,
+                    CustomerAIRecommendation.deleted_at.is_(None),
+                    CustomerAIRecommendation.status.in_(["open", "in_progress"]),
+                )
+                .order_by(CustomerAIRecommendation.priority_score.desc())
+                .limit(5)
             )
-            .order_by(CustomerAIRecommendation.priority_score.desc())
-            .limit(5)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
-    return ok({
-        "customer": {
-            "id": customer.id,
-            "name": customer.name,
-            "level": customer.level,
-            "industry": customer.industry,
-            "owner": customer.owner,
-            "health_score": safe_float((customer.ai_insights or {}).get("health_score")) or None,
-            "health_label": (customer.ai_insights or {}).get("health_label"),
-            "last_contacted_at": str(customer.last_contacted_at) if customer.last_contacted_at else None,
-        },
-        "snapshot": {
-            "snapshot_date": str(latest_snapshot.snapshot_date) if latest_snapshot else None,
-            "health_score": latest_snapshot.health_score if latest_snapshot else None,
-            "churn_risk_score": latest_snapshot.churn_risk_score if latest_snapshot else None,
-            "value_score": latest_snapshot.value_score if latest_snapshot else None,
-            "urgency_score": latest_snapshot.urgency_score if latest_snapshot else None,
-            "overdue_followups": latest_snapshot.overdue_followups if latest_snapshot else None,
-            "open_opportunities": latest_snapshot.open_opportunities if latest_snapshot else None,
-            "outstanding_amount": latest_snapshot.outstanding_amount if latest_snapshot else None,
-        },
-        "next_actions": [{
-            "id": rec.id,
-            "action_type": rec.action_type,
-            "title": rec.title,
-            "reason": rec.reason,
-            "priority_score": rec.priority_score,
-            "status": rec.status,
-            "due_at": str(rec.due_at) if rec.due_at else None,
-        } for rec in next_actions],
-    })
+    return ok(
+        {
+            "customer": {
+                "id": customer.id,
+                "name": customer.name,
+                "level": customer.level,
+                "industry": customer.industry,
+                "owner": customer.owner,
+                "health_score": safe_float(
+                    (customer.ai_insights or {}).get("health_score")
+                )
+                or None,
+                "health_label": (customer.ai_insights or {}).get("health_label"),
+                "last_contacted_at": str(customer.last_contacted_at)
+                if customer.last_contacted_at
+                else None,
+            },
+            "snapshot": {
+                "snapshot_date": str(latest_snapshot.snapshot_date)
+                if latest_snapshot
+                else None,
+                "health_score": latest_snapshot.health_score
+                if latest_snapshot
+                else None,
+                "churn_risk_score": latest_snapshot.churn_risk_score
+                if latest_snapshot
+                else None,
+                "value_score": latest_snapshot.value_score if latest_snapshot else None,
+                "urgency_score": latest_snapshot.urgency_score
+                if latest_snapshot
+                else None,
+                "overdue_followups": latest_snapshot.overdue_followups
+                if latest_snapshot
+                else None,
+                "open_opportunities": latest_snapshot.open_opportunities
+                if latest_snapshot
+                else None,
+                "outstanding_amount": latest_snapshot.outstanding_amount
+                if latest_snapshot
+                else None,
+            },
+            "next_actions": [
+                {
+                    "id": rec.id,
+                    "action_type": rec.action_type,
+                    "title": rec.title,
+                    "reason": rec.reason,
+                    "priority_score": rec.priority_score,
+                    "status": rec.status,
+                    "due_at": str(rec.due_at) if rec.due_at else None,
+                }
+                for rec in next_actions
+            ],
+        }
+    )
 
 
 @router.post("/alert/{event_id}/enrich")
@@ -397,15 +477,15 @@ async def enrich_alert(
     """Generate AI action suggestions for a specific alert event."""
     from app.models.customer import AlertEvent, Customer
 
-    event_result = await db.execute(
-        select(AlertEvent).where(AlertEvent.id == event_id)
-    )
+    event_result = await db.execute(select(AlertEvent).where(AlertEvent.id == event_id))
     event = event_result.scalar_one_or_none()
     if event is None:
         return fail("Alert event not found", 404)
 
     cust_result = await db.execute(
-        select(Customer).where(Customer.id == event.customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == event.customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = cust_result.scalar_one_or_none()
 
@@ -417,7 +497,9 @@ async def enrich_alert(
         "customer_name": customer.name if customer else "未知",
         "industry": customer.industry or "" if customer else "",
         "level": customer.level or "" if customer else "",
-        "last_contact": str(customer.last_contacted_at) if customer and customer.last_contacted_at else "无",
+        "last_contact": str(customer.last_contacted_at)
+        if customer and customer.last_contacted_at
+        else "无",
     }
     enrichment = await CustomerAgent.enrich_alert(ctx)
     return ok(enrichment)

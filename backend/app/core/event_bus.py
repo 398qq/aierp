@@ -50,7 +50,9 @@ class EventBus:
             return handler
 
         if event_type_or_handler is None:
-            raise TypeError("@bus.subscribe requires either an event type or a handler function")
+            raise TypeError(
+                "@bus.subscribe requires either an event type or a handler function"
+            )
 
         if isinstance(event_type_or_handler, type):
             return self._make_decorator(event_type_or_handler)
@@ -66,6 +68,7 @@ class EventBus:
         def decorator(func: F) -> F:
             self._register(event_type, func)  # type: ignore[arg-type]
             return func
+
         return decorator
 
     def _register(self, event_type: Any, handler: Handler) -> None:

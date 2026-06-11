@@ -68,11 +68,11 @@ def substitute_prompt(product_info: dict) -> str:
     return f"""为以下电子元器件推荐替代料：
 
 当前产品：
-- 型号：{product_info.get('part_number')}
-- 描述：{product_info.get('description')}
-- 分类：{product_info.get('category')}
-- 规格：{product_info.get('specs')}
-- 品牌：{product_info.get('brand')}
+- 型号：{product_info.get("part_number")}
+- 描述：{product_info.get("description")}
+- 分类：{product_info.get("category")}
+- 规格：{product_info.get("specs")}
+- 品牌：{product_info.get("brand")}
 
 请推荐（基于电子元器件行业知识）：
 1. 直替代（pin-to-pin兼容品牌和型号）
@@ -105,26 +105,26 @@ def pricing_recommend_prompt(pricing_context: dict) -> str:
     return f"""你是一个电子元器件分销行业的定价专家。基于以下信息给出定价建议：
 
 **产品信息：**
-- 型号：{pricing_context.get('part_number')}
-- 分类：{pricing_context.get('category')}
-- 品牌：{pricing_context.get('brand')}
+- 型号：{pricing_context.get("part_number")}
+- 分类：{pricing_context.get("category")}
+- 品牌：{pricing_context.get("brand")}
 
 **成本与供应：**
-- 供应商成本价：{pricing_context.get('cost_price') or '未知'}
-- 供应商数量：{pricing_context.get('supplier_count', 0)}
-- 当前库存：{pricing_context.get('stock_qty', 0)}
-- 交期：{pricing_context.get('lead_time_days') or '未知'}天
+- 供应商成本价：{pricing_context.get("cost_price") or "未知"}
+- 供应商数量：{pricing_context.get("supplier_count", 0)}
+- 当前库存：{pricing_context.get("stock_qty", 0)}
+- 交期：{pricing_context.get("lead_time_days") or "未知"}天
 
 **客户信息：**
-- 客户名称：{pricing_context.get('customer_name', '未知')}
-- 客户等级：{pricing_context.get('customer_level', '未知')}
-- 客户行业：{pricing_context.get('customer_industry', '未知')}
+- 客户名称：{pricing_context.get("customer_name", "未知")}
+- 客户等级：{pricing_context.get("customer_level", "未知")}
+- 客户行业：{pricing_context.get("customer_industry", "未知")}
 
 **交易信息：**
-- 询价数量：{pricing_context.get('quantity', 1)}
-- 是否样品：{pricing_context.get('is_sample', False)}
-- 历史成交价：{pricing_context.get('historical_prices', '无')}
-- 市场供需：{pricing_context.get('market_condition', '正常')}
+- 询价数量：{pricing_context.get("quantity", 1)}
+- 是否样品：{pricing_context.get("is_sample", False)}
+- 历史成交价：{pricing_context.get("historical_prices", "无")}
+- 市场供需：{pricing_context.get("market_condition", "正常")}
 
 请返回：
 1. recommended_price：建议报价（具体数字，单位元）
@@ -141,19 +141,19 @@ def product_profile_prompt(product_data: dict) -> str:
     return f"""为以下电子元器件生成完整的产品画像：
 
 **基础信息：**
-- 型号/SKU：{product_data.get('part_number')}
-- 分类：{product_data.get('category')}
-- 品牌：{product_data.get('brand')}
-- 封装：{product_data.get('package_type')}
-- 规格参数：{product_data.get('specs')}
-- 描述：{product_data.get('description')}
+- 型号/SKU：{product_data.get("part_number")}
+- 分类：{product_data.get("category")}
+- 品牌：{product_data.get("brand")}
+- 封装：{product_data.get("package_type")}
+- 规格参数：{product_data.get("specs")}
+- 描述：{product_data.get("description")}
 
 **商业数据：**
-- 历史销售总量：{product_data.get('total_sold', 0)}
-- 活跃客户数：{product_data.get('active_customers', 0)}
-- 供应商数量：{product_data.get('supplier_count', 0)}
-- 当前库存：{product_data.get('stock_qty', 0)}
-- 库存健康度：{product_data.get('stock_health', '未知')}
+- 历史销售总量：{product_data.get("total_sold", 0)}
+- 活跃客户数：{product_data.get("active_customers", 0)}
+- 供应商数量：{product_data.get("supplier_count", 0)}
+- 当前库存：{product_data.get("stock_qty", 0)}
+- 库存健康度：{product_data.get("stock_health", "未知")}
 
 请生成：
 1. market_positioning：市场定位（1句话）
@@ -189,7 +189,7 @@ def spec_normalize_prompt(spec_text: str) -> str:
 
 def product_association_prompt(products: list[dict], target_product: str) -> str:
     product_lines = chr(10).join(
-        f"- ID:{p['id']} | {p.get('sku','')} {p.get('name','')} | 分类:{p.get('category','')} | 共同购买次数:{p.get('co_count',0)}"
+        f"- ID:{p['id']} | {p.get('sku', '')} {p.get('name', '')} | 分类:{p.get('category', '')} | 共同购买次数:{p.get('co_count', 0)}"
         for p in products
     )
     return f"""分析以下产品与目标产品的关联关系，给出搭配/互补/替代建议：
@@ -208,17 +208,19 @@ def product_association_prompt(products: list[dict], target_product: str) -> str
 """
 
 
-def procurement_optimize_prompt(suppliers: list[dict], product_info: dict, quantity: int) -> str:
+def procurement_optimize_prompt(
+    suppliers: list[dict], product_info: dict, quantity: int
+) -> str:
     supplier_lines = chr(10).join(
-        f"- {s['name']} | 单价:{s.get('cost_price','?')}元 | 交期:{s.get('lead_time','?')}天 | MOQ:{s.get('moq','?')} | 首选:{'是' if s.get('is_preferred') else '否'}"
+        f"- {s['name']} | 单价:{s.get('cost_price', '?')}元 | 交期:{s.get('lead_time', '?')}天 | MOQ:{s.get('moq', '?')} | 首选:{'是' if s.get('is_preferred') else '否'}"
         for s in suppliers
     )
     return f"""给出电子元器件的最优采购分拆方案：
 
-**产品：** {product_info.get('part_number')} | 品牌：{product_info.get('brand')}
+**产品：** {product_info.get("part_number")} | 品牌：{product_info.get("brand")}
 **需求数量：** {quantity}
-**当前库存：** {product_info.get('stock_qty', 0)}
-**市场情况：** {product_info.get('market_condition', '正常')}
+**当前库存：** {product_info.get("stock_qty", 0)}
+**市场情况：** {product_info.get("market_condition", "正常")}
 
 **候选供应商：**
 {supplier_lines}
@@ -237,18 +239,18 @@ def procurement_optimize_prompt(suppliers: list[dict], product_info: dict, quant
 def lifecycle_warning_prompt(product_data: dict) -> str:
     return f"""评估电子元器件产品生命周期，识别EOL/NRND风险：
 
-**产品：** {product_data.get('part_number')} | 品牌：{product_data.get('brand')}
-**分类：** {product_data.get('category')}
-**上市年份：** {product_data.get('introduced_at', '未知')}
+**产品：** {product_data.get("part_number")} | 品牌：{product_data.get("brand")}
+**分类：** {product_data.get("category")}
+**上市年份：** {product_data.get("introduced_at", "未知")}
 
 **销售趋势：**
-- 近6月销量变化：{product_data.get('sales_trend_6m', '无数据')}
-- 近3月销量变化：{product_data.get('sales_trend_3m', '无数据')}
+- 近6月销量变化：{product_data.get("sales_trend_6m", "无数据")}
+- 近3月销量变化：{product_data.get("sales_trend_3m", "无数据")}
 
 **供应信号：**
-- 供应商数量变化：{product_data.get('supplier_trend', '无数据')}
-- 交期变化：{product_data.get('lead_time_trend', '无数据')}
-- 价格趋势：{product_data.get('price_trend', '无数据')}
+- 供应商数量变化：{product_data.get("supplier_trend", "无数据")}
+- 交期变化：{product_data.get("lead_time_trend", "无数据")}
+- 价格趋势：{product_data.get("price_trend", "无数据")}
 
 请返回：
 1. lifecycle_stage：当前阶段（活跃/成熟/NRND/EOL）

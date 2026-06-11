@@ -8,7 +8,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.customer import Customer
-from app.models.product import Brand, Inventory, Product, Supplier, SupplierProduct, Warehouse
+from app.models.product import (
+    Brand,
+    Inventory,
+    Product,
+    Supplier,
+    SupplierProduct,
+    Warehouse,
+)
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.transaction import Ticket
 from app.services.ai.client import ai_client
@@ -42,7 +49,9 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     sales_items_result = await db.execute(
         select(
             func.count(SalesOrderItem.id).label("line_count"),
-            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label("total_revenue"),
+            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label(
+                "total_revenue"
+            ),
             func.coalesce(func.sum(SalesOrderItem.quantity), 0).label("total_qty"),
         )
         .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
@@ -82,15 +91,19 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     )
     distinct_customers = customer_count_result.scalar() or 0
 
-    sales_performance = json.dumps({
-        "total_sold_quantity": int(sales_totals[2]),
-        "total_revenue": round(float(sales_totals[1]), 2),
-        "total_order_lines": int(sales_totals[0]),
-        "recent_6m_sold_quantity": int(recent_sales[2]),
-        "recent_6m_revenue": round(float(recent_sales[1]), 2),
-        "recent_6m_order_lines": int(recent_sales[0]),
-        "distinct_customers": distinct_customers,
-    }, ensure_ascii=False, default=_safe_json)
+    sales_performance = json.dumps(
+        {
+            "total_sold_quantity": int(sales_totals[2]),
+            "total_revenue": round(float(sales_totals[1]), 2),
+            "total_order_lines": int(sales_totals[0]),
+            "recent_6m_sold_quantity": int(recent_sales[2]),
+            "recent_6m_revenue": round(float(recent_sales[1]), 2),
+            "recent_6m_order_lines": int(recent_sales[0]),
+            "distinct_customers": distinct_customers,
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 2. Inventory Status: current stock across warehouses ---
     inv_result = await db.execute(
@@ -110,13 +123,17 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     warehouse_stocks = inv_result.all()
 
     total_stock = sum(int(r[1]) for r in warehouse_stocks)
-    inventory_status = json.dumps({
-        "total_stock": total_stock,
-        "warehouses": [
-            {"warehouse": r[0], "quantity": int(r[1]), "safety_stock": int(r[2])}
-            for r in warehouse_stocks
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    inventory_status = json.dumps(
+        {
+            "total_stock": total_stock,
+            "warehouses": [
+                {"warehouse": r[0], "quantity": int(r[1]), "safety_stock": int(r[2])}
+                for r in warehouse_stocks
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 3. Supplier Status: suppliers with pricing ---
     supplier_result = await db.execute(
@@ -134,26 +151,41 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
             SupplierProduct.deleted_at.is_(None),
             Supplier.deleted_at.is_(None),
         )
-        .order_by(SupplierProduct.is_preferred.desc(), SupplierProduct.cost_price.asc().nulls_last())
+        .order_by(
+            SupplierProduct.is_preferred.desc(),
+            SupplierProduct.cost_price.asc().nulls_last(),
+        )
     )
     suppliers = supplier_result.all()
 
-    supplier_status = json.dumps({
-        "supplier_count": len(suppliers),
-        "preferred_count": sum(1 for s in suppliers if s[5]),
-        "suppliers": [
-            {"id": s[0], "name": s[1], "cost_price": float(s[2]) if s[2] else None,
-             "lead_time_days": s[3], "moq": s[4], "is_preferred": s[5]}
-            for s in suppliers
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    supplier_status = json.dumps(
+        {
+            "supplier_count": len(suppliers),
+            "preferred_count": sum(1 for s in suppliers if s[5]),
+            "suppliers": [
+                {
+                    "id": s[0],
+                    "name": s[1],
+                    "cost_price": float(s[2]) if s[2] else None,
+                    "lead_time_days": s[3],
+                    "moq": s[4],
+                    "is_preferred": s[5],
+                }
+                for s in suppliers
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 4. Customer Coverage: which customers buy it ---
     top_customers_result = await db.execute(
         select(
             Customer.id,
             Customer.name,
-            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label("total_amount"),
+            func.coalesce(func.sum(SalesOrderItem.total_price), 0).label(
+                "total_amount"
+            ),
             func.count(func.distinct(SalesOrder.id)).label("order_count"),
         )
         .join(SalesOrder, SalesOrder.customer_id == Customer.id)
@@ -170,14 +202,22 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     )
     top_customers = top_customers_result.all()
 
-    customer_coverage = json.dumps({
-        "distinct_customers": distinct_customers,
-        "top_customers": [
-            {"id": r[0], "name": r[1], "total_amount": round(float(r[2]), 2),
-             "order_count": int(r[3])}
-            for r in top_customers
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    customer_coverage = json.dumps(
+        {
+            "distinct_customers": distinct_customers,
+            "top_customers": [
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "total_amount": round(float(r[2]), 2),
+                    "order_count": int(r[3]),
+                }
+                for r in top_customers
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 5. Quality Issues: tickets mentioning this product ---
     tickets_result = await db.execute(
@@ -191,24 +231,43 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     )
     related_tickets = tickets_result.scalars().all()
 
-    quality_issues = json.dumps({
-        "ticket_count": len(related_tickets),
-        "tickets": [
-            {"ticket_no": t.ticket_no, "title": t.title, "status": t.status,
-             "priority": t.priority, "category": t.category,
-             "created_at": t.created_at.isoformat() if t.created_at else None}
-            for t in related_tickets[:5]
-        ],
-    }, ensure_ascii=False, default=_safe_json)
+    quality_issues = json.dumps(
+        {
+            "ticket_count": len(related_tickets),
+            "tickets": [
+                {
+                    "ticket_no": t.ticket_no,
+                    "title": t.title,
+                    "status": t.status,
+                    "priority": t.priority,
+                    "category": t.category,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                }
+                for t in related_tickets[:5]
+            ],
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- 6. Lifecycle Status: NPD date, age ---
-    product_age_days = (now - product.created_at.replace(tzinfo=datetime.timezone.utc)).days if product.created_at else 0
-    lifecycle_status = json.dumps({
-        "product_age_days": product_age_days,
-        "product_age_months": round(product_age_days / 30, 1),
-        "created_at": product.created_at.isoformat() if product.created_at else None,
-        "category": product_category,
-    }, ensure_ascii=False, default=_safe_json)
+    product_age_days = (
+        (now - product.created_at.replace(tzinfo=datetime.timezone.utc)).days
+        if product.created_at
+        else 0
+    )
+    lifecycle_status = json.dumps(
+        {
+            "product_age_days": product_age_days,
+            "product_age_months": round(product_age_days / 30, 1),
+            "created_at": product.created_at.isoformat()
+            if product.created_at
+            else None,
+            "category": product_category,
+        },
+        ensure_ascii=False,
+        default=_safe_json,
+    )
 
     # --- Build AI prompt data ---
     ai_input = {
@@ -231,11 +290,20 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
         "supply_health": "string, supply chain dimension assessment",
         "quality_health": "string, quality dimension assessment",
         "cross_domain_insights": [
-            {"domain": "string", "finding": "string", "impact": "string", "action": "string"}
+            {
+                "domain": "string",
+                "finding": "string",
+                "impact": "string",
+                "action": "string",
+            }
         ],
         "prioritized_actions": [
-            {"action": "string", "domain": "string", "priority": "string",
-             "expected_impact": "string"}
+            {
+                "action": "string",
+                "domain": "string",
+                "priority": "string",
+                "expected_impact": "string",
+            }
         ],
         "growth_potential": "string: 高/中/低",
         "risk_flags": ["string"],
@@ -246,14 +314,19 @@ async def orchestrate_product_360(db: AsyncSession, product_id: int) -> dict:
     try:
         ai_insights = await ai_client.chat_structured(
             [
-                {"role": "system", "content": "你是一个电子元器件ERP系统智能总控。整合分析产品全维度数据。"},
+                {
+                    "role": "system",
+                    "content": "你是一个电子元器件ERP系统智能总控。整合分析产品全维度数据。",
+                },
                 {"role": "user", "content": orchestrate_product_prompt(ai_input)},
             ],
             output_schema,
             max_tokens=8192,
         )
     except Exception as e:
-        logger.error(f"Product 360 AI orchestration failed for product {product_id}: {e}")
+        logger.error(
+            f"Product 360 AI orchestration failed for product {product_id}: {e}"
+        )
         ai_insights = {
             "product_360_score": 0,
             "health_summary": "AI分析暂时不可用",

@@ -5,6 +5,7 @@ quantity updates keyed by SKU + warehouse. Kept separate from the main
 products CRUD so the import pipeline (validation, error reporting) can
 evolve independently of the basic create/update flows.
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,11 +75,13 @@ async def price_import(
         success_count += 1
 
     await db.commit()
-    return ok({
-        "success": success_count,
-        "failed": len(errors),
-        "errors": errors,
-    })
+    return ok(
+        {
+            "success": success_count,
+            "failed": len(errors),
+            "errors": errors,
+        }
+    )
 
 
 __all__ = ["router", "PriceImportItem", "PriceImportBody", "price_import"]

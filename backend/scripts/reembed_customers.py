@@ -1,8 +1,10 @@
 """Re-embed customers in small batches with rate-limit-aware retries."""
+
 import asyncio
 import logging
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import select
@@ -39,9 +41,7 @@ async def main():
             names = [r[1] for r in batch]
 
             # Fetch full objects for this batch
-            cust_result = await db.execute(
-                select(Customer).where(Customer.id.in_(ids))
-            )
+            cust_result = await db.execute(select(Customer).where(Customer.id.in_(ids)))
             customers = {c.id: c for c in cust_result.scalars().all()}
 
             texts = []
@@ -63,10 +63,14 @@ async def main():
                         indexed += 1
                 await db.commit()
                 pct = indexed / total * 100
-                logger.info(f"[{indexed}/{total} {pct:.0f}%] Batch {i // BATCH_SIZE + 1}: {len(batch)} customers — OK")
+                logger.info(
+                    f"[{indexed}/{total} {pct:.0f}%] Batch {i // BATCH_SIZE + 1}: {len(batch)} customers — OK"
+                )
             except Exception as e:
                 errors += len(batch)
-                logger.warning(f"Batch {i // BATCH_SIZE + 1} failed ({names[0]}..{names[-1]}): {e}")
+                logger.warning(
+                    f"Batch {i // BATCH_SIZE + 1} failed ({names[0]}..{names[-1]}): {e}"
+                )
 
             await asyncio.sleep(SLEEP_BETWEEN)
 

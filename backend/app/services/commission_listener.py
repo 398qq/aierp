@@ -61,13 +61,13 @@ async def _maybe_create_commission(
     if order is None:
         return None
 
-    customer = await db.scalar(
-        select(Customer).where(Customer.id == order.customer_id)
-    )
+    customer = await db.scalar(select(Customer).where(Customer.id == order.customer_id))
     if customer is None:
         return None
 
-    owner = getattr(customer, "owner", None) or getattr(order, "assigned_to", None) or ""
+    owner = (
+        getattr(customer, "owner", None) or getattr(order, "assigned_to", None) or ""
+    )
     if not owner:
         # No sales user to attribute commission to — skip (silent)
         return None

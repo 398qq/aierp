@@ -45,8 +45,16 @@ class AIClient:
             "Content-Type": "application/json",
         }
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
-    async def chat(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> str:
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
+    )
+    async def chat(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+        model: str | None = None,
+    ) -> str:
         agent_name = model or settings.AI_MODEL
         start = time.perf_counter()
         outcome = "success"
@@ -72,10 +80,10 @@ class AIClient:
                     # Find the end of the opening line (```json or ```)
                     end_marker = text.find("\n")
                     if end_marker >= 0:
-                        text = text[end_marker+1:]
+                        text = text[end_marker + 1 :]
                     # Remove closing ```
                     if text.rstrip().endswith("```"):
-                        text = text[:text.rfind("```")]
+                        text = text[: text.rfind("```")]
                 text = text.strip()
 
                 return text
@@ -86,7 +94,13 @@ class AIClient:
             elapsed = time.perf_counter() - start
             ai_call_duration_seconds.observe(elapsed, agent=agent_name, outcome=outcome)
 
-    async def chat_stream(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048, model: str | None = None) -> AsyncGenerator[str, None]:
+    async def chat_stream(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+        model: str | None = None,
+    ) -> AsyncGenerator[str, None]:
         async with httpx.AsyncClient(trust_env=False, timeout=120) as client:
             async with client.stream(
                 "POST",
@@ -122,7 +136,11 @@ class AIClient:
         model: str | None = None,
     ) -> dict:
         """Get structured JSON output matching the given schema."""
-        system_msg = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
+        system_msg = (
+            messages[0]["content"]
+            if messages and messages[0]["role"] == "system"
+            else ""
+        )
         schema_str = json.dumps(output_schema, indent=2, ensure_ascii=False)
         messages[0] = {
             "role": "system",
@@ -137,31 +155,41 @@ class AIClient:
                 f"```json\n{schema_str}\n```"
             ),
         }
-        text = await self.chat(messages, temperature=temperature, max_tokens=max_tokens, model=model)
+        text = await self.chat(
+            messages, temperature=temperature, max_tokens=max_tokens, model=model
+        )
         text = text.strip()
         # Sanitize control characters and invalid Unicode that break JSON
         import unicodedata
+
         # Detect hallucination loops (excessive repetition)
         if len(text) > 800:
             # Check for any single character dominating the text
             from collections import Counter
+
             char_counts = Counter(text)
             if char_counts:
                 top_char, top_count = char_counts.most_common(1)[0]
                 top_ratio = top_count / len(text)
                 # If any single char >50%, it's hallucination
                 if top_ratio > 0.5:
-                    raise ValueError(f"AI hallucination detected: excessive '{top_char}' repetition ({top_ratio:.0%})")
+                    raise ValueError(
+                        f"AI hallucination detected: excessive '{top_char}' repetition ({top_ratio:.0%})"
+                    )
             # Low character diversity: text is long but very few unique chars
             unique_ratio = len(char_counts) / len(text)
             if len(text) > 1500 and unique_ratio < 0.03:
-                raise ValueError(f"AI hallucination detected: low character diversity ({unique_ratio:.2%})")
-        text = ''.join(
-            ch if unicodedata.category(ch)[0] != 'C' or ch in ('\n', '\r', '\t') else ' '
+                raise ValueError(
+                    f"AI hallucination detected: low character diversity ({unique_ratio:.2%})"
+                )
+        text = "".join(
+            ch
+            if unicodedata.category(ch)[0] != "C" or ch in ("\n", "\r", "\t")
+            else " "
             for ch in text
         )
         # Fix garbled Unicode replacement characters
-        text = text.replace('�', ' ')
+        text = text.replace("�", " ")
         # Extract JSON from markdown code blocks
         if "```" in text:
             start = text.find("```") + 3
@@ -176,44 +204,46 @@ class AIClient:
             start = text.find("{")
             end = text.rfind("}")
             if start >= 0 and end > start:
-                text = text[start:end + 1]
+                text = text[start : end + 1]
         # Fix common model JSON errors
         import re
+
         # Replace fullwidth punctuation that breaks JSON
-        text = text.replace('，', ',')
-        text = text.replace('：', ':')
-        text = text.replace('“', '"').replace('”', '"')
+        text = text.replace("，", ",")
+        text = text.replace("：", ":")
+        text = text.replace("“", '"').replace("”", '"')
         # Fix missing commas between adjacent objects: }{\s*{
-        text = re.sub(r'}\s*{', r'}, {', text)
+        text = re.sub(r"}\s*{", r"}, {", text)
         # Fix missing commas in arrays: }\s*\n\s*{
-        text = re.sub(r'}(\s*\n\s*){', r'},\n{', text)
+        text = re.sub(r"}(\s*\n\s*){", r"},\n{", text)
         # Fix double colon: "key":: -> "key":
         text = re.sub(r'"\s*::\s*', '": ', text)
         # Fix double colon with space: "key": :value -> "key": value
         text = re.sub(r'":\s+:', '": ', text)
         # Fix bare comma between fields: ],\n,\n  "next" -> ],\n  "next"
-        text = re.sub(r',\s*\n\s*,', ',', text)
+        text = re.sub(r",\s*\n\s*,", ",", text)
         # Fix extra quote after number: 23" -> 23 (but not "42" string terminator)
-        text = re.sub(r'(?<!")(?<!\d)(\d+)"(\s*[,}\]\n])', r'\1\2', text)
+        text = re.sub(r'(?<!")(?<!\d)(\d+)"(\s*[,}\]\n])', r"\1\2", text)
         # Remove trailing commas before ] or }
-        text = re.sub(r',\s*}', '}', text)
-        text = re.sub(r',\s*]', ']', text)
+        text = re.sub(r",\s*}", "}", text)
+        text = re.sub(r",\s*]", "]", text)
         # Fix string values where closing quote is missing before next field key
         text = re.sub(r'(":\s*"[^\n"]+?)(\n\s*"[a-z_]+"\s*:)', r'\1"\2', text)
         # Fix number wrapped in extra quotes: "780," → 780,
-        text = re.sub(r'"(-?\d+\.?\d*)"(\s*[,}\]])', r'\1\2', text)
+        text = re.sub(r'"(-?\d+\.?\d*)"(\s*[,}\]])', r"\1\2", text)
         # Pre-extract first complete JSON object (handles truncated multi-object output)
         import re
+
         # Find first complete JSON object or array
         first_open = text.find("{")
         first_close = text.rfind("}")
         if first_open >= 0 and first_close > first_open:
-            extracted = text[first_open:first_close+1]
+            extracted = text[first_open : first_close + 1]
             # Verify it has balanced braces
             if extracted.count("{") == extracted.count("}"):
                 text = extracted
         # Fix number with double-quote prefix: " "85 → 85
-        text = re.sub(r'"\s*"(\d+)', r'\1', text)
+        text = re.sub(r'"\s*"(\d+)', r"\1", text)
         # === Fix Type B: stray commas inside string values ===
         # "VALUE,\n" (comma inside string before closing quote) -> "VALUE"\n
         text = re.sub(r'"([A-Za-z0-9/_\-+.]+),(\s*\n\s*")', r'"\1"\2', text)
@@ -226,9 +256,9 @@ class AIClient:
                 _fixed.append(_line)
                 if _i < len(_lines) - 1:
                     _s = _lines[_i].rstrip()
-                    _next = _lines[_i+1].strip()
+                    _next = _lines[_i + 1].strip()
                     if _s.endswith('"') or _s[-1].isdigit():
-                        if _next.startswith('"') and ':' in _next:
+                        if _next.startswith('"') and ":" in _next:
                             if not _s.endswith(","):
                                 _fixed[-1] = _s + ","
             text = "\n".join(_fixed)
@@ -239,9 +269,11 @@ class AIClient:
         # Examples:
         #   "phone":13800001111"email":"..."
         #   "credit_limit":null"credit_level":"A"
-        text = re.sub(r'(\d)\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r'\1,\2', text)
-        text = re.sub(r'(null|true|false)\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r'\1,\2', text)
-        text = re.sub(r'(")\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r'\1,\2', text)
+        text = re.sub(r'(\d)\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r"\1,\2", text)
+        text = re.sub(
+            r'(null|true|false)\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r"\1,\2", text
+        )
+        text = re.sub(r'(")\s*("([A-Za-z_][A-Za-z0-9_]*)"\s*:)', r"\1,\2", text)
 
         # Line-by-line fix: insert comma after value lines followed by key lines
         if text.strip().startswith("{"):
@@ -252,8 +284,12 @@ class AIClient:
                 _fixed.append(_line)
                 if _i < len(_lines) - 1:
                     _s = _lines[_i].rstrip()
-                    _next = _lines[_i+1].strip()
-                    if (_s.endswith('"') or _s[-1].isdigit()) and _next.startswith('"') and _next.endswith(':'):
+                    _next = _lines[_i + 1].strip()
+                    if (
+                        (_s.endswith('"') or _s[-1].isdigit())
+                        and _next.startswith('"')
+                        and _next.endswith(":")
+                    ):
                         if not _s.endswith(","):
                             _fixed[-1] = _s + ","
             text = "\n".join(_fixed)
@@ -264,20 +300,20 @@ class AIClient:
             # Check if this is actually a JSON array wrapper (no schema key found)
             # Look for the schema key pattern "products": [
             schema_key_match = re.search(r'"(\w+)":\s*\[', text_stripped)
-            
+
             if schema_key_match:
                 # Extract the array content between [ and last ]
                 key_name = schema_key_match.group(1)
-                arr_start = text_stripped.find('[')
-                arr_end = text_stripped.rfind(']')
+                arr_start = text_stripped.find("[")
+                arr_end = text_stripped.rfind("]")
                 if arr_start >= 0 and arr_end > arr_start:
-                    arr_content = text_stripped[arr_start+1:arr_end]
+                    arr_content = text_stripped[arr_start + 1 : arr_end]
                     # Fix missing commas: } { -> }, {
-                    arr_content = re.sub(r'}\s*{', '}, {', arr_content)
+                    arr_content = re.sub(r"}\s*{", "}, {", arr_content)
                     # Also handle }\n{ -> }, {
-                    arr_content = re.sub(r'}\s*\n\s*{', '}, {', arr_content)
+                    arr_content = re.sub(r"}\s*\n\s*{", "}, {", arr_content)
                     try:
-                        objs = json.loads('[' + arr_content + ']')
+                        objs = json.loads("[" + arr_content + "]")
                         result = {key_name: objs}
                         result = _coerce_numbers(result)
                         return result
@@ -293,10 +329,10 @@ class AIClient:
         try:
             t = text.rstrip()
             # If text ends without closing a string value, add closing quote
-            if t and t[-1] != '"' and t[-1] not in ']}0123456789':
+            if t and t[-1] != '"' and t[-1] not in "]}0123456789":
                 # Check if we're inside a string value (last key: has " before value)
                 last_colon = t.rfind('": "')
-                last_close = max(t.rfind('}'), t.rfind(']'))
+                last_close = max(t.rfind("}"), t.rfind("]"))
                 if last_colon > last_close:
                     t = t + '"'
             open_braces = t.count("{") - t.count("}")
@@ -310,9 +346,9 @@ class AIClient:
             pass
         # All attempts failed
         import logging
+
         logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:2000]}")
         raise ValueError(f"AI returned invalid JSON: {text[:300]}")
-
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -326,7 +362,7 @@ class AIClient:
         try:
             async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
                 for start in range(0, len(safe_texts), EMBEDDING_BATCH_SIZE):
-                    batch = safe_texts[start:start + EMBEDDING_BATCH_SIZE]
+                    batch = safe_texts[start : start + EMBEDDING_BATCH_SIZE]
                     resp = await client.post(
                         f"{self.base_url}/embeddings",
                         headers=self.headers,
@@ -342,7 +378,9 @@ class AIClient:
         finally:
             elapsed = time.perf_counter() - start_time
             ai_call_duration_seconds.observe(
-                elapsed, agent=settings.AI_EMBEDDING_MODEL, outcome=outcome,
+                elapsed,
+                agent=settings.AI_EMBEDDING_MODEL,
+                outcome=outcome,
             )
 
     async def embed_single(self, text: str) -> list[float]:

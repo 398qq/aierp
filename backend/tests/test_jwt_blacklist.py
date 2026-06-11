@@ -73,7 +73,9 @@ class TestRevokeToken:
     async def test_revoke_adds_to_blacklist(self):
         mock_redis = MagicMock()
         mock_redis.set = AsyncMock()
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)
+        ):
             result = await revoke_token("test-jti", ttl_seconds=60)
         assert result is True
         mock_redis.set.assert_called_once()
@@ -84,14 +86,18 @@ class TestRevokeToken:
         assert args[1]["ex"] == 60
 
     async def test_revoke_returns_false_on_redis_failure(self):
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=None)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=None)
+        ):
             result = await revoke_token("test-jti", ttl_seconds=60)
         assert result is False
 
     async def test_revoke_returns_false_on_set_error(self):
         mock_redis = MagicMock()
         mock_redis.set = AsyncMock(side_effect=ConnectionError("boom"))
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)
+        ):
             result = await revoke_token("test-jti", ttl_seconds=60)
         assert result is False
 
@@ -100,20 +106,26 @@ class TestIsTokenRevoked:
     async def test_returns_true_when_blacklisted(self):
         mock_redis = MagicMock()
         mock_redis.exists = AsyncMock(return_value=1)
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)
+        ):
             result = await is_token_revoked("revoked-jti")
         assert result is True
 
     async def test_returns_false_when_not_blacklisted(self):
         mock_redis = MagicMock()
         mock_redis.exists = AsyncMock(return_value=0)
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)
+        ):
             result = await is_token_revoked("active-jti")
         assert result is False
 
     async def test_returns_false_when_redis_unavailable(self):
         """Fail open: if Redis is down, treat token as not revoked."""
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=None)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=None)
+        ):
             result = await is_token_revoked("any-jti")
         assert result is False
 
@@ -125,7 +137,9 @@ class TestIsTokenRevoked:
     async def test_returns_false_on_redis_error(self):
         mock_redis = MagicMock()
         mock_redis.exists = AsyncMock(side_effect=ConnectionError("boom"))
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)
+        ):
             result = await is_token_revoked("any-jti")
         assert result is False
 
@@ -137,7 +151,9 @@ class TestRevokeAllUserTokens:
             count = await security.revoke_all_user_tokens(user_id=42)
         assert count == 0
         # Should log a warning so deploys catch the pending migration
-        assert any("token_version" in str(c.args) for c in mock_log.warning.call_args_list)
+        assert any(
+            "token_version" in str(c.args) for c in mock_log.warning.call_args_list
+        )
 
 
 class TestBlacklistIntegration:
@@ -146,7 +162,9 @@ class TestBlacklistIntegration:
         mock_redis = MagicMock()
         mock_redis.set = AsyncMock()
         mock_redis.exists = AsyncMock(side_effect=[1])  # Always returns 1 (revoked)
-        with patch("app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)):
+        with patch(
+            "app.services.cache_service.get_redis", AsyncMock(return_value=mock_redis)
+        ):
             await revoke_token("jti-abc", ttl_seconds=60)
             is_revoked = await is_token_revoked("jti-abc")
         assert is_revoked is True

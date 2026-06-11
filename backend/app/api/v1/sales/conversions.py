@@ -30,7 +30,8 @@ router = APIRouter(tags=["sales:conversion"])
 @router.post("/quotations/{quote_id}/convert-to-order")
 async def convert_quote_to_order(
     quote_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -39,6 +40,7 @@ async def convert_quote_to_order(
         return fail("报价单已转换", 400)
     order = await svc.convert_quotation_to_order(db, quote)
     from app.services.sales_ai_pipeline import validate_quote_to_order
+
     validation = None
     try:
         ai_result = await validate_quote_to_order(db, quote)
@@ -51,18 +53,21 @@ async def convert_quote_to_order(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("reports:predefined:sales")
-    return ok(ConvertResponse(
-        id=order.id,
-        document_no=order.order_no or "",
-        msg="报价单已转换为销售订单",
-        ai_validation=validation,
-    ))
+    return ok(
+        ConvertResponse(
+            id=order.id,
+            document_no=order.order_no or "",
+            msg="报价单已转换为销售订单",
+            ai_validation=validation,
+        )
+    )
 
 
 @router.post("/sales-orders/{order_id}/convert-to-delivery")
 async def convert_order_to_delivery(
     order_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     order = await svc.get_sales_order(db, order_id)
     if not order:
@@ -71,6 +76,7 @@ async def convert_order_to_delivery(
     if not note:
         return fail("订单已转换", 409)
     from app.services.sales_ai_pipeline import validate_order_to_delivery
+
     validation = None
     try:
         ai_result = await validate_order_to_delivery(db, order)
@@ -78,9 +84,11 @@ async def convert_order_to_delivery(
             validation = ConversionValidation(**ai_result)
     except Exception:
         pass
-    return ok(ConvertResponse(
-        id=note.id,
-        document_no=note.delivery_no or "",
-        msg="销售订单已转换为发货单",
-        ai_validation=validation,
-    ))
+    return ok(
+        ConvertResponse(
+            id=note.id,
+            document_no=note.delivery_no or "",
+            msg="销售订单已转换为发货单",
+            ai_validation=validation,
+        )
+    )

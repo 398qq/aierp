@@ -15,10 +15,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Login brute-force protection: dual-key (username + IP) backoff
 LOGIN_FAILED_USERNAME_PREFIX = "aierp:login_failed:user:"
 LOGIN_FAILED_IP_PREFIX = "aierp:login_failed:ip:"
-MAX_FAILED_ATTEMPTS = 5          # lock after 5 failures
-BLOCK_DURATION_MINUTES = 15      # block for 15 minutes
-IP_BLOCK_THRESHOLD = 20           # Different threshold for IP-based attack
-IP_BLOCK_DURATION_MINUTES = 30   # IP blocks last longer (catches botnets)
+MAX_FAILED_ATTEMPTS = 5  # lock after 5 failures
+BLOCK_DURATION_MINUTES = 15  # block for 15 minutes
+IP_BLOCK_THRESHOLD = 20  # Different threshold for IP-based attack
+IP_BLOCK_DURATION_MINUTES = 30  # IP blocks last longer (catches botnets)
 
 # --- httpOnly cookie config ---
 TOKEN_COOKIE_NAME = "aierp_token"
@@ -34,12 +34,16 @@ def _validate_password_complexity(password: str) -> str | None:
         return "密码至少需要 8 个字符"
     if len(password) > 128:
         return "密码不能超过 128 个字符"
-    classes = sum([
-        bool(re.search(r"[a-z]", password)),   # lowercase
-        bool(re.search(r"[A-Z]", password)),   # uppercase
-        bool(re.search(r"\d", password)),      # digit
-        bool(re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]/~`';\\\\]", password)),  # special
-    ])
+    classes = sum(
+        [
+            bool(re.search(r"[a-z]", password)),  # lowercase
+            bool(re.search(r"[A-Z]", password)),  # uppercase
+            bool(re.search(r"\d", password)),  # digit
+            bool(
+                re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]/~`';\\\\]", password)
+            ),  # special
+        ]
+    )
     if classes < 3:
         return "密码必须包含以下 3 类字符：小写字母、大写字母、数字、特殊符号"
     return None
@@ -89,6 +93,7 @@ def _ip_blocked_key(ip: str) -> str:
 async def _get_r():
     try:
         from app.services.cache_service import get_redis
+
         return await get_redis()
     except Exception:
         return None
@@ -103,7 +108,9 @@ def _client_ip(request: Request) -> str:
 
 
 @router.post("/login")
-async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def login(
+    req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)
+):
     from app.models.user import User
 
     username = req.username.strip().lower()
@@ -114,8 +121,18 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
     # Block 2: per-IP lockout (20 failures / 30min) — catches credential-stuffing
     if r is not None:
         for key, threshold, block_min, label in [
-            (_username_blocked_key(username), MAX_FAILED_ATTEMPTS, BLOCK_DURATION_MINUTES, "用户名"),
-            (_ip_blocked_key(client_ip), IP_BLOCK_THRESHOLD, IP_BLOCK_DURATION_MINUTES, "IP"),
+            (
+                _username_blocked_key(username),
+                MAX_FAILED_ATTEMPTS,
+                BLOCK_DURATION_MINUTES,
+                "用户名",
+            ),
+            (
+                _ip_blocked_key(client_ip),
+                IP_BLOCK_THRESHOLD,
+                IP_BLOCK_DURATION_MINUTES,
+                "IP",
+            ),
         ]:
             count = await r.get(key)
             if count is not None and int(count) >= threshold:
@@ -139,7 +156,9 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
             try:
                 pipe = r.pipeline()
                 pipe.incr(_username_blocked_key(username))
-                pipe.expire(_username_blocked_key(username), BLOCK_DURATION_MINUTES * 60)
+                pipe.expire(
+                    _username_blocked_key(username), BLOCK_DURATION_MINUTES * 60
+                )
                 pipe.incr(_ip_blocked_key(client_ip))
                 pipe.expire(_ip_blocked_key(client_ip), IP_BLOCK_DURATION_MINUTES * 60)
                 await pipe.execute()
@@ -163,7 +182,9 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已停用")
 
     token = create_access_token(user.id, user.username)
-    response = JSONResponse(content=ok({"token": token, "username": user.username, "role": user.role}))
+    response = JSONResponse(
+        content=ok({"token": token, "username": user.username, "role": user.role})
+    )
     response.set_cookie(
         key=TOKEN_COOKIE_NAME,
         value=token,
@@ -205,6 +226,7 @@ async def logout(
         token = request.cookies.get(TOKEN_COOKIE_NAME) or ""
 
     from app.core.security import decode_access_token
+
     payload = decode_access_token(token) if token else None
     ttl = get_token_ttl_seconds(payload) if payload else 60
 
@@ -225,17 +247,25 @@ async def change_password(
     from app.models.user import User
 
     result = await db.execute(
-        select(User).where(User.id == current_user["user_id"], User.deleted_at.is_(None))
+        select(User).where(
+            User.id == current_user["user_id"], User.deleted_at.is_(None)
+        )
     )
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不可用")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不可用"
+        )
 
     if not verify_password(req.current_password, user.password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码错误")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码错误"
+        )
 
     if verify_password(req.new_password, user.password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与当前密码相同")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与当前密码相同"
+        )
 
     user.password = hash_password(req.new_password)
     await db.commit()

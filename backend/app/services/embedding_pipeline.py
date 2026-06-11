@@ -37,14 +37,20 @@ async def _bg_embed_customer(customer_id: int):
     try:
         from app.models.customer import Customer
         from app.services.ai import EmbeddingService
+
         async with async_session() as db:
             c = await db.get(Customer, customer_id)
             if not c or c.deleted_at:
                 return
             data = {
-                "name": c.name, "industry": c.industry, "region": c.region,
-                "customer_type": c.customer_type, "level": c.level,
-                "credit_level": c.credit_level, "source": c.source, "notes": c.notes,
+                "name": c.name,
+                "industry": c.industry,
+                "region": c.region,
+                "customer_type": c.customer_type,
+                "level": c.level,
+                "credit_level": c.credit_level,
+                "source": c.source,
+                "notes": c.notes,
             }
             emb = await EmbeddingService.embed_customer(data)
             if emb:
@@ -55,7 +61,8 @@ async def _bg_embed_customer(customer_id: int):
         # Failures are non-blocking by design (fire-and-forget pipeline).
         logger.error(
             "bg_embed_customer failed for id=%s — embedding skipped",
-            customer_id, exc_info=True,
+            customer_id,
+            exc_info=True,
         )
 
 
@@ -63,6 +70,7 @@ async def _bg_embed_product(product_id: int):
     try:
         from app.models.product import Product
         from app.services.ai import EmbeddingService
+
         async with async_session() as db:
             p = await db.get(Product, product_id)
             if not p or p.deleted_at:
@@ -75,7 +83,8 @@ async def _bg_embed_product(product_id: int):
     except Exception:
         logger.error(
             "bg_embed_product failed for id=%s — embedding skipped",
-            product_id, exc_info=True,
+            product_id,
+            exc_info=True,
         )
 
 
@@ -83,15 +92,21 @@ async def _bg_embed_supplier(supplier_id: int):
     try:
         from app.models.product import Supplier
         from app.services.ai import EmbeddingService
+
         async with async_session() as db:
             s = await db.get(Supplier, supplier_id)
             if not s or s.deleted_at:
                 return
             data = {
-                "name": s.name, "product_lines": s.product_lines,
-                "supplier_type": s.supplier_type, "region": s.region,
-                "certifications": s.certifications, "payment_terms": s.payment_terms,
-                "financial_rating": s.financial_rating, "website": s.website, "notes": s.notes,
+                "name": s.name,
+                "product_lines": s.product_lines,
+                "supplier_type": s.supplier_type,
+                "region": s.region,
+                "certifications": s.certifications,
+                "payment_terms": s.payment_terms,
+                "financial_rating": s.financial_rating,
+                "website": s.website,
+                "notes": s.notes,
             }
             emb = await EmbeddingService.embed_supplier(data)
             if emb:
@@ -100,5 +115,6 @@ async def _bg_embed_supplier(supplier_id: int):
     except Exception:
         logger.error(
             "bg_embed_supplier failed for id=%s — embedding skipped",
-            supplier_id, exc_info=True,
+            supplier_id,
+            exc_info=True,
         )

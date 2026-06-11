@@ -19,6 +19,7 @@ async def db():
         # Import models so Base knows about them
         from app.models.audit import FieldChangeLog  # noqa
         from app.models.customer import Customer  # noqa
+
         await conn.run_sync(Base.metadata.create_all)
     SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with SessionLocal() as session:
@@ -29,7 +30,9 @@ async def db():
 @pytest.mark.asyncio
 async def test_update_with_audit_actor_records_field_change(db: AsyncSession):
     # Create customer
-    cust = Customer(name="Acme", contact_person="Alice", email="old@acme.com", level="A")
+    cust = Customer(
+        name="Acme", contact_person="Alice", email="old@acme.com", level="A"
+    )
     db.add(cust)
     await db.commit()
     await db.refresh(cust)
@@ -40,9 +43,16 @@ async def test_update_with_audit_actor_records_field_change(db: AsyncSession):
 
     # Verify field change log written
     from sqlalchemy import select
-    logs = (await db.execute(
-        select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
-    )).scalars().all()
+
+    logs = (
+        (
+            await db.execute(
+                select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     assert len(logs) == 1
     log = logs[0]
@@ -64,9 +74,16 @@ async def test_update_without_audit_actor_writes_nothing(db: AsyncSession):
     await service.update(db, cust, {"email": "b@x.com"})  # no audit_actor
 
     from sqlalchemy import select
-    logs = (await db.execute(
-        select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
-    )).scalars().all()
+
+    logs = (
+        (
+            await db.execute(
+                select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert len(logs) == 0
 
 
@@ -78,12 +95,21 @@ async def test_noop_update_writes_nothing(db: AsyncSession):
     await db.refresh(cust)
 
     service = CustomerService()
-    await service.update(db, cust, {"email": "a@x.com"}, audit_actor="bob")  # same value
+    await service.update(
+        db, cust, {"email": "a@x.com"}, audit_actor="bob"
+    )  # same value
 
     from sqlalchemy import select
-    logs = (await db.execute(
-        select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
-    )).scalars().all()
+
+    logs = (
+        (
+            await db.execute(
+                select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert len(logs) == 0
 
 
@@ -96,17 +122,25 @@ async def test_multiple_field_changes_write_multiple_rows(db: AsyncSession):
 
     service = CustomerService()
     await service.update(
-        db, cust,
+        db,
+        cust,
         {"email": "b@x.com", "level": "B", "contact_person": "Bob"},
         audit_actor="alice",
     )
 
     from sqlalchemy import select
-    logs = (await db.execute(
-        select(FieldChangeLog)
-        .where(FieldChangeLog.record_id == cust.id)
-        .order_by(FieldChangeLog.field_name)
-    )).scalars().all()
+
+    logs = (
+        (
+            await db.execute(
+                select(FieldChangeLog)
+                .where(FieldChangeLog.record_id == cust.id)
+                .order_by(FieldChangeLog.field_name)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     fields = {log.field_name for log in logs}
     assert fields == {"email", "level", "contact_person"}
@@ -125,9 +159,16 @@ async def test_none_value_skipped(db: AsyncSession):
     # Only "level" should be audited (None is PATCH skip)
 
     from sqlalchemy import select
-    logs = (await db.execute(
-        select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
-    )).scalars().all()
+
+    logs = (
+        (
+            await db.execute(
+                select(FieldChangeLog).where(FieldChangeLog.record_id == cust.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     assert len(logs) == 1
     assert logs[0].field_name == "level"

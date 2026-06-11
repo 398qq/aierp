@@ -60,46 +60,69 @@ async def sales_report(
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
     so_month = date_format(SalesOrder.created_at, "YYYY-MM")
-    orders = (await db.execute(
-        select(
-            so_month.label("month"),
-            func.count(SalesOrder.id),
-            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-        ).where(
-            SalesOrder.deleted_at.is_(None),
-            SalesOrder.created_at >= cutoff,
-        ).group_by(so_month).order_by(so_month)
-    )).all()
+    orders = (
+        await db.execute(
+            select(
+                so_month.label("month"),
+                func.count(SalesOrder.id),
+                func.coalesce(func.sum(SalesOrder.total_amount), 0),
+            )
+            .where(
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at >= cutoff,
+            )
+            .group_by(so_month)
+            .order_by(so_month)
+        )
+    ).all()
 
     q_month = date_format(Quotation.created_at, "YYYY-MM")
-    quotes = (await db.execute(
-        select(
-            q_month.label("month"),
-            func.count(Quotation.id),
-            func.coalesce(func.sum(Quotation.total_amount), 0),
-        ).where(
-            Quotation.deleted_at.is_(None),
-            Quotation.created_at >= cutoff,
-        ).group_by(q_month).order_by(q_month)
-    )).all()
+    quotes = (
+        await db.execute(
+            select(
+                q_month.label("month"),
+                func.count(Quotation.id),
+                func.coalesce(func.sum(Quotation.total_amount), 0),
+            )
+            .where(
+                Quotation.deleted_at.is_(None),
+                Quotation.created_at >= cutoff,
+            )
+            .group_by(q_month)
+            .order_by(q_month)
+        )
+    ).all()
 
-    top_products = (await db.execute(
-        select(Product.name, Product.sku, func.count(SalesOrder.id).label("cnt"))
-        .select_from(SalesOrder)
-        .join(SalesOrderItem, SalesOrder.id == SalesOrderItem.order_id)
-        .join(Product, SalesOrderItem.product_id == Product.id)
-        .where(SalesOrder.deleted_at.is_(None))
-        .group_by(Product.id, Product.name, Product.sku)
-        .order_by(func.count(SalesOrder.id).desc()).limit(10)
-    )).all()
+    top_products = (
+        await db.execute(
+            select(Product.name, Product.sku, func.count(SalesOrder.id).label("cnt"))
+            .select_from(SalesOrder)
+            .join(SalesOrderItem, SalesOrder.id == SalesOrderItem.order_id)
+            .join(Product, SalesOrderItem.product_id == Product.id)
+            .where(SalesOrder.deleted_at.is_(None))
+            .group_by(Product.id, Product.name, Product.sku)
+            .order_by(func.count(SalesOrder.id).desc())
+            .limit(10)
+        )
+    ).all()
 
     payload = {
-        "monthly_orders": [{"month": m, "count": c, "amount": float(a)} for m, c, a in orders],
-        "monthly_quotations": [{"month": m, "count": c, "amount": float(a)} for m, c, a in quotes],
-        "top_products": [{"name": n, "sku": s, "order_count": c} for n, s, c in top_products],
+        "monthly_orders": [
+            {"month": m, "count": c, "amount": float(a)} for m, c, a in orders
+        ],
+        "monthly_quotations": [
+            {"month": m, "count": c, "amount": float(a)} for m, c, a in quotes
+        ],
+        "top_products": [
+            {"name": n, "sku": s, "order_count": c} for n, s, c in top_products
+        ],
     }
-    await cache_set_versioned("reports:predefined:sales", cache_key, json.dumps(payload, default=str),
-                                PREDEFINED_SALES_CACHE_TTL)
+    await cache_set_versioned(
+        "reports:predefined:sales",
+        cache_key,
+        json.dumps(payload, default=str),
+        PREDEFINED_SALES_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -119,26 +142,41 @@ async def ar_report(
     response.headers["X-Cache"] = "MISS"
     now = datetime.now(timezone.utc)
 
-    invoices = (await db.execute(
-        select(Invoice, Customer.name, Customer.code)
-        .join(Customer, Invoice.customer_id == Customer.id)
-        .where(
-            Invoice.deleted_at.is_(None),
-            Customer.deleted_at.is_(None),
-            Invoice.status.in_(["sent", "overdue", "partial"]),
+    invoices = (
+        await db.execute(
+            select(Invoice, Customer.name, Customer.code)
+            .join(Customer, Invoice.customer_id == Customer.id)
+            .where(
+                Invoice.deleted_at.is_(None),
+                Customer.deleted_at.is_(None),
+                Invoice.status.in_(["sent", "overdue", "partial"]),
+            )
         )
-    )).all()
+    ).all()
 
-    aging: dict[str, list[dict]] = {"current": [], "1_30": [], "31_60": [], "61_90": [], "over_90": []}
+    aging: dict[str, list[dict]] = {
+        "current": [],
+        "1_30": [],
+        "31_60": [],
+        "61_90": [],
+        "over_90": [],
+    }
     total_ar = 0.0
 
     for inv, cust_name, cust_code in invoices:
         age_days = (now - inv.created_at).days if inv.created_at else 0
         amount = float(inv.amount)
         total_ar += amount
-        entry = {"invoice_id": inv.id, "invoice_no": inv.invoice_no, "customer": cust_name,
-                 "customer_code": cust_code, "amount": amount, "age_days": age_days,
-                 "status": inv.status, "invoice_date": str(inv.invoice_date) if inv.invoice_date else None}
+        entry = {
+            "invoice_id": inv.id,
+            "invoice_no": inv.invoice_no,
+            "customer": cust_name,
+            "customer_code": cust_code,
+            "amount": amount,
+            "age_days": age_days,
+            "status": inv.status,
+            "invoice_date": str(inv.invoice_date) if inv.invoice_date else None,
+        }
 
         if age_days <= 30:
             aging["current"].append(entry)
@@ -154,16 +192,35 @@ async def ar_report(
     payload = {
         "total_ar": total_ar,
         "aging": {
-            "current": {"count": len(aging["current"]), "amount": sum(e["amount"] for e in aging["current"])},
-            "1_30": {"count": len(aging["1_30"]), "amount": sum(e["amount"] for e in aging["1_30"])},
-            "31_60": {"count": len(aging["31_60"]), "amount": sum(e["amount"] for e in aging["31_60"])},
-            "61_90": {"count": len(aging["61_90"]), "amount": sum(e["amount"] for e in aging["61_90"])},
-            "over_90": {"count": len(aging["over_90"]), "amount": sum(e["amount"] for e in aging["over_90"])},
+            "current": {
+                "count": len(aging["current"]),
+                "amount": sum(e["amount"] for e in aging["current"]),
+            },
+            "1_30": {
+                "count": len(aging["1_30"]),
+                "amount": sum(e["amount"] for e in aging["1_30"]),
+            },
+            "31_60": {
+                "count": len(aging["31_60"]),
+                "amount": sum(e["amount"] for e in aging["31_60"]),
+            },
+            "61_90": {
+                "count": len(aging["61_90"]),
+                "amount": sum(e["amount"] for e in aging["61_90"]),
+            },
+            "over_90": {
+                "count": len(aging["over_90"]),
+                "amount": sum(e["amount"] for e in aging["over_90"]),
+            },
         },
         "details": aging,
     }
-    await cache_set_versioned("reports:predefined:ar", cache_key, json.dumps(payload, default=str),
-                                PREDEFINED_AR_CACHE_TTL)
+    await cache_set_versioned(
+        "reports:predefined:ar",
+        cache_key,
+        json.dumps(payload, default=str),
+        PREDEFINED_AR_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -175,24 +232,34 @@ async def inventory_report(
 ):
     """Inventory turnover and stock health report."""
     cache_key = _predefined_inventory_cache_key()
-    cached_payload = await cache_get_versioned("reports:predefined:inventory", cache_key)
+    cached_payload = await cache_get_versioned(
+        "reports:predefined:inventory", cache_key
+    )
     if cached_payload is not None:
         response.headers["X-Cache"] = "HIT"
         response.headers["X-Cache-Key"] = cache_key
         return ok(json.loads(cached_payload))
     response.headers["X-Cache"] = "MISS"
-    stock_levels = (await db.execute(
-        select(
-            Product.name, Product.sku,
-            func.coalesce(func.sum(Inventory.quantity), 0).label("total_qty"),
-            func.coalesce(func.sum(Inventory.safety_stock), 0).label("total_safety"),
-        ).join(Inventory, Product.id == Inventory.product_id)
-        .where(Product.deleted_at.is_(None), Inventory.deleted_at.is_(None))
-        .group_by(Product.id, Product.name, Product.sku)
-    )).all()
+    stock_levels = (
+        await db.execute(
+            select(
+                Product.name,
+                Product.sku,
+                func.coalesce(func.sum(Inventory.quantity), 0).label("total_qty"),
+                func.coalesce(func.sum(Inventory.safety_stock), 0).label(
+                    "total_safety"
+                ),
+            )
+            .join(Inventory, Product.id == Inventory.product_id)
+            .where(Product.deleted_at.is_(None), Inventory.deleted_at.is_(None))
+            .group_by(Product.id, Product.name, Product.sku)
+        )
+    ).all()
 
     total_products = len(stock_levels)
-    low_stock = sum(1 for _, _, qty, safety in stock_levels if qty <= safety and safety > 0)
+    low_stock = sum(
+        1 for _, _, qty, safety in stock_levels if qty <= safety and safety > 0
+    )
     out_of_stock = sum(1 for _, _, qty, _ in stock_levels if qty <= 0)
 
     items = []
@@ -202,18 +269,32 @@ async def inventory_report(
             status = "缺货"
         elif safety > 0 and qty <= safety:
             status = "低库存"
-        items.append({"name": name, "sku": sku, "quantity": int(qty),
-                       "safety_stock": int(safety), "status": status})
+        items.append(
+            {
+                "name": name,
+                "sku": sku,
+                "quantity": int(qty),
+                "safety_stock": int(safety),
+                "status": status,
+            }
+        )
 
     items.sort(key=lambda x: x["quantity"])
 
     payload = {
-        "summary": {"total_products": total_products, "low_stock": low_stock,
-                     "out_of_stock": out_of_stock},
+        "summary": {
+            "total_products": total_products,
+            "low_stock": low_stock,
+            "out_of_stock": out_of_stock,
+        },
         "items": items,
     }
-    await cache_set_versioned("reports:predefined:inventory", cache_key, json.dumps(payload, default=str),
-                                PREDEFINED_INVENTORY_CACHE_TTL)
+    await cache_set_versioned(
+        "reports:predefined:inventory",
+        cache_key,
+        json.dumps(payload, default=str),
+        PREDEFINED_INVENTORY_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -226,7 +307,9 @@ async def procurement_report(
 ):
     """Procurement analysis report."""
     cache_key = _predefined_procurement_cache_key(months)
-    cached_payload = await cache_get_versioned("reports:predefined:procurement", cache_key)
+    cached_payload = await cache_get_versioned(
+        "reports:predefined:procurement", cache_key
+    )
     if cached_payload is not None:
         response.headers["X-Cache"] = "HIT"
         response.headers["X-Cache-Key"] = cache_key
@@ -235,27 +318,40 @@ async def procurement_report(
     cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
     po_month = date_format(PurchaseOrder.created_at, "YYYY-MM")
-    monthly = (await db.execute(
-        select(
-            po_month.label("month"),
-            func.count(PurchaseOrder.id),
-            func.coalesce(func.sum(PurchaseOrder.total_amount), 0),
-        ).where(
-            PurchaseOrder.deleted_at.is_(None),
-            PurchaseOrder.created_at >= cutoff,
-        ).group_by(po_month).order_by(po_month)
-    )).all()
+    monthly = (
+        await db.execute(
+            select(
+                po_month.label("month"),
+                func.count(PurchaseOrder.id),
+                func.coalesce(func.sum(PurchaseOrder.total_amount), 0),
+            )
+            .where(
+                PurchaseOrder.deleted_at.is_(None),
+                PurchaseOrder.created_at >= cutoff,
+            )
+            .group_by(po_month)
+            .order_by(po_month)
+        )
+    ).all()
 
-    status_summary = (await db.execute(
-        select(PurchaseOrder.status, func.count(PurchaseOrder.id))
-        .where(PurchaseOrder.deleted_at.is_(None))
-        .group_by(PurchaseOrder.status)
-    )).all()
+    status_summary = (
+        await db.execute(
+            select(PurchaseOrder.status, func.count(PurchaseOrder.id))
+            .where(PurchaseOrder.deleted_at.is_(None))
+            .group_by(PurchaseOrder.status)
+        )
+    ).all()
 
     payload = {
-        "monthly": [{"month": m, "count": c, "amount": float(a)} for m, c, a in monthly],
+        "monthly": [
+            {"month": m, "count": c, "amount": float(a)} for m, c, a in monthly
+        ],
         "status_summary": [{"status": s, "count": c} for s, c in status_summary],
     }
-    await cache_set_versioned("reports:predefined:procurement", cache_key, json.dumps(payload, default=str),
-                                PREDEFINED_PROCUREMENT_CACHE_TTL)
+    await cache_set_versioned(
+        "reports:predefined:procurement",
+        cache_key,
+        json.dumps(payload, default=str),
+        PREDEFINED_PROCUREMENT_CACHE_TTL,
+    )
     return ok(payload)

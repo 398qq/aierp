@@ -117,10 +117,12 @@ class TestJournalEntryAddLine:
         )
         assert entry.is_balanced
         # Add a balanced pair
-        entry.lines.extend([
-            _line(account_id=3, debit="50"),
-            _line(account_id=4, credit="50"),
-        ])
+        entry.lines.extend(
+            [
+                _line(account_id=3, debit="50"),
+                _line(account_id=4, credit="50"),
+            ]
+        )
         assert entry.is_balanced
         assert len(entry.lines) == 4
 

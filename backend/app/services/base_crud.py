@@ -33,7 +33,9 @@ class BaseCRUDService:
 
     @property
     def _table_name(self) -> str:
-        return self.table_name or (self.model.__tablename__ if self.model else "unknown")
+        return self.table_name or (
+            self.model.__tablename__ if self.model else "unknown"
+        )
 
     # ── list ──────────────────────────────────────────────────────────
 
@@ -55,12 +57,14 @@ class BaseCRUDService:
         if filters:
             base = base.where(*filters)
 
-        total = (await db.scalar(
-            select(func.count()).select_from(base.subquery())
-        )) or 0
+        total = (
+            await db.scalar(select(func.count()).select_from(base.subquery()))
+        ) or 0
 
         sort_col = getattr(self.model, sort_by, self.model.id)
-        base = base.order_by(sort_col.desc() if sort_order == "desc" else sort_col.asc())
+        base = base.order_by(
+            sort_col.desc() if sort_order == "desc" else sort_col.asc()
+        )
         offset = (page - 1) * page_size
         rows = (await db.execute(base.offset(offset).limit(page_size))).scalars().all()
 

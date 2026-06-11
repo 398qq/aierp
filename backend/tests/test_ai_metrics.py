@@ -34,7 +34,9 @@ class TestChatMetrics:
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
         mock_http_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("app.services.ai.client.httpx.AsyncClient", return_value=mock_http_client):
+        with patch(
+            "app.services.ai.client.httpx.AsyncClient", return_value=mock_http_client
+        ):
             result = await client.chat(
                 messages=[{"role": "user", "content": "hi"}],
             )
@@ -54,9 +56,12 @@ class TestChatMetrics:
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
         mock_http_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("app.services.ai.client.httpx.AsyncClient", return_value=mock_http_client):
+        with patch(
+            "app.services.ai.client.httpx.AsyncClient", return_value=mock_http_client
+        ):
             # tenacity retries 3 times → still raises after retries
             from tenacity import RetryError
+
             with pytest.raises((RuntimeError, RetryError)):
                 await client.chat(messages=[{"role": "user", "content": "hi"}])
 
@@ -82,7 +87,9 @@ class TestEmbedMetrics:
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
         mock_http_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("app.services.ai.client.httpx.AsyncClient", return_value=mock_http_client):
+        with patch(
+            "app.services.ai.client.httpx.AsyncClient", return_value=mock_http_client
+        ):
             result = await client.embed(["hello"])
 
         assert result == [[0.1, 0.2, 0.3]]
@@ -91,6 +98,7 @@ class TestEmbedMetrics:
 
     async def test_empty_embed_returns_empty_no_metric(self):
         from app.services.ai.client import AIClient
+
         client = AIClient()
         result = await client.embed([])
         assert result == []

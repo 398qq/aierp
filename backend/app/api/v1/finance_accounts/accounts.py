@@ -53,12 +53,24 @@ async def list_accounts(
         q = q.where(Account.type == type)
     result = await db.execute(q.order_by(Account.code))
     accounts = result.scalars().all()
-    payload = [{
-        "id": a.id, "code": a.code, "name": a.name, "type": a.type,
-        "parent_id": a.parent_id, "description": a.description, "is_active": a.is_active,
-    } for a in accounts]
-    await cache_set_versioned("accounts:list", cache_key, json.dumps(payload, default=str),
-                                ACCOUNTS_LIST_CACHE_TTL)
+    payload = [
+        {
+            "id": a.id,
+            "code": a.code,
+            "name": a.name,
+            "type": a.type,
+            "parent_id": a.parent_id,
+            "description": a.description,
+            "is_active": a.is_active,
+        }
+        for a in accounts
+    ]
+    await cache_set_versioned(
+        "accounts:list",
+        cache_key,
+        json.dumps(payload, default=str),
+        ACCOUNTS_LIST_CACHE_TTL,
+    )
     return ok(payload)
 
 
@@ -71,27 +83,46 @@ class AccountCreate(BaseModel):
 
 
 @router.post("/accounts", status_code=201)
-async def create_account(body: AccountCreate, request: Request,
-                         db: AsyncSession = Depends(get_db),
-                         current_user: dict = Depends(require_perm("finance", "write"))):
+async def create_account(
+    body: AccountCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_perm("finance", "write")),
+):
     if body.type not in ("asset", "liability", "equity", "income", "expense"):
         return fail("科目类型无效")
     a = Account(**body.model_dump())
     db.add(a)
     await db.commit()
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "create", "account", a.id, f"创建科目: {a.code} {a.name}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "create",
+        "account",
+        a.id,
+        f"创建科目: {a.code} {a.name}",
+        request.client.host if request.client else "",
+    )
     await db.commit()
     await cache_bump_version("accounts:list")
     return ok({"id": a.id}, msg="科目创建成功")
 
 
 @router.put("/accounts/{account_id}")
-async def update_account(account_id: int, body: AccountCreate,
-                         db: AsyncSession = Depends(get_db),
-                         _user: dict = Depends(require_perm("finance", "write"))):
-    a = (await db.execute(select(Account).where(Account.id == account_id, Account.deleted_at.is_(None)))).scalar_one_or_none()
+async def update_account(
+    account_id: int,
+    body: AccountCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("finance", "write")),
+):
+    a = (
+        await db.execute(
+            select(Account).where(
+                Account.id == account_id, Account.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not a:
         return fail("科目不存在")
     for k, v in body.model_dump().items():
@@ -102,10 +133,20 @@ async def update_account(account_id: int, body: AccountCreate,
 
 
 @router.delete("/accounts/{account_id}")
-async def delete_account(account_id: int, db: AsyncSession = Depends(get_db),
-                         _user: dict = Depends(require_perm("finance", "write"))):
+async def delete_account(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("finance", "write")),
+):
     import datetime
-    a = (await db.execute(select(Account).where(Account.id == account_id, Account.deleted_at.is_(None)))).scalar_one_or_none()
+
+    a = (
+        await db.execute(
+            select(Account).where(
+                Account.id == account_id, Account.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not a:
         return fail("科目不存在")
     a.deleted_at = datetime.datetime.now(datetime.timezone.utc)

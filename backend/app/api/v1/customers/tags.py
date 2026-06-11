@@ -33,11 +33,15 @@ def _tag_payload(tag: CustomerTag) -> dict:
 
 
 async def _find_tag_by_name(db: AsyncSession, name: str) -> CustomerTag | None:
-    result = await db.execute(select(CustomerTag).where(func.lower(CustomerTag.name) == name.lower()))
+    result = await db.execute(
+        select(CustomerTag).where(func.lower(CustomerTag.name) == name.lower())
+    )
     return result.scalars().first()
 
 
-async def _create_or_restore_tag(db: AsyncSession, name: str, color: str | None) -> tuple[CustomerTag, bool]:
+async def _create_or_restore_tag(
+    db: AsyncSession, name: str, color: str | None
+) -> tuple[CustomerTag, bool]:
     tag = await _find_tag_by_name(db, name)
     if tag is not None:
         restored = tag.deleted_at is not None
@@ -57,9 +61,17 @@ async def list_tags(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    rows = (await db.execute(
-        select(CustomerTag).where(CustomerTag.deleted_at.is_(None)).order_by(CustomerTag.name)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(CustomerTag)
+                .where(CustomerTag.deleted_at.is_(None))
+                .order_by(CustomerTag.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return ok([_tag_payload(t) for t in rows])
 
 
@@ -102,11 +114,13 @@ async def generate_default_tags(
         if was_created:
             created += 1
     await db.flush()
-    return ok({
-        "created": created,
-        "existing": len(DEFAULT_CUSTOMER_TAGS) - created,
-        "tags": [_tag_payload(tag) for tag in tags],
-    })
+    return ok(
+        {
+            "created": created,
+            "existing": len(DEFAULT_CUSTOMER_TAGS) - created,
+            "tags": [_tag_payload(tag) for tag in tags],
+        }
+    )
 
 
 @tags_router.put("/{tag_id}")
@@ -117,7 +131,9 @@ async def update_tag(
     _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
-        select(CustomerTag).where(CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None))
+        select(CustomerTag).where(
+            CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None)
+        )
     )
     tag = result.scalar_one_or_none()
     if tag is None:
@@ -128,9 +144,15 @@ async def update_tag(
             if not val:
                 return fail("Tag name required", 400)
             duplicate = await _find_tag_by_name(db, val)
-            if duplicate is not None and duplicate.id != tag.id and duplicate.deleted_at is None:
+            if (
+                duplicate is not None
+                and duplicate.id != tag.id
+                and duplicate.deleted_at is None
+            ):
                 return fail("Tag already exists", 409)
-        setattr(tag, key, val.strip() if key == "name" and isinstance(val, str) else val)
+        setattr(
+            tag, key, val.strip() if key == "name" and isinstance(val, str) else val
+        )
     await db.flush()
     return ok(_tag_payload(tag))
 
@@ -142,7 +164,9 @@ async def delete_tag(
     _user: dict = Depends(require_perm("customers", "delete")),
 ):
     result = await db.execute(
-        select(CustomerTag).where(CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None))
+        select(CustomerTag).where(
+            CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None)
+        )
     )
     tag = result.scalar_one_or_none()
     if tag is None:
@@ -153,6 +177,7 @@ async def delete_tag(
 
 
 # --- Batch tag operations ---
+
 
 @router.post("/batch-tag")
 async def batch_tag(
@@ -167,7 +192,9 @@ async def batch_tag(
     )
     customers = customers_result.scalars().all()
     tags_result = await db.execute(
-        select(CustomerTag).where(CustomerTag.id.in_(body.tag_ids), CustomerTag.deleted_at.is_(None))
+        select(CustomerTag).where(
+            CustomerTag.id.in_(body.tag_ids), CustomerTag.deleted_at.is_(None)
+        )
     )
     tags = tags_result.scalars().all()
     for c in customers:
@@ -181,6 +208,7 @@ async def batch_tag(
 
 # --- Per-customer tag linking ---
 
+
 @router.get("/{customer_id}/tags")
 async def get_customer_tags(
     customer_id: int,
@@ -188,7 +216,9 @@ async def get_customer_tags(
     _user: dict = Depends(require_perm("customers", "read")),
 ):
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
@@ -204,13 +234,17 @@ async def link_tag(
     _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
         return fail("Customer not found", 404)
     tag_result = await db.execute(
-        select(CustomerTag).where(CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None))
+        select(CustomerTag).where(
+            CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None)
+        )
     )
     tag = tag_result.scalar_one_or_none()
     if tag is None:
@@ -229,13 +263,17 @@ async def unlink_tag(
     _user: dict = Depends(require_perm("customers", "write")),
 ):
     result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = result.scalar_one_or_none()
     if customer is None:
         return fail("Customer not found", 404)
     tag_result = await db.execute(
-        select(CustomerTag).where(CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None))
+        select(CustomerTag).where(
+            CustomerTag.id == tag_id, CustomerTag.deleted_at.is_(None)
+        )
     )
     tag = tag_result.scalar_one_or_none()
     if tag is None:

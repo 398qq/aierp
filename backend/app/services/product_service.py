@@ -159,9 +159,7 @@ def product_row(
         "gross_weight_g": float(p.gross_weight_g)
         if p.gross_weight_g is not None
         else None,
-        "net_weight_g": float(p.net_weight_g)
-        if p.net_weight_g is not None
-        else None,
+        "net_weight_g": float(p.net_weight_g) if p.net_weight_g is not None else None,
         "tax_rate": float(p.tax_rate) if p.tax_rate is not None else None,
         "currency": p.currency,
         "standard_cost": float(p.standard_cost)
@@ -250,9 +248,7 @@ class ProductService(BaseCRUDService):
 
         cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
 
-        total = (
-            await db.execute(select(func.count()).select_from(base))
-        ).scalar() or 0
+        total = (await db.execute(select(func.count()).select_from(base))).scalar() or 0
         in_stock_count = (
             await db.execute(
                 select(func.count()).select_from(base).where(base.c.available > 0)
@@ -307,8 +303,7 @@ class ProductService(BaseCRUDService):
                 select(func.count())
                 .select_from(base)
                 .where(
-                    (base.c.last_sale_at.is_(None))
-                    | (base.c.last_sale_at < cutoff_30d)
+                    (base.c.last_sale_at.is_(None)) | (base.c.last_sale_at < cutoff_30d)
                 )
             )
         ).scalar() or 0
@@ -631,7 +626,9 @@ class ProductService(BaseCRUDService):
         dni_rows = (
             await db.execute(
                 select(DeliveryNoteItem, DeliveryNote)
-                .join(DeliveryNote, DeliveryNoteItem.delivery_note_id == DeliveryNote.id)
+                .join(
+                    DeliveryNote, DeliveryNoteItem.delivery_note_id == DeliveryNote.id
+                )
                 .where(
                     DeliveryNoteItem.product_id == product_id,
                     DeliveryNote.deleted_at.is_(None),

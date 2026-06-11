@@ -14,7 +14,9 @@ class Document(TimestampMixin, Base):
     file_path: Mapped[str] = mapped_column(String(1000))
     file_size: Mapped[int] = mapped_column(Integer)
     mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    uploaded_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
     uploader = relationship("User", foreign_keys=[uploaded_by])
 

@@ -17,10 +17,14 @@ async def db():
         from app.models.customer import Customer  # noqa
         from app.models.sales import SalesOrder, SalesOrderItem  # noqa
         from app.models.finance import (  # noqa
-            Commission, Invoice, InvoiceLine, PaymentRecord,
+            Commission,
+            Invoice,
+            InvoiceLine,
+            PaymentRecord,
         )
         from app.models.user import User  # noqa
         from app.models.product import Product  # noqa
+
         await conn.run_sync(Base.metadata.create_all)
     SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with SessionLocal() as session:
@@ -40,11 +44,13 @@ async def test_metrics_empty_db_returns_none(db: AsyncSession):
     from sqlalchemy import select, func
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
-    result = (await db.execute(
-        select(func.count(StatusTransitionLog.id)).where(
-            StatusTransitionLog.transitioned_at >= cutoff
+    result = (
+        await db.execute(
+            select(func.count(StatusTransitionLog.id)).where(
+                StatusTransitionLog.transitioned_at >= cutoff
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
     assert result == 0
 
 
@@ -55,51 +61,84 @@ async def test_metrics_with_sample_data(db: AsyncSession):
 
     now = datetime.now(timezone.utc)
     # 1 create + 1 confirm + 1 complete (healthy flow)
-    db.add(StatusTransitionLog(
-        aggregate_type="SalesOrder", aggregate_id=1, aggregate_no="SO-1",
-        status_before=None, status_after="pending", action="create",
-        transitioned_at=now - timedelta(hours=10),
-    ))
-    db.add(StatusTransitionLog(
-        aggregate_type="SalesOrder", aggregate_id=1, aggregate_no="SO-1",
-        status_before="pending", status_after="confirmed", action="confirm",
-        transitioned_at=now - timedelta(hours=8),  # 2h to confirm
-    ))
-    db.add(StatusTransitionLog(
-        aggregate_type="SalesOrder", aggregate_id=1, aggregate_no="SO-1",
-        status_before="confirmed", status_after="completed", action="complete",
-        transitioned_at=now - timedelta(hours=1),
-    ))
+    db.add(
+        StatusTransitionLog(
+            aggregate_type="SalesOrder",
+            aggregate_id=1,
+            aggregate_no="SO-1",
+            status_before=None,
+            status_after="pending",
+            action="create",
+            transitioned_at=now - timedelta(hours=10),
+        )
+    )
+    db.add(
+        StatusTransitionLog(
+            aggregate_type="SalesOrder",
+            aggregate_id=1,
+            aggregate_no="SO-1",
+            status_before="pending",
+            status_after="confirmed",
+            action="confirm",
+            transitioned_at=now - timedelta(hours=8),  # 2h to confirm
+        )
+    )
+    db.add(
+        StatusTransitionLog(
+            aggregate_type="SalesOrder",
+            aggregate_id=1,
+            aggregate_no="SO-1",
+            status_before="confirmed",
+            status_after="completed",
+            action="complete",
+            transitioned_at=now - timedelta(hours=1),
+        )
+    )
     # 1 cancel (1 cancelled, 1 completed → 50% cancel rate)
-    db.add(StatusTransitionLog(
-        aggregate_type="SalesOrder", aggregate_id=2, aggregate_no="SO-2",
-        status_before="pending", status_after="cancelled", action="cancel",
-        transitioned_at=now - timedelta(hours=5),
-    ))
+    db.add(
+        StatusTransitionLog(
+            aggregate_type="SalesOrder",
+            aggregate_id=2,
+            aggregate_no="SO-2",
+            status_before="pending",
+            status_after="cancelled",
+            action="cancel",
+            transitioned_at=now - timedelta(hours=5),
+        )
+    )
     await db.commit()
 
     # Verify the data is queryable
     from sqlalchemy import select, func
-    confirmed = (await db.execute(
-        select(func.count(StatusTransitionLog.id)).where(
-            StatusTransitionLog.action == "confirm"
+
+    confirmed = (
+        await db.execute(
+            select(func.count(StatusTransitionLog.id)).where(
+                StatusTransitionLog.action == "confirm"
+            )
         )
-    )).scalar() or 0
-    cancelled = (await db.scalar(
-        select(func.count(StatusTransitionLog.id)).where(
-            StatusTransitionLog.action == "cancel"
+    ).scalar() or 0
+    cancelled = (
+        await db.scalar(
+            select(func.count(StatusTransitionLog.id)).where(
+                StatusTransitionLog.action == "cancel"
+            )
         )
-    )) or 0
-    completed = (await db.scalar(
-        select(func.count(StatusTransitionLog.id)).where(
-            StatusTransitionLog.action == "complete"
+    ) or 0
+    completed = (
+        await db.scalar(
+            select(func.count(StatusTransitionLog.id)).where(
+                StatusTransitionLog.action == "complete"
+            )
         )
-    )) or 0
-    creates = (await db.scalar(
-        select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
-            StatusTransitionLog.action == "create"
+    ) or 0
+    creates = (
+        await db.scalar(
+            select(func.count(func.distinct(StatusTransitionLog.aggregate_id))).where(
+                StatusTransitionLog.action == "create"
+            )
         )
-    )) or 0
+    ) or 0
 
     assert confirmed == 1
     assert cancelled == 1

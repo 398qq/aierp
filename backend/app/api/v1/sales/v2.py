@@ -92,7 +92,9 @@ async def create_quotation(
     ]
 
     # 1. Generate doc no (uses session)
-    quotation_no = await generate_doc_no(uow.session, "QT", QuotationModel, "quotation_no")
+    quotation_no = await generate_doc_no(
+        uow.session, "QT", QuotationModel, "quotation_no"
+    )
 
     # 2. Build ORM
     quote_orm = QuotationModel(
@@ -109,20 +111,28 @@ async def create_quotation(
 
     total = Decimal("0")
     for line in domain_lines:
-        uow.session.add(QuotationItem(
-            quotation_id=quote_orm.id,
-            product_id=line.product_id,
-            product_name=line.product_name,
-            quantity=line.quantity,
-            unit_price=line.unit_price,
-            cost_price=line.cost_price,
-            total_price=line.subtotal,
-        ))
+        uow.session.add(
+            QuotationItem(
+                quotation_id=quote_orm.id,
+                product_id=line.product_id,
+                product_name=line.product_name,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
+                cost_price=line.cost_price,
+                total_price=line.subtotal,
+            )
+        )
         total += line.subtotal
 
     quote_orm.total_amount = float(total)
     await uow.session.flush()
-    return ok({"id": quote_orm.id, "quotation_no": quote_orm.quotation_no, "total": float(total)})
+    return ok(
+        {
+            "id": quote_orm.id,
+            "quotation_no": quote_orm.quotation_no,
+            "total": float(total),
+        }
+    )
 
 
 @router.post("/quotations/{quotation_id}/send")
@@ -149,7 +159,9 @@ async def send_quotation(
         id=quote_orm.id,
         customer_id=quote_orm.customer_id,
         quotation_no=quote_orm.quotation_no,
-        status=QuotationStatus(quote_orm.status) if quote_orm.status else QuotationStatus.DRAFT,
+        status=QuotationStatus(quote_orm.status)
+        if quote_orm.status
+        else QuotationStatus.DRAFT,
         valid_until=quote_orm.valid_until,
         notes=quote_orm.notes,
         lines=[
@@ -180,11 +192,13 @@ async def convert_quotation_to_order(
     """Convert a quotation to a sales order."""
     use_case = ConvertQuotationToOrderUseCase(uow.session, user_id=user["user_id"])
     domain_order = await use_case.execute(quotation_id)
-    return ok({
-        "quotation_id": quotation_id,
-        "lines": len(domain_order.lines),
-        "total": float(domain_order.total),
-    })
+    return ok(
+        {
+            "quotation_id": quotation_id,
+            "lines": len(domain_order.lines),
+            "total": float(domain_order.total),
+        }
+    )
 
 
 # ── Sales Order routes (domain-driven) ────────────────────────────────────
@@ -202,16 +216,19 @@ async def confirm_order(
     domain-driven implementation that emits OrderConfirmed events.
     """
     use_case = ConfirmSalesOrderUseCase(
-        uow.session, user_id=user["user_id"],
+        uow.session,
+        user_id=user["user_id"],
     )
     domain_order = await use_case.execute(order_id)
     for event in domain_order.collect_events():
         uow.track_event(event)
-    return ok({
-        "id": domain_order.id,
-        "status": domain_order.status.value,
-        "total": float(domain_order.total),
-    })
+    return ok(
+        {
+            "id": domain_order.id,
+            "status": domain_order.status.value,
+            "total": float(domain_order.total),
+        }
+    )
 
 
 @router.post("/orders/{order_id}/cancel")
@@ -230,7 +247,9 @@ async def cancel_order(
     domain_order = await use_case.execute(order_id, reason=reason)
     for event in domain_order.collect_events():
         uow.track_event(event)
-    return ok({
-        "id": domain_order.id,
-        "status": domain_order.status.value,
-    })
+    return ok(
+        {
+            "id": domain_order.id,
+            "status": domain_order.status.value,
+        }
+    )

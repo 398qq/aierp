@@ -22,15 +22,22 @@ async def list_permissions(
     _user: dict = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Permission).where(Permission.deleted_at.is_(None)).order_by(Permission.resource, Permission.action)
+        select(Permission)
+        .where(Permission.deleted_at.is_(None))
+        .order_by(Permission.resource, Permission.action)
     )
     perms = result.scalars().all()
     grouped: dict[str, list[dict]] = {}
     for p in perms:
-        grouped.setdefault(p.resource, []).append({
-            "id": p.id, "resource": p.resource, "action": p.action,
-            "name": p.name, "description": p.description,
-        })
+        grouped.setdefault(p.resource, []).append(
+            {
+                "id": p.id,
+                "resource": p.resource,
+                "action": p.action,
+                "name": p.name,
+                "description": p.description,
+            }
+        )
     return ok({"groups": grouped, "total": len(perms)})
 
 
@@ -49,11 +56,15 @@ async def list_roles(
     data = []
     for r in roles:
         perm_ids = [p.id for p in r.permissions]
-        data.append({
-            "id": r.id, "name": r.name, "description": r.description,
-            "permission_ids": perm_ids,
-            "user_count": len(r.users) if r.users else 0,
-        })
+        data.append(
+            {
+                "id": r.id,
+                "name": r.name,
+                "description": r.description,
+                "permission_ids": perm_ids,
+                "user_count": len(r.users) if r.users else 0,
+            }
+        )
     return ok(data)
 
 
@@ -70,9 +81,11 @@ async def create_role(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_perm("system", "write")),
 ):
-    existing = (await db.execute(
-        select(Role).where(Role.name == body.name, Role.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    existing = (
+        await db.execute(
+            select(Role).where(Role.name == body.name, Role.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if existing:
         return fail("角色名已存在")
 
@@ -81,17 +94,33 @@ async def create_role(
     await db.flush()
 
     if body.permission_ids:
-        perms = (await db.execute(
-            select(Permission).where(Permission.id.in_(body.permission_ids), Permission.deleted_at.is_(None))
-        )).scalars().all()
+        perms = (
+            (
+                await db.execute(
+                    select(Permission).where(
+                        Permission.id.in_(body.permission_ids),
+                        Permission.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         role.permissions = perms
         await db.flush()
 
     await db.commit()
     await _invalidate_perm_cache()
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "create", "role", role.id, f"创建角色: {role.name}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "create",
+        "role",
+        role.id,
+        f"创建角色: {role.name}",
+        request.client.host if request.client else "",
+    )
     return ok({"id": role.id}, msg="角色创建成功")
 
 
@@ -103,25 +132,43 @@ async def update_role(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_perm("system", "write")),
 ):
-    role = (await db.execute(
-        select(Role).where(Role.id == role_id, Role.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    role = (
+        await db.execute(
+            select(Role).where(Role.id == role_id, Role.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not role:
         return fail("角色不存在")
 
     role.name = body.name
     role.description = body.description
     if body.permission_ids is not None:
-        perms = (await db.execute(
-            select(Permission).where(Permission.id.in_(body.permission_ids), Permission.deleted_at.is_(None))
-        )).scalars().all()
+        perms = (
+            (
+                await db.execute(
+                    select(Permission).where(
+                        Permission.id.in_(body.permission_ids),
+                        Permission.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         role.permissions = perms
 
     await db.commit()
     await _invalidate_perm_cache()
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "update", "role", role.id, f"更新角色: {role.name}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "update",
+        "role",
+        role.id,
+        f"更新角色: {role.name}",
+        request.client.host if request.client else "",
+    )
     return ok(msg="角色更新成功")
 
 
@@ -132,21 +179,31 @@ async def delete_role(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_perm("system", "write")),
 ):
-    role = (await db.execute(
-        select(Role).where(Role.id == role_id, Role.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    role = (
+        await db.execute(
+            select(Role).where(Role.id == role_id, Role.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not role:
         return fail("角色不存在")
     if role.name == "admin":
         return fail("不能删除 admin 角色")
 
     from datetime import datetime, timezone
+
     role.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     await _invalidate_perm_cache()
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "delete", "role", role.id, f"删除角色: {role.name}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "delete",
+        "role",
+        role.id,
+        f"删除角色: {role.name}",
+        request.client.host if request.client else "",
+    )
     return ok(msg="角色已删除")
 
 
@@ -163,16 +220,20 @@ async def get_user_roles(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    user = (await db.execute(
-        select(User).where(User.id == user_id, User.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    user = (
+        await db.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not user:
         return fail("用户不存在")
-    return ok({
-        "user_id": user_id,
-        "role_ids": [r.id for r in user.roles],
-        "roles": [{"id": r.id, "name": r.name} for r in user.roles],
-    })
+    return ok(
+        {
+            "user_id": user_id,
+            "role_ids": [r.id for r in user.roles],
+            "roles": [{"id": r.id, "name": r.name} for r in user.roles],
+        }
+    )
 
 
 @router.put("/users/{user_id}/roles")
@@ -183,22 +244,38 @@ async def set_user_roles(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_perm("system", "write")),
 ):
-    user = (await db.execute(
-        select(User).where(User.id == user_id, User.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    user = (
+        await db.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+    ).scalar_one_or_none()
     if not user:
         return fail("用户不存在")
 
-    roles = (await db.execute(
-        select(Role).where(Role.id.in_(body.role_ids), Role.deleted_at.is_(None))
-    )).scalars().all()
+    roles = (
+        (
+            await db.execute(
+                select(Role).where(
+                    Role.id.in_(body.role_ids), Role.deleted_at.is_(None)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     user.roles = roles
     await db.commit()
     await _invalidate_perm_cache()
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "update", "user_roles", user_id,
-                          f"设置用户 {user.username} 角色: {[r.name for r in roles]}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "update",
+        "user_roles",
+        user_id,
+        f"设置用户 {user.username} 角色: {[r.name for r in roles]}",
+        request.client.host if request.client else "",
+    )
     return ok(msg="角色设置成功")
 
 
@@ -220,17 +297,31 @@ async def list_audit_logs(
     if user_id:
         conditions.append(AuditLog.user_id == user_id)
 
-    total = (await db.scalar(
-        select(func.count(AuditLog.id)).where(*conditions)
-    )) or 0
+    total = (await db.scalar(select(func.count(AuditLog.id)).where(*conditions))) or 0
     result = await db.execute(
-        select(AuditLog).where(*conditions)
-        .order_by(AuditLog.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        select(AuditLog)
+        .where(*conditions)
+        .order_by(AuditLog.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     logs = result.scalars().all()
-    return paginated_ok([{
-        "id": log.id, "user_id": log.user_id, "username": log.username,
-        "action": log.action, "resource_type": log.resource_type,
-        "resource_id": log.resource_id, "summary": log.summary,
-        "ip_address": log.ip_address, "created_at": str(log.created_at),
-    } for log in logs], total, page, page_size)
+    return paginated_ok(
+        [
+            {
+                "id": log.id,
+                "user_id": log.user_id,
+                "username": log.username,
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "summary": log.summary,
+                "ip_address": log.ip_address,
+                "created_at": str(log.created_at),
+            }
+            for log in logs
+        ],
+        total,
+        page,
+        page_size,
+    )

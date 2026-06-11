@@ -42,7 +42,9 @@ def _load_or_generate_key() -> bytes:
                 raise ValueError(f"key must be 32 bytes, got {len(key)}")
             return key
         except Exception as exc:
-            logger.warning("Invalid FIELD_ENCRYPTION_KEY: %s — falling back to dev key", exc)
+            logger.warning(
+                "Invalid FIELD_ENCRYPTION_KEY: %s — falling back to dev key", exc
+            )
 
     # Dev fallback — derived from JWT_SECRET so it's stable per env
     seed = os.getenv("JWT_SECRET", "dev-secret-do-not-use-in-prod").encode()
@@ -66,6 +68,7 @@ def _get_fernet():
         pass
     from cryptography.fernet import Fernet
     import base64
+
     f = Fernet(base64.urlsafe_b64encode(_ENCRYPTION_KEY))
     return f
 
@@ -97,7 +100,9 @@ def decrypt(ciphertext: str) -> str:
         return plain.decode("utf-8")
     except Exception:
         # Could be: not a Fernet token, key rotated, or was never encrypted
-        logger.warning("Failed to decrypt value (returning as-is). Length=%d", len(ciphertext))
+        logger.warning(
+            "Failed to decrypt value (returning as-is). Length=%d", len(ciphertext)
+        )
         return ciphertext
 
 
@@ -116,21 +121,13 @@ def mask_for_display(ciphertext: str, visible_chars: int = 4) -> str:
         # Encrypted value — show first 4 + "..." + last 4 chars
         if len(ciphertext) <= visible_chars * 2 + 3:
             return ciphertext[:3] + "***"
-        return (
-            ciphertext[:visible_chars] +
-            "..." +
-            ciphertext[-visible_chars:]
-        )
+        return ciphertext[:visible_chars] + "..." + ciphertext[-visible_chars:]
     # Looks like plain text — mask middle
     if len(ciphertext) <= 8:
         return "***"
     mid = len(ciphertext) // 2
     visible = max(2, len(ciphertext) // 4)
-    return (
-        ciphertext[:visible] +
-        "*" * (mid - visible) +
-        ciphertext[-visible:]
-    )
+    return ciphertext[:visible] + "*" * (mid - visible) + ciphertext[-visible:]
 
 
 # ────────────────────────────────────────────────────────────────────────

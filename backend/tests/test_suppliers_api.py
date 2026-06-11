@@ -2,7 +2,9 @@ from httpx import AsyncClient
 
 
 class TestSuppliersAPI:
-    async def test_supplier_stats_summary(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_supplier_stats_summary(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         from app.models.product import Product, Supplier, SupplierProduct
 
         factory = Supplier(
@@ -24,10 +26,16 @@ class TestSuppliersAPI:
         product = Product(name="Sensor A", sku="SNS-A")
         db_session.add_all([factory, overseas, product])
         await db_session.flush()
-        db_session.add(SupplierProduct(supplier_id=factory.id, product_id=product.id, cost_price=1.2))
+        db_session.add(
+            SupplierProduct(
+                supplier_id=factory.id, product_id=product.id, cost_price=1.2
+            )
+        )
         await db_session.flush()
 
-        resp = await async_client.get("/api/v1/suppliers/stats/summary", headers=auth_headers)
+        resp = await async_client.get(
+            "/api/v1/suppliers/stats/summary", headers=auth_headers
+        )
 
         assert resp.status_code == 200
         data = resp.json()["data"]

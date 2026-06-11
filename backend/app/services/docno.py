@@ -6,7 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def generate_doc_no(db: AsyncSession, prefix: str, model, column_name: str) -> str:
+async def generate_doc_no(
+    db: AsyncSession, prefix: str, model, column_name: str
+) -> str:
     """Generate a date-based document number like QT202605110001.
 
     Uses PostgreSQL advisory lock to prevent duplicates under concurrency.

@@ -44,8 +44,18 @@ def upgrade() -> None:
     op.create_table(
         "field_change_logs",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("table_name", sa.String(50), nullable=False),
         sa.Column("record_id", sa.Integer, nullable=False),
         sa.Column("field_name", sa.String(50), nullable=False),
@@ -53,14 +63,31 @@ def upgrade() -> None:
         sa.Column("new_value", sa.Text, nullable=True),
         sa.Column("actor", sa.String(100), nullable=True),
         sa.Column("reason", sa.Text, nullable=True),
-        sa.Column("changed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "changed_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_field_change_logs_table_name", "field_change_logs", ["table_name"])
-    op.create_index("ix_field_change_logs_record_id", "field_change_logs", ["record_id"])
-    op.create_index("ix_field_change_logs_changed_at", "field_change_logs", ["changed_at"])
+    op.create_index(
+        "ix_field_change_logs_table_name", "field_change_logs", ["table_name"]
+    )
+    op.create_index(
+        "ix_field_change_logs_record_id", "field_change_logs", ["record_id"]
+    )
+    op.create_index(
+        "ix_field_change_logs_changed_at", "field_change_logs", ["changed_at"]
+    )
     op.create_index("ix_field_change_logs_actor", "field_change_logs", ["actor"])
-    op.create_index("ix_field_change_logs_record", "field_change_logs", ["table_name", "record_id"])
-    op.create_index("ix_field_change_logs_field_time", "field_change_logs", ["table_name", "field_name", "changed_at"])
+    op.create_index(
+        "ix_field_change_logs_record", "field_change_logs", ["table_name", "record_id"]
+    )
+    op.create_index(
+        "ix_field_change_logs_field_time",
+        "field_change_logs",
+        ["table_name", "field_name", "changed_at"],
+    )
 
 
 def downgrade() -> None:

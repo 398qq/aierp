@@ -38,87 +38,112 @@ class WatchtowerService(BaseAgent):
         now = datetime.now(timezone.utc)
 
         # 1. Inventory: low stock items
-        low_stock = (await db.execute(
-            select(func.count(Inventory.id)).where(
-                Inventory.deleted_at.is_(None),
-                Inventory.quantity <= Inventory.safety_stock,
-                Inventory.quantity > 0,
+        low_stock = (
+            await db.execute(
+                select(func.count(Inventory.id)).where(
+                    Inventory.deleted_at.is_(None),
+                    Inventory.quantity <= Inventory.safety_stock,
+                    Inventory.quantity > 0,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
         if low_stock > 0:
-            findings.append({
-                "domain": "库存",
-                "severity": "high" if low_stock > 10 else "medium",
-                "title": f"低库存预警：{low_stock} 个SKU",
-                "detail": f"当前有 {low_stock} 个产品的库存低于安全库存线",
-            })
+            findings.append(
+                {
+                    "domain": "库存",
+                    "severity": "high" if low_stock > 10 else "medium",
+                    "title": f"低库存预警：{low_stock} 个SKU",
+                    "detail": f"当前有 {low_stock} 个产品的库存低于安全库存线",
+                }
+            )
 
         # 2. Inventory: dead stock (no movement in 180d)
         d180 = now - timedelta(days=180)
-        dead = (await db.execute(
-            select(func.count(Inventory.id)).where(
-                Inventory.deleted_at.is_(None),
-                Inventory.quantity > 0,
-                Inventory.updated_at < d180,
+        dead = (
+            await db.execute(
+                select(func.count(Inventory.id)).where(
+                    Inventory.deleted_at.is_(None),
+                    Inventory.quantity > 0,
+                    Inventory.updated_at < d180,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
         if dead > 0:
-            findings.append({
-                "domain": "库存",
-                "severity": "medium",
-                "title": f"滞销库存：{dead} 个SKU",
-                "detail": f"{dead} 个产品超过180天无变动",
-            })
+            findings.append(
+                {
+                    "domain": "库存",
+                    "severity": "medium",
+                    "title": f"滞销库存：{dead} 个SKU",
+                    "detail": f"{dead} 个产品超过180天无变动",
+                }
+            )
 
         # 3. Finance: overdue invoices
-        overdue = (await db.execute(
-            select(func.count(Invoice.id), func.coalesce(func.sum(Invoice.amount), 0)).where(
-                Invoice.deleted_at.is_(None),
-                Invoice.status == "overdue",
+        overdue = (
+            await db.execute(
+                select(
+                    func.count(Invoice.id), func.coalesce(func.sum(Invoice.amount), 0)
+                ).where(
+                    Invoice.deleted_at.is_(None),
+                    Invoice.status == "overdue",
+                )
             )
-        )).first()
+        ).first()
         if overdue and overdue[0] > 0:
-            findings.append({
-                "domain": "财务",
-                "severity": "critical" if float(overdue[1]) > 100_000 else "high",
-                "title": f"逾期发票：{overdue[0]} 张",
-                "detail": f"逾期金额 ¥{float(overdue[1]):,.0f}",
-            })
+            findings.append(
+                {
+                    "domain": "财务",
+                    "severity": "critical" if float(overdue[1]) > 100_000 else "high",
+                    "title": f"逾期发票：{overdue[0]} 张",
+                    "detail": f"逾期金额 ¥{float(overdue[1]):,.0f}",
+                }
+            )
 
         # 4. Sales: stale opportunities
         d30 = now - timedelta(days=30)
-        stale_opps = (await db.execute(
-            select(func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0)).where(
-                Opportunity.deleted_at.is_(None),
-                Opportunity.status == "open",
-                Opportunity.updated_at < d30,
+        stale_opps = (
+            await db.execute(
+                select(
+                    func.count(Opportunity.id),
+                    func.coalesce(func.sum(Opportunity.amount), 0),
+                ).where(
+                    Opportunity.deleted_at.is_(None),
+                    Opportunity.status == "open",
+                    Opportunity.updated_at < d30,
+                )
             )
-        )).first()
+        ).first()
         if stale_opps and stale_opps[0] > 0:
-            findings.append({
-                "domain": "销售",
-                "severity": "high" if stale_opps[0] > 5 else "medium",
-                "title": f"停滞商机：{stale_opps[0]} 个",
-                "detail": f"{stale_opps[0]} 个开放商机超过30天未更新，合计 ¥{float(stale_opps[1]):,.0f}",
-            })
+            findings.append(
+                {
+                    "domain": "销售",
+                    "severity": "high" if stale_opps[0] > 5 else "medium",
+                    "title": f"停滞商机：{stale_opps[0]} 个",
+                    "detail": f"{stale_opps[0]} 个开放商机超过30天未更新，合计 ¥{float(stale_opps[1]):,.0f}",
+                }
+            )
 
         # 5. Customer: no contact in 90 days for A/B tier
         d90 = now - timedelta(days=90)
-        silent = (await db.execute(
-            select(func.count(Customer.id)).where(
-                Customer.deleted_at.is_(None),
-                Customer.level.in_(["A", "B"]),
-                Customer.last_contacted_at.isnot(None),
-                Customer.last_contacted_at < d90,
+        silent = (
+            await db.execute(
+                select(func.count(Customer.id)).where(
+                    Customer.deleted_at.is_(None),
+                    Customer.level.in_(["A", "B"]),
+                    Customer.last_contacted_at.isnot(None),
+                    Customer.last_contacted_at < d90,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
         if silent > 0:
-            findings.append({
-                "domain": "客户",
-                "severity": "medium",
-                "title": f"长期未联系客户：{silent} 个",
-                "detail": f"{silent} 个A/B级客户超过90天未联系",
-            })
+            findings.append(
+                {
+                    "domain": "客户",
+                    "severity": "medium",
+                    "title": f"长期未联系客户：{silent} 个",
+                    "detail": f"{silent} 个A/B级客户超过90天未联系",
+                }
+            )
 
         # Sort: critical → high → medium → low, then by domain
         findings.sort(

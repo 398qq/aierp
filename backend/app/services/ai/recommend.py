@@ -29,24 +29,32 @@ async def recommend_products(
     """
     target = (
         await db.execute(
-            select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+            select(Customer).where(
+                Customer.id == customer_id, Customer.deleted_at.is_(None)
+            )
         )
     ).scalar_one_or_none()
     if target is None:
-        return {"customer_id": customer_id, "recommendations": [], "error": "Customer not found"}
+        return {
+            "customer_id": customer_id,
+            "recommendations": [],
+            "error": "Customer not found",
+        }
 
     # Ensure embedding exists
     if target.embedding is None:
-        target.embedding = await EmbeddingService.embed_customer({
-            "name": target.name,
-            "industry": target.industry or "",
-            "region": target.region or "",
-            "customer_type": target.customer_type or "",
-            "level": target.level or "",
-            "credit_level": target.credit_level or "",
-            "source": target.source or "",
-            "notes": target.notes or "",
-        })
+        target.embedding = await EmbeddingService.embed_customer(
+            {
+                "name": target.name,
+                "industry": target.industry or "",
+                "region": target.region or "",
+                "customer_type": target.customer_type or "",
+                "level": target.level or "",
+                "credit_level": target.credit_level or "",
+                "source": target.source or "",
+                "notes": target.notes or "",
+            }
+        )
         await db.flush()
 
     # Step 1: Find similar customers
@@ -55,7 +63,11 @@ async def recommend_products(
     )
     similar = [s for s in similar if s["similarity"] >= min_similarity]
     if not similar:
-        return {"customer_id": customer_id, "recommendations": [], "similar_customers": 0}
+        return {
+            "customer_id": customer_id,
+            "recommendations": [],
+            "similar_customers": 0,
+        }
 
     similar_ids = [s["id"] for s in similar]
     similarity_map = {s["id"]: s["similarity"] for s in similar}
@@ -94,7 +106,9 @@ async def recommend_products(
                 SalesOrder.customer_id.in_(similar_ids),
                 SalesOrder.deleted_at.is_(None),
                 SalesOrderItem.deleted_at.is_(None),
-                SalesOrderItem.product_id.notin_(target_product_ids) if not include_own_history else True,
+                SalesOrderItem.product_id.notin_(target_product_ids)
+                if not include_own_history
+                else True,
             )
             .group_by(SalesOrderItem.product_id, SalesOrder.customer_id)
         )
@@ -115,34 +129,48 @@ async def recommend_products(
 
     for pid, freq, last_order, sim_cust_id in product_rows:
         if pid not in product_scores:
-            product_scores[pid] = {"product_id": pid, "frequency": 0, "recency_days": 9999, "similarity_weight": 0.0}
+            product_scores[pid] = {
+                "product_id": pid,
+                "frequency": 0,
+                "recency_days": 9999,
+                "similarity_weight": 0.0,
+            }
         entry = product_scores[pid]
         entry["frequency"] += freq
         if last_order:
             days = (now - last_order.replace(tzinfo=dt.timezone.utc)).days
             entry["recency_days"] = min(entry["recency_days"], days)
-        entry["similarity_weight"] = max(entry["similarity_weight"], similarity_map.get(sim_cust_id, 0.0))
+        entry["similarity_weight"] = max(
+            entry["similarity_weight"], similarity_map.get(sim_cust_id, 0.0)
+        )
 
     for pid, entry in product_scores.items():
         recency_score = max(0, 1.0 - entry["recency_days"] / 365.0)
         entry["score"] = round(
-            entry["frequency"] * 0.4 + recency_score * 30 * 0.3 + entry["similarity_weight"] * 30 * 0.3,
+            entry["frequency"] * 0.4
+            + recency_score * 30 * 0.3
+            + entry["similarity_weight"] * 30 * 0.3,
             2,
         )
 
     # Step 5: Get product details
-    sorted_products = sorted(product_scores.values(), key=lambda x: x["score"], reverse=True)[:top_k]
+    sorted_products = sorted(
+        product_scores.values(), key=lambda x: x["score"], reverse=True
+    )[:top_k]
     product_ids = [p["product_id"] for p in sorted_products]
 
     product_details = (
         await db.execute(
-            select(Product.id, Product.sku, Product.name, Product.category, Brand.name_cn)
+            select(
+                Product.id, Product.sku, Product.name, Product.category, Brand.name_cn
+            )
             .outerjoin(Brand, Product.brand_id == Brand.id)
             .where(Product.id.in_(product_ids))
         )
     ).all()
     product_map = {
-        p[0]: {"sku": p[1], "name": p[2], "category": p[3], "brand": p[4]} for p in product_details
+        p[0]: {"sku": p[1], "name": p[2], "category": p[3], "brand": p[4]}
+        for p in product_details
     }
 
     recommendations = [

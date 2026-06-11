@@ -43,54 +43,66 @@ async def daily_report(
     # Today's orders
     from app.models.sales import SalesOrder
 
-    today_orders = (await db.execute(
-        select(
-            func.count(SalesOrder.id),
-            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-        ).where(
-            SalesOrder.deleted_at.is_(None),
-            SalesOrder.created_at >= today_start,
+    today_orders = (
+        await db.execute(
+            select(
+                func.count(SalesOrder.id),
+                func.coalesce(func.sum(SalesOrder.total_amount), 0),
+            ).where(
+                SalesOrder.deleted_at.is_(None),
+                SalesOrder.created_at >= today_start,
+            )
         )
-    )).first()
+    ).first()
     orders_count = today_orders[0] if today_orders else 0
     orders_amount = float(today_orders[1]) if today_orders else 0.0
 
     # New customers today
     from app.models.customer import Customer
 
-    new_cust = (await db.execute(
-        select(func.count(Customer.id)).where(
-            Customer.deleted_at.is_(None),
-            Customer.created_at >= today_start,
+    new_cust = (
+        await db.execute(
+            select(func.count(Customer.id)).where(
+                Customer.deleted_at.is_(None),
+                Customer.created_at >= today_start,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Inventory summary
     from app.models.product import Inventory
 
-    low_stock = (await db.execute(
-        select(func.count(Inventory.id)).where(
-            Inventory.deleted_at.is_(None),
-            Inventory.quantity <= Inventory.safety_stock,
-            Inventory.quantity > 0,
+    low_stock = (
+        await db.execute(
+            select(func.count(Inventory.id)).where(
+                Inventory.deleted_at.is_(None),
+                Inventory.quantity <= Inventory.safety_stock,
+                Inventory.quantity > 0,
+            )
         )
-    )).scalar() or 0
-    out_of_stock = (await db.execute(
-        select(func.count(Inventory.id)).where(
-            Inventory.deleted_at.is_(None),
-            Inventory.quantity <= 0,
+    ).scalar() or 0
+    out_of_stock = (
+        await db.execute(
+            select(func.count(Inventory.id)).where(
+                Inventory.deleted_at.is_(None),
+                Inventory.quantity <= 0,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     # Payments today
     from app.models.transaction import Payment
 
-    today_payments = (await db.execute(
-        select(func.count(Payment.id), func.coalesce(func.sum(Payment.amount), 0)).where(
-            Payment.deleted_at.is_(None),
-            Payment.created_at >= today_start,
+    today_payments = (
+        await db.execute(
+            select(
+                func.count(Payment.id), func.coalesce(func.sum(Payment.amount), 0)
+            ).where(
+                Payment.deleted_at.is_(None),
+                Payment.created_at >= today_start,
+            )
         )
-    )).first()
+    ).first()
     payments_count = today_payments[0] if today_payments else 0
     payments_amount = float(today_payments[1]) if today_payments else 0.0
 
@@ -129,7 +141,10 @@ async def daily_report(
         }
         ai = await ai_client.chat_structured(
             [
-                {"role": "system", "content": "你是一个ERP日报助手，擅长用简洁的语言总结每日经营状况。"},
+                {
+                    "role": "system",
+                    "content": "你是一个ERP日报助手，擅长用简洁的语言总结每日经营状况。",
+                },
                 {"role": "user", "content": prompt},
             ],
             schema,

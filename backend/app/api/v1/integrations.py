@@ -35,11 +35,20 @@ async def list_configs(
         q = q.where(IntegrationConfig.type == type)
     result = await db.execute(q.order_by(IntegrationConfig.id))
     configs = result.scalars().all()
-    return ok([{
-        "id": c.id, "type": c.type, "name": c.name,
-        "endpoint": c.endpoint, "settings": c.settings,
-        "enabled": c.enabled, "created_at": str(c.created_at),
-    } for c in configs])
+    return ok(
+        [
+            {
+                "id": c.id,
+                "type": c.type,
+                "name": c.name,
+                "endpoint": c.endpoint,
+                "settings": c.settings,
+                "enabled": c.enabled,
+                "created_at": str(c.created_at),
+            }
+            for c in configs
+        ]
+    )
 
 
 class ConfigCreate(BaseModel):
@@ -53,14 +62,19 @@ class ConfigCreate(BaseModel):
 
 
 @router.post("/configs", status_code=201)
-async def create_config(body: ConfigCreate, db: AsyncSession = Depends(get_db),
-                        _user: dict = Depends(require_perm("system", "write"))):
+async def create_config(
+    body: ConfigCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("system", "write")),
+):
     c = IntegrationConfig(
-        type=body.type, name=body.name,
+        type=body.type,
+        name=body.name,
         api_key_encrypted=body.api_key or None,
         api_secret_encrypted=body.api_secret or None,
         endpoint=body.endpoint or None,
-        settings=body.settings, enabled=body.enabled,
+        settings=body.settings,
+        enabled=body.enabled,
     )
     db.add(c)
     await db.commit()
@@ -68,12 +82,20 @@ async def create_config(body: ConfigCreate, db: AsyncSession = Depends(get_db),
 
 
 @router.put("/configs/{config_id}")
-async def update_config(config_id: int, body: ConfigCreate,
-                        db: AsyncSession = Depends(get_db),
-                        _user: dict = Depends(require_perm("system", "write"))):
-    c = (await db.execute(
-        select(IntegrationConfig).where(IntegrationConfig.id == config_id, IntegrationConfig.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def update_config(
+    config_id: int,
+    body: ConfigCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("system", "write")),
+):
+    c = (
+        await db.execute(
+            select(IntegrationConfig).where(
+                IntegrationConfig.id == config_id,
+                IntegrationConfig.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
     if not c:
         return fail("配置不存在")
     c.type = body.type
@@ -88,14 +110,23 @@ async def update_config(config_id: int, body: ConfigCreate,
 
 
 @router.delete("/configs/{config_id}")
-async def delete_config(config_id: int, db: AsyncSession = Depends(get_db),
-                        _user: dict = Depends(require_perm("system", "write"))):
-    c = (await db.execute(
-        select(IntegrationConfig).where(IntegrationConfig.id == config_id, IntegrationConfig.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def delete_config(
+    config_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("system", "write")),
+):
+    c = (
+        await db.execute(
+            select(IntegrationConfig).where(
+                IntegrationConfig.id == config_id,
+                IntegrationConfig.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
     if not c:
         return fail("配置不存在")
     import datetime
+
     c.deleted_at = datetime.datetime.now(datetime.timezone.utc)
     await db.commit()
     return ok(msg="配置已删除")
@@ -130,9 +161,18 @@ async def import_orders(
             # Find or create customer
             customer = await find_name_conflict(db, buyer_name)
             if not customer:
-                customer = (await db.execute(
-                    select(Customer).where(Customer.name == buyer_name, Customer.deleted_at.is_(None))
-                )).scalars().first()
+                customer = (
+                    (
+                        await db.execute(
+                            select(Customer).where(
+                                Customer.name == buyer_name,
+                                Customer.deleted_at.is_(None),
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
             if not customer:
                 customer = Customer(name=buyer_name, phone=buyer_phone)
                 db.add(customer)
@@ -142,34 +182,52 @@ async def import_orders(
             # Find product by SKU
             product = None
             if product_sku:
-                product = (await db.execute(
-                    select(Product).where(Product.sku == product_sku, Product.deleted_at.is_(None))
-                )).scalars().first()
+                product = (
+                    (
+                        await db.execute(
+                            select(Product).where(
+                                Product.sku == product_sku, Product.deleted_at.is_(None)
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
 
             # Create sales order
             order = SalesOrder(
-                customer_id=customer.id, order_no=f"IMP-{i+1:04d}",
-                total_amount=qty * price, status="draft",
+                customer_id=customer.id,
+                order_no=f"IMP-{i + 1:04d}",
+                total_amount=qty * price,
+                status="draft",
             )
             db.add(order)
             await db.flush()
 
             if product:
-                db.add(SalesOrderItem(
-                    order_id=order.id, product_id=product.id,
-                    quantity=qty, unit_price=price,
-                    total_price=qty * price,
-                ))
+                db.add(
+                    SalesOrderItem(
+                        order_id=order.id,
+                        product_id=product.id,
+                        quantity=qty,
+                        unit_price=price,
+                        total_price=qty * price,
+                    )
+                )
 
             created_orders += 1
         except Exception as e:
-            errors.append(f"行 {i+1}: {str(e)}")
+            errors.append(f"行 {i + 1}: {str(e)}")
 
     await db.commit()
-    return ok({
-        "created_orders": created_orders, "created_customers": created_customers,
-        "total_rows": len(rows), "errors": errors,
-    })
+    return ok(
+        {
+            "created_orders": created_orders,
+            "created_customers": created_customers,
+            "total_rows": len(rows),
+            "errors": errors,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -185,19 +243,31 @@ async def track_logistics(
     """Query logistics tracking info. Currently returns stub; integrate with real API."""
     # Check if we have a PO with this tracking number
     from app.models.transaction import PurchaseOrder
-    po = (await db.execute(
-        select(PurchaseOrder).where(
-            PurchaseOrder.logistics_no == tracking_no,
-            PurchaseOrder.deleted_at.is_(None),
-        )
-    )).scalars().first()
 
-    return ok({
-        "tracking_no": tracking_no, "provider": provider,
-        "linked_po": {"id": po.id, "order_no": po.order_no, "status": po.status} if po else None,
-        "traces": [],  # Stub — integrate with real logistics API
-        "note": "物流API未配置，请先在 集成配置 中设置物流服务商",
-    })
+    po = (
+        (
+            await db.execute(
+                select(PurchaseOrder).where(
+                    PurchaseOrder.logistics_no == tracking_no,
+                    PurchaseOrder.deleted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    return ok(
+        {
+            "tracking_no": tracking_no,
+            "provider": provider,
+            "linked_po": {"id": po.id, "order_no": po.order_no, "status": po.status}
+            if po
+            else None,
+            "traces": [],  # Stub — integrate with real logistics API
+            "note": "物流API未配置，请先在 集成配置 中设置物流服务商",
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -219,14 +289,17 @@ async def receive_webhook(
     See app/core/webhook_security.py for the protocol details.
     """
     from app.core.webhook_security import require_webhook_signature
+
     # Verify signature manually since `source` comes from path params
     body = await require_webhook_signature(
-        request, source=source,
+        request,
+        source=source,
         x_aierp_signature=request.headers.get("X-AIERP-Signature"),
         x_aierp_timestamp=request.headers.get("X-AIERP-Timestamp"),
     )
 
     import json
+
     try:
         body_json = json.loads(body) if body else {}
     except json.JSONDecodeError:
@@ -235,14 +308,21 @@ async def receive_webhook(
     from app.models.finance import Notification
     from app.models.user import User
 
-    admin = (await db.execute(
-        select(User).where(User.role == "admin").limit(1)
-    )).scalars().first()
+    admin = (
+        (await db.execute(select(User).where(User.role == "admin").limit(1)))
+        .scalars()
+        .first()
+    )
     if admin:
-        db.add(Notification(
-            user_id=admin.id, type="webhook", title=f"Webhook: {source}",
-            content=json.dumps(body_json)[:500], channel="in_app",
-        ))
+        db.add(
+            Notification(
+                user_id=admin.id,
+                type="webhook",
+                title=f"Webhook: {source}",
+                content=json.dumps(body_json)[:500],
+                channel="in_app",
+            )
+        )
 
     await db.commit()
     return ok({"received": True, "source": source})

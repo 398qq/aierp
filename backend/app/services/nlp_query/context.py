@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # Full-context builders (per domain)
 # ---------------------------------------------------------------------------
 
+
 async def _build_customer_context(db: AsyncSession) -> str:
     total_r = await db.execute(
         select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
@@ -42,7 +43,9 @@ async def _build_customer_context(db: AsyncSession) -> str:
     total = total_r.scalar() or 0
 
     top_r = await db.execute(
-        select(Customer.name, Customer.level, Customer.industry, Customer.last_contacted_at)
+        select(
+            Customer.name, Customer.level, Customer.industry, Customer.last_contacted_at
+        )
         .where(Customer.deleted_at.is_(None))
         .order_by(Customer.last_contacted_at.desc().nullslast())
         .limit(5)
@@ -70,8 +73,7 @@ async def _build_customer_context(db: AsyncSession) -> str:
     parts.append(f"近30天订单数：{recent_orders}")
     if top:
         top_str = "；".join(
-            f"{r[0]}({r[2] or '未知行业'}, {r[1] or '未知等级'})"
-            for r in top
+            f"{r[0]}({r[2] or '未知行业'}, {r[1] or '未知等级'})" for r in top
         )
         parts.append(f"最近活跃客户TOP5：{top_str}")
     return "\n".join(parts)
@@ -119,8 +121,7 @@ async def _build_product_context(db: AsyncSession) -> str:
 
 async def _build_sales_context(db: AsyncSession) -> str:
     month_r = await db.execute(
-        select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
-        .where(
+        select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
             SalesOrder.created_at >= text("date_trunc('month', NOW())"),
             SalesOrder.deleted_at.is_(None),
         )
@@ -128,8 +129,7 @@ async def _build_sales_context(db: AsyncSession) -> str:
     month_revenue = float(month_r.scalar() or 0)
 
     month_cnt_r = await db.execute(
-        select(func.count(SalesOrder.id))
-        .where(
+        select(func.count(SalesOrder.id)).where(
             SalesOrder.created_at >= text("date_trunc('month', NOW())"),
             SalesOrder.deleted_at.is_(None),
         )
@@ -137,8 +137,12 @@ async def _build_sales_context(db: AsyncSession) -> str:
     month_orders = month_cnt_r.scalar() or 0
 
     recent_r = await db.execute(
-        select(SalesOrder.order_no, SalesOrder.total_amount, SalesOrder.status,
-               Customer.name)
+        select(
+            SalesOrder.order_no,
+            SalesOrder.total_amount,
+            SalesOrder.status,
+            Customer.name,
+        )
         .join(Customer, SalesOrder.customer_id == Customer.id, isouter=True)
         .where(SalesOrder.deleted_at.is_(None))
         .order_by(SalesOrder.created_at.desc())
@@ -147,8 +151,9 @@ async def _build_sales_context(db: AsyncSession) -> str:
     recent = recent_r.all()
 
     opp_r = await db.execute(
-        select(func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0))
-        .where(Opportunity.deleted_at.is_(None))
+        select(
+            func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0)
+        ).where(Opportunity.deleted_at.is_(None))
     )
     opp_row = opp_r.one()
     opp_count, opp_value = opp_row[0] or 0, float(opp_row[1] or 0)
@@ -183,8 +188,7 @@ async def _build_inventory_context(db: AsyncSession) -> str:
     total_items = total_r.scalar() or 0
 
     low_r = await db.execute(
-        select(Product.name, Inventory.quantity, Inventory.safety_stock,
-               Warehouse.name)
+        select(Product.name, Inventory.quantity, Inventory.safety_stock, Warehouse.name)
         .join(Product, Inventory.product_id == Product.id, isouter=True)
         .join(Warehouse, Inventory.warehouse_id == Warehouse.id, isouter=True)
         .where(Inventory.quantity <= Inventory.safety_stock, Inventory.quantity > 0)
@@ -201,9 +205,13 @@ async def _build_inventory_context(db: AsyncSession) -> str:
     warehouses = {r[0]: r[1] for r in wh_r.all()}
 
     po_r = await db.execute(
-        select(func.count(PurchaseOrder.id), func.coalesce(func.sum(PurchaseOrder.total_amount), 0))
-        .where(PurchaseOrder.status.in_(["draft", "pending", "confirmed"]),
-               PurchaseOrder.deleted_at.is_(None))
+        select(
+            func.count(PurchaseOrder.id),
+            func.coalesce(func.sum(PurchaseOrder.total_amount), 0),
+        ).where(
+            PurchaseOrder.status.in_(["draft", "pending", "confirmed"]),
+            PurchaseOrder.deleted_at.is_(None),
+        )
     )
     po_row = po_r.one()
     pending_pos, po_amount = po_row[0] or 0, float(po_row[1] or 0)
@@ -228,16 +236,18 @@ async def _build_finance_context(db: AsyncSession) -> str:
         select(
             func.count(Invoice.id),
             func.coalesce(func.sum(Invoice.amount), 0),
-        ).where(Invoice.status.notin_(["paid", "cancelled"]),
-                Invoice.deleted_at.is_(None))
+        ).where(
+            Invoice.status.notin_(["paid", "cancelled"]), Invoice.deleted_at.is_(None)
+        )
     )
     ar_row = ar_r.one()
     ar_count = ar_row[0] or 0
     ar_total = float(ar_row[1] or 0)
 
     overdue_r = await db.execute(
-        select(func.count(Invoice.id), func.coalesce(func.sum(Invoice.amount), 0))
-        .where(
+        select(
+            func.count(Invoice.id), func.coalesce(func.sum(Invoice.amount), 0)
+        ).where(
             Invoice.status == "overdue",
             Invoice.deleted_at.is_(None),
         )
@@ -247,8 +257,13 @@ async def _build_finance_context(db: AsyncSession) -> str:
     overdue_total = float(overdue_row[1] or 0)
 
     recent_pay_r = await db.execute(
-        select(Payment.payment_no, Payment.amount, Payment.method, Payment.paid_at,
-               Customer.name)
+        select(
+            Payment.payment_no,
+            Payment.amount,
+            Payment.method,
+            Payment.paid_at,
+            Customer.name,
+        )
         .join(Customer, Payment.customer_id == Customer.id, isouter=True)
         .where(Payment.type == "receipt", Payment.deleted_at.is_(None))
         .order_by(Payment.paid_at.desc().nullslast())
@@ -299,11 +314,16 @@ async def _build_supplier_context(db: AsyncSession) -> str:
     top = top_r.all()
 
     po_r = await db.execute(
-        select(Supplier.name, func.count(PurchaseOrder.id),
-               func.coalesce(func.sum(PurchaseOrder.total_amount), 0))
+        select(
+            Supplier.name,
+            func.count(PurchaseOrder.id),
+            func.coalesce(func.sum(PurchaseOrder.total_amount), 0),
+        )
         .join(PurchaseOrder, Supplier.id == PurchaseOrder.supplier_id, isouter=True)
-        .where(PurchaseOrder.status.in_(["draft", "pending", "confirmed"]),
-               PurchaseOrder.deleted_at.is_(None))
+        .where(
+            PurchaseOrder.status.in_(["draft", "pending", "confirmed"]),
+            PurchaseOrder.deleted_at.is_(None),
+        )
         .group_by(Supplier.name)
         .order_by(func.count(PurchaseOrder.id).desc())
         .limit(5)
@@ -313,14 +333,12 @@ async def _build_supplier_context(db: AsyncSession) -> str:
     parts = [f"供应商总数：{total}"]
     if top:
         top_str = "；".join(
-            f"{r[0]}({r[1] or '未标注产品线'}, 联系人:{r[2] or '无'})"
-            for r in top
+            f"{r[0]}({r[1] or '未标注产品线'}, 联系人:{r[2] or '无'})" for r in top
         )
         parts.append(f"最近更新供应商TOP5：{top_str}")
     if pending:
         po_str = "；".join(
-            f"{r[0]}：{r[1]}笔(¥{float(r[2] or 0):,.0f})"
-            for r in pending
+            f"{r[0]}：{r[1]}笔(¥{float(r[2] or 0):,.0f})" for r in pending
         )
         parts.append(f"在途采购按供应商：{po_str}")
     else:
@@ -333,12 +351,12 @@ async def _build_supplier_context(db: AsyncSession) -> str:
 # ---------------------------------------------------------------------------
 
 _BUILDERS = {
-    "customers":  _build_customer_context,
-    "products":   _build_product_context,
-    "sales":      _build_sales_context,
-    "inventory":  _build_inventory_context,
-    "finance":    _build_finance_context,
-    "suppliers":  _build_supplier_context,
+    "customers": _build_customer_context,
+    "products": _build_product_context,
+    "sales": _build_sales_context,
+    "inventory": _build_inventory_context,
+    "finance": _build_finance_context,
+    "suppliers": _build_supplier_context,
 }
 
 
@@ -372,8 +390,7 @@ async def build_summary_context(domain: str, db: AsyncSession) -> str:
             return f"产品总数：{r.scalar() or 0}，品牌数：{br.scalar() or 0}"
         if domain == "sales":
             r = await db.execute(
-                select(func.coalesce(func.sum(SalesOrder.total_amount), 0))
-                .where(
+                select(func.coalesce(func.sum(SalesOrder.total_amount), 0)).where(
                     SalesOrder.created_at >= text("date_trunc('month', NOW())"),
                     SalesOrder.deleted_at.is_(None),
                 )
@@ -386,9 +403,10 @@ async def build_summary_context(domain: str, db: AsyncSession) -> str:
             return f"有库存产品项数：{r.scalar() or 0}"
         if domain == "finance":
             r = await db.execute(
-                select(func.coalesce(func.sum(Invoice.amount), 0))
-                .where(Invoice.status.notin_(["paid", "cancelled"]),
-                       Invoice.deleted_at.is_(None))
+                select(func.coalesce(func.sum(Invoice.amount), 0)).where(
+                    Invoice.status.notin_(["paid", "cancelled"]),
+                    Invoice.deleted_at.is_(None),
+                )
             )
             return f"应收账款总额：{float(r.scalar() or 0):,.2f}"
         if domain == "suppliers":

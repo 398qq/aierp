@@ -63,6 +63,7 @@ from app.domain.shared.money import (
 # shared.errors
 # ============================================================================
 
+
 class TestDomainErrors:
     def test_domain_error_carries_message_and_code(self):
         exc = DomainError("boom", foo="bar")
@@ -91,6 +92,7 @@ class TestDomainErrors:
 # ============================================================================
 # shared.money
 # ============================================================================
+
 
 class TestMoney:
     def test_basic_arithmetic_same_currency(self):
@@ -163,31 +165,51 @@ class TestMoney:
 
 class TestExchangeRate:
     def test_valid_rate_accepted(self):
-        r = ExchangeRate(from_currency="USD", to_currency="CNY", rate=Decimal("7.2"),
-                        effective_date=date(2026, 1, 1))
+        r = ExchangeRate(
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7.2"),
+            effective_date=date(2026, 1, 1),
+        )
         assert r.rate == Decimal("7.2")
 
     def test_negative_rate_rejected(self):
         with pytest.raises(BusinessRuleViolation):
-            ExchangeRate(from_currency="USD", to_currency="CNY", rate=Decimal("-1"),
-                        effective_date=date(2026, 1, 1))
+            ExchangeRate(
+                from_currency="USD",
+                to_currency="CNY",
+                rate=Decimal("-1"),
+                effective_date=date(2026, 1, 1),
+            )
 
     def test_same_currency_rejected(self):
         with pytest.raises(BusinessRuleViolation):
-            ExchangeRate(from_currency="USD", to_currency="USD", rate=Decimal("1"),
-                        effective_date=date(2026, 1, 1))
+            ExchangeRate(
+                from_currency="USD",
+                to_currency="USD",
+                rate=Decimal("1"),
+                effective_date=date(2026, 1, 1),
+            )
 
     def test_convert_applies_rate(self):
-        r = ExchangeRate(from_currency="USD", to_currency="CNY", rate=Decimal("7.2"),
-                        effective_date=date(2026, 1, 1))
+        r = ExchangeRate(
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7.2"),
+            effective_date=date(2026, 1, 1),
+        )
         usd_100 = Money(amount=Decimal("100"), currency="USD")
         result = r.convert(usd_100)
         assert result.currency == "CNY"
         assert result.amount == Decimal("720.00")  # 100 × 7.2
 
     def test_convert_rejects_mismatched_currency(self):
-        r = ExchangeRate(from_currency="USD", to_currency="CNY", rate=Decimal("7.2"),
-                        effective_date=date(2026, 1, 1))
+        r = ExchangeRate(
+            from_currency="USD",
+            to_currency="CNY",
+            rate=Decimal("7.2"),
+            effective_date=date(2026, 1, 1),
+        )
         cny = Money(amount=Decimal("100"), currency="CNY")
         with pytest.raises(CurrencyConversionError):
             r.convert(cny)
@@ -251,33 +273,52 @@ class TestTriangulation:
 # sales.quotation
 # ============================================================================
 
+
 class TestQuotationLine:
     def test_zero_quantity_rejected(self):
         with pytest.raises(BusinessRuleViolation):
-            QuotationLine(product_id=1, product_name="X", quantity=0, unit_price=Decimal("10"))
+            QuotationLine(
+                product_id=1, product_name="X", quantity=0, unit_price=Decimal("10")
+            )
 
     def test_negative_unit_price_rejected(self):
         with pytest.raises(BusinessRuleViolation):
-            QuotationLine(product_id=1, product_name="X", quantity=1, unit_price=Decimal("-1"))
+            QuotationLine(
+                product_id=1, product_name="X", quantity=1, unit_price=Decimal("-1")
+            )
 
     def test_subtotal_is_qty_times_price(self):
-        line = QuotationLine(product_id=1, product_name="X", quantity=3, unit_price=Decimal("10"))
+        line = QuotationLine(
+            product_id=1, product_name="X", quantity=3, unit_price=Decimal("10")
+        )
         assert line.subtotal == Decimal("30")
 
     def test_margin_returns_none_when_cost_unknown(self):
-        line = QuotationLine(product_id=1, product_name="X", quantity=1, unit_price=Decimal("10"))
+        line = QuotationLine(
+            product_id=1, product_name="X", quantity=1, unit_price=Decimal("10")
+        )
         assert line.margin is None
         assert line.margin_pct is None
 
     def test_margin_computed_when_cost_known(self):
-        line = QuotationLine(product_id=1, product_name="X", quantity=1,
-                              unit_price=Decimal("10"), cost_price=Decimal("7"))
+        line = QuotationLine(
+            product_id=1,
+            product_name="X",
+            quantity=1,
+            unit_price=Decimal("10"),
+            cost_price=Decimal("7"),
+        )
         assert line.margin == Decimal("3")
         assert line.margin_pct == pytest.approx(3 / 7)
 
     def test_margin_handles_zero_cost(self):
-        line = QuotationLine(product_id=1, product_name="X", quantity=1,
-                              unit_price=Decimal("10"), cost_price=Decimal("0"))
+        line = QuotationLine(
+            product_id=1,
+            product_name="X",
+            quantity=1,
+            unit_price=Decimal("10"),
+            cost_price=Decimal("0"),
+        )
         assert line.margin is None  # cost=0 means unknown
 
 
@@ -296,8 +337,12 @@ class TestQuotationStateMachine:
     def test_subtotal_tax_total(self):
         q = self._make_quotation()
         q.lines = [
-            QuotationLine(product_id=1, product_name="A", quantity=2, unit_price=Decimal("100")),
-            QuotationLine(product_id=2, product_name="B", quantity=1, unit_price=Decimal("50")),
+            QuotationLine(
+                product_id=1, product_name="A", quantity=2, unit_price=Decimal("100")
+            ),
+            QuotationLine(
+                product_id=2, product_name="B", quantity=1, unit_price=Decimal("50")
+            ),
         ]
         assert q.subtotal == Decimal("250")
         # default tax 13%
@@ -306,19 +351,35 @@ class TestQuotationStateMachine:
 
     def test_can_add_line_in_draft(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         assert len(q.lines) == 1
 
     def test_cannot_add_line_after_send(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         q.send()
         with pytest.raises(InvalidStateTransition):
-            q.add_line(QuotationLine(product_id=1, product_name="B", quantity=1, unit_price=Decimal("20")))
+            q.add_line(
+                QuotationLine(
+                    product_id=1, product_name="B", quantity=1, unit_price=Decimal("20")
+                )
+            )
 
     def test_send_emits_event(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         q.send()
         events = q.collect_events()
         assert len(events) == 1
@@ -333,7 +394,11 @@ class TestQuotationStateMachine:
 
     def test_send_to_accepted_to_converted_is_valid(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         q.send()
         q.accept()
         q.convert_to_order()
@@ -341,21 +406,35 @@ class TestQuotationStateMachine:
 
     def test_cannot_accept_draft(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         # DRAFT cannot go to ACCEPTED (must go through SENT)
         with pytest.raises(InvalidStateTransition):
             q.accept()
 
     def test_cannot_accept_expired_quotation(self):
-        q = self._make_quotation(valid_until=datetime.now(timezone.utc) - timedelta(days=1))
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q = self._make_quotation(
+            valid_until=datetime.now(timezone.utc) - timedelta(days=1)
+        )
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         q.send()
         with pytest.raises(BusinessRuleViolation):
             q.accept()
 
     def test_rejected_can_only_come_from_draft_or_sent(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         q.send()
         q.reject(reason="too expensive")
         # Now ACCEPTED is forbidden
@@ -364,34 +443,58 @@ class TestQuotationStateMachine:
 
     def test_mark_expired_only_works_on_sent(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         # DRAFT — mark_expired is no-op
         q.mark_expired()
         assert q.status == QuotationStatus.DRAFT
 
     def test_is_expired_property(self):
-        past = self._make_quotation(valid_until=datetime.now(timezone.utc) - timedelta(days=1))
-        future = self._make_quotation(valid_until=datetime.now(timezone.utc) + timedelta(days=10))
+        past = self._make_quotation(
+            valid_until=datetime.now(timezone.utc) - timedelta(days=1)
+        )
+        future = self._make_quotation(
+            valid_until=datetime.now(timezone.utc) + timedelta(days=10)
+        )
         assert past.is_expired is True
         assert future.is_expired is False
 
     def test_remove_line(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
-        q.add_line(QuotationLine(product_id=2, product_name="B", quantity=1, unit_price=Decimal("20")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
+        q.add_line(
+            QuotationLine(
+                product_id=2, product_name="B", quantity=1, unit_price=Decimal("20")
+            )
+        )
         q.remove_line(0)
         assert len(q.lines) == 1
         assert q.lines[0].product_id == 2
 
     def test_remove_line_out_of_range(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         with pytest.raises(IndexError):
             q.remove_line(5)
 
     def test_cannot_remove_line_after_send(self):
         q = self._make_quotation()
-        q.add_line(QuotationLine(product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")))
+        q.add_line(
+            QuotationLine(
+                product_id=1, product_name="A", quantity=1, unit_price=Decimal("10")
+            )
+        )
         q.send()
         with pytest.raises(InvalidStateTransition):
             q.remove_line(0)
@@ -400,6 +503,7 @@ class TestQuotationStateMachine:
 # ============================================================================
 # finance.journal (double-entry bookkeeping)
 # ============================================================================
+
 
 class TestJournalLine:
     def test_negative_amount_rejected(self):
@@ -439,7 +543,9 @@ class TestJournalEntry:
         ]
 
     def test_balanced_entry_accepted(self):
-        entry = JournalEntry(entry_date=date.today(), description="test", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="test", lines=self._balanced_lines()
+        )
         assert entry.status == JournalStatus.DRAFT
         assert entry.is_balanced is True
 
@@ -459,7 +565,9 @@ class TestJournalEntry:
             JournalEntry(entry_date=date.today(), description="empty", lines=[])
 
     def test_post_records_user_and_timestamp(self):
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         assert entry.posted_at is None
         entry.post(posted_by=42)
         assert entry.status == JournalStatus.POSTED
@@ -468,7 +576,9 @@ class TestJournalEntry:
 
     def test_post_unbalanced_raises(self):
         # Construct via add_line to keep balanced, then break it
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         # can_post is what it is
         # forcibly mess with internal state to simulate corruption
         entry.lines[0].debit = Decimal("200")  # Now 200 vs 100 → unbalanced
@@ -476,19 +586,25 @@ class TestJournalEntry:
             entry.post(posted_by=1)
 
     def test_cannot_post_twice(self):
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         entry.post(posted_by=1)
         with pytest.raises(BusinessRuleViolation):
             entry.post(posted_by=1)
 
     def test_cannot_add_line_after_post(self):
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         entry.post(posted_by=1)
         with pytest.raises(BusinessRuleViolation):
             entry.add_line(JournalLine(account_id=3, debit=Decimal("5")))
 
     def test_reverse_swaps_debit_credit(self):
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         entry.post(posted_by=1)
         reversal = entry.reverse(posted_by=2, reason="error")
         # Original → REVERSED
@@ -512,12 +628,16 @@ class TestJournalEntry:
         assert reversal.is_balanced
 
     def test_reverse_requires_posted(self):
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         with pytest.raises(BusinessRuleViolation):
             entry.reverse(posted_by=1, reason="too early")
 
     def test_reverse_requires_reason(self):
-        entry = JournalEntry(entry_date=date.today(), description="x", lines=self._balanced_lines())
+        entry = JournalEntry(
+            entry_date=date.today(), description="x", lines=self._balanced_lines()
+        )
         entry.post(posted_by=1)
         with pytest.raises(BusinessRuleViolation):
             entry.reverse(posted_by=1, reason="")
@@ -542,6 +662,7 @@ class TestJournalEntry:
 # finance.period (accounting period close)
 # ============================================================================
 
+
 class TestAccountingPeriod:
     def test_invalid_month_rejected(self):
         with pytest.raises(BusinessRuleViolation):
@@ -562,7 +683,9 @@ class TestAccountingPeriod:
     def test_end_date(self):
         assert AccountingPeriod(year=2026, month=1).end_date == date(2026, 1, 31)
         assert AccountingPeriod(year=2026, month=2).end_date == date(2026, 2, 28)
-        assert AccountingPeriod(year=2024, month=2).end_date == date(2024, 2, 29)  # leap year
+        assert AccountingPeriod(year=2024, month=2).end_date == date(
+            2024, 2, 29
+        )  # leap year
         assert AccountingPeriod(year=2026, month=12).end_date == date(2026, 12, 31)
 
     def test_close_open_period(self):
@@ -620,30 +743,54 @@ class TestAccountingPeriod:
 # inventory.batch (FEFO + FIFO allocation)
 # ============================================================================
 
+
 class TestInventoryBatch:
     def _make_batch(self, **kwargs):
         defaults = dict(
-            product_id=1, warehouse_id=1, batch_no="B-001",
-            quantity=100, received_date=date(2026, 1, 1), unit_cost=10.0,
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B-001",
+            quantity=100,
+            received_date=date(2026, 1, 1),
+            unit_cost=10.0,
         )
         defaults.update(kwargs)
         return InventoryBatch(**defaults)
 
     def test_negative_quantity_rejected(self):
         with pytest.raises(BusinessRuleViolation):
-            InventoryBatch(product_id=1, warehouse_id=1, batch_no="B",
-                          quantity=-1, received_date=date.today(), unit_cost=10.0)
+            InventoryBatch(
+                product_id=1,
+                warehouse_id=1,
+                batch_no="B",
+                quantity=-1,
+                received_date=date.today(),
+                unit_cost=10.0,
+            )
 
     def test_empty_batch_no_rejected(self):
         with pytest.raises(BusinessRuleViolation):
-            InventoryBatch(product_id=1, warehouse_id=1, batch_no="",
-                          quantity=1, received_date=date.today(), unit_cost=10.0)
+            InventoryBatch(
+                product_id=1,
+                warehouse_id=1,
+                batch_no="",
+                quantity=1,
+                received_date=date.today(),
+                unit_cost=10.0,
+            )
 
     def test_expiry_must_be_after_manufacture(self):
         with pytest.raises(BusinessRuleViolation):
-            InventoryBatch(product_id=1, warehouse_id=1, batch_no="B",
-                          quantity=1, received_date=date.today(), unit_cost=10.0,
-                          manufacture_date=date(2026, 6, 1), expiry_date=date(2026, 5, 1))
+            InventoryBatch(
+                product_id=1,
+                warehouse_id=1,
+                batch_no="B",
+                quantity=1,
+                received_date=date.today(),
+                unit_cost=10.0,
+                manufacture_date=date(2026, 6, 1),
+                expiry_date=date(2026, 5, 1),
+            )
 
     def test_available_when_status_available_and_not_expired(self):
         future = date.today() + timedelta(days=30)
@@ -713,14 +860,24 @@ class TestFEFOAllocation:
     def test_allocates_from_earliest_expiry(self):
         # Use far-future dates to avoid the test running on/after the expiry
         today = date.today()
-        b1 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="B-001",
-                            quantity=10, received_date=today - timedelta(days=180),
-                            unit_cost=10.0,
-                            expiry_date=today + timedelta(days=30))
-        b2 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="B-002",
-                            quantity=10, received_date=today - timedelta(days=170),
-                            unit_cost=11.0,
-                            expiry_date=today + timedelta(days=180))
+        b1 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B-001",
+            quantity=10,
+            received_date=today - timedelta(days=180),
+            unit_cost=10.0,
+            expiry_date=today + timedelta(days=30),
+        )
+        b2 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B-002",
+            quantity=10,
+            received_date=today - timedelta(days=170),
+            unit_cost=11.0,
+            expiry_date=today + timedelta(days=180),
+        )
         result = allocate_fefo([b1, b2], qty=15)
         # Should pull all 10 from b1 (earlier expiry), then 5 from b2
         assert result.is_fully_allocated is True
@@ -730,19 +887,37 @@ class TestFEFOAllocation:
         assert result.allocations[1].quantity == 5
 
     def test_unfilled_qty_when_insufficient(self):
-        b1 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="B-001",
-                            quantity=5, received_date=date(2026, 1, 1), unit_cost=10.0)
+        b1 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B-001",
+            quantity=5,
+            received_date=date(2026, 1, 1),
+            unit_cost=10.0,
+        )
         result = allocate_fefo([b1], qty=20)
         assert result.unfilled_qty == 15
         assert result.is_fully_allocated is False
 
     def test_skips_expired_batches(self):
-        b1 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="OLD",
-                            quantity=10, received_date=date(2025, 1, 1), unit_cost=10.0,
-                            expiry_date=date(2025, 6, 1))  # expired
-        b2 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="FRESH",
-                            quantity=10, received_date=date(2026, 1, 1), unit_cost=12.0,
-                            expiry_date=date(2026, 12, 1))
+        b1 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="OLD",
+            quantity=10,
+            received_date=date(2025, 1, 1),
+            unit_cost=10.0,
+            expiry_date=date(2025, 6, 1),
+        )  # expired
+        b2 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="FRESH",
+            quantity=10,
+            received_date=date(2026, 1, 1),
+            unit_cost=12.0,
+            expiry_date=date(2026, 12, 1),
+        )
         result = allocate_fefo([b1, b2], qty=8)
         # Only b2 is available
         assert result.allocations[0].batch_no == "FRESH"
@@ -750,12 +925,24 @@ class TestFEFOAllocation:
 
     def test_null_expiry_sorts_last(self):
         today = date.today()
-        b1 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="WITH-EXP",
-                            quantity=5, received_date=today, unit_cost=10.0,
-                            expiry_date=today + timedelta(days=30))
-        b2 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="NO-EXP",
-                            quantity=5, received_date=today, unit_cost=10.0,
-                            expiry_date=None)
+        b1 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="WITH-EXP",
+            quantity=5,
+            received_date=today,
+            unit_cost=10.0,
+            expiry_date=today + timedelta(days=30),
+        )
+        b2 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="NO-EXP",
+            quantity=5,
+            received_date=today,
+            unit_cost=10.0,
+            expiry_date=None,
+        )
         result = allocate_fefo([b1, b2], qty=3)
         # b1 has earlier expiry, should be first
         assert result.allocations[0].batch_no == "WITH-EXP"
@@ -767,10 +954,22 @@ class TestFEFOAllocation:
 
 class TestFIFOByReceived:
     def test_allocates_oldest_received_first(self):
-        b1 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="B-NEW",
-                            quantity=10, received_date=date(2026, 6, 1), unit_cost=10.0)
-        b2 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="B-OLD",
-                            quantity=10, received_date=date(2026, 1, 1), unit_cost=10.0)
+        b1 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B-NEW",
+            quantity=10,
+            received_date=date(2026, 6, 1),
+            unit_cost=10.0,
+        )
+        b2 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B-OLD",
+            quantity=10,
+            received_date=date(2026, 1, 1),
+            unit_cost=10.0,
+        )
         result = allocate_fifo_by_received([b1, b2], qty=15)
         assert result.allocations[0].batch_no == "B-OLD"
 
@@ -779,15 +978,34 @@ class TestMarkExpiredBatches:
     def test_marks_only_past_expiry_available_batches(self):
         past = date.today() - timedelta(days=1)
         future = date.today() + timedelta(days=10)
-        b1 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="A",
-                            quantity=1, received_date=date(2025, 1, 1), unit_cost=10.0,
-                            expiry_date=past)
-        b2 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="B",
-                            quantity=1, received_date=date(2026, 1, 1), unit_cost=10.0,
-                            expiry_date=future)
-        b3 = InventoryBatch(product_id=1, warehouse_id=1, batch_no="C",
-                            quantity=1, received_date=date(2025, 1, 1), unit_cost=10.0,
-                            expiry_date=past, status=BatchStatus.QUARANTINED)
+        b1 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="A",
+            quantity=1,
+            received_date=date(2025, 1, 1),
+            unit_cost=10.0,
+            expiry_date=past,
+        )
+        b2 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="B",
+            quantity=1,
+            received_date=date(2026, 1, 1),
+            unit_cost=10.0,
+            expiry_date=future,
+        )
+        b3 = InventoryBatch(
+            product_id=1,
+            warehouse_id=1,
+            batch_no="C",
+            quantity=1,
+            received_date=date(2025, 1, 1),
+            unit_cost=10.0,
+            expiry_date=past,
+            status=BatchStatus.QUARANTINED,
+        )
         count = mark_expired_batches([b1, b2, b3])
         assert count == 1
         assert b1.status == BatchStatus.EXPIRED
@@ -798,6 +1016,7 @@ class TestMarkExpiredBatches:
 # ============================================================================
 # inventory.cost_strategy
 # ============================================================================
+
 
 class TestWeightedAverageCost:
     def test_initial_receipt_uses_incoming_cost(self):

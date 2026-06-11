@@ -59,21 +59,48 @@ async def list_payments(
         count_base = count_base.where(Payment.supplier_id == supplier_id)
 
     total = (await db.execute(count_base)).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(Payment.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                base.order_by(Payment.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    return ok({
-        "list": [{"id": p.id, "payment_no": p.payment_no, "customer_id": p.customer_id,
-                  "supplier_id": p.supplier_id, "type": p.type, "amount": float(p.amount),
-                  "method": p.method, "paid_at": str(p.paid_at) if p.paid_at else None,
-                  "notes": p.notes, "created_at": str(p.created_at)} for p in rows],
-        "total": total, "page": page, "page_size": page_size,
-    })
+    return ok(
+        {
+            "list": [
+                {
+                    "id": p.id,
+                    "payment_no": p.payment_no,
+                    "customer_id": p.customer_id,
+                    "supplier_id": p.supplier_id,
+                    "type": p.type,
+                    "amount": float(p.amount),
+                    "method": p.method,
+                    "paid_at": str(p.paid_at) if p.paid_at else None,
+                    "notes": p.notes,
+                    "created_at": str(p.created_at),
+                }
+                for p in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @pay_router.post("", status_code=201)
-async def create_payment(body: PaymentCreate, db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def create_payment(
+    body: PaymentCreate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     data = body.model_dump()
     if data.get("paid_at"):
         data["paid_at"] = datetime.fromisoformat(data["paid_at"])

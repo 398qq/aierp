@@ -8,15 +8,26 @@ from app.models.base import TimestampMixin
 role_permissions_table = Table(
     "role_permissions",
     Base.metadata,
-    Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
-    Column("permission_id", Integer, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    ),
+    Column(
+        "permission_id",
+        Integer,
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
 )
 
 user_roles_table = Table(
     "user_roles",
     Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    ),
+    Column(
+        "role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    ),
 )
 
 # Alias for use as a model in SQLAlchemy queries (join target)
@@ -38,8 +49,12 @@ class Role(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    permissions = relationship("Permission", secondary=role_permissions_table, lazy="selectin")
-    users = relationship("User", secondary=user_roles_table, back_populates="roles", lazy="selectin")
+    permissions = relationship(
+        "Permission", secondary=role_permissions_table, lazy="selectin"
+    )
+    users = relationship(
+        "User", secondary=user_roles_table, back_populates="roles", lazy="selectin"
+    )
 
 
 class AuditLog(Base):

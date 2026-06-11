@@ -24,7 +24,9 @@ async def get_customer_quotation_history(
     _user: dict = Depends(require_perm("customers", "read")),
 ):
     customer_exists = await db.scalar(
-        select(func.count(Customer.id)).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(func.count(Customer.id)).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     if not customer_exists:
         return fail("客户不存在", 404)
@@ -34,13 +36,17 @@ async def get_customer_quotation_history(
         conditions.append(Quotation.status == status)
 
     rows = (
-        await db.execute(
-            select(Quotation)
-            .where(*conditions)
-            .options(selectinload(Quotation.items))
-            .order_by(Quotation.created_at.desc(), Quotation.id.desc())
+        (
+            await db.execute(
+                select(Quotation)
+                .where(*conditions)
+                .options(selectinload(Quotation.items))
+                .order_by(Quotation.created_at.desc(), Quotation.id.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     quotations = []
     for quote in rows:
@@ -73,7 +79,9 @@ async def get_customer_quotation_history(
     won = sum(1 for quote in rows if quote.status == "won")
     lost = sum(1 for quote in rows if quote.status == "lost")
     pending = sum(1 for quote in rows if quote.status not in {"won", "lost"})
-    total_won_amount = sum(_money(quote.total_amount) for quote in rows if quote.status == "won")
+    total_won_amount = sum(
+        _money(quote.total_amount) for quote in rows if quote.status == "won"
+    )
     conversion_rate = round(won / total * 100, 1) if total else 0
 
     return ok(

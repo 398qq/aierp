@@ -43,7 +43,7 @@ _PAYMENT_TRANSITIONS: dict[PaymentStatus, set[PaymentStatus]] = {
         PaymentStatus.COMPLETED,
     },
     PaymentStatus.COMPLETED: set(),  # terminal (use reverse for refunds)
-    PaymentStatus.REVERSED: set(),   # terminal
+    PaymentStatus.REVERSED: set(),  # terminal
 }
 
 

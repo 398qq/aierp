@@ -34,17 +34,33 @@ async def list_attachments(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    rows = (await db.execute(
-        select(CustomerAttachment).where(
-            CustomerAttachment.customer_id == customer_id,
-            CustomerAttachment.deleted_at.is_(None),
-        ).order_by(CustomerAttachment.created_at.desc())
-    )).scalars().all()
-    return ok([{
-        "id": a.id, "original_name": a.original_name, "file_size": a.file_size,
-        "content_type": a.content_type, "category": a.category,
-        "created_at": str(a.created_at) if a.created_at else None,
-    } for a in rows])
+    rows = (
+        (
+            await db.execute(
+                select(CustomerAttachment)
+                .where(
+                    CustomerAttachment.customer_id == customer_id,
+                    CustomerAttachment.deleted_at.is_(None),
+                )
+                .order_by(CustomerAttachment.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ok(
+        [
+            {
+                "id": a.id,
+                "original_name": a.original_name,
+                "file_size": a.file_size,
+                "content_type": a.content_type,
+                "category": a.category,
+                "created_at": str(a.created_at) if a.created_at else None,
+            }
+            for a in rows
+        ]
+    )
 
 
 @router.post("/{customer_id}/attachments", status_code=201)
@@ -79,11 +95,13 @@ async def upload_attachment(
     db.add(attachment)
     await db.flush()
 
-    return ok({
-        "id": attachment.id,
-        "original_name": attachment.original_name,
-        "file_size": attachment.file_size,
-    })
+    return ok(
+        {
+            "id": attachment.id,
+            "original_name": attachment.original_name,
+            "file_size": attachment.file_size,
+        }
+    )
 
 
 @router.get("/{customer_id}/attachments/{attachment_id}/download")

@@ -1,4 +1,5 @@
 """Brand AI endpoints."""
+
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -246,7 +247,9 @@ async def brand_auto_complete(
 
 @router.get("/brands/eol-alerts")
 async def brand_eol_alerts(
-    urgency: str = Query("warning", description="最低紧急度: info / warning / critical"),
+    urgency: str = Query(
+        "warning", description="最低紧急度: info / warning / critical"
+    ),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):

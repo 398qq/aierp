@@ -29,7 +29,15 @@ async def list_commissions(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    return ok(await svc.list_commissions(db, page=page, page_size=page_size, status=status, sales_user_id=sales_user_id))
+    return ok(
+        await svc.list_commissions(
+            db,
+            page=page,
+            page_size=page_size,
+            status=status,
+            sales_user_id=sales_user_id,
+        )
+    )
 
 
 @router.get("/{commission_id}")
@@ -105,7 +113,11 @@ async def transition(
     obj = await svc.get_commission(db, commission_id)
     if not obj:
         return fail("commission not found", 404)
-    data = {"status": target, "notes": (obj.notes or "") + f"\n[{datetime.utcnow().isoformat()}] {user.get('username')} → {target}: {payload.get('reason', '')}"}
+    data = {
+        "status": target,
+        "notes": (obj.notes or "")
+        + f"\n[{datetime.utcnow().isoformat()}] {user.get('username')} → {target}: {payload.get('reason', '')}",
+    }
     if target == "approved":
         data["approved_by"] = user.get("user_id") or user.get("id")
     await svc.update_commission(db, obj, data)

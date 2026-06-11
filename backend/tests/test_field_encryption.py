@@ -133,6 +133,7 @@ class TestKeyDerivation:
     def test_dev_key_deterministic(self):
         # Dev fallback derives from JWT_SECRET, so same JWT_SECRET = same key
         from app.core.field_encryption import _load_or_generate_key
+
         k1 = _load_or_generate_key()
         k2 = _load_or_generate_key()
         assert k1 == k2
@@ -144,6 +145,7 @@ class TestKeyDerivation:
         monkeypatch.setenv("FIELD_ENCRYPTION_KEY", test_key)
         # Clear the module-level cache to force re-load
         from app.core import field_encryption as fe
+
         k = fe._load_or_generate_key()
         assert k == b"x" * 32
 
@@ -154,6 +156,7 @@ class TestKeyLengthValidation:
         monkeypatch.setenv("FIELD_ENCRYPTION_KEY", base64.b64encode(b"short").decode())
         with caplog.at_level("WARNING"):
             from app.core import field_encryption as fe
+
             fe._load_or_generate_key()
         # Should have fallen back to dev key
         assert any("Invalid FIELD_ENCRYPTION_KEY" in m for m in caplog.messages)

@@ -36,7 +36,9 @@ def watchtower_prompt(alert_text: str, total_alerts: int) -> str:
 """
 
 
-def customer_product_matching_prompt(customer_profile: str, candidates_text: str) -> str:
+def customer_product_matching_prompt(
+    customer_profile: str, candidates_text: str
+) -> str:
     return f"""你是一个电子元器件销售策略专家。基于客户画像推荐最合适的产品：
 
 **客户画像：**

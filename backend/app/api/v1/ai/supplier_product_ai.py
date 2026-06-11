@@ -34,13 +34,15 @@ async def ai_match_supplier_products(
             pid = m.get("product_id")
             if not pid:
                 continue
-            exists = (await db.execute(
-                select(SupplierProduct).where(
-                    SupplierProduct.supplier_id == supplier_id,
-                    SupplierProduct.product_id == pid,
-                    SupplierProduct.deleted_at.is_(None),
+            exists = (
+                await db.execute(
+                    select(SupplierProduct).where(
+                        SupplierProduct.supplier_id == supplier_id,
+                        SupplierProduct.product_id == pid,
+                        SupplierProduct.deleted_at.is_(None),
+                    )
                 )
-            )).scalar_one_or_none()
+            ).scalar_one_or_none()
             if not exists:
                 sp = SupplierProduct(
                     supplier_id=supplier_id,

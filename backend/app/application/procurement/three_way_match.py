@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 def _discrepancies_to_json(discs: list[LineDiscrepancy]) -> str:
     """Serialize discrepancies to a JSON string for the DB column."""
     import json
+
     return json.dumps(
         [
             {
@@ -61,16 +62,14 @@ class MatchSupplierInvoiceUseCase:
 
     async def execute(self, invoice_id: int) -> SupplierInvoice:
         # 1. Load invoice
-        stmt = (
-            select(SupplierInvoice)
-            .where(
-                SupplierInvoice.id == invoice_id,
-                SupplierInvoice.deleted_at.is_(None),
-            )
+        stmt = select(SupplierInvoice).where(
+            SupplierInvoice.id == invoice_id,
+            SupplierInvoice.deleted_at.is_(None),
         )
         inv = (await self._session.execute(stmt)).scalar_one_or_none()
         if inv is None:
             from app.domain.shared.errors import NotFoundError
+
             raise NotFoundError(
                 f"供应商发票 {invoice_id} 不存在",
                 invoice_id=invoice_id,
@@ -79,25 +78,33 @@ class MatchSupplierInvoiceUseCase:
         # 2. Check duplicate (already matched against same PO)
         existing_matches = 0
         if inv.purchase_order_id:
-            existing_matches = await self._count_matched_invoices(inv.purchase_order_id, exclude_id=inv.id)
+            existing_matches = await self._count_matched_invoices(
+                inv.purchase_order_id, exclude_id=inv.id
+            )
 
         # 3. Load PO + items
         po_lines: list[POLineSnapshot] = []
         po_total = Decimal("0")
         if inv.purchase_order_id:
-            po = (await self._session.execute(
-                select(PurchaseOrder)
-                .where(PurchaseOrder.id == inv.purchase_order_id)
-                .options(selectinload(PurchaseOrder.items))
-            )).scalar_one_or_none()
+            po = (
+                await self._session.execute(
+                    select(PurchaseOrder)
+                    .where(PurchaseOrder.id == inv.purchase_order_id)
+                    .options(selectinload(PurchaseOrder.items))
+                )
+            ).scalar_one_or_none()
             if po:
                 for item in po.items:
-                    po_lines.append(POLineSnapshot(
-                        product_id=item.product_id,
-                        quantity=item.quantity,
-                        unit_price=Decimal(str(item.unit_price or 0)),
-                    ))
-                    po_total += Decimal(str(item.quantity)) * Decimal(str(item.unit_price or 0))
+                    po_lines.append(
+                        POLineSnapshot(
+                            product_id=item.product_id,
+                            quantity=item.quantity,
+                            unit_price=Decimal(str(item.unit_price or 0)),
+                        )
+                    )
+                    po_total += Decimal(str(item.quantity)) * Decimal(
+                        str(item.unit_price or 0)
+                    )
 
         # 4. Load GR + items
         gr_lines: list[GRLineSnapshot] = []
@@ -105,32 +112,40 @@ class MatchSupplierInvoiceUseCase:
         gr_id: int | None = inv.goods_receipt_id
         if gr_id is None and inv.purchase_order_id:
             # Auto-pick the most recent GR for this PO
-            gr = (await self._session.execute(
-                select(GoodsReceipt)
-                .where(
-                    GoodsReceipt.purchase_order_id == inv.purchase_order_id,
-                    GoodsReceipt.deleted_at.is_(None),
+            gr = (
+                await self._session.execute(
+                    select(GoodsReceipt)
+                    .where(
+                        GoodsReceipt.purchase_order_id == inv.purchase_order_id,
+                        GoodsReceipt.deleted_at.is_(None),
+                    )
+                    .options(selectinload(GoodsReceipt.items))
+                    .order_by(GoodsReceipt.received_date.desc())
+                    .limit(1)
                 )
-                .options(selectinload(GoodsReceipt.items))
-                .order_by(GoodsReceipt.received_date.desc())
-                .limit(1)
-            )).scalar_one_or_none()
+            ).scalar_one_or_none()
             if gr:
                 gr_id = gr.id
         if gr_id:
-            gr = (await self._session.execute(
-                select(GoodsReceipt)
-                .where(GoodsReceipt.id == gr_id)
-                .options(selectinload(GoodsReceipt.items))
-            )).scalar_one_or_none()
+            gr = (
+                await self._session.execute(
+                    select(GoodsReceipt)
+                    .where(GoodsReceipt.id == gr_id)
+                    .options(selectinload(GoodsReceipt.items))
+                )
+            ).scalar_one_or_none()
             if gr:
                 for item in gr.items:
-                    gr_lines.append(GRLineSnapshot(
-                        product_id=item.product_id,
-                        quantity_received=item.quantity_received,
-                        unit_cost=Decimal(str(item.unit_cost or 0)),
-                    ))
-                    gr_total += Decimal(item.quantity_received) * Decimal(str(item.unit_cost or 0))
+                    gr_lines.append(
+                        GRLineSnapshot(
+                            product_id=item.product_id,
+                            quantity_received=item.quantity_received,
+                            unit_cost=Decimal(str(item.unit_cost or 0)),
+                        )
+                    )
+                    gr_total += Decimal(item.quantity_received) * Decimal(
+                        str(item.unit_cost or 0)
+                    )
 
         # 5. Build invoice line snapshots from the invoice total
         # (line items are not stored separately for SupplierInvoice;
@@ -149,17 +164,23 @@ class MatchSupplierInvoiceUseCase:
                 )
                 qty = gr_line.quantity_received if gr_line else po_line.quantity
                 # Allocate invoice total proporcionalmente to PO amount
-                po_subtotal = Decimal(str(po_line.quantity)) * Decimal(str(po_line.unit_price))
+                po_subtotal = Decimal(str(po_line.quantity)) * Decimal(
+                    str(po_line.unit_price)
+                )
                 if po_total > 0:
-                    line_amount = Decimal(str(inv.amount)) * (po_subtotal / Decimal(str(po_total)))
+                    line_amount = Decimal(str(inv.amount)) * (
+                        po_subtotal / Decimal(str(po_total))
+                    )
                 else:
                     line_amount = Decimal(str(inv.amount)) / Decimal(str(len(po_lines)))
-                invoice_lines.append(InvoiceLineSnapshot(
-                    product_id=po_line.product_id,
-                    quantity=int(qty),
-                    unit_price=po_line.unit_price,  # use PO price as reference
-                    amount=line_amount.quantize(Decimal("0.01")),
-                ))
+                invoice_lines.append(
+                    InvoiceLineSnapshot(
+                        product_id=po_line.product_id,
+                        quantity=int(qty),
+                        unit_price=po_line.unit_price,  # use PO price as reference
+                        amount=line_amount.quantize(Decimal("0.01")),
+                    )
+                )
 
         # 6. Run match
         result = match_po_gr_invoice(
@@ -171,6 +192,7 @@ class MatchSupplierInvoiceUseCase:
 
         # 7. Persist result
         from datetime import datetime, timezone
+
         inv.match_status = result.status.value
         inv.match_discrepancies = _discrepancies_to_json(result.discrepancies)
         inv.matched_at = datetime.now(timezone.utc)
@@ -185,7 +207,11 @@ class MatchSupplierInvoiceUseCase:
 
         logger.info(
             "3-way match for SupplierInvoice #%s: %s (PO=%s, GR=%s, inv=%s, discrepancies=%d)",
-            invoice_id, result.status.value, po_total, gr_total, inv.amount,
+            invoice_id,
+            result.status.value,
+            po_total,
+            gr_total,
+            inv.amount,
             len(result.discrepancies),
         )
 
@@ -194,6 +220,7 @@ class MatchSupplierInvoiceUseCase:
 
     async def _count_matched_invoices(self, po_id: int, exclude_id: int) -> int:
         from sqlalchemy import func
+
         result = await self._session.execute(
             select(func.count(SupplierInvoice.id)).where(
                 SupplierInvoice.purchase_order_id == po_id,

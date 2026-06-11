@@ -131,7 +131,9 @@ class SalesOrder(TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
     incoterms: Mapped[str | None] = mapped_column(String(20), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    due_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     customer_po_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # ── 地址 ──

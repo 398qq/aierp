@@ -40,7 +40,9 @@ def _journal_entries_cache_key(**parts: object) -> str:
 def _bank_reconciliations_cache_key(**parts: object) -> str:
     canonical = json.dumps(parts, sort_keys=True, default=str)
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
-    return f"bank-reconciliations:list:{BANK_RECONCILIATIONS_LIST_CACHE_VERSION}:{digest}"
+    return (
+        f"bank-reconciliations:list:{BANK_RECONCILIATIONS_LIST_CACHE_VERSION}:{digest}"
+    )
 
 
 def _pnl_cache_key(month: str) -> str:

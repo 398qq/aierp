@@ -27,9 +27,11 @@ def upgrade() -> None:
     (`CREATE INDEX IF NOT EXISTS`).
     """
     import pathlib
+
     sql_path = (
         pathlib.Path(__file__).resolve().parents[2]
-        / "migrations" / "008_critical_indexes.sql"
+        / "migrations"
+        / "008_critical_indexes.sql"
     )
     sql = sql_path.read_text()
     for stmt in sql.split(";"):
@@ -47,13 +49,16 @@ def downgrade() -> None:
     rather than running this downgrade.
     """
     import pathlib
+
     sql_path = (
         pathlib.Path(__file__).resolve().parents[2]
-        / "migrations" / "008_critical_indexes.sql"
+        / "migrations"
+        / "008_critical_indexes.sql"
     )
     # Extract index names
     sql = sql_path.read_text()
     import re
+
     index_names = re.findall(
         r"CREATE\s+(?:UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS\s+(\w+)",
         sql,

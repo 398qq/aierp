@@ -71,7 +71,8 @@ class SalesConversionService(BaseCRUDService):
             return None
         existing = await db.execute(
             select(func.count()).where(
-                DeliveryNote.sales_order_id == order.id, DeliveryNote.deleted_at.is_(None)
+                DeliveryNote.sales_order_id == order.id,
+                DeliveryNote.deleted_at.is_(None),
             )
         )
         existing_count = existing.scalar() or 0

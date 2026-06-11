@@ -1,18 +1,23 @@
 """Tests for Phase 7 API modules — documents, import/export, dashboard widgets/KPI."""
+
 from httpx import AsyncClient
 
 
 class TestDocuments:
     """Document upload, list, download, delete."""
 
-    async def test_list_documents_empty(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_list_documents_empty(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.get(
             "/api/v1/documents?entity_type=customer&entity_id=1", headers=auth_headers
         )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_upload_text_file(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_upload_text_file(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.post(
             "/api/v1/documents/upload",
             headers=auth_headers,
@@ -33,7 +38,9 @@ class TestDocuments:
         assert resp.json()["code"] == 0
         assert "id" in resp.json()["data"]
 
-    async def test_list_after_upload(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_list_after_upload(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.post(
             "/api/v1/documents/upload",
             headers=auth_headers,
@@ -54,39 +61,53 @@ class TestDocuments:
             files={"file": ("note.csv", b"data", "text/csv")},
         )
         doc_id = c.json()["data"]["id"]
-        resp = await async_client.delete(f"/api/v1/documents/{doc_id}", headers=auth_headers)
+        resp = await async_client.delete(
+            f"/api/v1/documents/{doc_id}", headers=auth_headers
+        )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
     async def test_requires_auth(self, async_client: AsyncClient):
-        resp = await async_client.get("/api/v1/documents?entity_type=customer&entity_id=1")
+        resp = await async_client.get(
+            "/api/v1/documents?entity_type=customer&entity_id=1"
+        )
         assert resp.status_code == 401
 
 
 class TestImportExport:
     """Export and import endpoints."""
 
-    async def test_export_customers_csv(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_export_customers_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.get(
             "/api/v1/export/customers?format=csv", headers=auth_headers
         )
         assert resp.status_code == 200
 
-    async def test_export_products_csv(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_export_products_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.get(
             "/api/v1/export/products?format=csv", headers=auth_headers
         )
         assert resp.status_code == 200
 
-    async def test_export_invalid_entity(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_export_invalid_entity(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.get(
             "/api/v1/export/invalid_entity?format=csv", headers=auth_headers
         )
         assert resp.status_code == 200
         assert resp.json()["code"] != 0
 
-    async def test_import_customers_csv(self, async_client: AsyncClient, auth_headers: dict):
-        csv_data = "name,phone,email,industry,level\n测试导入,13800138000,test@test.com,电子,A"
+    async def test_import_customers_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        csv_data = (
+            "name,phone,email,industry,level\n测试导入,13800138000,test@test.com,电子,A"
+        )
         resp = await async_client.post(
             "/api/v1/import/customers",
             headers=auth_headers,
@@ -95,7 +116,9 @@ class TestImportExport:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_generic_import_customers_rejects_duplicate_normalized_name(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_generic_import_customers_rejects_duplicate_normalized_name(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -112,10 +135,14 @@ class TestImportExport:
         assert resp.status_code == 400
         assert "客户名称已存在" in resp.json()["msg"]
 
-        listed = await async_client.get("/api/v1/customers?q=星河电子", headers=auth_headers)
+        listed = await async_client.get(
+            "/api/v1/customers?q=星河电子", headers=auth_headers
+        )
         assert listed.json()["data"]["total"] == 1
 
-    async def test_import_products_csv(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_import_products_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         csv_data = "name,sku,category,cost_price,selling_price,unit\n测试产品,SKU001,电子,10,20,pcs"
         resp = await async_client.post(
             "/api/v1/import/products",
@@ -125,7 +152,9 @@ class TestImportExport:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_import_suppliers_csv(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_import_suppliers_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         csv_data = "name,contact,phone,email,address,level\n测试供应商,张三,13900001111,zhang@test.com,深圳,B"
         resp = await async_client.post(
             "/api/v1/import/suppliers",
@@ -135,7 +164,9 @@ class TestImportExport:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_import_contracts_csv(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_import_contracts_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         csv_data = "title,customer_id,amount,status,signed_date,notes\n采购合同,1,50000,draft,2025-01-01,测试合同"
         resp = await async_client.post(
             "/api/v1/import/contracts",
@@ -145,7 +176,9 @@ class TestImportExport:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_export_contracts_csv(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_export_contracts_csv(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.get(
             "/api/v1/export/contracts?format=csv", headers=auth_headers
         )
@@ -166,7 +199,9 @@ class TestImportExport:
 class TestDashboard:
     """Dashboard widgets and KPI."""
 
-    async def test_list_widgets_empty(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_list_widgets_empty(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         resp = await async_client.get("/api/v1/dashboard/widgets", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
@@ -175,21 +210,48 @@ class TestDashboard:
         resp = await async_client.put(
             "/api/v1/dashboard/widgets",
             headers=auth_headers,
-            json={"widgets": [
-                {"widget_type": "kpi_card", "title": "本月收入", "position_x": 0, "position_y": 0, "width": 3, "height": 1},
-                {"widget_type": "chart", "title": "销售趋势", "position_x": 3, "position_y": 0, "width": 6, "height": 2},
-            ]},
+            json={
+                "widgets": [
+                    {
+                        "widget_type": "kpi_card",
+                        "title": "本月收入",
+                        "position_x": 0,
+                        "position_y": 0,
+                        "width": 3,
+                        "height": 1,
+                    },
+                    {
+                        "widget_type": "chart",
+                        "title": "销售趋势",
+                        "position_x": 3,
+                        "position_y": 0,
+                        "width": 6,
+                        "height": 2,
+                    },
+                ]
+            },
         )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
-    async def test_list_widgets_after_save(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_list_widgets_after_save(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         await async_client.put(
             "/api/v1/dashboard/widgets",
             headers=auth_headers,
-            json={"widgets": [
-                {"widget_type": "alert_list", "title": "预警", "position_x": 0, "position_y": 1, "width": 3, "height": 1},
-            ]},
+            json={
+                "widgets": [
+                    {
+                        "widget_type": "alert_list",
+                        "title": "预警",
+                        "position_x": 0,
+                        "position_y": 1,
+                        "width": 3,
+                        "height": 1,
+                    },
+                ]
+            },
         )
         resp = await async_client.get("/api/v1/dashboard/widgets", headers=auth_headers)
         assert resp.status_code == 200

@@ -8,6 +8,7 @@ font, then walks the standard font directories. Falls back to
 ReportLab's bundled STSong-Light CID font and ultimately to
 Helvetica when nothing else is available.
 """
+
 from __future__ import annotations
 
 import logging
@@ -102,11 +103,21 @@ def get_chinese_font() -> str:
                     for f in files:
                         if f.endswith((".ttf", ".otf", ".ttc")):
                             font_path = os.path.join(root, f)
-                            font_name = os.path.splitext(f)[0].replace("_", " ").replace("-", " ")
+                            font_name = (
+                                os.path.splitext(f)[0]
+                                .replace("_", " ")
+                                .replace("-", " ")
+                            )
                             normalized_name = font_name.lower().replace(" ", "")
-                            if any(keyword in normalized_name for keyword in PARTIAL_FONT_KEYWORDS):
+                            if any(
+                                keyword in normalized_name
+                                for keyword in PARTIAL_FONT_KEYWORDS
+                            ):
                                 continue
-                            if not any(keyword.replace(" ", "") in normalized_name for keyword in CHINESE_FONT_KEYWORDS):
+                            if not any(
+                                keyword.replace(" ", "") in normalized_name
+                                for keyword in CHINESE_FONT_KEYWORDS
+                            ):
                                 continue
                             registered = _register_font(font_path)
                             if registered:

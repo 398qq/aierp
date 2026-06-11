@@ -13,6 +13,7 @@ The public API (``generate_quotation_pdf``, ``generate_sales_order_pdf``,
 ``money_upper_cn``) is re-exported so existing imports of
 ``app.services.pdf_service`` keep working unchanged.
 """
+
 from __future__ import annotations
 
 from app.services.pdf._fonts import (

@@ -15,9 +15,11 @@ router = APIRouter(prefix="/sales/targets", tags=["targets"])
 
 @router.get("")
 async def list_targets(
-    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     result = await svc.list_targets(db, page=page, page_size=page_size, status=status)
     return ok(result)
@@ -25,14 +27,16 @@ async def list_targets(
 
 @router.get("/summary")
 async def summary(
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     return ok(await svc.get_target_summary(db))
 
 
 @router.get("/stats")
 async def stats(
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     return ok(await svc.get_target_stats(db))
 
@@ -40,7 +44,8 @@ async def stats(
 @router.get("/{target_id}")
 async def get_target(
     target_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     target = await svc.get_target(db, target_id)
     if not target:
@@ -51,7 +56,8 @@ async def get_target(
 @router.post("", status_code=201)
 async def create_target(
     body: TargetCreate,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     target = await svc.create_target(db, body.model_dump())
     await cache_bump_version("targets:list")
@@ -60,8 +66,12 @@ async def create_target(
 
 
 @router.put("/{target_id}")
-async def update_target(target_id: int, body: TargetUpdate,
-                        db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user)):
+async def update_target(
+    target_id: int,
+    body: TargetUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
     target = await svc.get_target(db, target_id)
     if not target:
         return fail("目标不存在", 404)
@@ -74,7 +84,8 @@ async def update_target(target_id: int, body: TargetUpdate,
 @router.delete("/{target_id}")
 async def delete_target(
     target_id: int,
-    db: AsyncSession = Depends(get_db), _user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
 ):
     target = await svc.get_target(db, target_id)
     if not target:

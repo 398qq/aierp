@@ -230,17 +230,25 @@ cache_lookup_duration_seconds = Histogram(
 
 def reset_all() -> None:
     for m in (
-        orders_confirmed_total, orders_cancelled_total,
-        inventory_reserved_total, inventory_release_failures_total,
-        inventory_concurrent_conflicts_total, domain_events_total,
+        orders_confirmed_total,
+        orders_cancelled_total,
+        inventory_reserved_total,
+        inventory_release_failures_total,
+        inventory_concurrent_conflicts_total,
+        domain_events_total,
         domain_errors_total,
-        cache_hits_total, cache_misses_total, cache_invalidations_total,
+        cache_hits_total,
+        cache_misses_total,
+        cache_invalidations_total,
     ):
         m._values.clear()  # type: ignore[attr-defined]
     for g in (cache_hit_ratio,):
         g._values.clear()  # type: ignore[attr-defined]
-    for h in (ai_call_duration_seconds, event_dispatch_duration_seconds,
-              cache_lookup_duration_seconds):
+    for h in (
+        ai_call_duration_seconds,
+        event_dispatch_duration_seconds,
+        cache_lookup_duration_seconds,
+    ):
         h._values.clear()  # type: ignore[attr-defined]
 
 
@@ -250,11 +258,16 @@ def all_snapshots() -> dict:
         "counters": {
             m.name: m.snapshot()  # type: ignore[attr-defined]
             for m in (
-                orders_confirmed_total, orders_cancelled_total,
-                inventory_reserved_total, inventory_release_failures_total,
-                inventory_concurrent_conflicts_total, domain_events_total,
+                orders_confirmed_total,
+                orders_cancelled_total,
+                inventory_reserved_total,
+                inventory_release_failures_total,
+                inventory_concurrent_conflicts_total,
+                domain_events_total,
                 domain_errors_total,
-                cache_hits_total, cache_misses_total, cache_invalidations_total,
+                cache_hits_total,
+                cache_misses_total,
+                cache_invalidations_total,
             )
         },
         "gauges": {
@@ -263,8 +276,11 @@ def all_snapshots() -> dict:
         },
         "histograms": {
             h.name: h.snapshot()  # type: ignore[attr-defined]
-            for h in (ai_call_duration_seconds, event_dispatch_duration_seconds,
-                      cache_lookup_duration_seconds)
+            for h in (
+                ai_call_duration_seconds,
+                event_dispatch_duration_seconds,
+                cache_lookup_duration_seconds,
+            )
         },
     }
 
@@ -370,7 +386,7 @@ def render_prometheus_text() -> str:
             cumulative = 0
             for b, count in zip(buckets, slot["counts"]):
                 cumulative += count
-                le_label = f"le=\"{_format_bucket(b)}\""
+                le_label = f'le="{_format_bucket(b)}"'
                 if base_label_str:
                     full = f"{base_label_str},{le_label}"
                 else:
@@ -386,7 +402,9 @@ def render_prometheus_text() -> str:
             lines.append(f"{name}_bucket{{{full}}} {slot['count']}")
             # sum and count
             if base_label_str:
-                lines.append(f"{name}_sum{{{base_label_str}}} {_format_value(slot['sum'])}")
+                lines.append(
+                    f"{name}_sum{{{base_label_str}}} {_format_value(slot['sum'])}"
+                )
                 lines.append(f"{name}_count{{{base_label_str}}} {slot['count']}")
             else:
                 lines.append(f"{name}_sum {_format_value(slot['sum'])}")

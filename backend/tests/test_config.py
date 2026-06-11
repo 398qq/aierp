@@ -12,7 +12,9 @@ class TestSettings:
         assert cfg.CORS_ORIGINS == ["http://localhost:3002", "https://erp.example.com"]
 
     def test_production_rejects_wildcard_cors(self):
-        with pytest.raises(ValueError, match="CORS_ORIGINS cannot contain '\\*' in production"):
+        with pytest.raises(
+            ValueError, match="CORS_ORIGINS cannot contain '\\*' in production"
+        ):
             Settings(
                 APP_ENV="production",
                 DB_PASSWORD="dbpass",

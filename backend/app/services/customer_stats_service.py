@@ -215,59 +215,81 @@ class CustomerStatsService(BaseCRUDService):
             return None
 
         followups = (
-            await db.execute(
-                select(CustomerFollowUp).where(
-                    CustomerFollowUp.customer_id == customer_id,
-                    CustomerFollowUp.deleted_at.is_(None),
-                ).order_by(CustomerFollowUp.created_at.desc()).limit(30)
+            (
+                await db.execute(
+                    select(CustomerFollowUp)
+                    .where(
+                        CustomerFollowUp.customer_id == customer_id,
+                        CustomerFollowUp.deleted_at.is_(None),
+                    )
+                    .order_by(CustomerFollowUp.created_at.desc())
+                    .limit(30)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         orders = (
-            await db.execute(
-                select(SalesOrder).where(
-                    SalesOrder.customer_id == customer_id,
-                    SalesOrder.deleted_at.is_(None),
-                ).order_by(SalesOrder.created_at.desc()).limit(30)
+            (
+                await db.execute(
+                    select(SalesOrder)
+                    .where(
+                        SalesOrder.customer_id == customer_id,
+                        SalesOrder.deleted_at.is_(None),
+                    )
+                    .order_by(SalesOrder.created_at.desc())
+                    .limit(30)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         events: list[dict] = []
         if customer.last_contacted_at:
-            events.append({
-                "id": 2_000_000_000 + customer.id,
-                "type": "contact",
-                "title": "客户联系记录",
-                "detail": "客户最近联系时间已更新",
-                "time": str(customer.last_contacted_at),
-            })
+            events.append(
+                {
+                    "id": 2_000_000_000 + customer.id,
+                    "type": "contact",
+                    "title": "客户联系记录",
+                    "detail": "客户最近联系时间已更新",
+                    "time": str(customer.last_contacted_at),
+                }
+            )
 
         for fu in followups:
             event_time = fu.completed_at or fu.planned_at or fu.created_at
             if event_time is None:
                 continue
             detail_parts = [part for part in [fu.content, fu.result] if part]
-            detail = "；".join(detail_parts) if detail_parts else (fu.status or "跟进记录")
-            events.append({
-                "id": fu.id,
-                "type": "followup",
-                "title": f"客户跟进（{fu.method or '记录'}）",
-                "detail": detail,
-                "time": str(event_time),
-            })
+            detail = (
+                "；".join(detail_parts) if detail_parts else (fu.status or "跟进记录")
+            )
+            events.append(
+                {
+                    "id": fu.id,
+                    "type": "followup",
+                    "title": f"客户跟进（{fu.method or '记录'}）",
+                    "detail": detail,
+                    "time": str(event_time),
+                }
+            )
 
         for order in orders:
             event_time = order.order_date or order.created_at
             if event_time is None:
                 continue
             amount = safe_float(order.total_amount)
-            events.append({
-                "id": 1_000_000_000 + order.id,
-                "type": "order",
-                "title": f"销售订单 {order.order_no or f'#{order.id}'}",
-                "detail": f"金额 ¥{amount:.2f}，状态 {order.status or 'unknown'}",
-                "time": str(event_time),
-            })
+            events.append(
+                {
+                    "id": 1_000_000_000 + order.id,
+                    "type": "order",
+                    "title": f"销售订单 {order.order_no or f'#{order.id}'}",
+                    "detail": f"金额 ¥{amount:.2f}，状态 {order.status or 'unknown'}",
+                    "time": str(event_time),
+                }
+            )
 
         events.sort(key=lambda item: item["time"], reverse=True)
         return events[:50]
@@ -349,9 +371,7 @@ class CustomerStatsService(BaseCRUDService):
         health_scores: list[float] = []
 
         for _id, level, status, last_contacted_at, ai_insights in customers:
-            lifecycle_key = CUSTOMER_STATUS_LABELS.get(
-                status, status or "未设置"
-            )
+            lifecycle_key = CUSTOMER_STATUS_LABELS.get(status, status or "未设置")
             lifecycle_map[lifecycle_key] = lifecycle_map.get(lifecycle_key, 0) + 1
 
             if last_contacted_at is None:
@@ -385,17 +405,21 @@ class CustomerStatsService(BaseCRUDService):
                 health_scores.append(health_score)
 
         recent_orders_cus = await db.execute(
-            select(SalesOrder.customer_id).where(
+            select(SalesOrder.customer_id)
+            .where(
                 SalesOrder.deleted_at.is_(None),
                 SalesOrder.created_at >= days_30,
-            ).distinct()
+            )
+            .distinct()
         )
         recent_cus_ids = set(recent_orders_cus.scalars().all())
         followup_cus = await db.execute(
-            select(CustomerFollowUp.customer_id).where(
+            select(CustomerFollowUp.customer_id)
+            .where(
                 CustomerFollowUp.deleted_at.is_(None),
                 CustomerFollowUp.created_at >= days_30,
-            ).distinct()
+            )
+            .distinct()
         )
         recent_cus_ids |= set(followup_cus.scalars().all())
         active_30d = len(recent_cus_ids)
@@ -479,7 +503,9 @@ class CustomerStatsService(BaseCRUDService):
 
         latest_followup_rows = (
             await db.execute(
-                select(CustomerFollowUp.customer_id, func.max(CustomerFollowUp.created_at))
+                select(
+                    CustomerFollowUp.customer_id, func.max(CustomerFollowUp.created_at)
+                )
                 .where(
                     CustomerFollowUp.deleted_at.is_(None),
                     CustomerFollowUp.customer_id.in_(customer_ids),
@@ -517,10 +543,9 @@ class CustomerStatsService(BaseCRUDService):
                 last_order_at = stats.get("last_order_at")
                 order_count_90d = int(stats.get("count_90d", 0))
 
-                last_contact_at = (
-                    to_utc(customer.last_contacted_at)
-                    or followup_last_map.get(customer.id)
-                )
+                last_contact_at = to_utc(
+                    customer.last_contacted_at
+                ) or followup_last_map.get(customer.id)
                 days_since_contact_v = days_since(last_contact_at, now)
                 days_since_order_v = days_since(last_order_at, now)
                 open_opportunities = opp_map.get(customer.id, 0)
@@ -535,7 +560,10 @@ class CustomerStatsService(BaseCRUDService):
                 contact_term = max(0.0, min(30.0, (120 - days_since_contact_v) * 0.25))
                 order_term = max(0.0, min(24.0, order_count_90d * 4.0))
                 health_score = max(
-                    0.0, min(100.0, round(46.0 + level_bonus + contact_term + order_term, 1))
+                    0.0,
+                    min(
+                        100.0, round(46.0 + level_bonus + contact_term + order_term, 1)
+                    ),
                 )
 
                 if health_score >= 80:
@@ -549,7 +577,11 @@ class CustomerStatsService(BaseCRUDService):
                 contact_risk = min(100.0, days_since_contact_v / 120.0 * 100.0)
                 opp_risk = 0.0 if open_opportunities > 0 else 10.0
                 churn_risk = max(
-                    0.0, min(100.0, round(order_risk * 0.55 + contact_risk * 0.35 + opp_risk, 1))
+                    0.0,
+                    min(
+                        100.0,
+                        round(order_risk * 0.55 + contact_risk * 0.35 + opp_risk, 1),
+                    ),
                 )
 
                 if churn_risk >= 70:
@@ -572,24 +604,28 @@ class CustomerStatsService(BaseCRUDService):
                     if isinstance(customer.ai_insights, dict)
                     else {}
                 )
-                merged_insights.update({
-                    "updated_at": now.isoformat(),
-                    "health_score": health_score,
-                    "health_label": health_label_text,
-                    "rfm": {
-                        "recency": recency,
-                        "frequency": frequency,
-                        "monetary": monetary,
-                        "tier": tier,
-                    },
-                    "churn": churn_payload,
-                    "churn_risk": churn_payload,
-                })
+                merged_insights.update(
+                    {
+                        "updated_at": now.isoformat(),
+                        "health_score": health_score,
+                        "health_label": health_label_text,
+                        "rfm": {
+                            "recency": recency,
+                            "frequency": frequency,
+                            "monetary": monetary,
+                            "tier": tier,
+                        },
+                        "churn": churn_payload,
+                        "churn_risk": churn_payload,
+                    }
+                )
                 customer.ai_insights = merged_insights
                 scored += 1
             except Exception as exc:  # noqa: BLE001
                 errors += 1
-                logger.warning("batch-score-ai failed for customer_id=%s: %s", customer.id, exc)
+                logger.warning(
+                    "batch-score-ai failed for customer_id=%s: %s", customer.id, exc
+                )
 
         await db.flush()
         return {"scored": scored, "errors": errors, "total": len(customers)}
@@ -631,9 +667,7 @@ class CustomerStatsService(BaseCRUDService):
 
     # ── follow-up queries ─────────────────────────────────────────────
 
-    async def get_overdue_followups(
-        self, db: AsyncSession
-    ) -> dict[str, Any]:
+    async def get_overdue_followups(self, db: AsyncSession) -> dict[str, Any]:
         """Overdue follow-ups (planned_at < now and not terminal)."""
         now = datetime.now(timezone.utc)
         rows = (
@@ -656,21 +690,21 @@ class CustomerStatsService(BaseCRUDService):
 
         items: list[dict[str, Any]] = []
         for fu, cust in rows:
-            overdue_days = (
-                now - fu.planned_at.replace(tzinfo=timezone.utc)
-            ).days
-            items.append({
-                "id": fu.id,
-                "customer_id": cust.id,
-                "customer_name": cust.name,
-                "owner": cust.owner,
-                "method": fu.method,
-                "priority": fu.priority,
-                "planned_at": str(fu.planned_at),
-                "status": fu.status,
-                "content": fu.content,
-                "overdue_days": overdue_days,
-            })
+            overdue_days = (now - fu.planned_at.replace(tzinfo=timezone.utc)).days
+            items.append(
+                {
+                    "id": fu.id,
+                    "customer_id": cust.id,
+                    "customer_name": cust.name,
+                    "owner": cust.owner,
+                    "method": fu.method,
+                    "priority": fu.priority,
+                    "planned_at": str(fu.planned_at),
+                    "status": fu.status,
+                    "content": fu.content,
+                    "overdue_days": overdue_days,
+                }
+            )
 
         items.sort(key=lambda x: -x["overdue_days"])
         return {"total": len(items), "items": items}
@@ -718,25 +752,25 @@ class CustomerStatsService(BaseCRUDService):
                 overdue_days = 0
                 days_until = (planned_date - today).days
 
-            items.append({
-                "id": fu.id,
-                "customer_id": cust.id,
-                "customer_name": cust.name,
-                "owner": cust.owner,
-                "method": fu.method,
-                "priority": fu.priority,
-                "planned_at": str(fu.planned_at),
-                "status": fu.status,
-                "content": fu.content,
-                "overdue_days": overdue_days,
-                "days_until": days_until,
-                "due_bucket": due_bucket,
-            })
+            items.append(
+                {
+                    "id": fu.id,
+                    "customer_id": cust.id,
+                    "customer_name": cust.name,
+                    "owner": cust.owner,
+                    "method": fu.method,
+                    "priority": fu.priority,
+                    "planned_at": str(fu.planned_at),
+                    "status": fu.status,
+                    "content": fu.content,
+                    "overdue_days": overdue_days,
+                    "days_until": days_until,
+                    "due_bucket": due_bucket,
+                }
+            )
 
         bucket_order = {"overdue": 0, "today": 1, "upcoming": 2}
-        items.sort(
-            key=lambda x: (bucket_order[x["due_bucket"]], x["planned_at"])
-        )
+        items.sort(key=lambda x: (bucket_order[x["due_bucket"]], x["planned_at"]))
         counts = {
             "overdue": sum(1 for item in items if item["due_bucket"] == "overdue"),
             "today": sum(1 for item in items if item["due_bucket"] == "today"),
@@ -806,15 +840,13 @@ class CustomerStatsService(BaseCRUDService):
                 overdue_days = 0
                 days_until = None
             elif planned_date < today and (
-                fu.status is None
-                or fu.status not in TERMINAL_FOLLOWUP_STATUSES
+                fu.status is None or fu.status not in TERMINAL_FOLLOWUP_STATUSES
             ):
                 bucket = "overdue"
                 overdue_days = (today - planned_date).days
                 days_until = None
             elif planned_date == today and (
-                fu.status is None
-                or fu.status not in TERMINAL_FOLLOWUP_STATUSES
+                fu.status is None or fu.status not in TERMINAL_FOLLOWUP_STATUSES
             ):
                 bucket = "today"
                 overdue_days = 0
@@ -824,27 +856,33 @@ class CustomerStatsService(BaseCRUDService):
                 overdue_days = 0
                 days_until = (planned_date - today).days
 
-            items.append({
-                "id": fu.id,
-                "customer_id": cust.id,
-                "customer_name": cust.name,
-                "owner": cust.owner,
-                "method": fu.method,
-                "priority": fu.priority,
-                "planned_at": str(fu.planned_at) if fu.planned_at else None,
-                "completed_at": str(fu.completed_at) if fu.completed_at else None,
-                "created_at": str(fu.created_at) if fu.created_at else None,
-                "status": fu.status,
-                "content": fu.content,
-                "result": fu.result,
-                "assigned_to": fu.assigned_to,
-                "overdue_days": overdue_days,
-                "days_until": days_until,
-                "due_bucket": bucket,
-            })
+            items.append(
+                {
+                    "id": fu.id,
+                    "customer_id": cust.id,
+                    "customer_name": cust.name,
+                    "owner": cust.owner,
+                    "method": fu.method,
+                    "priority": fu.priority,
+                    "planned_at": str(fu.planned_at) if fu.planned_at else None,
+                    "completed_at": str(fu.completed_at) if fu.completed_at else None,
+                    "created_at": str(fu.created_at) if fu.created_at else None,
+                    "status": fu.status,
+                    "content": fu.content,
+                    "result": fu.result,
+                    "assigned_to": fu.assigned_to,
+                    "overdue_days": overdue_days,
+                    "days_until": days_until,
+                    "due_bucket": bucket,
+                }
+            )
 
         bucket_order = {
-            "overdue": 0, "today": 1, "upcoming": 2, "unscheduled": 3, "closed": 4,
+            "overdue": 0,
+            "today": 1,
+            "upcoming": 2,
+            "unscheduled": 3,
+            "closed": 4,
         }
         items.sort(
             key=lambda item: (
@@ -858,13 +896,15 @@ class CustomerStatsService(BaseCRUDService):
             "overdue": sum(1 for item in items if item["due_bucket"] == "overdue"),
             "today": sum(1 for item in items if item["due_bucket"] == "today"),
             "upcoming": sum(1 for item in items if item["due_bucket"] == "upcoming"),
-            "unscheduled": sum(1 for item in items if item["due_bucket"] == "unscheduled"),
+            "unscheduled": sum(
+                1 for item in items if item["due_bucket"] == "unscheduled"
+            ),
             "closed": sum(1 for item in items if item["due_bucket"] == "closed"),
         }
         if due_bucket:
             items = [item for item in items if item["due_bucket"] == due_bucket]
         start = (page - 1) * page_size
-        paged = items[start:start + page_size]
+        paged = items[start : start + page_size]
         return {
             "list": paged,
             "total": len(items),

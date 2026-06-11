@@ -11,6 +11,7 @@ class TestBaseAgent:
     def test_subclass_with_name_works(self):
         class GoodAgent(BaseAgent):
             name = "good"
+
         agent = GoodAgent()
         assert agent.name == "good"
 
@@ -40,9 +41,15 @@ class TestKMeansHelper:
         from app.services.ai.agent_modules.embedding import _run_kmeans
 
         embeddings = [
-            [0.1, 0.0], [0.0, 0.1], [0.2, 0.1],       # cluster 0
-            [10.1, 10.0], [10.0, 10.1], [9.9, 10.0],  # cluster 1
-            [20.1, 20.0], [20.0, 20.1], [20.0, 19.9],  # cluster 2
+            [0.1, 0.0],
+            [0.0, 0.1],
+            [0.2, 0.1],  # cluster 0
+            [10.1, 10.0],
+            [10.0, 10.1],
+            [9.9, 10.0],  # cluster 1
+            [20.1, 20.0],
+            [20.0, 20.1],
+            [20.0, 19.9],  # cluster 2
         ]
         labels, centroids = _run_kmeans(embeddings, n_clusters=3, n_iter=50)
 
@@ -59,6 +66,7 @@ class TestKMeansHelper:
 
     def test_kmeans_handles_minimum_inputs(self):
         from app.services.ai.agent_modules.embedding import _run_kmeans
+
         embeddings = [[0.0, 0.0], [1.0, 1.0]]
         labels, centroids = _run_kmeans(embeddings, n_clusters=2)
         assert len(labels) == 2
@@ -85,6 +93,7 @@ class TestWatchtowerSummarize:
 
     def test_summarize_empty_findings(self):
         from app.services.ai.agent_modules.watchtower import WatchtowerService
+
         summary = WatchtowerService.summarize([])
         assert summary["total"] == 0
         assert all(v == 0 for v in summary["by_severity"].values())

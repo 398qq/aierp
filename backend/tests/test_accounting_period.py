@@ -1,6 +1,5 @@
 """Tests for AccountingPeriod aggregate — period-close invariants."""
 
-
 import pytest
 
 from app.domain.finance.events import PeriodClosed, PeriodReopened
@@ -45,31 +44,37 @@ class TestPeriodDateRange:
     def test_start_date_is_first_of_month(self):
         p = AccountingPeriod(year=2026, month=6)
         from datetime import date
+
         assert p.start_date == date(2026, 6, 1)
 
     def test_end_date_30_days_for_june(self):
         p = AccountingPeriod(year=2026, month=6)
         from datetime import date
+
         assert p.end_date == date(2026, 6, 30)
 
     def test_end_date_31_days_for_july(self):
         p = AccountingPeriod(year=2026, month=7)
         from datetime import date
+
         assert p.end_date == date(2026, 7, 31)
 
     def test_end_date_31_days_for_december(self):
         p = AccountingPeriod(year=2026, month=12)
         from datetime import date
+
         assert p.end_date == date(2026, 12, 31)
 
     def test_end_date_handles_leap_year_february(self):
         p = AccountingPeriod(year=2024, month=2)
         from datetime import date
+
         assert p.end_date == date(2024, 2, 29)
 
     def test_end_date_handles_non_leap_year_february(self):
         p = AccountingPeriod(year=2026, month=2)
         from datetime import date
+
         assert p.end_date == date(2026, 2, 28)
 
 

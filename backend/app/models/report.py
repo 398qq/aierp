@@ -11,7 +11,9 @@ class ReportTemplate(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(50))  # table, bar, line, pie, custom
     config: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
 
     creator = relationship("User", foreign_keys=[created_by])

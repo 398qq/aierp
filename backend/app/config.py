@@ -47,7 +47,9 @@ class Settings(BaseSettings):
                 try:
                     parsed = json.loads(raw)
                     if isinstance(parsed, list):
-                        return [str(item).strip() for item in parsed if str(item).strip()]
+                        return [
+                            str(item).strip() for item in parsed if str(item).strip()
+                        ]
                 except json.JSONDecodeError:
                     pass
             return [item.strip() for item in raw.split(",") if item.strip()]

@@ -42,15 +42,33 @@ async def list_level_rules(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    rows = (await db.execute(
-        select(LevelRule).where(LevelRule.deleted_at.is_(None)).order_by(LevelRule.priority)
-    )).scalars().all()
-    return ok([{
-        "id": r.id, "name": r.name, "target_level": r.target_level,
-        "condition_type": r.condition_type, "operator": r.operator,
-        "threshold_value": r.threshold_value, "period_days": r.period_days,
-        "enabled": r.enabled, "priority": r.priority,
-    } for r in rows])
+    rows = (
+        (
+            await db.execute(
+                select(LevelRule)
+                .where(LevelRule.deleted_at.is_(None))
+                .order_by(LevelRule.priority)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ok(
+        [
+            {
+                "id": r.id,
+                "name": r.name,
+                "target_level": r.target_level,
+                "condition_type": r.condition_type,
+                "operator": r.operator,
+                "threshold_value": r.threshold_value,
+                "period_days": r.period_days,
+                "enabled": r.enabled,
+                "priority": r.priority,
+            }
+            for r in rows
+        ]
+    )
 
 
 @router.post("/level-rules", status_code=201)
@@ -122,21 +140,40 @@ async def auto_level_customers(
     from app.models.sales import SalesOrder
     from app.services.customer_service import calc_lifecycle
 
-    rules = (await db.execute(
-        select(LevelRule).where(LevelRule.enabled, LevelRule.deleted_at.is_(None)).order_by(LevelRule.priority)
-    )).scalars().all()
+    rules = (
+        (
+            await db.execute(
+                select(LevelRule)
+                .where(LevelRule.enabled, LevelRule.deleted_at.is_(None))
+                .order_by(LevelRule.priority)
+            )
+        )
+        .scalars()
+        .all()
+    )
     if not rules:
-        return ok({"updated": 0, "lifecycle_updated": 0, "rules_checked": 0, "customers_checked": 0})
+        return ok(
+            {
+                "updated": 0,
+                "lifecycle_updated": 0,
+                "rules_checked": 0,
+                "customers_checked": 0,
+            }
+        )
 
-    customers_list = (await db.execute(
-        select(Customer).where(Customer.deleted_at.is_(None))
-    )).scalars().all()
+    customers_list = (
+        (await db.execute(select(Customer).where(Customer.deleted_at.is_(None))))
+        .scalars()
+        .all()
+    )
     customers = {c.id: c for c in customers_list}
 
     orders_map = {}
-    for o in (await db.execute(
-        select(SalesOrder).where(SalesOrder.deleted_at.is_(None))
-    )).scalars().all():
+    for o in (
+        (await db.execute(select(SalesOrder).where(SalesOrder.deleted_at.is_(None))))
+        .scalars()
+        .all()
+    ):
         orders_map.setdefault(o.customer_id, []).append(o)
 
     now = datetime.now(timezone.utc)
@@ -146,7 +183,14 @@ async def auto_level_customers(
     for c in customers.values():
         c_orders = orders_map.get(c.id, [])
 
-        latest_order = max((o.created_at.replace(tzinfo=timezone.utc) for o in c_orders if o.created_at), default=None)
+        latest_order = max(
+            (
+                o.created_at.replace(tzinfo=timezone.utc)
+                for o in c_orders
+                if o.created_at
+            ),
+            default=None,
+        )
         new_lifecycle = calc_lifecycle(c, len(c_orders), latest_order, now)
         if c.lifecycle != new_lifecycle:
             c.lifecycle = new_lifecycle
@@ -159,33 +203,59 @@ async def auto_level_customers(
             match = False
             if rule.condition_type == "revenue":
                 if rule.period_days:
-                    total = sum(float(o.total_amount or 0) for o in c_orders
-                               if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= rule.period_days)
+                    total = sum(
+                        float(o.total_amount or 0)
+                        for o in c_orders
+                        if (now - o.created_at.replace(tzinfo=timezone.utc)).days
+                        <= rule.period_days
+                    )
                 else:
                     total = sum(float(o.total_amount or 0) for o in c_orders)
                 match = _compare(total, rule.operator, rule.threshold_value)
 
             elif rule.condition_type == "order_count":
                 if rule.period_days:
-                    count = len([o for o in c_orders
-                                if (now - o.created_at.replace(tzinfo=timezone.utc)).days <= rule.period_days])
+                    count = len(
+                        [
+                            o
+                            for o in c_orders
+                            if (now - o.created_at.replace(tzinfo=timezone.utc)).days
+                            <= rule.period_days
+                        ]
+                    )
                 else:
                     count = len(c_orders)
                 match = _compare(count, rule.operator, rule.threshold_value)
 
             elif rule.condition_type == "no_order_days":
                 latest = max((o.created_at for o in c_orders), default=None)
-                days = (now - (latest or c.created_at or now).replace(tzinfo=timezone.utc)).days
+                days = (
+                    now - (latest or c.created_at or now).replace(tzinfo=timezone.utc)
+                ).days
                 match = _compare(days, rule.operator, rule.threshold_value)
 
             if match:
                 old_level = c.level
                 c.level = rule.target_level
-                await _log(db, c.id, "update", field_name="level",
-                           old_value=old_level, new_value=rule.target_level,
-                           summary=f"自动升级: {rule.name}", operator="system")
+                await _log(
+                    db,
+                    c.id,
+                    "update",
+                    field_name="level",
+                    old_value=old_level,
+                    new_value=rule.target_level,
+                    summary=f"自动升级: {rule.name}",
+                    operator="system",
+                )
                 updated += 1
                 break
 
     await db.flush()
-    return ok({"updated": updated, "lifecycle_updated": lifecycle_updated, "rules_checked": len(rules), "customers_checked": len(customers_list)})
+    return ok(
+        {
+            "updated": updated,
+            "lifecycle_updated": lifecycle_updated,
+            "rules_checked": len(rules),
+            "customers_checked": len(customers_list),
+        }
+    )

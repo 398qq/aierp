@@ -3,6 +3,7 @@
 The customer-domain AI agent. Powers the AI features on the customer
 detail, workbench, and dashboard pages.
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,8 +32,24 @@ logger = logging.getLogger(__name__)
 
 
 BUSINESS_CARD_TITLES = (
-    "董事长", "总经理", "副总", "经理", "主管", "销售", "业务", "工程师", "采购", "负责人",
-    "CEO", "CTO", "COO", "Founder", "Manager", "Director", "Engineer", "Sales",
+    "董事长",
+    "总经理",
+    "副总",
+    "经理",
+    "主管",
+    "销售",
+    "业务",
+    "工程师",
+    "采购",
+    "负责人",
+    "CEO",
+    "CTO",
+    "COO",
+    "Founder",
+    "Manager",
+    "Director",
+    "Engineer",
+    "Sales",
 )
 
 
@@ -59,7 +76,13 @@ class CustomerAgent:
             return result
         except Exception as e:
             logger.error(f"RFM analysis failed: {e}")
-            return {"r_score": 3, "f_score": 3, "m_score": 3, "tier": "未分析", "suggestion": "AI分析暂时不可用"}
+            return {
+                "r_score": 3,
+                "f_score": 3,
+                "m_score": 3,
+                "tier": "未分析",
+                "suggestion": "AI分析暂时不可用",
+            }
 
     @staticmethod
     async def churn_risk(customer_data: dict) -> dict:
@@ -80,7 +103,12 @@ class CustomerAgent:
             return result
         except Exception as e:
             logger.error(f"Churn risk analysis failed: {e}")
-            return {"risk_score": 0, "risk_level": "未知", "factors": [], "recommendation": "AI分析暂时不可用"}
+            return {
+                "risk_score": 0,
+                "risk_level": "未知",
+                "factors": [],
+                "recommendation": "AI分析暂时不可用",
+            }
 
     @staticmethod
     async def followup_suggestion(customer_data: dict) -> dict:
@@ -93,7 +121,10 @@ class CustomerAgent:
             result = await ai_client.chat_structured(
                 [
                     {"role": "system", "content": CUSTOMER_AGENT_SYSTEM},
-                    {"role": "user", "content": followup_suggestion_prompt(customer_data)},
+                    {
+                        "role": "user",
+                        "content": followup_suggestion_prompt(customer_data),
+                    },
                 ],
                 schema,
             )
@@ -103,8 +134,12 @@ class CustomerAgent:
             return {"topic": "", "recommended_products": [], "risk_points": []}
 
     @staticmethod
-    async def recognize_customer(text: str, ocr_candidates: list[dict] | None = None) -> dict:
-        recognition_context = _compose_customer_recognition_context(text, ocr_candidates)
+    async def recognize_customer(
+        text: str, ocr_candidates: list[dict] | None = None
+    ) -> dict:
+        recognition_context = _compose_customer_recognition_context(
+            text, ocr_candidates
+        )
         schema = {
             "name": "string",
             "short_name": "string",
@@ -161,7 +196,12 @@ class CustomerAgent:
             result = await ai_client.chat_structured(
                 [
                     {"role": "system", "content": CUSTOMER_AGENT_SYSTEM},
-                    {"role": "user", "content": followup_recognition_prompt(text, customer_data, now_text)},
+                    {
+                        "role": "user",
+                        "content": followup_recognition_prompt(
+                            text, customer_data, now_text
+                        ),
+                    },
                 ],
                 schema,
                 temperature=0.1,
@@ -200,15 +240,21 @@ class CustomerAgent:
         )
         if not text.strip():
             return {
-                "sentiment": "中性", "sentiment_reason": "无跟进记录",
-                "key_topics": [], "action_items": [], "risk_signals": [],
+                "sentiment": "中性",
+                "sentiment_reason": "无跟进记录",
+                "key_topics": [],
+                "action_items": [],
+                "risk_signals": [],
                 "summary": "暂无跟进记录可供分析",
             }
         try:
             result = await ai_client.chat_structured(
                 [
                     {"role": "system", "content": CUSTOMER_AGENT_SYSTEM},
-                    {"role": "user", "content": followup_analysis_prompt(text, customer_name)},
+                    {
+                        "role": "user",
+                        "content": followup_analysis_prompt(text, customer_name),
+                    },
                 ],
                 schema,
             )
@@ -216,8 +262,11 @@ class CustomerAgent:
         except Exception as e:
             logger.error(f"Followup analysis failed: {e}")
             return {
-                "sentiment": "中性", "sentiment_reason": "AI分析失败",
-                "key_topics": [], "action_items": [], "risk_signals": [],
+                "sentiment": "中性",
+                "sentiment_reason": "AI分析失败",
+                "key_topics": [],
+                "action_items": [],
+                "risk_signals": [],
                 "summary": "AI分析暂时不可用",
             }
 
@@ -243,14 +292,26 @@ class CustomerAgent:
         except Exception as e:
             logger.error(f"Alert enrichment failed: {e}")
             return {
-                "followup_method": "电话", "followup_timing": "尽快",
-                "talking_points": [], "message_template": "",
+                "followup_method": "电话",
+                "followup_timing": "尽快",
+                "talking_points": [],
+                "message_template": "",
                 "worst_case": "AI分析暂时不可用",
             }
 
     @staticmethod
-    async def chat(query: str, context: str = "", history: list[dict] | None = None, model: str | None = None) -> AsyncGenerator[str, None]:
-        messages = [{"role": "system", "content": f"{CUSTOMER_AGENT_SYSTEM}\n\n当前上下文：{context}"}]
+    async def chat(
+        query: str,
+        context: str = "",
+        history: list[dict] | None = None,
+        model: str | None = None,
+    ) -> AsyncGenerator[str, None]:
+        messages = [
+            {
+                "role": "system",
+                "content": f"{CUSTOMER_AGENT_SYSTEM}\n\n当前上下文：{context}",
+            }
+        ]
         if history:
             for msg in history:
                 if msg.get("role") in ("user", "assistant") and msg.get("content"):
@@ -258,326 +319,6 @@ class CustomerAgent:
         messages.append({"role": "user", "content": query})
         async for chunk in ai_client.chat_stream(messages, model=model):
             yield chunk
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # Back-compat: original module exposed these with leading underscores.

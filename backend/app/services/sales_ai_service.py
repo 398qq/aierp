@@ -29,7 +29,10 @@ def _ai_enrichment_cache_key(entity: str, input_data: list[dict]) -> str:
 
 
 async def _cached_ai_call(
-    entity: str, input_data: list[dict], messages: list[dict], schema: dict,
+    entity: str,
+    input_data: list[dict],
+    messages: list[dict],
+    schema: dict,
 ) -> dict | None:
     """Cached AI call: hash inputs, return cached result or call AI and store.
 
@@ -45,8 +48,10 @@ async def _cached_ai_call(
     result = await _call_ai(messages, schema)
     if result is not None:
         await cache_set_versioned(
-            f"ai:enrich:{entity}", cache_key,
-            json.dumps(result, default=str), AI_ENRICHMENT_CACHE_TTL,
+            f"ai:enrich:{entity}",
+            cache_key,
+            json.dumps(result, default=str),
+            AI_ENRICHMENT_CACHE_TTL,
         )
     return result
 
@@ -55,13 +60,16 @@ async def _call_ai(messages: list[dict], output_schema: dict) -> dict | None:
     """Call AI with structured output. Returns None on any failure."""
     try:
         from app.services.ai.client import ai_client
+
         result = await asyncio.wait_for(
             ai_client.chat_structured(messages, output_schema, temperature=0.3),
             timeout=SALES_AI_TIMEOUT_SECONDS,
         )
         return result
     except asyncio.TimeoutError:
-        logger.warning("Sales AI enrichment timed out after %ss", SALES_AI_TIMEOUT_SECONDS)
+        logger.warning(
+            "Sales AI enrichment timed out after %ss", SALES_AI_TIMEOUT_SECONDS
+        )
         return None
     except Exception:
         logger.exception("Sales AI enrichment failed")
@@ -71,6 +79,7 @@ async def _call_ai(messages: list[dict], output_schema: dict) -> dict | None:
 # ============================================================
 # Per-entity enrichment (detail view)
 # ============================================================
+
 
 async def enrich_opportunity(db: AsyncSession, opp: Opportunity) -> dict | None:
     from app.services.ai.prompts import opportunity_enrich_prompt
@@ -89,8 +98,10 @@ async def enrich_opportunity(db: AsyncSession, opp: Opportunity) -> dict | None:
         "key_concerns": ["string"],
     }
     return await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件销售专家。"},
-         {"role": "user", "content": opportunity_enrich_prompt(ctx)}],
+        [
+            {"role": "system", "content": "你是B2B电子元器件销售专家。"},
+            {"role": "user", "content": opportunity_enrich_prompt(ctx)},
+        ],
         schema,
     )
 
@@ -100,12 +111,14 @@ async def enrich_quotation(db: AsyncSession, quote: Quotation) -> dict | None:
 
     items_data = []
     for qi in quote.items:
-        items_data.append({
-            "product_name": qi.product_name or "未知",
-            "quantity": qi.quantity,
-            "unit_price": str(qi.unit_price or 0),
-            "total_price": str(qi.total_price or 0),
-        })
+        items_data.append(
+            {
+                "product_name": qi.product_name or "未知",
+                "quantity": qi.quantity,
+                "unit_price": str(qi.unit_price or 0),
+                "total_price": str(qi.total_price or 0),
+            }
+        )
 
     ctx = {
         "total_amount": str(quote.total_amount),
@@ -120,8 +133,10 @@ async def enrich_quotation(db: AsyncSession, quote: Quotation) -> dict | None:
         "improvement_suggestions": ["string"],
     }
     return await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件报价分析专家。"},
-         {"role": "user", "content": quotation_enrich_prompt(ctx)}],
+        [
+            {"role": "system", "content": "你是B2B电子元器件报价分析专家。"},
+            {"role": "user", "content": quotation_enrich_prompt(ctx)},
+        ],
         schema,
     )
 
@@ -144,8 +159,10 @@ async def enrich_sales_order(db: AsyncSession, order: SalesOrder) -> dict | None
         "flags": ["string"],
     }
     return await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件订单管理专家。"},
-         {"role": "user", "content": sales_order_enrich_prompt(ctx)}],
+        [
+            {"role": "system", "content": "你是B2B电子元器件订单管理专家。"},
+            {"role": "user", "content": sales_order_enrich_prompt(ctx)},
+        ],
         schema,
     )
 
@@ -166,8 +183,10 @@ async def enrich_delivery_note(db: AsyncSession, note: DeliveryNote) -> dict | N
         "issues": ["string"],
     }
     return await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件物流管理专家。"},
-         {"role": "user", "content": delivery_note_enrich_prompt(ctx)}],
+        [
+            {"role": "system", "content": "你是B2B电子元器件物流管理专家。"},
+            {"role": "user", "content": delivery_note_enrich_prompt(ctx)},
+        ],
         schema,
     )
 
@@ -176,119 +195,189 @@ async def enrich_delivery_note(db: AsyncSession, note: DeliveryNote) -> dict | N
 # Batch list enrichment
 # ============================================================
 
-async def enrich_opportunity_list(db: AsyncSession, opps: list[Opportunity]) -> dict[int, dict]:
+
+async def enrich_opportunity_list(
+    db: AsyncSession, opps: list[Opportunity]
+) -> dict[int, dict]:
     from app.services.ai.prompts import list_risk_summary_prompt
 
     if not opps:
         return {}
 
-    opp_data = [{
-        "id": o.id,
-        "title": o.title,
-        "stage": o.stage or "",
-        "amount": str(o.amount or 0),
-        "status": o.status,
-        "win_probability": str(o.win_probability or ""),
-    } for o in opps]
+    opp_data = [
+        {
+            "id": o.id,
+            "title": o.title,
+            "stage": o.stage or "",
+            "amount": str(o.amount or 0),
+            "status": o.status,
+            "win_probability": str(o.win_probability or ""),
+        }
+        for o in opps
+    ]
 
     schema = {
         "items": [{"id": "integer", "risk_level": "string", "flag": "string | null"}],
     }
     result = await _cached_ai_call(
-        "opp_list", opp_data,
-        [{"role": "system", "content": "你是B2B电子元器件销售分析专家。批量评估商机风险。"},
-         {"role": "user", "content": list_risk_summary_prompt(opp_data)}],
+        "opp_list",
+        opp_data,
+        [
+            {
+                "role": "system",
+                "content": "你是B2B电子元器件销售分析专家。批量评估商机风险。",
+            },
+            {"role": "user", "content": list_risk_summary_prompt(opp_data)},
+        ],
         schema,
     )
     if not result:
         return {}
-    return {item["id"]: {"risk_level": item.get("risk_level", "low"), "flag": item.get("flag")}
-            for item in result.get("items", []) if "id" in item}
+    return {
+        item["id"]: {
+            "risk_level": item.get("risk_level", "low"),
+            "flag": item.get("flag"),
+        }
+        for item in result.get("items", [])
+        if "id" in item
+    }
 
 
-async def enrich_quotation_list(db: AsyncSession, quotes: list[Quotation]) -> dict[int, dict]:
+async def enrich_quotation_list(
+    db: AsyncSession, quotes: list[Quotation]
+) -> dict[int, dict]:
     from app.services.ai.prompts import quotation_list_enrich_prompt
 
     if not quotes:
         return {}
 
-    quote_data = [{
-        "id": q.id,
-        "total_amount": str(q.total_amount),
-        "status": q.status,
-        "item_count": str(len(q.items) if q.items else 0),
-    } for q in quotes]
+    quote_data = [
+        {
+            "id": q.id,
+            "total_amount": str(q.total_amount),
+            "status": q.status,
+            "item_count": str(len(q.items) if q.items else 0),
+        }
+        for q in quotes
+    ]
 
     schema = {
-        "items": [{"id": "integer", "pricing_health": "string", "flag": "string | null"}],
+        "items": [
+            {"id": "integer", "pricing_health": "string", "flag": "string | null"}
+        ],
     }
     result = await _cached_ai_call(
-        "quote_list", quote_data,
-        [{"role": "system", "content": "你是B2B电子元器件报价分析专家。批量评估报价单质量。"},
-         {"role": "user", "content": quotation_list_enrich_prompt(quote_data)}],
+        "quote_list",
+        quote_data,
+        [
+            {
+                "role": "system",
+                "content": "你是B2B电子元器件报价分析专家。批量评估报价单质量。",
+            },
+            {"role": "user", "content": quotation_list_enrich_prompt(quote_data)},
+        ],
         schema,
     )
     if not result:
         return {q.id: {"pricing_health": "fair", "flag": None} for q in quotes}
-    return {item["id"]: {"pricing_health": item.get("pricing_health", "fair"), "flag": item.get("flag")}
-            for item in result.get("items", []) if "id" in item}
+    return {
+        item["id"]: {
+            "pricing_health": item.get("pricing_health", "fair"),
+            "flag": item.get("flag"),
+        }
+        for item in result.get("items", [])
+        if "id" in item
+    }
 
 
-async def enrich_order_list(db: AsyncSession, orders: list[SalesOrder]) -> dict[int, dict]:
+async def enrich_order_list(
+    db: AsyncSession, orders: list[SalesOrder]
+) -> dict[int, dict]:
     from app.services.ai.prompts import order_list_enrich_prompt
 
     if not orders:
         return {}
-    order_data = [{
-        "id": o.id,
-        "total_amount": str(o.total_amount or 0),
-        "status": o.status,
-        "item_count": str(len(o.items) if getattr(o, "items", None) else 0),
-    } for o in orders]
+    order_data = [
+        {
+            "id": o.id,
+            "total_amount": str(o.total_amount or 0),
+            "status": o.status,
+            "item_count": str(len(o.items) if getattr(o, "items", None) else 0),
+        }
+        for o in orders
+    ]
     schema = {
         "items": [{"id": "integer", "health": "string", "flag": "string | null"}],
     }
     result = await _cached_ai_call(
-        "order_list", order_data,
-        [{"role": "system", "content": "你是B2B电子元器件订单分析专家。批量评估订单健康度。"},
-         {"role": "user", "content": order_list_enrich_prompt(order_data)}],
+        "order_list",
+        order_data,
+        [
+            {
+                "role": "system",
+                "content": "你是B2B电子元器件订单分析专家。批量评估订单健康度。",
+            },
+            {"role": "user", "content": order_list_enrich_prompt(order_data)},
+        ],
         schema,
     )
     if not result:
         return {o.id: {"health": "fair", "flag": None} for o in orders}
-    return {item["id"]: {"health": item.get("health", "fair"), "flag": item.get("flag")}
-            for item in result.get("items", []) if "id" in item}
+    return {
+        item["id"]: {"health": item.get("health", "fair"), "flag": item.get("flag")}
+        for item in result.get("items", [])
+        if "id" in item
+    }
 
 
-async def enrich_delivery_list(db: AsyncSession, notes: list[DeliveryNote]) -> dict[int, dict]:
+async def enrich_delivery_list(
+    db: AsyncSession, notes: list[DeliveryNote]
+) -> dict[int, dict]:
     from app.services.ai.prompts import delivery_list_enrich_prompt
 
     if not notes:
         return {}
 
-    note_data = [{
-        "id": n.id,
-        "status": n.status,
-        "item_count": str(len(n.items) if n.items else 0),
-    } for n in notes]
+    note_data = [
+        {
+            "id": n.id,
+            "status": n.status,
+            "item_count": str(len(n.items) if n.items else 0),
+        }
+        for n in notes
+    ]
 
     schema = {
-        "items": [{"id": "integer", "completion_risk": "string", "flag": "string | null"}],
+        "items": [
+            {"id": "integer", "completion_risk": "string", "flag": "string | null"}
+        ],
     }
     result = await _call_ai(
-        [{"role": "system", "content": "你是B2B电子元器件物流专家。批量评估发货风险。"},
-         {"role": "user", "content": delivery_list_enrich_prompt(note_data)}],
+        [
+            {
+                "role": "system",
+                "content": "你是B2B电子元器件物流专家。批量评估发货风险。",
+            },
+            {"role": "user", "content": delivery_list_enrich_prompt(note_data)},
+        ],
         schema,
     )
     if not result:
         return {n.id: {"completion_risk": "low", "flag": None} for n in notes}
-    return {item["id"]: {"completion_risk": item.get("completion_risk", "low"), "flag": item.get("flag")}
-            for item in result.get("items", []) if "id" in item}
+    return {
+        item["id"]: {
+            "completion_risk": item.get("completion_risk", "low"),
+            "flag": item.get("flag"),
+        }
+        for item in result.get("items", [])
+        if "id" in item
+    }
 
 
 # ============================================================
 # Inquiry Auto-Reply
 # ============================================================
+
 
 async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
     """
@@ -349,9 +438,11 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
         brand_ids = {r[3] for r in rows if r[3]}
         brand_map = {}
         if brand_ids:
-            brand_rows = (await db.execute(
-                select(Brand.id, Brand.name).where(Brand.id.in_(brand_ids))
-            )).all()
+            brand_rows = (
+                await db.execute(
+                    select(Brand.id, Brand.name).where(Brand.id.in_(brand_ids))
+                )
+            ).all()
             brand_map = {r[0]: r[1] for r in brand_rows}
 
         for r in rows:
@@ -363,15 +454,17 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
                 stock_status = "low_stock"
             else:
                 stock_status = "in_stock"
-            matched_products.append({
-                "id": r[0],
-                "sku": r[1],
-                "name": r[2],
-                "brand_name": brand_map.get(r[3]),
-                "stock_qty": qty,
-                "stock_status": stock_status,
-                "unit_price": float(r[6]) if r[6] is not None else None,
-            })
+            matched_products.append(
+                {
+                    "id": r[0],
+                    "sku": r[1],
+                    "name": r[2],
+                    "brand_name": brand_map.get(r[3]),
+                    "stock_qty": qty,
+                    "stock_status": stock_status,
+                    "unit_price": float(r[6]) if r[6] is not None else None,
+                }
+            )
     else:
         # No MPN — brand keyword search
         brand_result = await db.execute(
@@ -382,9 +475,14 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
             if br[1] and br[1].lower() in inquiry_text.lower():
                 prod_result = await db.execute(
                     select(
-                        Product.id, Product.sku, Product.name, Product.brand_id,
+                        Product.id,
+                        Product.sku,
+                        Product.name,
+                        Product.brand_id,
                         func.coalesce(func.sum(Inventory.quantity), 0).label("qty"),
-                        func.coalesce(func.sum(Inventory.safety_stock), 0).label("safety"),
+                        func.coalesce(func.sum(Inventory.safety_stock), 0).label(
+                            "safety"
+                        ),
                         func.min(Inventory.unit_price).label("unit_price"),
                     )
                     .outerjoin(Inventory, Product.id == Inventory.product_id)
@@ -395,22 +493,35 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
                 for r in prod_result.all():
                     qty = r[4] or 0
                     safety = r[5] or 0
-                    stock_status = "out_of_stock" if qty <= 0 else ("low_stock" if qty <= safety else "in_stock")
-                    matched_products.append({
-                        "id": r[0], "sku": r[1], "name": r[2],
-                        "brand_name": br[1], "stock_qty": qty,
-                        "stock_status": stock_status,
-                        "unit_price": float(r[6]) if r[6] is not None else None,
-                    })
+                    stock_status = (
+                        "out_of_stock"
+                        if qty <= 0
+                        else ("low_stock" if qty <= safety else "in_stock")
+                    )
+                    matched_products.append(
+                        {
+                            "id": r[0],
+                            "sku": r[1],
+                            "name": r[2],
+                            "brand_name": br[1],
+                            "stock_qty": qty,
+                            "stock_status": stock_status,
+                            "unit_price": float(r[6]) if r[6] is not None else None,
+                        }
+                    )
 
     # --- C4: Find alternatives for out-of-stock matched products ---
     all_alternatives = []
     seen_alt_ids = set()
-    out_of_stock_ids = [p["id"] for p in matched_products if p["stock_status"] == "out_of_stock"]
+    out_of_stock_ids = [
+        p["id"] for p in matched_products if p["stock_status"] == "out_of_stock"
+    ]
     for pid in out_of_stock_ids:
         try:
             alt_result = await suggest_eol_alternatives(db, pid)
-            logger.info(f"[C4] suggest_eol_alternatives({pid}): {len(alt_result.get('alternatives', []))} alts")
+            logger.info(
+                f"[C4] suggest_eol_alternatives({pid}): {len(alt_result.get('alternatives', []))} alts"
+            )
             for alt in alt_result.get("alternatives", []):
                 if alt["product_id"] not in seen_alt_ids:
                     seen_alt_ids.add(alt["product_id"])
@@ -423,8 +534,14 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
     if matched_products:
         lines = []
         for p in matched_products:
-            price_str = f"，含税参考价 ¥{p['unit_price']:.2f}/件" if p.get("unit_price") else ""
-            stock_label = "有货" if p["stock_status"] == "in_stock" else ("库存紧张" if p["stock_status"] == "low_stock" else "缺货")
+            price_str = (
+                f"，含税参考价 ¥{p['unit_price']:.2f}/件" if p.get("unit_price") else ""
+            )
+            stock_label = (
+                "有货"
+                if p["stock_status"] == "in_stock"
+                else ("库存紧张" if p["stock_status"] == "low_stock" else "缺货")
+            )
             lines.append(
                 f"- [{p['brand_name'] or '未知品牌'}] {p['name']} "
                 f"(型号: {p['sku'] or 'N/A'}, 库存: {p['stock_qty']}件, 状态: {stock_label}{price_str})"
@@ -438,9 +555,11 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
     # --- Step 4: Customer context ---
     customer_context = ""
     if customer_id:
-        cust = (await db.execute(
-            select(Customer).where(Customer.id == customer_id)
-        )).scalars().first()
+        cust = (
+            (await db.execute(select(Customer).where(Customer.id == customer_id)))
+            .scalars()
+            .first()
+        )
         if cust:
             customer_context = (
                 f"客户：{cust.name}，行业：{cust.industry or '未知'}，"
@@ -459,7 +578,7 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
         "- 缺少信息时，主动询问：交期要求\n"
         "- 引导客户留下联系方式以便销售跟进\n"
         "- 回复控制在150字以内\n"
-        "- 以【AI辅助回复】开头，末尾注明\"以上仅供参考，价格以我司正式报价单为准\""
+        '- 以【AI辅助回复】开头，末尾注明"以上仅供参考，价格以我司正式报价单为准"'
     )
 
     user_prompt = (
@@ -470,8 +589,10 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
 
     try:
         reply_text = await ai_client.chat(
-            [{"role": "system", "content": system_prompt},
-             {"role": "user", "content": user_prompt}],
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
             temperature=0.4,
             max_tokens=500,
         )
@@ -486,17 +607,21 @@ async def inquiry_auto_reply(db: AsyncSession, req: dict) -> dict:
         )
     else:
         # Hallucination guard: fix common small-model artefacts
-        reply_text = re.sub(r'\d{9,}', 'X', reply_text)
-        reply_text = re.sub(r'\$[\d\-NGn]+-\d+', '含税价请询价', reply_text)
-        reply_text = re.sub(r'(\d)\1{5,}', 'X', reply_text)
+        reply_text = re.sub(r"\d{9,}", "X", reply_text)
+        reply_text = re.sub(r"\$[\d\-NGn]+-\d+", "含税价请询价", reply_text)
+        reply_text = re.sub(r"(\d)\1{5,}", "X", reply_text)
 
         if reply_text:
-            char_counts = Counter(reply_text.replace(' ', '').replace('\n', ''))
+            char_counts = Counter(reply_text.replace(" ", "").replace("\n", ""))
             if char_counts:
                 top_char, top_count = char_counts.most_common(1)[0]
                 total_chars = sum(char_counts.values())
                 if top_count / max(total_chars, 1) > 0.30:
-                    product_names = ', '.join(p['sku'] for p in matched_products) if matched_products else inquiry_text[:20]
+                    product_names = (
+                        ", ".join(p["sku"] for p in matched_products)
+                        if matched_products
+                        else inquiry_text[:20]
+                    )
                     reply_text = (
                         f"【AI辅助回复】感谢您的询价！您的需求（{product_names}）已收到，"
                         f"我们的销售团队将在1个工作日内与您联系确认库存和报价，请保持联系方式畅通。以上仅供参考，价格以我司正式报价单为准。"

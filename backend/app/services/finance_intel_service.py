@@ -162,17 +162,21 @@ async def predict_payment_delays(db: AsyncSession) -> dict:
         total_ar += amount
         if inv.status == "overdue":
             total_overdue += amount
-        open_invoices_list.append({
-            "invoice_no": inv.invoice_no or f"INV-{inv.id}",
-            "customer_name": cust.name,
-            "amount": amount,
-            "due_date": inv.invoice_date.isoformat() if inv.invoice_date else "未知",
-            "status": inv.status,
-            "customer_level": cust.level or "未知",
-            "credit_level": cust.credit_level or "未知",
-            "late_count_12m": late_counts.get(inv.customer_id, 0),
-            "avg_payment_days": avg_days_map.get(inv.customer_id),
-        })
+        open_invoices_list.append(
+            {
+                "invoice_no": inv.invoice_no or f"INV-{inv.id}",
+                "customer_name": cust.name,
+                "amount": amount,
+                "due_date": inv.invoice_date.isoformat()
+                if inv.invoice_date
+                else "未知",
+                "status": inv.status,
+                "customer_level": cust.level or "未知",
+                "credit_level": cust.credit_level or "未知",
+                "late_count_12m": late_counts.get(inv.customer_id, 0),
+                "avg_payment_days": avg_days_map.get(inv.customer_id),
+            }
+        )
 
     # Aggregate context for the AI prompt
     active_days = [d for d in avg_days_map.values() if d is not None]
@@ -191,7 +195,9 @@ async def predict_payment_delays(db: AsyncSession) -> dict:
         "customer_level": "汇总",
         "credit_rating": "汇总",
         "recent_order_freq": f"{len(customer_ids)}个客户有未结发票",
-        "open_invoices": json.dumps(open_invoices_list, ensure_ascii=False, default=str),
+        "open_invoices": json.dumps(
+            open_invoices_list, ensure_ascii=False, default=str
+        ),
     }
 
     output_schema = {
@@ -301,7 +307,9 @@ async def forecast_cash_flow(db: AsyncSession) -> dict:
         {
             "order_no": po.order_no or f"PO-{po.id}",
             "amount": float(po.total_amount),
-            "expected_date": po.expected_date.isoformat() if po.expected_date else "未知",
+            "expected_date": po.expected_date.isoformat()
+            if po.expected_date
+            else "未知",
             "status": po.status,
         }
         for po in open_pos
@@ -313,8 +321,12 @@ async def forecast_cash_flow(db: AsyncSession) -> dict:
         "total_ap": total_ap,
         "collected_mtd": collected_mtd,
         "paid_mtd": paid_mtd,
-        "expected_receivables": json.dumps(expected_receivables, ensure_ascii=False, default=str),
-        "expected_payables": json.dumps(expected_payables, ensure_ascii=False, default=str),
+        "expected_receivables": json.dumps(
+            expected_receivables, ensure_ascii=False, default=str
+        ),
+        "expected_payables": json.dumps(
+            expected_payables, ensure_ascii=False, default=str
+        ),
     }
 
     output_schema = {
@@ -410,9 +422,10 @@ async def generate_dunning_strategy(db: AsyncSession, invoice_id: int) -> dict:
 
     # Payment history summary
     history_result = await db.execute(
-        select(PaymentRecord).where(PaymentRecord.customer_id == cust.id).order_by(
-            PaymentRecord.created_at.desc()
-        ).limit(10)
+        select(PaymentRecord)
+        .where(PaymentRecord.customer_id == cust.id)
+        .order_by(PaymentRecord.created_at.desc())
+        .limit(10)
     )
     recent_payments = history_result.scalars().all()
     dunning_history = [
@@ -456,8 +469,14 @@ async def generate_dunning_strategy(db: AsyncSession, invoice_id: int) -> dict:
         "dunning_history": json.dumps(dunning_history, ensure_ascii=False, default=str),
         "pending_orders": (
             json.dumps(
-                [{"order_no": so.order_no or f"SO-{so.id}", "amount": float(so.total_amount), "status": so.status}
-                 for so in pending_orders],
+                [
+                    {
+                        "order_no": so.order_no or f"SO-{so.id}",
+                        "amount": float(so.total_amount),
+                        "status": so.status,
+                    }
+                    for so in pending_orders
+                ],
                 ensure_ascii=False,
                 default=str,
             )
@@ -527,7 +546,9 @@ async def assess_credit_risk(db: AsyncSession, customer_id: int) -> dict:
 
     # Customer record
     cust_result = await db.execute(
-        select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        select(Customer).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
     )
     customer = cust_result.scalar_one_or_none()
 
@@ -575,7 +596,9 @@ async def assess_credit_risk(db: AsyncSession, customer_id: int) -> dict:
         "relationship_years": relationship_years,
         "total_revenue": total_revenue,
         "avg_payment_days": (
-            f"{stats['avg_payment_days']}天" if stats["avg_payment_days"] is not None else "无数据"
+            f"{stats['avg_payment_days']}天"
+            if stats["avg_payment_days"] is not None
+            else "无数据"
         ),
         "late_count_12m": stats["late_count"],
         "max_overdue": stats["max_overdue"],

@@ -22,6 +22,7 @@ BLACKLIST_KEY_PREFIX = "aierp:jwt_blacklist:"
 async def _get_redis():
     try:
         from app.services.cache_service import get_redis
+
         return await get_redis()
     except Exception:
         return None
@@ -102,6 +103,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     wire-compatible because passlib writes standard $2b$ bcrypt hashes).
     """
     import bcrypt
+
     try:
         plain_bytes = plain.encode("utf-8") if isinstance(plain, str) else plain
         hashed_bytes = hashed.encode("utf-8") if isinstance(hashed, str) else hashed
@@ -144,7 +146,9 @@ def decode_access_token(token: str) -> dict | None:
     decode + revocation check.
     """
     try:
-        return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        return jwt.decode(
+            token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
+        )
     except JWTError:
         return None
 

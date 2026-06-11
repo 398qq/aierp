@@ -108,9 +108,7 @@ async def get_uow():
     Auto-commits on clean exit; auto-rolls back on exception.
     """
     if _session_factory is None:
-        raise RuntimeError(
-            "UoW not initialized — call init_uow() at app startup"
-        )
+        raise RuntimeError("UoW not initialized — call init_uow() at app startup")
     async with _session_factory() as session:
         uow = UnitOfWork(session, bus=_event_bus)
         try:

@@ -5,19 +5,19 @@ def payment_prediction_prompt(finance_data: dict) -> str:
     return f"""你是一个企业财务风险分析师。预测回款延迟风险：
 
 **客户回款历史：**
-- 客户名称：{finance_data.get('customer_name', '无数据')}
-- 历史平均回款天数：{finance_data.get('avg_payment_days', '无数据')}天
-- 近12月延迟次数：{finance_data.get('late_count_12m', 0)}
-- 当前应收总额：{finance_data.get('total_ar', 0)}
-- 已逾期金额：{finance_data.get('overdue_amount', 0)}
+- 客户名称：{finance_data.get("customer_name", "无数据")}
+- 历史平均回款天数：{finance_data.get("avg_payment_days", "无数据")}天
+- 近12月延迟次数：{finance_data.get("late_count_12m", 0)}
+- 当前应收总额：{finance_data.get("total_ar", 0)}
+- 已逾期金额：{finance_data.get("overdue_amount", 0)}
 
 **当前未结发票：**
-{finance_data.get('open_invoices', '无数据')}
+{finance_data.get("open_invoices", "无数据")}
 
 **客户健康度：**
-- 客户等级：{finance_data.get('customer_level', '无数据')}
-- 最近采购频率：{finance_data.get('recent_order_freq', '无数据')}
-- 信用评级：{finance_data.get('credit_rating', '无数据')}
+- 客户等级：{finance_data.get("customer_level", "无数据")}
+- 最近采购频率：{finance_data.get("recent_order_freq", "无数据")}
+- 信用评级：{finance_data.get("credit_rating", "无数据")}
 
 请返回：
 1. overall_risk：整体回款风险（低/中/高）
@@ -33,17 +33,17 @@ def cash_flow_forecast_prompt(finance_data: dict) -> str:
     return f"""你是一个企业财务规划专家。预测现金流：
 
 **当前状态：**
-- 现金余额：{finance_data.get('cash_balance', 0)}
-- 应收账款：{finance_data.get('total_ar', 0)}
-- 应付账款：{finance_data.get('total_ap', 0)}
-- 本月已回款：{finance_data.get('collected_mtd', 0)}
-- 本月已付款：{finance_data.get('paid_mtd', 0)}
+- 现金余额：{finance_data.get("cash_balance", 0)}
+- 应收账款：{finance_data.get("total_ar", 0)}
+- 应付账款：{finance_data.get("total_ap", 0)}
+- 本月已回款：{finance_data.get("collected_mtd", 0)}
+- 本月已付款：{finance_data.get("paid_mtd", 0)}
 
 **未来应收：**
-{finance_data.get('expected_receivables', '无数据')}
+{finance_data.get("expected_receivables", "无数据")}
 
 **未来应付：**
-{finance_data.get('expected_payables', '无数据')}
+{finance_data.get("expected_payables", "无数据")}
 
 请返回：
 1. cash_flow_health：现金流健康度（差/一般/良好/优秀）
@@ -61,17 +61,17 @@ def cash_flow_forecast_prompt(finance_data: dict) -> str:
 def dunning_strategy_prompt(finance_data: dict) -> str:
     return f"""你是一个企业应收账款管理专家。制定催款策略：
 
-**客户：** {finance_data.get('customer_name', '无数据')}
-**发票号：** {finance_data.get('invoice_no', '无数据')}
-**金额：** {finance_data.get('amount', 0)}
-**到期日：** {finance_data.get('due_date', '无数据')}
-**已逾期天数：** {finance_data.get('overdue_days', 0)}
+**客户：** {finance_data.get("customer_name", "无数据")}
+**发票号：** {finance_data.get("invoice_no", "无数据")}
+**金额：** {finance_data.get("amount", 0)}
+**到期日：** {finance_data.get("due_date", "无数据")}
+**已逾期天数：** {finance_data.get("overdue_days", 0)}
 
 **客户特征：**
-- 客户等级：{finance_data.get('customer_level', '无数据')}
-- 历史催款响应：{finance_data.get('dunning_history', '无数据')}
-- 当前在途订单：{finance_data.get('pending_orders', '无数据')}
-- 关系年数：{finance_data.get('relationship_years', '无数据')}年
+- 客户等级：{finance_data.get("customer_level", "无数据")}
+- 历史催款响应：{finance_data.get("dunning_history", "无数据")}
+- 当前在途订单：{finance_data.get("pending_orders", "无数据")}
+- 关系年数：{finance_data.get("relationship_years", "无数据")}年
 
 请返回：
 1. dunning_level：催款级别（温和/标准/加强/法律）
@@ -87,20 +87,20 @@ def dunning_strategy_prompt(finance_data: dict) -> str:
 def credit_risk_prompt(finance_data: dict) -> str:
     return f"""你是一个企业信用风险评估专家。评估客户信用风险：
 
-**客户：** {finance_data.get('customer_name', '无数据')}
+**客户：** {finance_data.get("customer_name", "无数据")}
 
 **交易历史：**
-- 合作年限：{finance_data.get('relationship_years', 0)}年
-- 累计交易额：{finance_data.get('total_revenue', 0)}
-- 平均回款天数：{finance_data.get('avg_payment_days', '无数据')}天
-- 逾期次数（12月）：{finance_data.get('late_count_12m', 0)}
-- 最大逾期金额：{finance_data.get('max_overdue', 0)}
+- 合作年限：{finance_data.get("relationship_years", 0)}年
+- 累计交易额：{finance_data.get("total_revenue", 0)}
+- 平均回款天数：{finance_data.get("avg_payment_days", "无数据")}天
+- 逾期次数（12月）：{finance_data.get("late_count_12m", 0)}
+- 最大逾期金额：{finance_data.get("max_overdue", 0)}
 
 **当前状态：**
-- 当前应收：{finance_data.get('current_ar', 0)}
-- 当前逾期：{finance_data.get('current_overdue', 0)}
-- 信用额度：{finance_data.get('credit_limit', '无数据')}
-- 已用额度：{finance_data.get('credit_used', 0)}
+- 当前应收：{finance_data.get("current_ar", 0)}
+- 当前逾期：{finance_data.get("current_overdue", 0)}
+- 信用额度：{finance_data.get("credit_limit", "无数据")}
+- 已用额度：{finance_data.get("credit_used", 0)}
 
 请返回：
 1. credit_rating：信用评级（AAA/AA/A/B/C/D）

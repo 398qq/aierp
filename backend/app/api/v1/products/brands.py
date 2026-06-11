@@ -1,4 +1,5 @@
 """Brands CRUD API."""
+
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -224,8 +225,14 @@ async def list_brands(
     category: str | None = None,
     lifecycle_stage: str | None = None,
     risk_level: str | None = None,
-    scene: str | None = Query(None, description="high_risk | eol_nrnd | pending_completion | no_products | automotive | unauthorized"),
-    sort: str | None = Query(None, description="created_at_desc | name_asc | name_desc | risk_score_desc | product_count_desc"),
+    scene: str | None = Query(
+        None,
+        description="high_risk | eol_nrnd | pending_completion | no_products | automotive | unauthorized",
+    ),
+    sort: str | None = Query(
+        None,
+        description="created_at_desc | name_asc | name_desc | risk_score_desc | product_count_desc",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
@@ -265,7 +272,9 @@ async def list_brands(
         query = query.where(Brand.risk_level == risk_level)
 
     if scene == "high_risk":
-        query = query.where(or_(Brand.risk_score >= 70, Brand.risk_level.in_(("high", "critical"))))
+        query = query.where(
+            or_(Brand.risk_score >= 70, Brand.risk_level.in_(("high", "critical")))
+        )
     elif scene == "eol_nrnd":
         query = query.where(Brand.lifecycle_stage.in_(("eol", "nrnd")))
     elif scene == "pending_completion":
@@ -285,7 +294,11 @@ async def list_brands(
     elif sort == "name_desc":
         query = query.order_by(Brand.name.desc(), Brand.id.desc())
     elif sort == "risk_score_desc":
-        query = query.order_by(case((Brand.risk_score.is_(None), 1), else_=0), Brand.risk_score.desc(), Brand.id.desc())
+        query = query.order_by(
+            case((Brand.risk_score.is_(None), 1), else_=0),
+            Brand.risk_score.desc(),
+            Brand.id.desc(),
+        )
     elif sort == "product_count_desc":
         query = query.order_by(product_count_expr.desc(), Brand.id.desc())
     else:
@@ -310,9 +323,7 @@ async def brand_stats_summary(
     recent_since = now - timedelta(days=30)
 
     total = (
-        await db.execute(
-            select(func.count(Brand.id)).where(Brand.deleted_at.is_(None))
-        )
+        await db.execute(select(func.count(Brand.id)).where(Brand.deleted_at.is_(None)))
     ).scalar() or 0
     recent_30d = (
         await db.execute(
@@ -346,10 +357,14 @@ async def brand_stats_summary(
             )
         )
     ).scalar() or 0
-    completion_base = select(Brand).where(
-        Brand.deleted_at.is_(None),
-        _brand_incomplete_clause(),
-    ).subquery()
+    completion_base = (
+        select(Brand)
+        .where(
+            Brand.deleted_at.is_(None),
+            _brand_incomplete_clause(),
+        )
+        .subquery()
+    )
     pending_completion_count = (
         await db.execute(select(func.count()).select_from(completion_base))
     ).scalar() or 0
@@ -367,20 +382,30 @@ async def brand_stats_summary(
     ).scalar() or 0
 
     top_risk_rows = (
-        await db.execute(
-            select(Brand)
-            .where(Brand.deleted_at.is_(None))
-            .order_by(
-                case((Brand.risk_score.is_(None), 1), else_=0),
-                Brand.risk_score.desc(),
+        (
+            await db.execute(
+                select(Brand)
+                .where(Brand.deleted_at.is_(None))
+                .order_by(
+                    case((Brand.risk_score.is_(None), 1), else_=0),
+                    Brand.risk_score.desc(),
+                )
+                .limit(5)
             )
-            .limit(5)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     eol_alert_rows = (
         await db.execute(
-            select(Brand.id, Brand.name, Brand.lifecycle_stage, Brand.risk_level, Brand.risk_score)
+            select(
+                Brand.id,
+                Brand.name,
+                Brand.lifecycle_stage,
+                Brand.risk_level,
+                Brand.risk_score,
+            )
             .where(
                 Brand.deleted_at.is_(None),
                 Brand.lifecycle_stage.in_(("eol", "nrnd")),
@@ -394,46 +419,52 @@ async def brand_stats_summary(
         )
     ).all()
 
-    return ok({
-        "total": total,
-        "total_count": total,
-        "recent_30d": recent_30d,
-        "eol_nrnd_count": eol_nrnd_count,
-        "automotive_count": automotive_count,
-        "high_risk_count": high_risk_count,
-        "pending_completion_count": pending_completion_count,
-        "no_product_count": no_product_count,
-        "by_status": await _count_by(db, Brand.status, "status"),
-        "by_level": await _count_by(db, Brand.level, "level"),
-        "by_type": await _count_by(db, Brand.brand_type, "type"),
-        "by_brand_type": await _count_by(db, Brand.brand_type, "brand_type"),
-        "by_lifecycle": await _count_by(db, Brand.lifecycle_stage, "stage"),
-        "by_lifecycle_stage": await _count_by(db, Brand.lifecycle_stage, "stage"),
-        "by_authorization": await _count_by(db, Brand.authorization_status, "status"),
-        "by_authorization_status": await _count_by(db, Brand.authorization_status, "status"),
-        "by_category": await _count_by(db, Brand.category, "category"),
-        "by_risk": await _count_by(db, Brand.risk_level, "level"),
-        "top_risk_brands": [
-            {
-                "id": brand.id,
-                "name": brand.name,
-                "risk_score": brand.risk_score or 0,
-                "risk_level": brand.risk_level,
-                "lifecycle_stage": brand.lifecycle_stage,
-            }
-            for brand in top_risk_rows
-        ],
-        "recent_eol_alerts": [
-            {
-                "brand_id": brand_id,
-                "brand_name": name,
-                "lifecycle_stage": lifecycle_stage,
-                "risk_level": risk_level,
-                "risk_score": risk_score or 0,
-            }
-            for brand_id, name, lifecycle_stage, risk_level, risk_score in eol_alert_rows
-        ],
-    })
+    return ok(
+        {
+            "total": total,
+            "total_count": total,
+            "recent_30d": recent_30d,
+            "eol_nrnd_count": eol_nrnd_count,
+            "automotive_count": automotive_count,
+            "high_risk_count": high_risk_count,
+            "pending_completion_count": pending_completion_count,
+            "no_product_count": no_product_count,
+            "by_status": await _count_by(db, Brand.status, "status"),
+            "by_level": await _count_by(db, Brand.level, "level"),
+            "by_type": await _count_by(db, Brand.brand_type, "type"),
+            "by_brand_type": await _count_by(db, Brand.brand_type, "brand_type"),
+            "by_lifecycle": await _count_by(db, Brand.lifecycle_stage, "stage"),
+            "by_lifecycle_stage": await _count_by(db, Brand.lifecycle_stage, "stage"),
+            "by_authorization": await _count_by(
+                db, Brand.authorization_status, "status"
+            ),
+            "by_authorization_status": await _count_by(
+                db, Brand.authorization_status, "status"
+            ),
+            "by_category": await _count_by(db, Brand.category, "category"),
+            "by_risk": await _count_by(db, Brand.risk_level, "level"),
+            "top_risk_brands": [
+                {
+                    "id": brand.id,
+                    "name": brand.name,
+                    "risk_score": brand.risk_score or 0,
+                    "risk_level": brand.risk_level,
+                    "lifecycle_stage": brand.lifecycle_stage,
+                }
+                for brand in top_risk_rows
+            ],
+            "recent_eol_alerts": [
+                {
+                    "brand_id": brand_id,
+                    "brand_name": name,
+                    "lifecycle_stage": lifecycle_stage,
+                    "risk_level": risk_level,
+                    "risk_score": risk_score or 0,
+                }
+                for brand_id, name, lifecycle_stage, risk_level, risk_score in eol_alert_rows
+            ],
+        }
+    )
 
 
 @brands_router.patch("/batch")
@@ -461,7 +492,9 @@ async def batch_update_brands(
     }
     invalid_fields = sorted(set(updates) - allowed_fields)
     if invalid_fields:
-        return fail(f"Fields not allowed for batch update: {', '.join(invalid_fields)}", 400)
+        return fail(
+            f"Fields not allowed for batch update: {', '.join(invalid_fields)}", 400
+        )
 
     updates["updated_by"] = current_user["user_id"]
     result = await db.execute(
@@ -470,7 +503,12 @@ async def batch_update_brands(
         .values(**updates)
     )
     await db.commit()
-    return ok({"updated": result.rowcount or 0, "fields": sorted(updates.keys() - {"updated_by"})})
+    return ok(
+        {
+            "updated": result.rowcount or 0,
+            "fields": sorted(updates.keys() - {"updated_by"}),
+        }
+    )
 
 
 @brands_router.post("/batch-delete")
@@ -570,9 +608,11 @@ async def brand_stats(
     )
     active_product_count = (await db.execute(active_product_count_q)).scalar() or 0
 
-    return ok({
-        "brand_id": brand_id,
-        "product_count": product_count,
-        "active_product_count": active_product_count,
-        "risk_score": brand.risk_score,
-    })
+    return ok(
+        {
+            "brand_id": brand_id,
+            "product_count": product_count,
+            "active_product_count": active_product_count,
+            "risk_score": brand.risk_score,
+        }
+    )

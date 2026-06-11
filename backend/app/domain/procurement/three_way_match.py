@@ -15,17 +15,16 @@ from enum import Enum
 from typing import List
 
 
-
 class MatchStatus(str, Enum):
     """Outcome of a three-way match attempt."""
 
-    MATCHED = "matched"               # All three sides agree within tolerance
-    QTY_MISMATCH = "qty_mismatch"     # GR qty != invoice qty
-    PRICE_MISMATCH = "price_mismatch" # PO price != invoice price
-    BOTH_MISMATCH = "both_mismatch"   # Both qty and price differ
-    MISSING_PO = "missing_po"         # Invoice has no matching PO
-    MISSING_GR = "missing_gr"         # Invoice has no matching goods receipt
-    DUPLICATE = "duplicate"           # Invoice already matched against this PO
+    MATCHED = "matched"  # All three sides agree within tolerance
+    QTY_MISMATCH = "qty_mismatch"  # GR qty != invoice qty
+    PRICE_MISMATCH = "price_mismatch"  # PO price != invoice price
+    BOTH_MISMATCH = "both_mismatch"  # Both qty and price differ
+    MISSING_PO = "missing_po"  # Invoice has no matching PO
+    MISSING_GR = "missing_gr"  # Invoice has no matching goods receipt
+    DUPLICATE = "duplicate"  # Invoice already matched against this PO
 
 
 class MatchTolerance:
@@ -35,9 +34,9 @@ class MatchTolerance:
     ¥1 (whichever is greater) to absorb FX rounding.
     """
 
-    AMOUNT_TOLERANCE_ABS = Decimal("1.00")       # ¥1 absolute
-    AMOUNT_TOLERANCE_PCT = Decimal("0.001")      # 0.1% relative
-    QTY_TOLERANCE = Decimal("0")                # Exact qty match required
+    AMOUNT_TOLERANCE_ABS = Decimal("1.00")  # ¥1 absolute
+    AMOUNT_TOLERANCE_PCT = Decimal("0.001")  # 0.1% relative
+    QTY_TOLERANCE = Decimal("0")  # Exact qty match required
 
     @classmethod
     def within_tolerance(cls, expected: Decimal, actual: Decimal) -> bool:
@@ -82,7 +81,7 @@ class LineDiscrepancy:
     """One mismatch detail, captured for the AP clerk's review."""
 
     product_id: int
-    discrepancy_type: str   # "qty" | "price" | "amount"
+    discrepancy_type: str  # "qty" | "price" | "amount"
     expected: Decimal
     actual: Decimal
     variance: Decimal
@@ -152,7 +151,8 @@ def match_po_gr_invoice(
             invoice_total=sum((line.amount for line in invoice_lines), Decimal("0")),
             po_total=Decimal("0"),
             gr_total=sum(
-                (line.quantity_received * line.unit_cost for line in gr_lines), Decimal("0")
+                (line.quantity_received * line.unit_cost for line in gr_lines),
+                Decimal("0"),
             ),
             notes="No matching purchase order found",
         )
@@ -184,39 +184,44 @@ def match_po_gr_invoice(
         # QTY CHECK: invoice qty must equal GR qty
         if gr is None or inv_line.quantity != gr.quantity_received:
             qty_mismatch = True
-            discrepancies.append(LineDiscrepancy(
-                product_id=pid,
-                discrepancy_type="qty",
-                expected=Decimal(gr.quantity_received if gr else 0),
-                actual=Decimal(inv_line.quantity),
-                variance=Decimal(inv_line.quantity) - Decimal(gr.quantity_received if gr else 0),
-            ))
+            discrepancies.append(
+                LineDiscrepancy(
+                    product_id=pid,
+                    discrepancy_type="qty",
+                    expected=Decimal(gr.quantity_received if gr else 0),
+                    actual=Decimal(inv_line.quantity),
+                    variance=Decimal(inv_line.quantity)
+                    - Decimal(gr.quantity_received if gr else 0),
+                )
+            )
 
         # PRICE CHECK: invoice unit price within tolerance of PO unit price
         if po is None:
             price_mismatch = True
-            discrepancies.append(LineDiscrepancy(
-                product_id=pid,
-                discrepancy_type="price",
-                expected=Decimal("0"),
-                actual=inv_line.unit_price,
-                variance=inv_line.unit_price,
-            ))
+            discrepancies.append(
+                LineDiscrepancy(
+                    product_id=pid,
+                    discrepancy_type="price",
+                    expected=Decimal("0"),
+                    actual=inv_line.unit_price,
+                    variance=inv_line.unit_price,
+                )
+            )
         elif not MatchTolerance.within_tolerance(po.unit_price, inv_line.unit_price):
             price_mismatch = True
-            discrepancies.append(LineDiscrepancy(
-                product_id=pid,
-                discrepancy_type="price",
-                expected=po.unit_price,
-                actual=inv_line.unit_price,
-                variance=inv_line.unit_price - po.unit_price,
-            ))
+            discrepancies.append(
+                LineDiscrepancy(
+                    product_id=pid,
+                    discrepancy_type="price",
+                    expected=po.unit_price,
+                    actual=inv_line.unit_price,
+                    variance=inv_line.unit_price - po.unit_price,
+                )
+            )
 
     # Totals
     invoice_total = sum((line.amount for line in invoice_lines), Decimal("0"))
-    po_total = sum(
-        (line.quantity * line.unit_price for line in po_lines), Decimal("0")
-    )
+    po_total = sum((line.quantity * line.unit_price for line in po_lines), Decimal("0"))
     gr_total = sum(
         (line.quantity_received * line.unit_cost for line in gr_lines), Decimal("0")
     )

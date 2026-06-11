@@ -77,8 +77,12 @@ async def similar_suppliers(
     if not supplier:
         return fail("供应商不存在", 404)
     if not supplier.embedding:
-        return fail("供应商尚未生成嵌入向量，请先调用 POST /ai/supplier/{id}/embed", 400)
-    similar = await EmbeddingService.similar_suppliers(supplier.embedding, db, top_k, exclude_id=supplier_id)
+        return fail(
+            "供应商尚未生成嵌入向量，请先调用 POST /ai/supplier/{id}/embed", 400
+        )
+    similar = await EmbeddingService.similar_suppliers(
+        supplier.embedding, db, top_k, exclude_id=supplier_id
+    )
     return ok(similar)
 
 

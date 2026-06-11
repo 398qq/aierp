@@ -4,11 +4,13 @@ Decimal-safe money/date helpers, status labels, risk phrasing,
 margin math, and a couple of smart-summary line generators shared
 between the quotation and sales-order PDF builders.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+
 
 def as_decimal(value: Any) -> Decimal:
     if value is None:
@@ -120,7 +122,9 @@ def status_label(status: str | None) -> str:
     }.get(status or "", status or "-")
 
 
-def quote_risk_text(quotation: Any, item_count: int, subtotal: Decimal) -> tuple[str, str]:
+def quote_risk_text(
+    quotation: Any, item_count: int, subtotal: Decimal
+) -> tuple[str, str]:
     days = days_until(getattr(quotation, "valid_until", None))
     status = getattr(quotation, "status", None)
     if status == "won":
@@ -194,26 +198,36 @@ def percent(value: Decimal) -> str:
     return f"{float(value):.2f}%"
 
 
-def smart_summary_lines(quotation: Any, items: list[Any], subtotal: Decimal) -> list[str]:
+def smart_summary_lines(
+    quotation: Any, items: list[Any], subtotal: Decimal
+) -> list[str]:
     quote_total = as_decimal(getattr(quotation, "total_amount", None)) or subtotal
     profit = item_total(items, "sales_profit")
     taxed_cost = item_total(items, "taxed_cost")
     margin = margin_rate(profit, quote_total)
     days = days_until(getattr(quotation, "valid_until", None))
     risk_label, next_action = quote_risk_text(quotation, len(items), subtotal)
-    missing_price = sum(1 for item in items if as_decimal(getattr(item, "unit_price", None)) <= 0)
-    negative_profit = sum(1 for item in items if as_decimal(getattr(item, "sales_profit", None)) < 0)
+    missing_price = sum(
+        1 for item in items if as_decimal(getattr(item, "unit_price", None)) <= 0
+    )
+    negative_profit = sum(
+        1 for item in items if as_decimal(getattr(item, "sales_profit", None)) < 0
+    )
 
     lines = [
         f"报价健康：{risk_label}；产品行 {len(items)} 项，总数量 {sum(int(getattr(item, 'quantity', 0) or 0) for item in items)}。",
         f"金额摘要：明细金额 {money(subtotal)}，报价合计 {money(quote_total)}。",
     ]
     if taxed_cost > 0 or profit != 0:
-        lines.append(f"内部毛利：含税成本 {money(taxed_cost)}，销售毛利 {money(profit)}，综合毛利率 {percent(margin)}。")
+        lines.append(
+            f"内部毛利：含税成本 {money(taxed_cost)}，销售毛利 {money(profit)}，综合毛利率 {percent(margin)}。"
+        )
     if days is not None:
         lines.append(f"有效期判断：距到期 {days} 天；过期或临期报价建议重新核价。")
     if missing_price or negative_profit:
-        lines.append(f"复核重点：{missing_price} 行缺少销售单价，{negative_profit} 行为负毛利。")
+        lines.append(
+            f"复核重点：{missing_price} 行缺少销售单价，{negative_profit} 行为负毛利。"
+        )
     lines.append(f"建议动作：{next_action}")
     return lines
 
@@ -223,7 +237,9 @@ def order_summary_lines(order: Any, items: list[Any], subtotal: Decimal) -> list
     days = days_until(getattr(order, "delivery_date", None))
     risk_label, next_action = order_risk_text(order, len(items), subtotal)
     total_quantity = sum(int(getattr(item, "quantity", 0) or 0) for item in items)
-    missing_price = sum(1 for item in items if as_decimal(getattr(item, "unit_price", None)) <= 0)
+    missing_price = sum(
+        1 for item in items if as_decimal(getattr(item, "unit_price", None)) <= 0
+    )
     lines = [
         f"订单状态：{risk_label}；产品行 {len(items)} 项，总数量 {total_quantity}。",
         f"金额摘要：明细金额 {money(subtotal)}，订单合计 {money(quote_total)}。",
@@ -234,7 +250,6 @@ def order_summary_lines(order: Any, items: list[Any], subtotal: Decimal) -> list
         lines.append(f"复核重点：{missing_price} 行缺少销售单价。")
     lines.append(f"建议动作：{next_action}")
     return lines
-
 
 
 __all__ = [

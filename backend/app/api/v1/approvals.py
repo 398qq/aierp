@@ -34,11 +34,20 @@ async def list_rules(
         q = q.where(ApprovalRule.doc_type == doc_type)
     result = await db.execute(q.order_by(ApprovalRule.id))
     rules = result.scalars().all()
-    return ok([{
-        "id": r.id, "doc_type": r.doc_type, "min_amount": float(r.min_amount),
-        "customer_level": r.customer_level, "flow_config": r.flow_config,
-        "enabled": r.enabled, "created_at": str(r.created_at),
-    } for r in rules])
+    return ok(
+        [
+            {
+                "id": r.id,
+                "doc_type": r.doc_type,
+                "min_amount": float(r.min_amount),
+                "customer_level": r.customer_level,
+                "flow_config": r.flow_config,
+                "enabled": r.enabled,
+                "created_at": str(r.created_at),
+            }
+            for r in rules
+        ]
+    )
 
 
 class RuleCreate(BaseModel):
@@ -59,26 +68,43 @@ async def create_rule(
     if body.doc_type not in DOC_TYPES:
         return fail(f"不支持的单据类型: {body.doc_type}")
     rule = ApprovalRule(
-        doc_type=body.doc_type, min_amount=body.min_amount,
-        customer_level=body.customer_level, flow_config=body.flow_config,
+        doc_type=body.doc_type,
+        min_amount=body.min_amount,
+        customer_level=body.customer_level,
+        flow_config=body.flow_config,
         enabled=body.enabled,
     )
     db.add(rule)
     await db.commit()
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "create", "approval_rule", rule.id, f"创建审批规则: {DOC_TYPES[body.doc_type]}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "create",
+        "approval_rule",
+        rule.id,
+        f"创建审批规则: {DOC_TYPES[body.doc_type]}",
+        request.client.host if request.client else "",
+    )
     await db.commit()
     return ok({"id": rule.id}, msg="规则创建成功")
 
 
 @router.put("/rules/{rule_id}")
-async def update_rule(rule_id: int, body: RuleCreate, request: Request,
-                      db: AsyncSession = Depends(get_db),
-                      current_user: dict = Depends(require_perm("system", "write"))):
-    rule = (await db.execute(
-        select(ApprovalRule).where(ApprovalRule.id == rule_id, ApprovalRule.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def update_rule(
+    rule_id: int,
+    body: RuleCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_perm("system", "write")),
+):
+    rule = (
+        await db.execute(
+            select(ApprovalRule).where(
+                ApprovalRule.id == rule_id, ApprovalRule.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not rule:
         return fail("规则不存在")
     rule.doc_type = body.doc_type
@@ -91,12 +117,19 @@ async def update_rule(rule_id: int, body: RuleCreate, request: Request,
 
 
 @router.delete("/rules/{rule_id}")
-async def delete_rule(rule_id: int, request: Request,
-                      db: AsyncSession = Depends(get_db),
-                      current_user: dict = Depends(require_perm("system", "write"))):
-    rule = (await db.execute(
-        select(ApprovalRule).where(ApprovalRule.id == rule_id, ApprovalRule.deleted_at.is_(None))
-    )).scalar_one_or_none()
+async def delete_rule(
+    rule_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_perm("system", "write")),
+):
+    rule = (
+        await db.execute(
+            select(ApprovalRule).where(
+                ApprovalRule.id == rule_id, ApprovalRule.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not rule:
         return fail("规则不存在")
     rule.deleted_at = datetime.datetime.now(datetime.timezone.utc)
@@ -135,16 +168,29 @@ async def list_requests(
 
     total = len((await db.execute(count_q)).scalars().all())
     result = await db.execute(
-        q.order_by(ApprovalRequest.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        q.order_by(ApprovalRequest.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     requests = result.scalars().all()
-    return paginated_ok([{
-        "id": r.id, "doc_type": r.doc_type, "doc_id": r.doc_id,
-        "submitter_id": r.submitter_id,
-        "submitter_name": r.submitter.username if r.submitter else "",
-        "status": r.status, "current_level": r.current_level,
-        "created_at": str(r.created_at),
-    } for r in requests], total, page, page_size)
+    return paginated_ok(
+        [
+            {
+                "id": r.id,
+                "doc_type": r.doc_type,
+                "doc_id": r.doc_id,
+                "submitter_id": r.submitter_id,
+                "submitter_name": r.submitter.username if r.submitter else "",
+                "status": r.status,
+                "current_level": r.current_level,
+                "created_at": str(r.created_at),
+            }
+            for r in requests
+        ],
+        total,
+        page,
+        page_size,
+    )
 
 
 @router.get("/requests/{request_id}")
@@ -153,42 +199,67 @@ async def get_request_detail(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    req = (await db.execute(
-        select(ApprovalRequest).where(ApprovalRequest.id == request_id, ApprovalRequest.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    req = (
+        await db.execute(
+            select(ApprovalRequest).where(
+                ApprovalRequest.id == request_id, ApprovalRequest.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
     if not req:
         return fail("审批请求不存在")
 
     # Load doc summary
     doc_summary = {}
     if req.doc_type == "quotation":
-        doc = (await db.execute(
-            select(Quotation).where(Quotation.id == req.doc_id)
-        )).scalar_one_or_none()
+        doc = (
+            await db.execute(select(Quotation).where(Quotation.id == req.doc_id))
+        ).scalar_one_or_none()
         if doc:
-            doc_summary = {"title": doc.title, "total_amount": float(doc.total_amount), "status": doc.status}
+            doc_summary = {
+                "title": doc.title,
+                "total_amount": float(doc.total_amount),
+                "status": doc.status,
+            }
     elif req.doc_type == "purchase_order":
-        doc = (await db.execute(
-            select(PurchaseOrder).where(PurchaseOrder.id == req.doc_id)
-        )).scalar_one_or_none()
+        doc = (
+            await db.execute(
+                select(PurchaseOrder).where(PurchaseOrder.id == req.doc_id)
+            )
+        ).scalar_one_or_none()
         if doc:
-            doc_summary = {"order_no": doc.order_no, "total_amount": float(doc.total_amount), "status": doc.status}
+            doc_summary = {
+                "order_no": doc.order_no,
+                "total_amount": float(doc.total_amount),
+                "status": doc.status,
+            }
 
-    return ok({
-        "id": req.id, "doc_type": req.doc_type, "doc_id": req.doc_id,
-        "submitter_id": req.submitter_id,
-        "submitter_name": req.submitter.username if req.submitter else "",
-        "status": req.status, "current_level": req.current_level,
-        "flow_snapshot": req.flow_snapshot,
-        "doc_summary": doc_summary,
-        "actions": [{
-            "id": a.id, "approver_id": a.approver_id,
-            "approver_name": a.approver.username if a.approver else "",
-            "action": a.action, "comment": a.comment, "level": a.level,
-            "created_at": str(a.created_at),
-        } for a in (req.actions or [])],
-        "created_at": str(req.created_at),
-    })
+    return ok(
+        {
+            "id": req.id,
+            "doc_type": req.doc_type,
+            "doc_id": req.doc_id,
+            "submitter_id": req.submitter_id,
+            "submitter_name": req.submitter.username if req.submitter else "",
+            "status": req.status,
+            "current_level": req.current_level,
+            "flow_snapshot": req.flow_snapshot,
+            "doc_summary": doc_summary,
+            "actions": [
+                {
+                    "id": a.id,
+                    "approver_id": a.approver_id,
+                    "approver_name": a.approver.username if a.approver else "",
+                    "action": a.action,
+                    "comment": a.comment,
+                    "level": a.level,
+                    "created_at": str(a.created_at),
+                }
+                for a in (req.actions or [])
+            ],
+            "created_at": str(req.created_at),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -207,28 +278,42 @@ async def submit_approval(
     current_user: dict = Depends(require_perm("sales", "write")),
 ):
     # Find matching rule
-    rule = (await db.execute(
-        select(ApprovalRule).where(
-            ApprovalRule.doc_type == body.doc_type,
-            ApprovalRule.enabled.is_(True),
-            ApprovalRule.deleted_at.is_(None),
+    rule = (
+        (
+            await db.execute(
+                select(ApprovalRule).where(
+                    ApprovalRule.doc_type == body.doc_type,
+                    ApprovalRule.enabled.is_(True),
+                    ApprovalRule.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().first()
+        .scalars()
+        .first()
+    )
     if not rule:
         return fail(f"未找到 {body.doc_type} 的审批规则")
 
     # Check amount threshold
     doc_amount = 0.0
     if body.doc_type == "quotation":
-        doc = (await db.execute(
-            select(Quotation).where(Quotation.id == body.doc_id, Quotation.deleted_at.is_(None))
-        )).scalar_one_or_none()
+        doc = (
+            await db.execute(
+                select(Quotation).where(
+                    Quotation.id == body.doc_id, Quotation.deleted_at.is_(None)
+                )
+            )
+        ).scalar_one_or_none()
         if doc:
             doc_amount = float(doc.total_amount)
     elif body.doc_type == "purchase_order":
-        doc = (await db.execute(
-            select(PurchaseOrder).where(PurchaseOrder.id == body.doc_id, PurchaseOrder.deleted_at.is_(None))
-        )).scalar_one_or_none()
+        doc = (
+            await db.execute(
+                select(PurchaseOrder).where(
+                    PurchaseOrder.id == body.doc_id, PurchaseOrder.deleted_at.is_(None)
+                )
+            )
+        ).scalar_one_or_none()
         if doc:
             doc_amount = float(doc.total_amount)
 
@@ -236,32 +321,42 @@ async def submit_approval(
         return fail(f"金额未达到审批阈值 (¥{rule.min_amount:,.2f})")
 
     # Check existing pending request
-    existing = (await db.execute(
-        select(ApprovalRequest).where(
-            ApprovalRequest.doc_type == body.doc_type,
-            ApprovalRequest.doc_id == body.doc_id,
-            ApprovalRequest.status == "pending",
-            ApprovalRequest.deleted_at.is_(None),
+    existing = (
+        await db.execute(
+            select(ApprovalRequest).where(
+                ApprovalRequest.doc_type == body.doc_type,
+                ApprovalRequest.doc_id == body.doc_id,
+                ApprovalRequest.status == "pending",
+                ApprovalRequest.deleted_at.is_(None),
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if existing:
         return fail("该单据已有待审批请求")
 
     # Create request
     flow_config = rule.flow_config if isinstance(rule.flow_config, list) else []
     approval_req = ApprovalRequest(
-        doc_type=body.doc_type, doc_id=body.doc_id,
+        doc_type=body.doc_type,
+        doc_id=body.doc_id,
         submitter_id=current_user["user_id"],
-        status="pending", current_level=1,
+        status="pending",
+        current_level=1,
         flow_snapshot=flow_config,
     )
     db.add(approval_req)
     await db.commit()
 
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "submit_approval", body.doc_type, body.doc_id,
-                          f"提交审批: {DOC_TYPES.get(body.doc_type, body.doc_type)} #{body.doc_id}",
-                          request.client.host if request.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "submit_approval",
+        body.doc_type,
+        body.doc_id,
+        f"提交审批: {DOC_TYPES.get(body.doc_type, body.doc_type)} #{body.doc_id}",
+        request.client.host if request.client else "",
+    )
     await db.commit()
     return ok({"id": approval_req.id}, msg="审批已提交")
 
@@ -282,19 +377,27 @@ async def approve_request(
     current_user: dict = Depends(get_current_user),
 ):
     # SELECT FOR UPDATE prevents concurrent approval race conditions
-    approval_req = (await db.execute(
-        select(ApprovalRequest).where(
-            ApprovalRequest.id == request_id,
-            ApprovalRequest.deleted_at.is_(None),
-        ).with_for_update()
-    )).scalar_one_or_none()
+    approval_req = (
+        await db.execute(
+            select(ApprovalRequest)
+            .where(
+                ApprovalRequest.id == request_id,
+                ApprovalRequest.deleted_at.is_(None),
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
     if not approval_req:
         return fail("审批请求不存在")
     if approval_req.status != "pending":
         return fail(f"审批请求状态为 {approval_req.status}，无法操作")
 
     # Authorization: verify current user is the designated approver for this level
-    flow = approval_req.flow_snapshot if isinstance(approval_req.flow_snapshot, list) else []
+    flow = (
+        approval_req.flow_snapshot
+        if isinstance(approval_req.flow_snapshot, list)
+        else []
+    )
     level_idx = approval_req.current_level - 1
     if level_idx < len(flow):
         level_config = flow[level_idx]
@@ -307,10 +410,12 @@ async def approve_request(
             if designated_role not in user_roles:
                 return fail(f"您没有 {designated_role} 角色，无权执行此审批")
 
-
     action = ApprovalAction(
-        request_id=request_id, approver_id=current_user["user_id"],
-        action="approve", comment=body.comment, level=approval_req.current_level,
+        request_id=request_id,
+        approver_id=current_user["user_id"],
+        action="approve",
+        comment=body.comment,
+        level=approval_req.current_level,
     )
     db.add(action)
 
@@ -325,10 +430,16 @@ async def approve_request(
 
     await db.commit()
 
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "approve", approval_req.doc_type, approval_req.doc_id,
-                          f"审批通过 (level {action.level}): {approval_req.doc_type} #{approval_req.doc_id}",
-                          req_ctx.client.host if req_ctx.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "approve",
+        approval_req.doc_type,
+        approval_req.doc_id,
+        f"审批通过 (level {action.level}): {approval_req.doc_type} #{approval_req.doc_id}",
+        req_ctx.client.host if req_ctx.client else "",
+    )
     await db.commit()
     return ok(msg="审批通过")
 
@@ -342,19 +453,27 @@ async def reject_request(
     current_user: dict = Depends(get_current_user),
 ):
     # SELECT FOR UPDATE prevents concurrent approval race conditions
-    approval_req = (await db.execute(
-        select(ApprovalRequest).where(
-            ApprovalRequest.id == request_id,
-            ApprovalRequest.deleted_at.is_(None),
-        ).with_for_update()
-    )).scalar_one_or_none()
+    approval_req = (
+        await db.execute(
+            select(ApprovalRequest)
+            .where(
+                ApprovalRequest.id == request_id,
+                ApprovalRequest.deleted_at.is_(None),
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
     if not approval_req:
         return fail("审批请求不存在")
     if approval_req.status != "pending":
         return fail(f"审批请求状态为 {approval_req.status}，无法操作")
 
     # Authorization: verify current user is the designated approver for this level
-    flow = approval_req.flow_snapshot if isinstance(approval_req.flow_snapshot, list) else []
+    flow = (
+        approval_req.flow_snapshot
+        if isinstance(approval_req.flow_snapshot, list)
+        else []
+    )
     level_idx = approval_req.current_level - 1
     if level_idx < len(flow):
         level_config = flow[level_idx]
@@ -368,17 +487,26 @@ async def reject_request(
                 return fail(f"您没有 {designated_role} 角色，无权执行此审批")
 
     action = ApprovalAction(
-        request_id=request_id, approver_id=current_user["user_id"],
-        action="reject", comment=body.comment, level=approval_req.current_level,
+        request_id=request_id,
+        approver_id=current_user["user_id"],
+        action="reject",
+        comment=body.comment,
+        level=approval_req.current_level,
     )
     db.add(action)
     approval_req.version += 1
     approval_req.status = "rejected"
     await db.commit()
 
-    await write_audit_log(db, current_user["user_id"], current_user.get("username", ""),
-                          "reject", approval_req.doc_type, approval_req.doc_id,
-                          f"审批驳回: {approval_req.doc_type} #{approval_req.doc_id}",
-                          req_ctx.client.host if req_ctx.client else "")
+    await write_audit_log(
+        db,
+        current_user["user_id"],
+        current_user.get("username", ""),
+        "reject",
+        approval_req.doc_type,
+        approval_req.doc_id,
+        f"审批驳回: {approval_req.doc_type} #{approval_req.doc_id}",
+        req_ctx.client.host if req_ctx.client else "",
+    )
     await db.commit()
     return ok(msg="审批已驳回")

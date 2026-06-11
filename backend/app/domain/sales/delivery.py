@@ -15,9 +15,9 @@ from app.domain.shared.errors import (
 
 
 class DeliveryStatus(str, Enum):
-    DRAFT = "pending"          # Map to ORM "pending"
+    DRAFT = "pending"  # Map to ORM "pending"
     SHIPPED = "shipped"
-    RECEIVED = "received"      # Customer confirmed receipt
+    RECEIVED = "received"  # Customer confirmed receipt
     CANCELLED = "cancelled"
 
 
@@ -80,6 +80,7 @@ class DeliveryNote:
 
         self.status = DeliveryStatus.SHIPPED
         from datetime import datetime, timezone
+
         if self.delivery_date is None:
             self.delivery_date = datetime.now(timezone.utc)
         self._events.append(
@@ -88,9 +89,7 @@ class DeliveryNote:
                 aggregate_type="DeliveryNote",
                 sales_order_id=self.sales_order_id,
                 customer_id=self.customer_id,
-                lines=tuple(
-                    (line.product_id, line.quantity) for line in self.lines
-                ),
+                lines=tuple((line.product_id, line.quantity) for line in self.lines),
             )
         )
 
@@ -101,6 +100,7 @@ class DeliveryNote:
                 f"发货单 {self.id}: {self.status.value} → received 不允许"
             )
         from datetime import datetime, timezone
+
         self.status = DeliveryStatus.RECEIVED
         self.received_date = datetime.now(timezone.utc)
 
