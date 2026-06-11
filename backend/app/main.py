@@ -30,6 +30,7 @@ for _model_module in (
     "app.models.sales",
     "app.models.transaction",
     "app.models.user",
+    "app.models.audit",
 ):
     import_module(_model_module)
 
