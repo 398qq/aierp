@@ -106,6 +106,9 @@ async def transition(
 
     Body: { "to": "approved" | "rejected" | "paid" | "cancelled" | "pending_approval",
             "reason": "..." }
+
+    Emits a `commission_status_changed` event in notes (Stage 10 Day 2 hook
+    for Telegram notification). Bumps commissions cache.
     """
     target = payload.get("to")
     if not target:
@@ -113,13 +116,81 @@ async def transition(
     obj = await svc.get_commission(db, commission_id)
     if not obj:
         return fail("commission not found", 404)
+
+    previous_status = obj.status
     data = {
         "status": target,
         "notes": (obj.notes or "")
-        + f"\n[{datetime.utcnow().isoformat()}] {user.get('username')} → {target}: {payload.get('reason', '')}",
+        + f"\n[{datetime.utcnow().isoformat()}] {user.get('username')}: {previous_status} \u2192 {target} | {payload.get('reason', '')}",
     }
     if target == "approved":
         data["approved_by"] = user.get("user_id") or user.get("id")
+    # paid_at + paid_amount now set by finance_service.update_commission (Stage 10 Day 1)
     await svc.update_commission(db, obj, data)
     await db.commit()
+    await cache_bump_version("commissions")
+    # Stage 10 Day 2: fire-and-forget notification hook
+    try:
+        from app.services.commission_notifier import on_commission_status_changed
+
+        await on_commission_status_changed(
+            db=db,
+            commission=obj,
+            previous_status=previous_status,
+            new_status=target,
+            actor=user.get("username", "system"),
+        )
+    except Exception:
+        pass  # never fail the transition
     return ok(svc._commission_to_dict(obj))
+
+
+# ── Stage 10 Day 1: RESTful state-machine shortcuts ──────────
+
+
+@router.post("/{commission_id}/submit")
+async def submit_for_approval(
+    commission_id: int,
+    payload: dict = {},
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Submit a draft commission for approval (draft \u2192 pending_approval)."""
+    payload["to"] = "pending_approval"
+    return await transition(commission_id, payload, db, user)
+
+
+@router.post("/{commission_id}/approve")
+async def approve_commission(
+    commission_id: int,
+    payload: dict = {},
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Approve a pending commission (pending_approval \u2192 approved)."""
+    payload["to"] = "approved"
+    return await transition(commission_id, payload, db, user)
+
+
+@router.post("/{commission_id}/reject")
+async def reject_commission(
+    commission_id: int,
+    payload: dict = {},
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Reject a pending commission (pending_approval \u2192 rejected)."""
+    payload["to"] = "rejected"
+    return await transition(commission_id, payload, db, user)
+
+
+@router.post("/{commission_id}/pay")
+async def mark_paid(
+    commission_id: int,
+    payload: dict = {},
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Mark an approved commission as paid (approved \u2192 paid)."""
+    payload["to"] = "paid"
+    return await transition(commission_id, payload, db, user)

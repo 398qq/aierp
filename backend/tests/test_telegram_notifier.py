@@ -17,10 +17,8 @@ async def test_disabled_returns_false():
 @pytest.mark.asyncio
 async def test_no_token_returns_false():
     with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": ""}, clear=False):
-        # Clear the token
-        os.environ.pop("TELEGRAM_BOT_TOKEN", None)
-        os.environ.pop("TELEGRAM_CHAT_ID", None)
-        os.environ.pop("TELEGRAM_DISABLED", None)
+        # Inside the patch, the value is "" (empty string, falsy)
+        # send_message checks `if not bot_token` → returns False
         result = await send_message("hello")
     assert result is False
 
@@ -31,9 +29,8 @@ async def test_no_chat_id_returns_false():
         "TELEGRAM_BOT_TOKEN": "test_token",
         "TELEGRAM_CHAT_ID": "",
     }, clear=False):
-        os.environ.pop("TELEGRAM_CHAT_ID", None)
+        # Inside the patch, TELEGRAM_CHAT_ID is "" (falsy)
         result = await send_message("hello")
-    # patch.dict restores at exit, no manual cleanup needed
     assert result is False
 
 

@@ -503,6 +503,11 @@ async def update_commission(
         assert_can_transition_commission(comm.status, data["status"])
         if data["status"] == "approved":
             data["approved_at"] = datetime.now(timezone.utc)
+        if data["status"] == "paid":
+            # Stage 10 Day 1: set paid_at + default paid_amount to commission_amount
+            data["paid_at"] = datetime.now(timezone.utc)
+            if "paid_amount" not in data and comm.commission_amount is not None:
+                data["paid_amount"] = comm.commission_amount
     for k, v in data.items():
         setattr(comm, k, v)
     if "base_amount" in data or "rate" in data:

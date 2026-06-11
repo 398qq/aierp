@@ -211,3 +211,26 @@ async def test_admin(db_session) -> dict:
 @pytest_asyncio.fixture
 async def admin_headers(test_admin):
     return {"Authorization": f"Bearer {test_admin['token']}"}
+
+
+# ── Stage 10 Day 1: clean TELEGRAM_* env between tests ────────────
+
+
+@pytest.fixture(autouse=True)
+def _clean_telegram_env():
+    """Reset Telegram env vars before each test.
+
+    Stage 10 Day 1: test_telegram_notifier's patch.dict + os.environ.pop
+    can leak into subsequent tests. Reset to a clean slate.
+    """
+    saved = {
+        "TELEGRAM_BOT_TOKEN": os.environ.pop("TELEGRAM_BOT_TOKEN", None),
+        "TELEGRAM_CHAT_ID": os.environ.pop("TELEGRAM_CHAT_ID", None),
+        "TELEGRAM_DISABLED": os.environ.pop("TELEGRAM_DISABLED", None),
+    }
+    yield
+    for k, v in saved.items():
+        if v is not None:
+            os.environ[k] = v
+        else:
+            os.environ.pop(k, None)
