@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-backup-remote db-backup-cron db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -38,10 +38,16 @@ db-reset: ## Reset database
 	@PGPASSWORD=aierp psql -h localhost -U aierp -d postgres -c "CREATE DATABASE aierp OWNER aierp;"
 	@echo "Database reset. Restart backend to run migrations."
 
-db-backup: ## Backup database to ~/date/
-	@mkdir -p ~/date
-	@PGPASSWORD=aierp pg_dump -h localhost -U aierp -d aierp -F c -f ~/date/aierp_$$(date +%Y%m%d_%H%M%S).dump
-	@echo "Database backed up to ~/date/"
+db-backup: ## Backup database to ~/date/ (uses scripts/backup-pg.sh, compressed + verified)
+	./scripts/backup-pg.sh
+
+db-backup-remote: ## Backup to local + remote (REMOTE_BACKUP_DIR=/path)
+	REMOTE_BACKUP_DIR=$${REMOTE_BACKUP_DIR} ./scripts/backup-pg.sh
+
+db-backup-cron: ## Show cron line to install backup nightly
+	@echo "0 2 * * * /home/ttdiy/aierp/scripts/backup-pg.sh >> /home/ttdiy/aierp/logs/backup.log 2>&1"
+	@echo ""
+	@echo "To install: (crontab -l 2>/dev/null; cat <(echo '0 2 * * * /home/ttdiy/aierp/scripts/backup-pg.sh >> /home/ttdiy/aierp/logs/backup.log 2>&1')) | crontab -"
 
 db-restore: ## Restore from backup (BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump)
 	@PGPASSWORD=aierp pg_restore -h localhost -U aierp -d aierp -c $(BACKUP)
