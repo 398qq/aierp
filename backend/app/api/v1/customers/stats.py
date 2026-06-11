@@ -16,6 +16,11 @@ from app.models.customer import (
 from app.models.finance import PaymentRecord
 from app.models.sales import Opportunity, SalesOrder
 from app.schemas.common import fail, ok
+from app.services.customer_stats_service import (
+    customer_stats_service,
+    health_label as _health_label,
+    rfm_bucket as _rfm_bucket,
+)
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 logger = logging.getLogger(__name__)
@@ -116,120 +121,18 @@ async def customer_stats(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    customer = (await db.execute(
-        select(Customer).where(
-            Customer.id == customer_id,
-            Customer.deleted_at.is_(None),
-        )
-    )).scalar_one_or_none()
-    if customer is None:
+    """Single-customer aggregate stats (lifecycle, RFM, health, aging).
+
+    Stage 1: route is a thin proxy — all business logic lives in
+    ``CustomerStatsService``. Returns 404 if the customer is missing.
+    """
+    payload = await customer_stats_service.get_customer_stats(db, customer_id)
+    if payload is None:
         return fail("Customer not found", 404)
-
-    now = datetime.now(timezone.utc)
-    created_at = _to_utc(customer.created_at) or now
-    created_days = max(0, (now - created_at).days)
-
-    order_agg = (await db.execute(
-        select(
-            func.count(SalesOrder.id),
-            func.coalesce(func.sum(SalesOrder.total_amount), 0),
-            func.max(func.coalesce(SalesOrder.order_date, SalesOrder.created_at)),
-        ).where(
-            SalesOrder.customer_id == customer_id,
-            SalesOrder.deleted_at.is_(None),
-        )
-    )).first()
-
-    order_count = int(order_agg[0] or 0) if order_agg else 0
-    total_revenue = _safe_float(order_agg[1]) if order_agg else 0.0
-    last_order_at = _to_utc(order_agg[2]) if order_agg else None
-
-    paid_total = _safe_float((await db.execute(
-        select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-            PaymentRecord.customer_id == customer_id,
-            PaymentRecord.deleted_at.is_(None),
-        )
-    )).scalar())
-    outstanding = max(0.0, round(total_revenue - paid_total, 2))
-
-    credit_limit = _safe_float(customer.credit_limit)
-    credit_usage_pct = round((outstanding / credit_limit) * 100, 1) if credit_limit > 0 else 0.0
-
-    from app.domain.states import CUSTOMER_STATUS_LABELS
-    lifecycle = CUSTOMER_STATUS_LABELS.get(customer.status, customer.status or "未知")
-
-    ai_insights = customer.ai_insights if isinstance(customer.ai_insights, dict) else {}
-    health_score = _safe_float(ai_insights.get("health_score"))
-    health_label = ai_insights.get("health_label")
-    if health_score <= 0:
-        score = 50.0
-        if order_count >= 8:
-            score += 20
-        elif order_count >= 3:
-            score += 12
-        elif order_count >= 1:
-            score += 6
-
-        if total_revenue >= 500_000:
-            score += 15
-        elif total_revenue >= 100_000:
-            score += 10
-        elif total_revenue >= 20_000:
-            score += 5
-
-        days_since_contact = _days_since(customer.last_contacted_at, now)
-        if days_since_contact <= 30:
-            score += 12
-        elif days_since_contact <= 90:
-            score += 6
-        elif days_since_contact >= 365:
-            score -= 8
-
-        level = (customer.level or "").upper()
-        if level == "A":
-            score += 5
-        elif level == "B":
-            score += 2
-        elif level == "D":
-            score -= 5
-
-        if credit_usage_pct >= 95:
-            score -= 12
-        elif credit_usage_pct >= 80:
-            score -= 6
-
-        health_score = max(0.0, min(100.0, round(score, 1)))
-        health_label = _health_label(health_score)
-    else:
-        health_score = round(health_score, 1)
-        health_label = health_label or _health_label(health_score)
-
-    aging = {"0-30": 0.0, "31-60": 0.0, "61-90": 0.0, "90+": 0.0}
-    if outstanding > 0:
-        age_days = _days_since(last_order_at, now)
-        if age_days <= 30:
-            aging["0-30"] = outstanding
-        elif age_days <= 60:
-            aging["31-60"] = outstanding
-        elif age_days <= 90:
-            aging["61-90"] = outstanding
-        else:
-            aging["90+"] = outstanding
-
-    return ok({
-        "lifecycle": lifecycle,
-        "created_days": created_days,
-        "order_count": order_count,
-        "total_revenue": round(total_revenue, 2),
-        "last_order_date": str(last_order_at) if last_order_at else None,
-        "credit_limit": round(credit_limit, 2),
-        "outstanding": round(outstanding, 2),
-        "paid_total": round(paid_total, 2),
-        "credit_usage_pct": credit_usage_pct,
-        "aging": aging,
-        "health_score": health_score,
-        "health_label": health_label,
-    })
+    payload["last_order_date"] = (
+        str(payload["last_order_date"]) if payload["last_order_date"] else None
+    )
+    return ok(payload)
 
 
 @router.get("/{customer_id:int}/timeline")
