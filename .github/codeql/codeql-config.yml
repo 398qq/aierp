@@ -1,0 +1,54 @@
+# CodeQL config (Stage 13 Day 1)
+# 排除扫描: 缓存 / 依赖 / 生成的代码 / 测试 fixtures
+# 这些要么不存在, 要么由 Dependabot / pip-audit / npm audit 覆盖
+
+name: "AIERP CodeQL Config"
+
+# 不扫的 path (相对仓库根)
+paths-ignore:
+  # Python 缓存与 venv
+  - "**/__pycache__/"
+  - "**/venv/"
+  - "**/.venv/"
+  - "**/site-packages/"
+  - "**/.mypy_cache/"
+  - "**/.pytest_cache/"
+  - "**/*.pyc"
+
+  # Alembic 迁移模板 (自动生成, 不是手写代码)
+  - "**/alembic/versions/**"
+  - "**/alembic/env.py"
+  - "**/alembic/script.py.mako"
+
+  # 测试代码 (自己代码的安全性, 不在生产路径上)
+  - "**/tests/"
+  - "**/test_*.py"
+  - "**/*_test.py"
+
+  # 前端构建产物
+  - "**/node_modules/"
+  - "**/dist/"
+  - "**/build/"
+  - "**/coverage/"
+  - "**/.vite/"
+
+  # 数据 / 备份
+  - "**/*.db"
+  - "**/*.sqlite"
+  - "**/*.sqlite3"
+  - "**/backups/"
+  - "**/fixtures/"
+
+  # 文档 (markdown 不在 query 范围, 但显式声明节省时间)
+  - "**/*.md"
+  - "docs/"
+
+  # 监控/部署 YAML (不扫配置语法, 那是 actionlint 干的事)
+  - "**/docker-compose*.yml"
+  - "**/Dockerfile"
+  - ".dockerignore"
+
+# Query filter: 排除低信号 query
+queries:
+  - include: "security-extended"
+  - include: "security-and-quality"

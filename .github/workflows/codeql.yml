@@ -1,0 +1,63 @@
+# CodeQL code scanning (Stage 13 Day 1)
+# GitHub 自带免费静态分析，扫代码漏洞 (SQL 注入 / XSS / 不安全反序列化 / 硬编码密码 等)
+# 比 pip-audit 强一档: 扫的不只是依赖, 还有我们自己写的代码
+
+name: CodeQL
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    # 每周二 02:00 UTC (= 10:00 Asia/Shanghai)
+    - cron: "0 2 * * 2"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write  # 必要, 写 SARIF 到 Security tab
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            paths: backend/
+            build-mode: none  # 纯 Python 无编译
+          - language: javascript-typescript
+            paths: frontend/
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 不要初始化 CodeQL: github/codeql-action/init 会自动选最新 actions
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+          # 上面这两个 query pack:
+          # - security-extended: 全套安全 query (慢但全)
+          # - security-and-quality: 安全 + 代码质量 query
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+      # 上传 SARIF 到 GitHub Security tab (可视化为 alert)
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          category: "/language:${{ matrix.language }}"
