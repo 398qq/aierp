@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -98,6 +98,131 @@ bump-major: ## Bump major version (2.0.0 → 3.0.0)
 release: build lint test ## Full release build (build + lint + test)
 	@echo "All checks passed. Ready to bump version."
 	@echo "Run: make bump-patch  (or bump-minor / bump-major)"
+
+# ===========================================================================
+# Production operations (Stage 6 Day 1)
+# Use these after 'make build' to run the system in a server-like way
+# (uvicorn workers, no reload, log to file).
+# ===========================================================================
+PROD_LOG_DIR ?= ./logs
+PROD_PID_DIR ?= ./pids
+PROD_WORKERS ?= 2
+
+prod-start: ## Start backend in production mode (workers + no reload, logs to file)
+	@mkdir -p $(PROD_LOG_DIR) $(PROD_PID_DIR)
+	@if [ -f $(PROD_PID_DIR)/backend.pid ] && kill -0 $$(cat $(PROD_PID_DIR)/backend.pid) 2>/dev/null; then \
+		echo "Backend already running (PID $$(cat $(PROD_PID_DIR)/backend.pid))"; \
+	else \
+		cd $(BACKEND_DIR) && nohup ../$(UVICORN) app.main:app \
+			--host 0.0.0.0 --port $(BACKEND_PORT) \
+			--workers $(PROD_WORKERS) --no-access-log \
+			> $(PROD_LOG_DIR)/backend.log 2>&1 & \
+		echo $$! > $(PROD_PID_DIR)/backend.pid; \
+		sleep 2; \
+		echo "Backend started (PID $$(cat $(PROD_PID_DIR)/backend.pid), workers=$(PROD_WORKERS))"; \
+		echo "Logs: tail -f $(PROD_LOG_DIR)/backend.log"; \
+	fi
+
+prod-stop: ## Stop production backend
+	@if [ -f $(PROD_PID_DIR)/backend.pid ]; then \
+		PID=$$(cat $(PROD_PID_DIR)/backend.pid); \
+		if kill -0 $$PID 2>/dev/null; then \
+			kill $$PID; \
+			sleep 2; \
+			echo "Backend stopped (was PID $$PID)"; \
+		else \
+			echo "Backend PID $$PID not running"; \
+		fi; \
+		rm -f $(PROD_PID_DIR)/backend.pid; \
+	else \
+		kill $$(lsof -t -i :$(BACKEND_PORT)) 2>/dev/null && echo "Backend stopped" || echo "No backend running"; \
+	fi
+
+prod-restart: prod-stop prod-start ## Restart production backend
+
+prod-status: ## Show production backend status
+	@if [ -f $(PROD_PID_DIR)/backend.pid ] && kill -0 $$(cat $(PROD_PID_DIR)/backend.pid) 2>/dev/null; then \
+		PID=$$(cat $(PROD_PID_DIR)/backend.pid); \
+		echo "Backend RUNNING (PID $$PID)"; \
+		echo "  Port:  $(BACKEND_PORT)"; \
+		echo "  Workers: $(PROD_WORKERS)"; \
+		echo "  Memory: $$(ps -p $$PID -o rss= 2>/dev/null | awk '{printf "%.1f MB", $$1/1024}')"; \
+		echo "  CPU:    $$(ps -p $$PID -o %cpu= 2>/dev/null | xargs) %"; \
+		echo "  Uptime: $$(ps -p $$PID -o etime= 2>/dev/null | xargs)"; \
+	else \
+		echo "Backend NOT running"; \
+	fi
+
+prod-logs: ## Tail production backend log (Ctrl+C to exit)
+	@if [ -f $(PROD_LOG_DIR)/backend.log ]; then \
+		tail -f $(PROD_LOG_DIR)/backend.log; \
+	else \
+		echo "No log file at $(PROD_LOG_DIR)/backend.log"; \
+	fi
+
+# ===========================================================================
+# Health check + monitoring (Stage 6 Day 2)
+# ===========================================================================
+health-check: ## Health check (DB + Redis + disk + memory)
+	@echo "=== AIERP Health Check ==="
+	@echo ""
+	@echo "1. Backend HTTP /health/live:"
+	@curl -sf http://localhost:$(BACKEND_PORT)/health/live && echo "  ✅ UP" || echo "  ❌ DOWN"
+	@echo ""
+	@echo "2. PostgreSQL:"
+	@PGPASSWORD=aierp psql -h localhost -U aierp -d aierp -c "SELECT '✅ UP' as status, version()" -t 2>&1 | head -2
+	@echo ""
+	@echo "3. Disk usage:"
+	@df -h / | tail -1 | awk '{printf "  Used: %s / %s (%s)\n", $$3, $$2, $$5}'
+	@echo ""
+	@echo "4. Memory:"
+	@free -h | grep Mem | awk '{printf "  Used: %s / %s\n", $$3, $$2}'
+	@echo ""
+	@echo "5. Backup freshness (latest):"
+	@ls -1t ~/date/aierp_*.dump 2>/dev/null | head -1 | xargs -I{} ls -lh {} | awk '{printf "  %s %s %s\n", $$6, $$7, $$9}' || echo "  ❌ No backup found"
+
+# ===========================================================================
+# Backup management (Stage 6 Day 3)
+# ===========================================================================
+BACKUP_DIR ?= ~/date
+BACKUP_KEEP_DAYS ?= 7
+
+db-backup-list: ## List all database backups
+	@echo "=== Database Backups (in $(BACKUP_DIR)) ==="
+	@ls -lht $(BACKUP_DIR)/aierp_*.dump 2>/dev/null | head -20 || echo "No backups found"
+	@echo ""
+	@echo "Total size:"
+	@du -sh $(BACKUP_DIR) 2>/dev/null || echo "0"
+
+db-backup-clean: ## Delete backups older than $(BACKUP_KEEP_DAYS) days
+	@echo "Cleaning backups older than $(BACKUP_KEEP_DAYS) days..."
+	@find $(BACKUP_DIR) -name "aierp_*.dump" -mtime +$(BACKUP_KEEP_DAYS) -print -delete
+	@find $(BACKUP_DIR) -name "aierp_*.sql" -mtime +$(BACKUP_KEEP_DAYS) -print -delete
+	@echo "Done. Remaining:"
+	@ls -1 $(BACKUP_DIR)/aierp_*.dump 2>/dev/null | wc -l
+
+db-shell: ## Open psql shell to dev database
+	PGPASSWORD=aierp psql -h localhost -U aierp -d aierp
+
+# ===========================================================================
+# Dependency management (Stage 6 Day 4)
+# ===========================================================================
+deps-update: deps-audit ## Update all dependencies and re-audit
+	@echo "=== Updating Python deps ==="
+	cd $(BACKEND_DIR) && pip install --upgrade -r requirements.txt
+	@echo ""
+	@echo "=== Updating Node deps ==="
+	cd $(FRONTEND_DIR) && npm update
+	@echo ""
+	@echo "Re-running security audit..."
+	@$(MAKE) deps-audit
+
+deps-audit: ## Audit dependencies for known vulnerabilities
+	@echo "=== Backend (pip-audit) ==="
+	cd $(BACKEND_DIR) && pip-audit --strict -r requirements.txt || echo "  ⚠️  Vulns found (see docs/DEPENDENCY_AUDIT.md)"
+	@echo ""
+	@echo "=== Frontend (npm audit) ==="
+	cd $(FRONTEND_DIR) && npm audit --audit-level=high
 
 # ---------------------------------------------------------------------------
 # Performance baseline (Locust)
