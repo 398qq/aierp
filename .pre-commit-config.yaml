@@ -1,0 +1,33 @@
+# Pre-commit hooks (Stage 4 Day 2)
+# Install: pre-commit install
+# Run on all files: pre-commit run --all-files
+#
+# Goal: catch lint/format issues before they reach CI.
+# Heavy CI checks (pytest, mypy, build) still run on GitHub Actions.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        name: ruff (Python linter)
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^backend/
+      # Note: ruff-format is intentionally not enabled — would
+      # reformat 246 files on first run. Enable gradually.
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+      - id: end-of-file-fixer
+        name: fix end-of-file newlines
+      - id: check-yaml
+        name: validate YAML files
+      - id: check-json
+        name: validate JSON files
+      - id: check-merge-conflict
+        name: check for merge conflict markers
+      - id: detect-private-key
+        name: detect private keys
