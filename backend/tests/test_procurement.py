@@ -7,16 +7,13 @@ three_way_match`) just delegates to this domain function.
 
 from decimal import Decimal
 
-import pytest
 
 from app.domain.procurement.three_way_match import (
     GRLineSnapshot,
     InvoiceLineSnapshot,
-    LineDiscrepancy,
     MatchStatus,
     MatchTolerance,
     POLineSnapshot,
-    ThreeWayMatchResult,
     match_po_gr_invoice,
 )
 

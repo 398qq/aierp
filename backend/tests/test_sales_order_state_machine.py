@@ -1,6 +1,5 @@
 """Tests for SalesOrder state machine (Stage 2 Day 1)."""
 
-from decimal import Decimal
 
 import pytest
 
@@ -149,7 +148,6 @@ def test_cancel_after_completed_raises():
 
 
 def test_confirm_empty_order_raises():
-    order = SalesOrder(customer_id=1, owner="Alice", total_amount=100.0)
     # No lines, no total override -- __post_init__ should catch it
     with pytest.raises(BusinessRuleViolation, match="至少有一个明细"):
         SalesOrder(customer_id=1, owner="Alice")

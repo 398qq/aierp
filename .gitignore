@@ -31,6 +31,10 @@ venv312/
 ENV/
 env/
 .venv/
+**/venv/
+**/venv312/
+**/.venv/
+**/ENV/
 
 # IDE
 .idea/

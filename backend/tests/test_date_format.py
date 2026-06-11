@@ -10,7 +10,7 @@ The fix uses ``func.cast(col, String)`` so PostgreSQL generates
 """
 
 import pytest
-from sqlalchemy import Column, Date, DateTime, Integer, MetaData, String, Table, func, select
+from sqlalchemy import Column, Date, DateTime, Integer, MetaData, Table, select
 from sqlalchemy.dialects import postgresql, sqlite
 
 from app.database import date_format

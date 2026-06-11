@@ -21,17 +21,6 @@ async def db():
     from app.database import Base
 
     # Import all models to register tables
-    import app.models.account
-    import app.models.approval
-    import app.models.customer
-    import app.models.finance
-    import app.models.product
-    import app.models.rbac
-    import app.models.report
-    import app.models.sales
-    import app.models.transaction
-    import app.models.user
-    import app.models.audit
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:

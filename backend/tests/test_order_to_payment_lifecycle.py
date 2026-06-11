@@ -19,20 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.domain.sales.delivery import DeliveryLine, DeliveryNote
 from app.domain.sales.invoice import Invoice, InvoiceLine
-from app.domain.sales.order import OrderLine, OrderStatus, SalesOrder
+from app.domain.sales.order import OrderLine, SalesOrder
 from app.domain.sales.payment import PaymentRecord
 from app.domain.sales.quotation import Quotation, QuotationLine
-from app.domain.sales.events import (
-    DeliveryShipped,
-    InvoiceIssued,
-    InvoicePaid,
-    OrderCompleted,
-    OrderConfirmed,
-    OrderShipped,
-    PaymentReceived,
-    QuotationAccepted,
-    QuotationSent,
-)
 from app.services.audit_service import (
     get_aggregate_timeline,
     get_customer_timeline,
@@ -44,17 +33,6 @@ from app.database import Base
 @pytest_asyncio.fixture
 async def db():
     """Yield a fresh in-memory sqlite session with all model tables."""
-    import app.models.account
-    import app.models.approval
-    import app.models.customer
-    import app.models.finance
-    import app.models.product
-    import app.models.rbac
-    import app.models.report
-    import app.models.sales
-    import app.models.transaction
-    import app.models.user
-    import app.models.audit
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:

@@ -22,8 +22,6 @@ from app.domain.finance.journal import (
 )
 from app.domain.finance.period import AccountingPeriod, PeriodStatus
 from app.domain.inventory.batch import (
-    AllocationResult,
-    BatchAllocation,
     BatchStatus,
     InventoryBatch,
     allocate_fefo,
@@ -31,7 +29,6 @@ from app.domain.inventory.batch import (
     mark_expired_batches,
 )
 from app.domain.inventory.cost_strategy import (
-    FIFOBatch,
     FIFOCost,
     FIFOCostTracker,
     StandardCost,
