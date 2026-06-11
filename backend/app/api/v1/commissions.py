@@ -194,3 +194,111 @@ async def mark_paid(
     """Mark an approved commission as paid (approved \u2192 paid)."""
     payload["to"] = "paid"
     return await transition(commission_id, payload, db, user)
+
+
+@router.post("/batch-transition")
+async def batch_transition(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Transition multiple commissions in one call (Stage 11 Day 2).
+
+    Body:
+    {
+        "ids": [1, 2, 3, ...],
+        "to": "approved" | "rejected" | "paid" | "cancelled" | "pending_approval",
+        "notes": "optional shared note",
+        "paid_amount": 100.0  # required when to=paid
+    }
+
+    Returns:
+    {
+        "ok": true,
+        "succeeded": [{"id": 1, "to": "approved"}],
+        "failed":    [{"id": 2, "error": "Invalid transition"}],
+        "summary":   {"total": 3, "succeeded": 1, "failed": 1}
+    }
+    """
+    ids = payload.get("ids", [])
+    to = payload.get("to")
+    notes = payload.get("notes", "")
+    paid_amount = payload.get("paid_amount")
+
+    if not isinstance(ids, list) or not ids:
+        return fail("ids must be a non-empty list", code=400)
+    if to not in ("approved", "rejected", "paid", "cancelled", "pending_approval"):
+        return fail(f"unsupported to={to}", code=400)
+
+    succeeded = []
+    failed = []
+    for cid in ids:
+        try:
+            sub_payload = {"to": to, "notes": notes}
+            if paid_amount is not None:
+                sub_payload["paid_amount"] = paid_amount
+            # Run transition logic inline (don't depend on FastAPI endpoint function
+            # signature with `payload: dict` default). Stage 11 Day 2: direct call.
+            from app.services.finance_service import get_commission, update_commission
+            from app.domain.states.finance import assert_can_transition_commission
+            obj = await get_commission(db, cid)
+            if not obj:
+                failed.append({"id": cid, "error": "commission not found"})
+                continue
+            try:
+                assert_can_transition_commission(obj.status, to)
+            except Exception as exc:  # noqa: BLE001
+                failed.append({"id": cid, "error": f"invalid transition: {obj.status} → {to}"})
+                continue
+            previous_status = obj.status
+            data = {
+                "status": to,
+                "notes": (obj.notes or "")
+                + f"\n[batch {datetime.utcnow().isoformat()}] {user.get('username')}: {previous_status} → {to} | {notes}",
+            }
+            if to == "approved":
+                data["approved_by"] = user.get("user_id") or user.get("id")
+            if to == "paid":
+                data["paid_at"] = datetime.utcnow()
+                if paid_amount is not None:
+                    data["paid_amount"] = paid_amount
+            try:
+                await update_commission(db, obj, data)
+                await db.commit()
+            except Exception as exc:  # noqa: BLE001
+                await db.rollback()
+                failed.append({"id": cid, "error": f"db error: {exc}"})
+                continue
+            succeeded.append({"id": cid, "from": previous_status, "to": to})
+            # Fire-and-forget notification (Stage 10 Day 2)
+            try:
+                from app.services.commission_notifier import on_commission_status_changed
+                await on_commission_status_changed(
+                    db=db, commission=obj,
+                    previous_status=previous_status, new_status=to,
+                    actor=user.get("username", "system"),
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as exc:  # noqa: BLE001
+            failed.append({"id": cid, "error": f"unexpected: {exc}"})
+
+    # Bump cache once at the end (not per-id)
+    try:
+        from app.services.cache_service import cache_bump_version
+        await cache_bump_version("commissions")
+    except Exception as exc:  # noqa: BLE001
+        # never fail the batch
+        import logging
+        logging.getLogger(__name__).debug("cache_bump_version failed: %s", exc)
+
+    return ok({
+        "ok": True,
+        "succeeded": succeeded,
+        "failed": failed,
+        "summary": {
+            "total": len(ids),
+            "succeeded": len(succeeded),
+            "failed": len(failed),
+        },
+    })
