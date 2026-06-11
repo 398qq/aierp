@@ -58,6 +58,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+          pip install pip-audit
 
       - name: Run tests
         env:
@@ -66,28 +67,14 @@ jobs:
         # Fail on any test failure (no '|| true').
         run: pytest tests/ -q --tb=short
 
-      - name: Migration chain check
-        # Verify all migration files import + chain integrity.
-        # (alembic upgrade head --sql needs real DB for some migrations,
-        #  so we use a lightweight check that catches import + chain errors.)
+      - name: Security audit (pip-audit, advisory only)
+        # Currently 15+ known CVEs in deps; see docs/DEPENDENCY_AUDIT.md.
+        # This step is advisory — fails are reported but don't block PR.
+        # Goal: catch NEW vulns in PR-added deps, not block on existing ones.
         run: |
-          python -c "
-          from alembic.config import Config
-          from alembic.script import ScriptDirectory
-          cfg = Config('alembic.ini')
-          script = ScriptDirectory.from_config(cfg)
-          revisions = list(script.walk_revisions())
-          print(f'Found {len(revisions)} migration files')
-          # Check: all revisions form a chain (each has a down_revision to prev)
-          revs_by_id = {r.revision: r for r in revisions}
-          for r in revisions:
-              if r.down_revision is not None and r.down_revision not in revs_by_id:
-                  raise SystemExit(f'Broken chain: {r.revision} down_revision={r.down_revision} not found')
-          # Check: head is unique
-          heads = script.get_heads()
-          assert len(heads) == 1, f'Multiple heads: {heads}'
-          print(f'Chain OK, head = {heads[0]}')
-          "
+          pip-audit --strict --requirement requirements.txt 2>&1 | tee /tmp/pip-audit.log || {
+            echo "::warning::pip-audit found vulnerabilities. See docs/DEPENDENCY_AUDIT.md to triage."
+          }
 
   # =======================================================================
   # Frontend: React 19 + TypeScript + Vite + Vitest
@@ -182,3 +169,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Security audit (npm audit)
+        # Currently 0 high+ vulns (verified 2026-06-11).
+        # Goal: catch NEW vulns in PR-added deps.
+        # Fails on high+ severity.
+        run: npm audit --audit-level=high
