@@ -1,0 +1,179 @@
+{
+  "title": "AIERP — Business Metrics",
+  "uid": "aierp-business",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["aierp", "business"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"text": "Prometheus", "value": "Prometheus"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Orders Confirmed (per minute)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(orders_confirmed_total[5m])) * 60",
+          "legendFormat": "confirmed/min",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "short", "label": "orders/min"},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Orders Cancelled (per minute)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(orders_cancelled_total[5m])) * 60",
+          "legendFormat": "cancelled/min",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "short", "label": "orders/min"},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 3,
+      "title": "AI Call Latency (p50/p95/p99)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ai_call_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_call_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(ai_call_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "yaxes": [
+        {"format": "s", "label": "latency"},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Domain Events / minute",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(domain_events_total[5m])) * 60",
+          "legendFormat": "events/min",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "short", "label": "events/min"},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Cache Hit Ratio (per family)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "cache_hit_ratio",
+          "legendFormat": "{{family}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "percentunit", "label": "hit ratio", "min": 0, "max": 1},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Process Memory (RSS)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes",
+          "legendFormat": "RSS",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "bytes", "label": "memory"},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Domain Errors (per minute)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [
+        {
+          "expr": "sum(rate(domain_errors_total[5m])) * 60",
+          "legendFormat": "{{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "short", "label": "errors/min"},
+        {"format": "short"}
+      ]
+    },
+    {
+      "id": 8,
+      "title": "GC Object Collections (per minute)",
+      "type": "graph",
+      "datasource": "${datasource}",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [
+        {
+          "expr": "sum(rate(python_gc_objects_collected_total[5m])) * 60",
+          "legendFormat": "gen {{generation}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        {"format": "short", "label": "objects/min"},
+        {"format": "short"}
+      ]
+    }
+  ]
+}
