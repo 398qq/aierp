@@ -24,6 +24,7 @@ import {
   getCommissions,
   createCommission,
   transitionCommission,
+  batchTransitionCommissions,
 } from "@/api/finance";
 import { numericStyle } from "@/design-tokens";
 import type { Commission, CommissionStatus } from "@/types";
@@ -65,6 +66,8 @@ function CommissionList() {
   const [statusFilter, setStatusFilter] = useState<CommissionStatus | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -114,6 +117,36 @@ function CommissionList() {
       void load();
     } catch (e) {
       message.error((e as Error).message ?? "状态流转失败");
+    }
+  };
+
+  const onBatchTransition = async (to: CommissionStatus, paidAmount?: number) => {
+    if (selectedRowKeys.length === 0) {
+      message.warning("请先勾选要操作的记录");
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const res = await batchTransitionCommissions({
+        ids: selectedRowKeys.map((k) => Number(k)),
+        to,
+        notes: "UI 批量触发",
+        ...(paidAmount !== undefined ? { paid_amount: paidAmount } : {}),
+      });
+      const { failed, summary } = res.data.data;
+      if (summary.failed > 0) {
+        message.warning(
+          `批量 ${STATUS_LABELS[to]}：成功 ${summary.succeeded}，失败 ${summary.failed}（${failed.map((f) => f.id).join(", ")}）`,
+        );
+      } else {
+        message.success(`批量 ${STATUS_LABELS[to]}：${summary.succeeded} 条全部成功`);
+      }
+      setSelectedRowKeys([]);
+      void load();
+    } catch (e) {
+      message.error((e as Error).message ?? "批量操作失败");
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -234,6 +267,43 @@ function CommissionList() {
         dataSource={data}
         loading={loading}
         scroll={{ x: 1200 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+          preserveSelectedRowKeys: true,
+        }}
+        title={() =>
+          selectedRowKeys.length > 0 ? (
+            <Space>
+              <span>已选 {selectedRowKeys.length} 条</span>
+              <Button
+                size="small"
+                onClick={() => void onBatchTransition("approved")}
+                loading={batchLoading}
+              >
+                批量审批
+              </Button>
+              <Button
+                size="small"
+                onClick={() => void onBatchTransition("rejected")}
+                loading={batchLoading}
+              >
+                批量拒绝
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => void onBatchTransition("paid")}
+                loading={batchLoading}
+              >
+                批量发放
+              </Button>
+              <Button size="small" type="text" onClick={() => setSelectedRowKeys([])}>
+                清除选择
+              </Button>
+            </Space>
+          ) : null
+        }
         pagination={{
           current: page,
           pageSize,

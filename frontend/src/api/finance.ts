@@ -128,3 +128,19 @@ export const transitionCommission = (
     to,
     reason,
   });
+
+/** Batch transition multiple commissions in one call (Stage 12 Day 2). */
+export const batchTransitionCommissions = (data: {
+  ids: number[];
+  to: Commission["status"];
+  notes?: string;
+  paid_amount?: number;
+}) =>
+  client.post<
+    APIResponse<{
+      ok: boolean;
+      succeeded: Array<{ id: number; to: string; from?: string }>;
+      failed: Array<{ id: number; error: string }>;
+      summary: { total: number; succeeded: number; failed: number };
+    }>
+  >(`/finance/commissions/batch-transition`, data);
