@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+import logging
 from pydantic import BaseModel, Field, field_validator
 import re
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from app.database import get_db
 from app.schemas.common import ok
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 # Login brute-force protection: dual-key (username + IP) backoff
 LOGIN_FAILED_USERNAME_PREFIX = "aierp:login_failed:user:"
@@ -120,27 +122,33 @@ async def login(
     # Block 1: per-username lockout (5 failures / 15min)
     # Block 2: per-IP lockout (20 failures / 30min) — catches credential-stuffing
     if r is not None:
-        for key, threshold, block_min, label in [
-            (
-                _username_blocked_key(username),
-                MAX_FAILED_ATTEMPTS,
-                BLOCK_DURATION_MINUTES,
-                "用户名",
-            ),
-            (
-                _ip_blocked_key(client_ip),
-                IP_BLOCK_THRESHOLD,
-                IP_BLOCK_DURATION_MINUTES,
-                "IP",
-            ),
-        ]:
-            count = await r.get(key)
-            if count is not None and int(count) >= threshold:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"该{label}登录失败次数过多，请在 {block_min} 分钟后重试",
-                    headers={"Retry-After": str(block_min * 60)},
-                )
+        try:
+            for key, threshold, block_min, label in [
+                (
+                    _username_blocked_key(username),
+                    MAX_FAILED_ATTEMPTS,
+                    BLOCK_DURATION_MINUTES,
+                    "用户名",
+                ),
+                (
+                    _ip_blocked_key(client_ip),
+                    IP_BLOCK_THRESHOLD,
+                    IP_BLOCK_DURATION_MINUTES,
+                    "IP",
+                ),
+            ]:
+                count = await r.get(key)
+                if count is not None and int(count) >= threshold:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"该{label}登录失败次数过多，请在 {block_min} 分钟后重试",
+                        headers={"Retry-After": str(block_min * 60)},
+                    )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("Login rate-limit check unavailable: %s", exc)
+            r = None
 
     # Authenticate
     result = await db.execute(

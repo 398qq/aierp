@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Debug customer list — capture the actual error."""
+import os
 from playwright.sync_api import sync_playwright
 
 FRONTEND = "http://localhost:3002"
+USERNAME = os.getenv("AIERP_LOGIN_USERNAME", "admin")
+PASSWORD = os.getenv("AIERP_LOGIN_PASSWORD", "admin123")
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -23,8 +26,8 @@ with sync_playwright() as p:
     }))
 
     page.goto(f"{FRONTEND}/login", wait_until="networkidle")
-    page.fill('input[type="text"]', "admin")
-    page.fill('input[type="password"]', "demo1234")
+    page.fill('input[type="text"]', USERNAME)
+    page.fill('input[type="password"]', PASSWORD)
     page.click('button[type="submit"]')
     page.wait_for_url(f"{FRONTEND}/", timeout=10000)
     page.wait_for_load_state("networkidle")

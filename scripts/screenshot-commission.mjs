@@ -10,6 +10,8 @@ const OUT_DIR = "/home/ttdiy/aierp/docs/screenshots";
 mkdirSync(OUT_DIR, { recursive: true });
 
 const FRONTEND = "http://localhost:3002";
+const USERNAME = process.env.AIERP_LOGIN_USERNAME ?? "admin";
+const PASSWORD = process.env.AIERP_LOGIN_PASSWORD ?? "admin123";
 
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({
@@ -26,8 +28,8 @@ console.log("  saved 01-login.png");
 
 // Login as admin
 console.log("→ login as admin");
-await page.fill('input[placeholder*="用户"], input[type="text"]', "admin");
-await page.fill('input[type="password"]', "demo1234");
+await page.fill('input[placeholder*="用户"], input[type="text"]', USERNAME);
+await page.fill('input[type="password"]', PASSWORD);
 await page.click('button[type="submit"]');
 await page.waitForURL(`${FRONTEND}/`, { timeout: 10000 });
 await page.waitForLoadState("networkidle");
