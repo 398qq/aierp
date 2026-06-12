@@ -1,0 +1,21 @@
+# CODEOWNERS — Stage 16
+#
+# 自动 review 分配规则。新 PR 改到对应路径 → 通知 owner review。
+# GitHub 自动处理，无需手动 @，但 owner 不会自动 approve（保持人工 review 价值）。
+#
+# 路径格式: <pattern>  <owner>
+# 注意: owner 必须是 GitHub 用户/团队名，本仓库 owner 是 398qq (个人仓库，没团队)
+#       实际效果: PR 会自动 assign 给 398qq 请求 review
+
+# 默认 owner — 所有文件
+*       @398qq
+
+# 核心安全文件 — 必须显式 review
+# 改动这几个会触发额外 review 要求
+/backend/app/core/security.py    @398qq
+/backend/app/core/rate_limit.py  @398qq
+/.env.example                    @398qq
+/scripts/                        @398qq
+/.github/                        @398qq
+/docs/                           @398qq
+/ALEMBIC_MIGRATIONS.md           @398qq

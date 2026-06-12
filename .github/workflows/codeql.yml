@@ -50,14 +50,10 @@ jobs:
           # - security-and-quality: 安全 + 代码质量 query
           config-file: .github/codeql/codeql-config.yml
 
+      # Perform CodeQL Analysis (v3 analyze step auto-uploads SARIF)
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
-
-      # 上传 SARIF 到 GitHub Security tab (可视化为 alert)
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          category: "/language:${{ matrix.language }}"
+      # (Stage 16 Day 3 fix: 去掉单独的 upload-sarif step — analyze 已自动 upload,
+      #  重复 upload-sarif 触发 "only one run per job per category" 报错)
