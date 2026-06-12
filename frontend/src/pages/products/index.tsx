@@ -5,13 +5,10 @@ import {
   Checkbox,
   Col,
   Descriptions,
-  Divider,
-  Drawer,
   Empty,
   Form,
   Input,
   InputNumber,
-  List,
   Modal,
   Popconfirm,
   Popover,
@@ -90,6 +87,7 @@ import {
 import { useProductTableColumns } from "./useProductTableColumns";
 import ProductHealthStrip from "./ProductHealthStrip";
 import ProductDetailDrawer from "./ProductDetailDrawer";
+import "./products.css";
 
 export default function ProductList() {
   const [data, setData] = useState<Product[]>([]);
@@ -150,6 +148,7 @@ export default function ProductList() {
     low_stock_count: 0,
     pending_completion_count: 0,
     stale_30d_count: 0,
+    no_supplier_count: 0,
   });
 
   const [form] = Form.useForm();
@@ -176,7 +175,7 @@ export default function ProductList() {
   ];
   const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
   const searchText = q.trim();
-  const activeProductTask: ProductTaskKey = searchText || scene !== "all" ? "all" : productTask;
+  const activeProductTask: ProductTaskKey = searchText ? "all" : productTask;
 
   const selectedProducts = useMemo(
     () => data.filter((item) => selectedRowKeys.includes(item.id)),
@@ -200,44 +199,106 @@ export default function ProductList() {
     if (task === "all") return true;
     if (task === "replenish") return stockState === "low";
     if (task === "out") return stockState === "out";
-    if (task === "complete") return (product.completion_score ?? 100) < 80 || Boolean(product.missing_fields?.length);
+    if (task === "complete")
+      return (product.completion_score ?? 100) < 80 || Boolean(product.missing_fields?.length);
     if (task === "stale") return staleDays == null || staleDays > 30;
     if (task === "no_supplier") return (product.supplier_count ?? 0) <= 0;
     if (task === "ai_search") return getProductPriorityScore(product) >= 65;
     return true;
   };
 
-  const filteredProducts = useMemo(
-    () => data
+  const filteredProducts = useMemo(() => {
+    if (activeProductTask !== "ai_search") return data;
+    return data
       .filter((item) => productMatchesTask(item, activeProductTask))
-      .sort((a, b) => getProductPriorityScore(b) - getProductPriorityScore(a)),
-    [activeProductTask, data],
-  );
+      .sort((a, b) => getProductPriorityScore(b) - getProductPriorityScore(a));
+  }, [activeProductTask, data]);
 
-  const productTaskItems = useMemo(() => [
-    { key: "replenish" as ProductTaskKey, label: PRODUCT_TASK_LABELS.replenish, count: stats.low_stock_count, color: "orange", note: "可用库存低于安全线" },
-    { key: "out" as ProductTaskKey, label: PRODUCT_TASK_LABELS.out, count: stats.out_of_stock_count, color: "red", note: "当前无可用库存" },
-    { key: "complete" as ProductTaskKey, label: PRODUCT_TASK_LABELS.complete, count: stats.pending_completion_count, color: "gold", note: "资料字段不完整" },
-    { key: "stale" as ProductTaskKey, label: PRODUCT_TASK_LABELS.stale, count: stats.stale_30d_count, color: "blue", note: "超过30天无销售" },
-    { key: "no_supplier" as ProductTaskKey, label: PRODUCT_TASK_LABELS.no_supplier, count: data.filter((item) => productMatchesTask(item, "no_supplier")).length, color: "purple", note: "未维护供应商" },
-    { key: "ai_search" as ProductTaskKey, label: PRODUCT_TASK_LABELS.ai_search, count: data.filter((item) => productMatchesTask(item, "ai_search")).length, color: "cyan", note: "综合优先级较高" },
-    { key: "all" as ProductTaskKey, label: PRODUCT_TASK_LABELS.all, count: stats.total, color: "default", note: "回到普通清单" },
-  ], [data, stats]);
+  const productTaskItems = useMemo(
+    () => [
+      {
+        key: "replenish" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.replenish,
+        count: stats.low_stock_count,
+        color: "orange",
+        note: "可用库存低于安全线",
+      },
+      {
+        key: "out" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.out,
+        count: stats.out_of_stock_count,
+        color: "red",
+        note: "当前无可用库存",
+      },
+      {
+        key: "complete" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.complete,
+        count: stats.pending_completion_count,
+        color: "gold",
+        note: "资料字段不完整",
+      },
+      {
+        key: "stale" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.stale,
+        count: stats.stale_30d_count,
+        color: "blue",
+        note: "超过30天无销售",
+      },
+      {
+        key: "no_supplier" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.no_supplier,
+        count: stats.no_supplier_count ?? 0,
+        color: "purple",
+        note: "未维护供应商",
+      },
+      {
+        key: "ai_search" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.ai_search,
+        count: data.filter((item) => productMatchesTask(item, "ai_search")).length,
+        color: "cyan",
+        note: "综合优先级较高",
+      },
+      {
+        key: "all" as ProductTaskKey,
+        label: PRODUCT_TASK_LABELS.all,
+        count: stats.total,
+        color: "default",
+        note: "回到普通清单",
+      },
+    ],
+    [data, stats],
+  );
 
   const tableProducts = useMemo(
-    () => aiSearchMode ? ((aiSearchResults ?? []) as unknown as Product[]) : filteredProducts,
+    () => (aiSearchMode ? ((aiSearchResults ?? []) as unknown as Product[]) : filteredProducts),
     [aiSearchMode, aiSearchResults, filteredProducts],
   );
+  const currentListTotal = aiSearchMode
+    ? tableProducts.length
+    : activeProductTask === "ai_search"
+      ? filteredProducts.length
+      : total;
+  const currentListTitle = searchText
+    ? "搜索结果"
+    : scene !== "all" && productTask === "all"
+      ? SCENE_OPTIONS.find((option) => option.value === scene)?.label || "产品清单"
+      : PRODUCT_TASK_LABELS[activeProductTask];
+  const activeBrand = brands.find((brand) => brand.id === brandId);
+  const activeBrandLabel = activeBrand ? getBrandSelectLabel(activeBrand) : String(brandId || "");
   const contextProduct = useMemo(
-    () => data.find((item) => item.id === contextProductId) || tableProducts[0] || null,
+    () =>
+      contextProductId == null
+        ? null
+        : data.find((item) => item.id === contextProductId) ||
+          tableProducts.find((item) => item.id === contextProductId) ||
+          null,
     [contextProductId, data, tableProducts],
   );
-  const contextStockState = contextProduct ? getStockState(contextProduct) : "in";
   const contextPriorityScore = contextProduct ? getProductPriorityScore(contextProduct) : 0;
   const contextSuggestedAction = contextProduct ? getProductSuggestedAction(contextProduct) : "";
   const healthMetrics = useMemo(() => {
     const totalCount = stats.total || 0;
-    const pct = (value: number) => totalCount > 0 ? Math.round((value / totalCount) * 100) : 0;
+    const pct = (value: number) => (totalCount > 0 ? Math.round((value / totalCount) * 100) : 0);
     return {
       inStockRate: pct(stats.in_stock_count),
       lowStockRate: pct(stats.low_stock_count),
@@ -325,7 +386,7 @@ export default function ProductList() {
     try {
       const r = await getBrands();
       const payload = r.data.data as Brand[] | { list?: Brand[] };
-      setBrands(Array.isArray(payload) ? payload : (payload.list || []));
+      setBrands(Array.isArray(payload) ? payload : payload.list || []);
     } catch {
       // no-op
     }
@@ -416,7 +477,9 @@ export default function ProductList() {
     }
     setBatchEditing(true);
     try {
-      const fields = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined && v !== null && v !== ""));
+      const fields = Object.fromEntries(
+        Object.entries(values).filter(([, v]) => v !== undefined && v !== null && v !== ""),
+      );
       await batchUpdateProducts(selectedRowKeys, fields);
       message.success(`批量更新成功：${selectedRowKeys.length} 个产品`);
       setBatchTaskModalOpen(false);
@@ -527,7 +590,11 @@ export default function ProductList() {
     setQuickActionOpen(true);
     setQuickActionLoading(true);
     try {
-      const invResp = await getProductInventories({ product_id: product.id, page: 1, page_size: 200 });
+      const invResp = await getProductInventories({
+        product_id: product.id,
+        page: 1,
+        page_size: 200,
+      });
       const invList = (invResp.data.data.list || []) as InventoryItem[];
       setQuickInventoryOptions(invList);
       if (!invList.length) {
@@ -585,14 +652,17 @@ export default function ProductList() {
     try {
       const resp = await aiParseProduct(aiText.trim());
       const parsed = resp.data.data as Record<string, unknown>;
-      const specsStr = parsed.specs && typeof parsed.specs === "object"
-        ? JSON.stringify(parsed.specs)
-        : String(parsed.specs || "");
+      const specsStr =
+        parsed.specs && typeof parsed.specs === "object"
+          ? JSON.stringify(parsed.specs)
+          : String(parsed.specs || "");
       let brandIdVal: number | undefined;
       const brandName = String(parsed.brand_name || "").toLowerCase();
       if (brandName) {
         const match = brands.find(
-          (b) => b.name.toLowerCase().includes(brandName) || (b.name_cn || "").toLowerCase().includes(brandName),
+          (b) =>
+            b.name.toLowerCase().includes(brandName) ||
+            (b.name_cn || "").toLowerCase().includes(brandName),
         );
         if (match) brandIdVal = match.id;
       }
@@ -690,7 +760,8 @@ export default function ProductList() {
     const fieldMap: Record<string, string> = { name: "name_asc", created_at: "created_at_asc" };
     const field = String(s.field);
     if (s.order === "ascend") setSort(fieldMap[field] || "created_at_asc");
-    else if (s.order === "descend") setSort(fieldMap[field]?.replace("_asc", "_desc") || "created_at_desc");
+    else if (s.order === "descend")
+      setSort(fieldMap[field]?.replace("_asc", "_desc") || "created_at_desc");
   };
 
   useEffect(() => {
@@ -740,213 +811,6 @@ export default function ProductList() {
 
   return (
     <div className="product-workbench-page">
-      <style>{`
-        .product-workbench-page {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .product-health-strip {
-          display: grid;
-          grid-template-columns: 1.45fr repeat(4, minmax(120px, .8fr));
-          gap: 10px;
-          align-items: stretch;
-        }
-        .product-health-main,
-        .product-health-metric {
-          background: #fff;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-        }
-        .product-health-main {
-          min-height: 118px;
-          padding: 16px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-        .product-health-title {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 700;
-          font-size: 18px;
-        }
-        .product-health-note {
-          margin-top: 6px;
-          color: rgba(0,0,0,.45);
-          font-size: 13px;
-          line-height: 20px;
-        }
-        .product-health-actions {
-          margin-top: 12px;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .product-health-metric {
-          min-height: 118px;
-          padding: 14px;
-          cursor: pointer;
-          transition: border-color .16s ease, box-shadow .16s ease;
-        }
-        .product-health-metric:hover {
-          border-color: #91caff;
-          box-shadow: 0 2px 8px rgba(22, 119, 255, .1);
-        }
-        .product-health-label {
-          display: block;
-          margin-bottom: 10px;
-          color: rgba(0,0,0,.45);
-          font-size: 12px;
-        }
-        .product-health-value {
-          display: flex;
-          align-items: baseline;
-          gap: 6px;
-          font-size: 24px;
-          font-weight: 700;
-          line-height: 1;
-        }
-        .product-health-value small {
-          color: rgba(0,0,0,.45);
-          font-size: 12px;
-          font-weight: 400;
-        }
-        .product-health-sub {
-          margin-top: 10px;
-          color: rgba(0,0,0,.45);
-          font-size: 12px;
-        }
-        .product-command-layout {
-          display: grid;
-          grid-template-columns: 220px minmax(0, 1fr) 280px;
-          gap: 12px;
-          align-items: start;
-        }
-        .product-command-sidebar,
-        .product-command-context {
-          position: sticky;
-          top: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .product-command-main {
-          min-width: 0;
-        }
-        .product-command-panel {
-          background: #fff;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-          overflow: hidden;
-        }
-        .product-command-panel-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          padding: 10px 12px;
-          border-bottom: 1px solid #f0f0f0;
-        }
-        .product-command-body {
-          padding: 12px;
-        }
-        .product-task-button {
-          display: block;
-          width: 100%;
-          padding: 9px 12px;
-          text-align: left;
-          background: transparent;
-          border: 0;
-          border-bottom: 1px solid #f5f5f5;
-          cursor: pointer;
-        }
-        .product-task-button:hover,
-        .product-task-button.is-active {
-          background: #f0f5ff;
-        }
-        .product-task-main,
-        .product-context-score {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-        }
-        .product-task-note,
-        .product-context-note {
-          margin-top: 4px;
-          color: #8c8c8c;
-          font-size: 12px;
-          line-height: 18px;
-        }
-        .product-context-score {
-          margin: 10px 0;
-          padding: 10px;
-          background: #fafafa;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-        }
-        .product-context-score-value {
-          color: #1677ff;
-          font-size: 26px;
-          font-weight: 650;
-          line-height: 1;
-        }
-        .product-context-action {
-          margin-top: 10px;
-          padding: 10px;
-          background: #fffbe6;
-          border: 1px solid #ffe58f;
-          border-radius: 8px;
-        }
-        .product-context-actions {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          margin-top: 10px;
-        }
-        .product-batch-bar {
-          position: sticky;
-          top: 8px;
-          z-index: 5;
-          margin-bottom: 12px;
-          padding: 10px 12px;
-          background: #f0f5ff;
-          border: 1px solid #adc6ff;
-          border-radius: 8px;
-        }
-        .product-row-selected td { background: #f0f5ff !important; }
-        .product-row-low td { background: #fffbe6 !important; }
-        .product-row-out td { background: #fff2f0 !important; }
-        @media (max-width: 1180px) {
-          .product-health-strip {
-            grid-template-columns: 1fr 1fr;
-          }
-          .product-health-main {
-            grid-column: 1 / -1;
-          }
-          .product-command-layout {
-            grid-template-columns: 1fr;
-          }
-          .product-command-sidebar,
-          .product-command-context {
-            position: static;
-          }
-          .product-context-actions {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-          }
-        }
-        @media (max-width: 768px) {
-          .product-health-strip {
-            grid-template-columns: 1fr;
-          }
-          .product-context-actions {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-      `}</style>
-
       <ProductHealthStrip
         stats={stats}
         statsLoading={statsLoading}
@@ -969,22 +833,27 @@ export default function ProductList() {
             <div className="product-command-panel-head">
               <Space size={6}>
                 <ThunderboltOutlined />
-                <span style={{ fontWeight: 600 }}>产品任务</span>
+                <span className="product-command-panel-title">产品任务</span>
               </Space>
-              <Button size="small" type="link" onClick={() => setAiSearchMode(true)}>AI搜索</Button>
+              <Button size="small" type="link" onClick={() => setAiSearchMode(true)}>
+                AI搜索
+              </Button>
             </div>
             {productTaskItems.map((item) => (
               <button
                 key={item.key}
                 type="button"
-              className={`product-task-button${productTask === item.key ? " is-active" : ""}`}
+                className={`product-task-button${productTask === item.key ? " is-active" : ""}`}
                 onClick={() => {
                   setProductTask(item.key);
                   setContextProductId(null);
                   setPage(1);
                   const nextScene = TASK_SCENE_MAP[item.key];
                   if (nextScene) setScene(nextScene);
-                  if (item.key === "ai_search") setAiSearchMode(true);
+                  if (item.key === "ai_search") {
+                    setScene("all");
+                    setAiSearchMode(true);
+                  }
                   if (item.key !== "ai_search" && aiSearchMode) {
                     setAiSearchMode(false);
                     setAiSearchResults(null);
@@ -992,7 +861,9 @@ export default function ProductList() {
                 }}
               >
                 <span className="product-task-main">
-                  <span style={{ fontWeight: productTask === item.key ? 600 : 400 }}>{item.label}</span>
+                  <span style={{ fontWeight: productTask === item.key ? 600 : 400 }}>
+                    {item.label}
+                  </span>
                   <StatusTag tone={item.color}>{item.count}</StatusTag>
                 </span>
                 <span className="product-task-note">{item.note}</span>
@@ -1002,337 +873,452 @@ export default function ProductList() {
 
           <div className="product-command-panel">
             <div className="product-command-panel-head">
-              <span style={{ fontWeight: 600 }}>库存快照</span>
+              <span className="product-command-panel-title">库存快照</span>
             </div>
-            <div className="product-command-body">
-              <Space size={[4, 6]} wrap>
-                <StatusTag tone="success">在库 {stats.in_stock_count}</StatusTag>
-                <StatusTag tone="warning">低库存 {stats.low_stock_count}</StatusTag>
-                <StatusTag tone="danger">缺货 {stats.out_of_stock_count}</StatusTag>
-                <StatusTag>待完善 {stats.pending_completion_count}</StatusTag>
-              </Space>
+            <div className="product-stock-snapshot">
+              <div>
+                <strong>{stats.in_stock_count}</strong>
+                <span>正常在库</span>
+              </div>
+              <div>
+                <strong>{stats.low_stock_count}</strong>
+                <span>低库存</span>
+              </div>
+              <div>
+                <strong>{stats.out_of_stock_count}</strong>
+                <span>缺货</span>
+              </div>
+              <div>
+                <strong>{stats.pending_completion_count}</strong>
+                <span>待完善</span>
+              </div>
             </div>
           </div>
         </aside>
 
         <main className="product-command-main">
-      <Card size="small" style={{ marginBottom: 12 }}>
-        <Row gutter={[10, 10]} align="middle">
-          <Col flex="420px">
-            <Input
-              placeholder={aiSearchMode ? "AI 语义搜索（如：高频放大器 贴片）" : "自然语言搜索（如：0402 10uF MLCC）"}
-              prefix={<SearchOutlined />}
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setProductTask("all");
-                setScene("all");
-                setPage(1);
-              }}
-              allowClear
-              suffix={(
-                <Tooltip title={aiSearchMode ? "切换普通搜索" : "切换 AI 语义搜索"}>
-                  <Button
-                    size="small"
-                    type={aiSearchMode ? "primary" : "default"}
-                    icon={<ThunderboltOutlined />}
-                    onClick={() => {
-                      setAiSearchMode((prev) => !prev);
-                      setPage(1);
-                      if (aiSearchMode) setAiSearchResults(null);
-                    }}
-                    style={{ marginLeft: 4 }}
-                  />
-                </Tooltip>
-              )}
-            />
-          </Col>
-          <Col>
-            <Segmented
-              options={SCENE_OPTIONS}
-              value={scene}
-              onChange={(v) => {
-                setScene(v as SceneValue);
-                setProductTask("all");
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col>
-            <Select
-              allowClear
-              placeholder="分类"
-              style={{ width: 120 }}
-              value={category}
-              onChange={(v) => {
-                setCategory(v);
-                setPage(1);
-              }}
-              options={CATEGORIES.map((v) => ({ value: v, label: v }))}
-            />
-          </Col>
-          <Col>
-            <Select
-              allowClear
-              placeholder="品牌"
-              style={{ width: 160 }}
-              value={brandId}
-              onChange={(v) => {
-                setBrandId(v);
-                setPage(1);
-              }}
-              options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
-            />
-          </Col>
-          <Col>
-            <Select
-              placeholder="库存状态"
-              style={{ width: 110 }}
-              value={stockStatus}
-              onChange={(v) => {
-                setStockStatus(v);
-                setPage(1);
-              }}
-              options={STOCK_OPTIONS}
-            />
-          </Col>
-          <Col>
-            <Select
-              value={sort}
-              onChange={(v) => {
-                setSort(v);
-                setPage(1);
-              }}
-              options={SORT_OPTIONS}
-              style={{ width: 110 }}
-            />
-          </Col>
-          <Col>
-            <Button icon={<ReloadOutlined />} onClick={resetAllFilters}>重置</Button>
-          </Col>
-        </Row>
-
-        <Row gutter={[10, 10]} style={{ marginTop: 8 }}>
-          <Col>
-            <Space>
-              <Select
-                value={activeSavedView || undefined}
-                allowClear
-                placeholder="保存视图"
-                style={{ width: 180 }}
-                onChange={(name) => {
-                  const nextName = name || "";
-                  setActiveSavedView(nextName);
-                  if (!nextName) {
-                    resetAllFilters();
-                    return;
+          <div className="product-filter-panel">
+            <div className="product-filter-primary">
+              <div className="product-filter-search">
+                <Input
+                  placeholder={
+                    aiSearchMode
+                      ? "AI 语义搜索（如：高频放大器 贴片）"
+                      : "自然语言搜索（如：0402 10uF MLCC）"
                   }
-                  const view = savedViews.find((v) => v.name === nextName);
-                  if (view) applySavedView(view);
-                }}
-                options={savedViews.map((v) => ({ label: v.name, value: v.name }))}
-              />
-              <Button icon={<SaveOutlined />} onClick={openSaveCurrentView}>保存当前视图</Button>
-              {activeSavedView && (
-                <Popconfirm title={`删除视图「${activeSavedView}」？`} onConfirm={deleteCurrentView}>
-                  <Button danger>删除视图</Button>
-                </Popconfirm>
-              )}
-            </Space>
-          </Col>
-          <Col flex="auto" />
-          <Col>
-            <Space>
-              <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExportAll}>导出</Button>
-              <Popover
-                content={(
-                  <Checkbox.Group
-                    options={allColKeys.map((k) => ({ label: COL_LABEL_MAP[k] || k, value: k }))}
-                    value={visibleCols}
-                    onChange={(vals) => setVisibleCols(vals as string[])}
-                  />
-                )}
-                title="显示列"
-                trigger="click"
-              >
-                <Button icon={<SettingOutlined />}>列</Button>
-              </Popover>
-              <Button icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>AI 解析</Button>
-              <Button icon={<FileTextOutlined />} onClick={() => setBomModalOpen(true)}>BOM 导入</Button>
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建产品</Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
-
-      {selectedRowKeys.length > 0 && !aiSearchMode && (
-        <div className="product-batch-bar">
-          <Space wrap>
-            <StatusTag tone="info">已选 {selectedRowKeys.length} 个产品</StatusTag>
-            <StatusTag>在库 {selectedMetrics.inStock}</StatusTag>
-            <StatusTag tone="warning">低库存 {selectedMetrics.lowStock}</StatusTag>
-            <StatusTag tone="danger">缺货 {selectedMetrics.outOfStock}</StatusTag>
-            <Button icon={<SettingOutlined />} onClick={() => { setBatchTaskType("update"); setBatchTaskConfirm(false); batchEditForm.resetFields(); setBatchTaskModalOpen(true); }}>批量任务面板</Button>
-            <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
-          </Space>
-        </div>
-      )}
-
-      <Card bodyStyle={{ padding: 0 }}>
-        <Table
-          rowKey="id"
-          columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
-          dataSource={tableProducts}
-          loading={aiSearchMode ? aiSearching : loading}
-          size="middle"
-          tableLayout="auto"
-          onChange={handleTableChange}
-          rowSelection={
-            aiSearchMode
-              ? undefined
-              : {
-                  selectedRowKeys,
-                  onChange: (keys) => setSelectedRowKeys(keys as number[]),
-                }
-          }
-          rowClassName={(record) => {
-            if (contextProduct?.id === record.id) return "product-row-selected";
-            const state = getStockState(record);
-            if (state === "low") return "product-row-low";
-            if (state === "out") return "product-row-out";
-            return "";
-          }}
-          onRow={(record) => ({
-            onClick: () => setContextProductId(record.id),
-          })}
-          locale={{
-            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={aiSearchMode ? "未命中语义搜索结果" : "暂无产品数据"} />,
-          }}
-          scroll={{ x: 1850 }}
-          pagination={
-            aiSearchMode
-              ? false
-              : {
-                  current: page,
-                  pageSize: PAGE_SIZE,
-                  total: activeProductTask !== "all" ? filteredProducts.length : total,
-                  showTotal: (count) => `共 ${count} 条`,
-                  showSizeChanger: false,
-                }
-          }
-        />
-      </Card>
-
-      {selectedRowKeys.length >= 2 && !aiSearchMode && (
-        <Card
-          title={`产品对比（${selectedRowKeys.length} 个）`}
-          extra={<Button size="small" onClick={() => setSelectedRowKeys([])}>清除选择</Button>}
-          style={{ marginTop: 16 }}
-          size="small"
-        >
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            dataSource={selectedProducts}
-            columns={[
-              { title: "SKU", dataIndex: "sku", width: 100 },
-              { title: "产品名称", dataIndex: "name", width: 160 },
-              { title: "分类", dataIndex: "category", width: 80 },
-              { title: "封装", dataIndex: "package_type", width: 80 },
-              { title: "规格", dataIndex: "specs", ellipsis: true, width: 150 },
-              { title: "品牌", dataIndex: "brand_name", width: 100 },
-              { title: "完整度", dataIndex: "completion_score", width: 80, render: (v: number | null) => `${v ?? 0}%` },
-              { title: "供应商", dataIndex: "supplier_count", width: 70 },
-              { title: "分仓", dataIndex: "inventory_location_count", width: 60 },
-              { title: "库存", dataIndex: "quantity", width: 60 },
-              { title: "可用", dataIndex: "available", width: 60, render: (_: number, r: Product) => getAvailableQty(r) },
-              { title: "安全库存", dataIndex: "safety_stock", width: 80 },
-              { title: "单价", dataIndex: "unit_price", width: 80, render: (v: number | null) => (v != null ? `¥${v.toFixed(2)}` : "-") },
-            ]}
-            scroll={{ x: true }}
-            style={{ overflowX: "auto" }}
-          />
-        </Card>
-      )}
-        </main>
-
-        <aside className="product-command-context">
-          <div className="product-command-panel">
-            <div className="product-command-panel-head">
-              <Space size={6}>
-                <InboxOutlined />
-                <span style={{ fontWeight: 600 }}>产品上下文</span>
-              </Space>
-              {contextProduct && (
-                <StatusTag tone={contextStockState === "out" ? "danger" : contextStockState === "low" ? "warning" : "success"}>
-                  {contextStockState === "out" ? "缺货" : contextStockState === "low" ? "低库存" : "在库"}
-                </StatusTag>
-              )}
-            </div>
-            {!contextProduct ? (
-              <div className="product-command-body">
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择产品查看上下文" />
+                  prefix={<SearchOutlined />}
+                  value={q}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setProductTask("all");
+                    setScene("all");
+                    setPage(1);
+                  }}
+                  allowClear
+                  suffix={
+                    <Tooltip title={aiSearchMode ? "切换普通搜索" : "切换 AI 语义搜索"}>
+                      <Button
+                        size="small"
+                        type={aiSearchMode ? "primary" : "default"}
+                        icon={<ThunderboltOutlined />}
+                        onClick={() => {
+                          setAiSearchMode((prev) => !prev);
+                          setPage(1);
+                          if (aiSearchMode) setAiSearchResults(null);
+                        }}
+                        style={{ marginLeft: 4 }}
+                      />
+                    </Tooltip>
+                  }
+                />
               </div>
-            ) : (
-              <div className="product-command-body">
-                <a style={{ fontWeight: 600 }} onClick={() => openDetail(contextProduct)}>{contextProduct.name}</a>
-                <div className="product-context-note">
-                  {[contextProduct.sku, contextProduct.brand_name, contextProduct.category, contextProduct.package_type].filter(Boolean).join(" / ") || "暂无基础信息"}
-                </div>
-                <div className="product-context-score">
-                  <div>
-                    <span style={{ color: "#8c8c8c" }}>AI优先级</span>
-                    <div className="product-context-note">按库存、资料、供应商、动销计算</div>
-                  </div>
-                  <div className="product-context-score-value">{contextPriorityScore}</div>
-                </div>
-                <Space size={[4, 6]} wrap>
-                  <StatusTag tone={contextStockState === "out" ? "danger" : contextStockState === "low" ? "warning" : "success"}>
-                    可用 {getAvailableQty(contextProduct)}
-                  </StatusTag>
-                  <StatusTag>安全库存 {contextProduct.safety_stock ?? "-"}</StatusTag>
-                  <StatusTag>供应商 {contextProduct.supplier_count ?? 0}</StatusTag>
-                  <StatusTag>完整度 {contextProduct.completion_score ?? 0}%</StatusTag>
-                </Space>
-                <div className="product-context-action">
-                  <span style={{ fontWeight: 600 }}>推荐动作</span>
-                  <div className="product-context-note">{contextSuggestedAction}</div>
-                </div>
-                <Descriptions column={1} size="small" style={{ marginTop: 10 }}>
-                  <Descriptions.Item label="规格">{contextProduct.specs || "-"}</Descriptions.Item>
-                  <Descriptions.Item label="最近销售">{formatDateTime(contextProduct.last_sale_at)}</Descriptions.Item>
-                  <Descriptions.Item label="分仓">{contextProduct.inventory_location_count ?? 0}</Descriptions.Item>
-                  <Descriptions.Item label="单价">{contextProduct.unit_price != null ? `¥${contextProduct.unit_price.toFixed(2)}` : "-"}</Descriptions.Item>
-                </Descriptions>
-                {contextProduct.missing_fields?.length ? (
-                  <div className="product-context-note">缺少：{contextProduct.missing_fields.join("、")}</div>
-                ) : null}
-                <div className="product-context-actions">
-                  <Button size="small" type="primary" icon={<EyeOutlined />} onClick={() => openDetail(contextProduct)}>详情</Button>
-                  <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(contextProduct)}>编辑</Button>
-                  <Button size="small" onClick={() => openQuickAction(contextProduct, "price")}>改价</Button>
-                  <Button size="small" onClick={() => openQuickAction(contextProduct, "safety")}>安库</Button>
-                </div>
+              <div className="product-filter-fields">
+                <Segmented
+                  options={SCENE_OPTIONS}
+                  value={scene}
+                  onChange={(v) => {
+                    setScene(v as SceneValue);
+                    setProductTask("all");
+                    setPage(1);
+                  }}
+                />
+                <Select
+                  allowClear
+                  placeholder="分类"
+                  style={{ width: 116 }}
+                  value={category}
+                  onChange={(v) => {
+                    setCategory(v);
+                    setPage(1);
+                  }}
+                  options={CATEGORIES.map((v) => ({ value: v, label: v }))}
+                />
+                <Select
+                  allowClear
+                  placeholder="品牌"
+                  style={{ width: 148 }}
+                  value={brandId}
+                  onChange={(v) => {
+                    setBrandId(v);
+                    setPage(1);
+                  }}
+                  options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
+                />
+                <Select
+                  placeholder="库存状态"
+                  style={{ width: 108 }}
+                  value={stockStatus}
+                  onChange={(v) => {
+                    setStockStatus(v);
+                    setPage(1);
+                  }}
+                  options={STOCK_OPTIONS}
+                />
+                <Select
+                  value={sort}
+                  onChange={(v) => {
+                    setSort(v);
+                    setPage(1);
+                  }}
+                  options={SORT_OPTIONS}
+                  style={{ width: 108 }}
+                />
+              </div>
+            </div>
+
+            <div className="product-filter-secondary">
+              <div className="product-filter-views">
+                <Select
+                  value={activeSavedView || undefined}
+                  allowClear
+                  placeholder="选择保存视图"
+                  style={{ width: 168 }}
+                  onChange={(name) => {
+                    const nextName = name || "";
+                    setActiveSavedView(nextName);
+                    if (!nextName) {
+                      resetAllFilters();
+                      return;
+                    }
+                    const view = savedViews.find((v) => v.name === nextName);
+                    if (view) applySavedView(view);
+                  }}
+                  options={savedViews.map((v) => ({ label: v.name, value: v.name }))}
+                />
+                <Button icon={<SaveOutlined />} onClick={openSaveCurrentView}>
+                  保存视图
+                </Button>
+                {activeSavedView && (
+                  <Popconfirm
+                    title={`删除视图「${activeSavedView}」？`}
+                    onConfirm={deleteCurrentView}
+                  >
+                    <Button danger type="text">
+                      删除
+                    </Button>
+                  </Popconfirm>
+                )}
+              </div>
+              <div className="product-filter-actions">
+                <Button icon={<ReloadOutlined />} onClick={resetAllFilters}>
+                  重置筛选
+                </Button>
+                <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
+                  导入
+                </Button>
+                <Button icon={<DownloadOutlined />} onClick={handleExportAll}>
+                  导出
+                </Button>
+                <Popover
+                  content={
+                    <Checkbox.Group
+                      options={allColKeys.map((k) => ({ label: COL_LABEL_MAP[k] || k, value: k }))}
+                      value={visibleCols}
+                      onChange={(vals) => setVisibleCols(vals as string[])}
+                    />
+                  }
+                  title="显示列"
+                  trigger="click"
+                >
+                  <Button icon={<SettingOutlined />}>显示列</Button>
+                </Popover>
+              </div>
+            </div>
+            {(searchText ||
+              scene !== "all" ||
+              category ||
+              brandId ||
+              stockStatus ||
+              aiSearchMode) && (
+              <div className="product-active-filters">
+                <span>已生效：</span>
+                {searchText && (
+                  <Tag closable onClose={() => setQ("")}>
+                    关键词：{searchText}
+                  </Tag>
+                )}
+                {scene !== "all" && (
+                  <Tag
+                    closable
+                    onClose={() => {
+                      setScene("all");
+                      setProductTask("all");
+                      setPage(1);
+                    }}
+                  >
+                    场景：
+                    {SCENE_OPTIONS.find((option) => option.value === scene)?.label ||
+                      PRODUCT_TASK_LABELS[productTask]}
+                  </Tag>
+                )}
+                {category && (
+                  <Tag closable onClose={() => setCategory(undefined)}>
+                    分类：{category}
+                  </Tag>
+                )}
+                {brandId && (
+                  <Tag closable onClose={() => setBrandId(undefined)}>
+                    品牌：{activeBrandLabel}
+                  </Tag>
+                )}
+                {stockStatus && (
+                  <Tag closable onClose={() => setStockStatus(undefined)}>
+                    库存：
+                    {STOCK_OPTIONS.find((option) => option.value === stockStatus)?.label ||
+                      stockStatus}
+                  </Tag>
+                )}
+                {aiSearchMode && (
+                  <Tag
+                    color="purple"
+                    closable
+                    onClose={() => {
+                      setAiSearchMode(false);
+                      setAiSearchResults(null);
+                    }}
+                  >
+                    AI 语义搜索
+                  </Tag>
+                )}
+                <Button type="link" size="small" onClick={resetAllFilters}>
+                  清除全部
+                </Button>
               </div>
             )}
           </div>
 
-          <div className="product-command-panel">
-            <div className="product-command-panel-head">
-              <span style={{ fontWeight: 600 }}>智能工具</span>
-            </div>
-            <div className="product-command-body">
-              <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                <Button block size="small" icon={<ThunderboltOutlined />} onClick={() => setAiModalOpen(true)}>AI解析产品</Button>
-                <Button block size="small" icon={<FileTextOutlined />} onClick={() => setBomModalOpen(true)}>BOM导入</Button>
-                <Button block size="small" icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>批量导入</Button>
-                <Button block size="small" icon={<DownloadOutlined />} onClick={handleExportAll}>导出当前页</Button>
+          {selectedRowKeys.length > 0 && !aiSearchMode && (
+            <div className="product-batch-bar">
+              <Space wrap>
+                <StatusTag tone="info">已选 {selectedRowKeys.length} 个产品</StatusTag>
+                <StatusTag>在库 {selectedMetrics.inStock}</StatusTag>
+                <StatusTag tone="warning">低库存 {selectedMetrics.lowStock}</StatusTag>
+                <StatusTag tone="danger">缺货 {selectedMetrics.outOfStock}</StatusTag>
+              </Space>
+              <Space wrap>
+                <Button
+                  icon={<SettingOutlined />}
+                  onClick={() => {
+                    setBatchTaskType("update");
+                    setBatchTaskConfirm(false);
+                    batchEditForm.resetFields();
+                    setBatchTaskModalOpen(true);
+                  }}
+                >
+                  批量任务面板
+                </Button>
+                <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
               </Space>
             </div>
+          )}
+
+          {contextProduct && (
+            <div className="product-context-strip">
+              <div className="product-context-identity">
+                <a className="product-context-name" onClick={() => openDetail(contextProduct)}>
+                  {contextProduct.name}
+                </a>
+                <span className="product-context-meta">
+                  {[
+                    contextProduct.sku,
+                    contextProduct.brand_name,
+                    contextProduct.category,
+                    contextProduct.package_type,
+                  ]
+                    .filter(Boolean)
+                    .join(" / ") || "暂无基础信息"}
+                </span>
+              </div>
+              <div className="product-context-stat">
+                <strong>{getAvailableQty(contextProduct)}</strong>
+                <span>可用库存</span>
+              </div>
+              <div className="product-context-stat">
+                <strong>{contextProduct.safety_stock ?? "-"}</strong>
+                <span>安全库存</span>
+              </div>
+              <div className="product-context-stat">
+                <strong>{contextProduct.supplier_count ?? 0}</strong>
+                <span>供应商</span>
+              </div>
+              <div className="product-context-stat">
+                <strong>{contextPriorityScore}</strong>
+                <span>处理优先级</span>
+              </div>
+              <div className="product-context-recommendation">
+                <span>建议动作</span>
+                <strong>{contextSuggestedAction}</strong>
+              </div>
+              <div className="product-context-buttons">
+                <Tooltip title="查看详情">
+                  <Button
+                    type="text"
+                    icon={<EyeOutlined />}
+                    onClick={() => openDetail(contextProduct)}
+                  />
+                </Tooltip>
+                <Tooltip title="编辑产品">
+                  <Button
+                    type="text"
+                    icon={<EditOutlined />}
+                    onClick={() => openEdit(contextProduct)}
+                  />
+                </Tooltip>
+                <Tooltip title="快捷改价">
+                  <Button type="text" onClick={() => openQuickAction(contextProduct, "price")}>
+                    改价
+                  </Button>
+                </Tooltip>
+                <Tooltip title="修改安全库存">
+                  <Button type="text" onClick={() => openQuickAction(contextProduct, "safety")}>
+                    安库
+                  </Button>
+                </Tooltip>
+              </div>
+            </div>
+          )}
+
+          <div className="product-table-panel">
+            <div className="product-table-header">
+              <div className="product-table-title">
+                <strong>{aiSearchMode ? "AI 搜索结果" : currentListTitle}</strong>
+                <span>共 {currentListTotal} 条产品</span>
+              </div>
+              <Space size={6}>
+                {aiSearchMode && <StatusTag tone="processing">语义搜索</StatusTag>}
+                <Button
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    fetch();
+                    loadStats();
+                  }}
+                >
+                  刷新
+                </Button>
+              </Space>
+            </div>
+            <Table
+              rowKey="id"
+              columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+              dataSource={tableProducts}
+              loading={aiSearchMode ? aiSearching : loading}
+              size="small"
+              tableLayout="fixed"
+              onChange={handleTableChange}
+              rowSelection={
+                aiSearchMode
+                  ? undefined
+                  : {
+                      selectedRowKeys,
+                      onChange: (keys) => setSelectedRowKeys(keys as number[]),
+                    }
+              }
+              rowClassName={(record) => {
+                if (contextProduct?.id === record.id) return "product-row-selected";
+                const state = getStockState(record);
+                if (state === "low") return "product-row-low";
+                if (state === "out") return "product-row-out";
+                return "";
+              }}
+              onRow={(record) => ({
+                onClick: () => setContextProductId(record.id),
+              })}
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={aiSearchMode ? "未命中语义搜索结果" : "暂无产品数据"}
+                  />
+                ),
+              }}
+              scroll={{ x: 1850 }}
+              pagination={
+                aiSearchMode
+                  ? false
+                  : {
+                      current: page,
+                      pageSize: PAGE_SIZE,
+                      total: currentListTotal,
+                      showTotal: (count) => `共 ${count} 条`,
+                      showSizeChanger: false,
+                    }
+              }
+            />
           </div>
-        </aside>
+
+          {selectedRowKeys.length >= 2 && !aiSearchMode && (
+            <Card
+              className="product-compare-panel"
+              title={`产品对比（${selectedRowKeys.length} 个）`}
+              extra={
+                <Button size="small" onClick={() => setSelectedRowKeys([])}>
+                  清除选择
+                </Button>
+              }
+              size="small"
+            >
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                dataSource={selectedProducts}
+                columns={[
+                  { title: "SKU", dataIndex: "sku", width: 100 },
+                  { title: "产品名称", dataIndex: "name", width: 160 },
+                  { title: "分类", dataIndex: "category", width: 80 },
+                  { title: "封装", dataIndex: "package_type", width: 80 },
+                  { title: "规格", dataIndex: "specs", ellipsis: true, width: 150 },
+                  { title: "品牌", dataIndex: "brand_name", width: 100 },
+                  {
+                    title: "完整度",
+                    dataIndex: "completion_score",
+                    width: 80,
+                    render: (v: number | null) => `${v ?? 0}%`,
+                  },
+                  { title: "供应商", dataIndex: "supplier_count", width: 70 },
+                  { title: "分仓", dataIndex: "inventory_location_count", width: 60 },
+                  { title: "库存", dataIndex: "quantity", width: 60 },
+                  {
+                    title: "可用",
+                    dataIndex: "available",
+                    width: 60,
+                    render: (_: number, r: Product) => getAvailableQty(r),
+                  },
+                  { title: "安全库存", dataIndex: "safety_stock", width: 80 },
+                  {
+                    title: "单价",
+                    dataIndex: "unit_price",
+                    width: 80,
+                    render: (v: number | null) => (v != null ? `¥${v.toFixed(2)}` : "-"),
+                  },
+                ]}
+                scroll={{ x: true }}
+                style={{ overflowX: "auto" }}
+              />
+            </Card>
+          )}
+        </main>
       </div>
 
       <Modal
@@ -1344,24 +1330,56 @@ export default function ProductList() {
       >
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Row gutter={12}>
-            <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="sku" label="SKU"><Input /></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="sku" label="SKU">
+                <Input />
+              </Form.Item>
+            </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={8}><Form.Item name="category" label="分类"><Input /></Form.Item></Col>
-            <Col span={8}><Form.Item name="package_type" label="封装"><Input /></Form.Item></Col>
-            <Col span={8}><Form.Item name="unit" label="单位"><Input /></Form.Item></Col>
+            <Col span={8}>
+              <Form.Item name="category" label="分类">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="package_type" label="封装">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="unit" label="单位">
+                <Input />
+              </Form.Item>
+            </Col>
           </Row>
-          <Form.Item name="specs" label="规格"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="specs" label="规格">
+            <Input.TextArea rows={2} />
+          </Form.Item>
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="brand_id" label="品牌">
-                <Select allowClear placeholder="选择品牌" options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))} />
+                <Select
+                  allowClear
+                  placeholder="选择品牌"
+                  options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
+                />
               </Form.Item>
             </Col>
-            <Col span={12}><Form.Item name="image_url" label="图片URL"><Input /></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item name="image_url" label="图片URL">
+                <Input />
+              </Form.Item>
+            </Col>
           </Row>
-          <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="notes" label="备注">
+            <Input.TextArea rows={2} />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1395,7 +1413,11 @@ export default function ProductList() {
               <Row gutter={12}>
                 <Col span={12}>
                   <Form.Item name="brand_id" label="品牌">
-                    <Select allowClear placeholder="保持不变" options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))} />
+                    <Select
+                      allowClear
+                      placeholder="保持不变"
+                      options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -1426,13 +1448,18 @@ export default function ProductList() {
           )}
 
           {batchTaskType === "delete" && (
-            <StatusTag tone="danger">该任务将删除 {selectedRowKeys.length} 条产品记录（软删除）</StatusTag>
+            <StatusTag tone="danger">
+              该任务将删除 {selectedRowKeys.length} 条产品记录（软删除）
+            </StatusTag>
           )}
           {batchTaskType === "export" && (
             <StatusTag tone="info">将导出 {selectedRowKeys.length} 条已选产品记录</StatusTag>
           )}
 
-          <Checkbox checked={batchTaskConfirm} onChange={(e) => setBatchTaskConfirm(e.target.checked)}>
+          <Checkbox
+            checked={batchTaskConfirm}
+            onChange={(e) => setBatchTaskConfirm(e.target.checked)}
+          >
             我已确认本次任务影响范围
           </Checkbox>
         </Space>
@@ -1499,10 +1526,14 @@ export default function ProductList() {
         confirmLoading={aiParsing}
         okText="解析并填充表单"
       >
-        <p style={{ color: "#888", marginBottom: 8 }}>粘贴料号、型号、数据手册描述或供应商报价文本，AI 自动提取产品信息</p>
+        <p style={{ color: "#888", marginBottom: 8 }}>
+          粘贴料号、型号、数据手册描述或供应商报价文本，AI 自动提取产品信息
+        </p>
         <Input.TextArea
           rows={6}
-          placeholder={"例如：\nSamsung CL05A105KP5NNNC\n0402 1uF ±10% 10V X5R MLCC\n原装正品，整盘4000PCS"}
+          placeholder={
+            "例如：\nSamsung CL05A105KP5NNNC\n0402 1uF ±10% 10V X5R MLCC\n原装正品，整盘4000PCS"
+          }
           value={aiText}
           onChange={(e) => setAiText(e.target.value)}
         />
@@ -1516,10 +1547,14 @@ export default function ProductList() {
         confirmLoading={bomParsing}
         okText="解析并创建产品"
       >
-        <p style={{ color: "#888", marginBottom: 8 }}>粘贴 BOM 清单，AI 逐行解析并自动创建产品。支持多行粘贴。</p>
+        <p style={{ color: "#888", marginBottom: 8 }}>
+          粘贴 BOM 清单，AI 逐行解析并自动创建产品。支持多行粘贴。
+        </p>
         <Input.TextArea
           rows={10}
-          placeholder={"例如：\n1 GRM155R61A105KE15 1uF 16V 0402 X5R 10% 100pcs\n2 CL05A105KP5NNNC 1uF 10V 0402 X5R 10% 200pcs"}
+          placeholder={
+            "例如：\n1 GRM155R61A105KE15 1uF 16V 0402 X5R 10% 100pcs\n2 CL05A105KP5NNNC 1uF 10V 0402 X5R 10% 200pcs"
+          }
           value={bomText}
           onChange={(e) => setBomText(e.target.value)}
         />
@@ -1538,7 +1573,8 @@ export default function ProductList() {
         width={480}
       >
         <p style={{ color: "#888", marginBottom: 16 }}>
-          支持 CSV / XLSX 文件，列：<code>name, sku, category, brand, package_type, specs, unit, notes</code>
+          支持 CSV / XLSX 文件，列：
+          <code>name, sku, category, brand, package_type, specs, unit, notes</code>
         </p>
         <input
           type="file"
@@ -1553,8 +1589,26 @@ export default function ProductList() {
           style={{ fontSize: 12, color: "#1677ff" }}
           onClick={(e) => {
             e.preventDefault();
-            const headers = ["name", "sku", "category", "brand", "package_type", "specs", "unit", "notes"];
-            const sample = ["8658B传感器", "8658B", "传感器", "QST", "BGA", "原装正品", "pcs", "导入备注"];
+            const headers = [
+              "name",
+              "sku",
+              "category",
+              "brand",
+              "package_type",
+              "specs",
+              "unit",
+              "notes",
+            ];
+            const sample = [
+              "8658B传感器",
+              "8658B",
+              "传感器",
+              "QST",
+              "BGA",
+              "原装正品",
+              "pcs",
+              "导入备注",
+            ];
             const csv = [headers, sample].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
             const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
             const url = URL.createObjectURL(blob);

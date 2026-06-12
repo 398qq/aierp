@@ -63,7 +63,7 @@ async def list_products(
     brand_id: int | None = None,
     scene: str | None = Query(
         None,
-        description="all | in_stock | out_of_stock | low_stock | pending_completion | stale_30d",
+        description="all | in_stock | out_of_stock | low_stock | pending_completion | stale_30d | no_supplier",
     ),
     stock_status: str | None = Query(
         None, description="in_stock | out_of_stock | low_stock"

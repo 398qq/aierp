@@ -1,21 +1,120 @@
-import { useEffect, useRef, useState } from "react";
-import { Row, Col, Card, Flex, Statistic, Typography, Table, Spin, Tag, Timeline, Button, List, Progress, Collapse, Empty, Space, Badge, Drawer, Switch } from "antd";
-import { StatusTag } from "../../ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  TeamOutlined, ThunderboltOutlined, CalendarOutlined, ReloadOutlined, AimOutlined, WarningOutlined, SettingOutlined,
+  Badge,
+  Button,
+  Card,
+  Collapse,
+  Drawer,
+  Empty,
+  Flex,
+  List,
+  Progress,
+  Space,
+  Spin,
+  Switch,
+  Table,
+  Tabs,
+  Tag,
+  Timeline,
+  Typography,
+} from "antd";
+import {
+  AimOutlined,
+  ArrowRightOutlined,
+  CalendarOutlined,
+  DollarOutlined,
+  ReloadOutlined,
+  RobotOutlined,
+  SettingOutlined,
+  ShopOutlined,
+  StockOutlined,
+  TeamOutlined,
+  ThunderboltOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useNavigate } from "react-router-dom";
+import {
+  getDailyReport,
+  getDashboardStats,
+  getKpi,
+  getOverdueFollowUps,
+  getRecentActivity,
+  getUpcomingVisits,
+  getWidgets,
+  orchestrateGlobal360,
+  saveWidgets,
+} from "../../api";
 import { useAuthStore } from "../../store/auth";
-import { getDashboardStats, getUpcomingVisits, getRecentActivity, getOverdueFollowUps, orchestrateGlobal360, getDailyReport, getKpi, getWidgets, saveWidgets } from "../../api";
-import type { DashboardStats, DashboardWidget, Visit, CustomerLog, Global360, OverdueFollowUp, DailyReport, KpiData } from "../../types";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import type {
+  CustomerLog,
+  DailyReport,
+  DashboardStats,
+  DashboardWidget,
+  Global360,
+  KpiData,
+  OverdueFollowUp,
+  Visit,
+} from "../../types";
+import { StatusTag } from "../../ui";
+import "./dashboard.css";
 
-const { Title, Text, Paragraph } = Typography;
-const COLORS = ["#1890ff", "#52c41a", "#faad14", "#ff4d4f", "#722ed1", "#13c2c2"];
+const { Paragraph, Text, Title } = Typography;
+const CHART_COLORS = ["#533afd", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const EMPTY_STATS: DashboardStats = {
+  total: 0,
+  by_industry: [],
+  by_level: [],
+  by_region: [],
+  by_source: [],
+  by_type: [],
+  monthly: [],
+};
 
-const EMPTY_STATS: DashboardStats = { total: 0, by_industry: [], by_level: [], by_region: [], by_source: [], by_type: [], monthly: [] };
+const DEFAULT_WIDGETS: Record<string, { title: string; enabled: boolean }> = {
+  kpi_overview: { title: "KPI 概览", enabled: true },
+  customer_stats: { title: "客户统计", enabled: true },
+  industry_chart: { title: "行业与等级分布", enabled: true },
+  monthly_trend: { title: "月度新增趋势", enabled: true },
+  overdue_followups: { title: "逾期跟进", enabled: true },
+  upcoming_visits: { title: "拜访计划", enabled: true },
+  recent_activity: { title: "最近动态", enabled: true },
+  global_360: { title: "AI 全局诊断", enabled: true },
+  daily_report: { title: "每日经营报告", enabled: true },
+};
+
+const money = (value: number) =>
+  new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "CNY",
+    maximumFractionDigits: 0,
+    notation: Math.abs(value) >= 1000000 ? "compact" : "standard",
+  }).format(value || 0);
+
+const shortDate = (value?: string | null) => value?.slice(0, 10) || "-";
+
+function openAiAssistant() {
+  const button =
+    document.querySelector<HTMLElement>('[class*="floating"]') ||
+    document.querySelector<HTMLElement>('button[style*="position: fixed"][style*="bottom"]');
+  button?.click();
+}
 
 export default function Dashboard() {
-  const username = useAuthStore((s) => s.username);
+  const navigate = useNavigate();
+  const username = useAuthStore((state) => state.username);
+  const initializedRef = useRef(false);
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [upcomingVisits, setUpcomingVisits] = useState<Visit[]>([]);
   const [recentActivity, setRecentActivity] = useState<CustomerLog[]>([]);
@@ -26,63 +125,36 @@ export default function Dashboard() {
   const [dailyReport, setDailyReport] = useState<DailyReport | null>(null);
   const [drLoading, setDrLoading] = useState(false);
   const [kpi, setKpi] = useState<KpiData | null>(null);
-  const initializedRef = useRef(false);
-
-  // Widget visibility customization
-  const DEFAULT_WIDGETS: Record<string, { title: string; enabled: boolean }> = {
-    kpi_overview: { title: "KPI 概览", enabled: true },
-    customer_stats: { title: "客户统计", enabled: true },
-    industry_chart: { title: "行业与等级分布", enabled: true },
-    monthly_trend: { title: "月度新增趋势", enabled: true },
-    overdue_followups: { title: "逾期跟进", enabled: true },
-    upcoming_visits: { title: "拜访计划", enabled: true },
-    recent_activity: { title: "最近动态", enabled: true },
-    global_360: { title: "AI 全局诊断", enabled: true },
-    daily_report: { title: "每日经营报告", enabled: true },
-  };
-
-  const [widgetPrefs, setWidgetPrefs] = useState<Record<string, { title: string; enabled: boolean }>>(() => {
-    try {
-      const saved = localStorage.getItem("dashboard_widgets");
-      if (saved) return { ...DEFAULT_WIDGETS, ...JSON.parse(saved) };
-    } catch {}
-    return DEFAULT_WIDGETS;
-  });
   const [widgetDrawerOpen, setWidgetDrawerOpen] = useState(false);
   const [widgetSaving, setWidgetSaving] = useState(false);
+  const [widgetPrefs, setWidgetPrefs] = useState(DEFAULT_WIDGETS);
 
-  // Load widget prefs from backend on mount
   useEffect(() => {
-    getWidgets().then((r) => {
-      const widgets = (r.data.data || []) as DashboardWidget[];
-      if (widgets.length > 0) {
-        const prefs: Record<string, { title: string; enabled: boolean }> = { ...DEFAULT_WIDGETS };
-        for (const w of widgets) {
-          if (w.widget_type && prefs[w.widget_type]) {
-            prefs[w.widget_type].enabled = w.enabled;
+    try {
+      const saved = localStorage.getItem("dashboard_widgets");
+      if (saved) setWidgetPrefs({ ...DEFAULT_WIDGETS, ...JSON.parse(saved) });
+    } catch {
+      // Keep the defaults when local preferences are malformed.
+    }
+
+    getWidgets()
+      .then((response) => {
+        const widgets = (response.data.data || []) as DashboardWidget[];
+        if (!widgets.length) return;
+        const preferences = { ...DEFAULT_WIDGETS };
+        for (const widget of widgets) {
+          if (widget.widget_type && preferences[widget.widget_type]) {
+            preferences[widget.widget_type] = {
+              ...preferences[widget.widget_type],
+              enabled: widget.enabled,
+            };
           }
         }
-        setWidgetPrefs(prefs);
-        localStorage.setItem("dashboard_widgets", JSON.stringify(prefs));
-      }
-    }).catch(() => {});
+        setWidgetPrefs(preferences);
+        localStorage.setItem("dashboard_widgets", JSON.stringify(preferences));
+      })
+      .catch(() => undefined);
   }, []);
-
-  const saveWidgetPrefs = async () => {
-    setWidgetSaving(true);
-    try {
-      localStorage.setItem("dashboard_widgets", JSON.stringify(widgetPrefs));
-      const payload = Object.entries(widgetPrefs).map(([type, pref]) => ({
-        widget_type: type,
-        title: pref.title,
-        enabled: pref.enabled,
-      }));
-      await saveWidgets(payload);
-      setWidgetDrawerOpen(false);
-    } catch {} finally {
-      setWidgetSaving(false);
-    }
-  };
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -95,521 +167,689 @@ export default function Dashboard() {
       getOverdueFollowUps(),
     ])
       .then((results) => {
-        if (results[0].status === "fulfilled") {
-          setStats(results[0].value.data.data);
-        }
+        if (results[0].status === "fulfilled") setStats(results[0].value.data.data);
         if (results[1].status === "fulfilled") {
-          setUpcomingVisits((results[1].value.data.data || []) as unknown as Visit[]);
+          const visitsData = results[1].value.data.data as { list?: Visit[] } | null;
+          setUpcomingVisits(visitsData?.list || []);
         }
         if (results[2].status === "fulfilled") {
           setRecentActivity((results[2].value.data.data || []) as CustomerLog[]);
         }
         if (results[3].status === "fulfilled") {
-          const odData = results[3].value.data.data as { total: number; items: OverdueFollowUp[] } | null;
-          setOverdue(odData?.items || []);
+          const overdueData = results[3].value.data.data as {
+            total: number;
+            items: OverdueFollowUp[];
+          } | null;
+          setOverdue(overdueData?.items || []);
         }
       })
       .finally(() => setLoading(false));
 
-    getKpi().then((r) => setKpi(r.data.data as KpiData)).catch(() => {});
-    getDailyReport().then((r) => setDailyReport(r.data.data as DailyReport)).catch(() => {});
+    getKpi()
+      .then((response) => setKpi(response.data.data as KpiData))
+      .catch(() => undefined);
+    getDailyReport()
+      .then((response) => setDailyReport(response.data.data as DailyReport))
+      .catch(() => undefined);
 
     setG360Loading(true);
     orchestrateGlobal360()
-      .then((r) => setGlobal360(r.data.data))
-      .catch(() => {})
+      .then((response) => setGlobal360(response.data.data))
+      .catch(() => undefined)
       .finally(() => setG360Loading(false));
   }, []);
 
-  if (loading) return <Flex justify="center" style={{ marginTop: 120 }}><Spin size="large" /></Flex>;
+  const saveWidgetPrefs = async () => {
+    setWidgetSaving(true);
+    try {
+      localStorage.setItem("dashboard_widgets", JSON.stringify(widgetPrefs));
+      await saveWidgets(
+        Object.entries(widgetPrefs).map(([widgetType, preference]) => ({
+          widget_type: widgetType,
+          title: preference.title,
+          enabled: preference.enabled,
+        })),
+      );
+      setWidgetDrawerOpen(false);
+    } finally {
+      setWidgetSaving(false);
+    }
+  };
+
+  const kpiItems = useMemo(
+    () =>
+      kpi
+        ? [
+            {
+              label: "本月营收",
+              value: money(kpi.month_revenue),
+              icon: <DollarOutlined />,
+              tone: "primary",
+              hint: "本月累计",
+            },
+            {
+              label: "应收未收",
+              value: money(kpi.outstanding_ar),
+              icon: <WarningOutlined />,
+              tone: kpi.outstanding_ar > 0 ? "danger" : "success",
+              hint: "需持续催收",
+            },
+            {
+              label: "活跃商机",
+              value: kpi.open_opportunities.toLocaleString(),
+              icon: <ThunderboltOutlined />,
+              tone: "info",
+              hint: "销售机会",
+            },
+            {
+              label: "待采购订单",
+              value: kpi.pending_purchase_orders.toLocaleString(),
+              icon: <ShopOutlined />,
+              tone: kpi.pending_purchase_orders > 0 ? "warning" : "success",
+              hint: "待处理",
+            },
+            {
+              label: "低库存预警",
+              value: kpi.low_stock_items.toLocaleString(),
+              icon: <StockOutlined />,
+              tone: kpi.low_stock_items > 0 ? "danger" : "success",
+              hint: "库存风险",
+            },
+            {
+              label: "本月新客户",
+              value: kpi.new_customers.toLocaleString(),
+              icon: <TeamOutlined />,
+              tone: "success",
+              hint: `客户总数 ${kpi.total_customers}`,
+            },
+          ]
+        : [],
+    [kpi],
+  );
+
+  const taskTabs = [
+    widgetPrefs.overdue_followups?.enabled !== false
+      ? {
+          key: "overdue",
+          label: (
+            <span>
+              逾期跟进 <Badge count={overdue.length} size="small" />
+            </span>
+          ),
+          children: overdue.length ? (
+            <Table
+              rowKey="id"
+              dataSource={overdue.slice(0, 8)}
+              columns={[
+                { title: "客户", dataIndex: "customer_name", ellipsis: true },
+                { title: "负责人", dataIndex: "owner", width: 88, render: (value) => value || "-" },
+                { title: "计划日期", dataIndex: "planned_at", width: 104, render: shortDate },
+                {
+                  title: "逾期",
+                  dataIndex: "overdue_days",
+                  width: 78,
+                  render: (value: number) => <StatusTag status={`${value}天`} tone="danger" />,
+                },
+              ]}
+              pagination={false}
+              size="small"
+            />
+          ) : (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无逾期跟进" />
+          ),
+        }
+      : null,
+    widgetPrefs.upcoming_visits?.enabled !== false
+      ? {
+          key: "visits",
+          label: (
+            <span>
+              近期拜访 <Badge count={upcomingVisits.length} size="small" color="#533afd" />
+            </span>
+          ),
+          children: upcomingVisits.length ? (
+            <Table
+              rowKey="id"
+              dataSource={upcomingVisits.slice(0, 8)}
+              columns={[
+                { title: "拜访主题", dataIndex: "title", ellipsis: true, render: (value) => value || "客户拜访" },
+                { title: "方式", dataIndex: "type", width: 82, render: (value) => value || "-" },
+                { title: "日期", dataIndex: "visit_date", width: 104, render: shortDate },
+                {
+                  title: "状态",
+                  dataIndex: "status",
+                  width: 86,
+                  render: (value: string) => (
+                    <StatusTag
+                      status={value || "planned"}
+                      tone={value === "completed" ? "success" : value === "cancelled" ? "danger" : "info"}
+                      label={value === "completed" ? "已完成" : value === "cancelled" ? "已取消" : "计划中"}
+                    />
+                  ),
+                },
+              ]}
+              pagination={false}
+              size="small"
+            />
+          ) : (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="未来14天暂无拜访" />
+          ),
+        }
+      : null,
+    widgetPrefs.recent_activity?.enabled !== false
+      ? {
+          key: "activity",
+          label: `最近动态 ${recentActivity.length}`,
+          children: recentActivity.length ? (
+            <Timeline
+              className="dashboard-activity"
+              items={recentActivity.slice(0, 7).map((log) => ({
+                children: (
+                  <div>
+                    <Text strong>{log.customer_name || "系统记录"}</Text>
+                    <Text type="secondary"> · {log.summary || log.action}</Text>
+                    <div className="dashboard-activity-time">
+                      {log.created_at?.slice(0, 16).replace("T", " ")}
+                      {log.operator ? ` · ${log.operator}` : ""}
+                    </div>
+                  </div>
+                ),
+              }))}
+            />
+          ) : (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无最近动态" />
+          ),
+        }
+      : null,
+  ].filter(Boolean) as { key: string; label: React.ReactNode; children: React.ReactNode }[];
+
+  if (loading) {
+    return (
+      <Flex justify="center" align="center" className="dashboard-loading">
+        <Spin size="large" description="正在汇总经营数据..." />
+      </Flex>
+    );
+  }
 
   return (
-    <div>
-      <Flex justify="space-between" align="center" wrap gap={8}>
-        <Title level={4} style={{ margin: 0 }}>欢迎回来，{username}</Title>
-        <Button icon={<SettingOutlined />} onClick={() => setWidgetDrawerOpen(true)}>自定义仪表板</Button>
-      </Flex>
+    <div className="dashboard-page">
+      <section className="dashboard-hero">
+        <div>
+          <Text className="dashboard-eyebrow">
+            {new Intl.DateTimeFormat("zh-CN", {
+              month: "long",
+              day: "numeric",
+              weekday: "long",
+            }).format(new Date())}
+          </Text>
+          <Title level={2}>经营总览</Title>
+          <Text type="secondary">欢迎回来，{username}。以下是当前最需要关注的经营信号。</Text>
+        </div>
+        <Space wrap>
+          <Button icon={<RobotOutlined />} onClick={openAiAssistant}>
+            AI 经营问答
+          </Button>
+          <Button icon={<SettingOutlined />} onClick={() => setWidgetDrawerOpen(true)}>
+            自定义
+          </Button>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={() => window.location.reload()}>
+            刷新数据
+          </Button>
+        </Space>
+      </section>
 
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Text type="secondary">AI 问答建议：</Text>
-        {["本月销售趋势如何？", "哪些客户有流失风险？", "库存周转率最高的产品？", "逾期付款情况？", "供应商准时交付率排名？"].map((q) => (
-          <StatusTag key={q} status={q} tone="processing" style={{ cursor: "pointer" }}
-            onClick={() => {
-              const btn = document.querySelector<HTMLElement>('[class*="floating"]') || document.querySelector('[style*="fixed"][style*="bottom"]');
-              if (btn) btn.click();
-            }}>
-            {q}
-          </StatusTag>
-        ))}
-      </Space>
+      <section className="dashboard-query-bar">
+        <span className="dashboard-query-label">
+          <RobotOutlined /> 快速提问
+        </span>
+        <Space wrap size={[8, 8]}>
+          {["本月销售趋势", "客户流失风险", "库存周转", "逾期回款", "供应商履约"].map((question) => (
+            <Button key={question} size="small" type="text" onClick={openAiAssistant}>
+              {question}
+            </Button>
+          ))}
+        </Space>
+      </section>
 
-      {/* Phase 7 KPI Overview */}
-      {kpi && widgetPrefs.kpi_overview?.enabled !== false && (
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="本月营收" value={kpi.month_revenue} prefix="¥" precision={0} />
+      {widgetPrefs.kpi_overview?.enabled !== false && kpiItems.length > 0 && (
+        <section className="dashboard-kpi-grid">
+          {kpiItems.map((item) => (
+            <Card key={item.label} className={`dashboard-kpi dashboard-kpi-${item.tone}`}>
+              <div className="dashboard-kpi-top">
+                <span className="dashboard-kpi-icon">{item.icon}</span>
+                <Text type="secondary">{item.hint}</Text>
+              </div>
+              <div className="dashboard-kpi-value">{item.value}</div>
+              <Text className="dashboard-kpi-label">{item.label}</Text>
             </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="本月新客户" value={kpi.new_customers} prefix={<TeamOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="活跃商机" value={kpi.open_opportunities} prefix={<ThunderboltOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="待采购订单" value={kpi.pending_purchase_orders} />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="应收未收" value={kpi.outstanding_ar} prefix="¥" precision={0} valueStyle={{ color: kpi.outstanding_ar > 0 ? "#cf1322" : "#52c41a" }} />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="低库存预警" value={kpi.low_stock_items} valueStyle={{ color: kpi.low_stock_items > 0 ? "#ff4d4f" : "#52c41a" }} />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="产品总数" value={kpi.total_products} />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={6}>
-            <Card>
-              <Statistic title="客户总数" value={kpi.total_customers} prefix={<TeamOutlined />} />
-            </Card>
-          </Col>
-        </Row>
+          ))}
+        </section>
       )}
 
-      {/* Customer Stats */}
-      {stats && widgetPrefs.customer_stats?.enabled !== false && (
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic title="客户总数" value={stats.total} prefix={<TeamOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic title="逾期跟进" value={overdue.length} prefix={<WarningOutlined />} valueStyle={{ color: overdue.length > 0 ? "#cf1322" : "#52c41a" }} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic title="即将拜访" value={upcomingVisits.length} prefix={<CalendarOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic title="最近动态" value={recentActivity.length} prefix={<ThunderboltOutlined />} />
-            </Card>
-          </Col>
-        </Row>
+      {widgetPrefs.customer_stats?.enabled !== false && (
+        <section className="dashboard-pulse">
+          <div className="dashboard-section-heading">
+            <div>
+              <Text strong>运营脉搏</Text>
+              <Text type="secondary">客户经营与执行节奏</Text>
+            </div>
+          </div>
+          <div className="dashboard-pulse-items">
+            {[
+              { label: "客户总数", value: stats.total, color: "#533afd" },
+              { label: "逾期跟进", value: overdue.length, color: overdue.length ? "#ef4444" : "#10b981" },
+              { label: "未来14天拜访", value: upcomingVisits.length, color: "#3b82f6" },
+              { label: "近期客户动态", value: recentActivity.length, color: "#f59e0b" },
+            ].map((item) => (
+              <div className="dashboard-pulse-item" key={item.label}>
+                <span className="dashboard-pulse-dot" style={{ background: item.color }} />
+                <span>
+                  <strong>{item.value.toLocaleString()}</strong>
+                  <Text type="secondary">{item.label}</Text>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Charts */}
-      {stats && widgetPrefs.industry_chart?.enabled !== false && (
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} lg={12}>
-            <Card title="客户行业分布" size="small">
-              {(stats.by_industry?.length ?? 0) > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={stats.by_industry} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
-                      {stats.by_industry.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : <Empty description="暂无数据" />}
-            </Card>
-          </Col>
-          <Col xs={24} lg={12}>
-            <Card title="客户等级分布" size="small">
-              {(stats.by_level?.length ?? 0) > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.by_level}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#1890ff" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <Empty description="暂无数据" />}
-            </Card>
-          </Col>
-        </Row>
-      )}
+      <section className="dashboard-primary-grid">
+        {taskTabs.length > 0 && (
+          <Card
+            className="dashboard-panel dashboard-task-panel"
+            title={
+              <div className="dashboard-card-title">
+                <span>今日待办</span>
+                <Text type="secondary">优先处理异常和客户行动</Text>
+              </div>
+            }
+            extra={
+              <Button type="link" onClick={() => navigate("/customers")} icon={<ArrowRightOutlined />}>
+                客户中心
+              </Button>
+            }
+          >
+            <Tabs items={taskTabs} />
+          </Card>
+        )}
 
-      {stats && (stats.monthly?.length ?? 0) > 0 && widgetPrefs.monthly_trend?.enabled !== false && (
-        <Card title="月度新增客户趋势" size="small" style={{ marginTop: 16 }}>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={stats.monthly}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="count" fill="#52c41a" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
-
-      {/* Overdue FollowUps */}
-      {overdue.length > 0 && widgetPrefs.overdue_followups?.enabled !== false && (
-        <Card title={<span><WarningOutlined style={{ marginRight: 8, color: "var(--color-error, #cf1322)" }} />逾期跟进</span>} size="small" style={{ marginTop: 16 }}>
-          <Table
-            rowKey="id"
-            dataSource={overdue}
-            columns={[
-              { title: "客户", dataIndex: "customer_name", ellipsis: true },
-              { title: "跟进方式", dataIndex: "method", width: 80 },
-              { title: "计划时间", dataIndex: "planned_at", width: 100, render: (v: string) => v?.slice(0, 10) },
-              { title: "逾期天数", dataIndex: "overdue_days", width: 80, render: (v: number) => <StatusTag status={`${v}天`} tone="danger" /> },
-              { title: "负责人", dataIndex: "owner", width: 80 },
-            ]}
-            pagination={false}
-            size="small"
-          />
-        </Card>
-      )}
-
-      {/* Upcoming Visits */}
-      {upcomingVisits.length > 0 && widgetPrefs.upcoming_visits?.enabled !== false && (
-        <Card title={<span><CalendarOutlined style={{ marginRight: 8 }} />未来14天拜访计划</span>} size="small" style={{ marginTop: 16 }}>
-          <Table
-            rowKey="id"
-            dataSource={upcomingVisits}
-            columns={[
-              { title: "客户ID", dataIndex: "customer_id", width: 80 },
-              { title: "标题", dataIndex: "title", ellipsis: true },
-              { title: "方式", dataIndex: "type", width: 80 },
-              { title: "日期", dataIndex: "visit_date", width: 100, render: (v: string) => v?.slice(0, 10) },
-              {
-                title: "状态", dataIndex: "status", width: 80,
-                render: (v: string) => (
+        {widgetPrefs.daily_report?.enabled !== false && (
+          <Card
+            className="dashboard-panel dashboard-report-panel"
+            title={
+              <div className="dashboard-card-title">
+                <span>今日经营简报</span>
+                <Text type="secondary">{dailyReport?.report_date || "实时摘要"}</Text>
+              </div>
+            }
+            extra={
+              <Button
+                type="text"
+                icon={<ReloadOutlined />}
+                loading={drLoading}
+                onClick={async () => {
+                  setDrLoading(true);
+                  try {
+                    const response = await getDailyReport();
+                    setDailyReport(response.data.data as DailyReport);
+                  } finally {
+                    setDrLoading(false);
+                  }
+                }}
+              />
+            }
+          >
+            {dailyReport ? (
+              <>
+                <div className="dashboard-report-mood">
                   <StatusTag
-                    status={v}
-                    tone={v === "completed" ? "success" : v === "cancelled" ? "danger" : "info"}
-                    label={v === "planned" ? "计划中" : v === "completed" ? "已完成" : "已取消"}
+                    status={dailyReport.mood}
+                    tone={
+                      dailyReport.mood === "良好"
+                        ? "success"
+                        : dailyReport.mood === "需关注"
+                          ? "danger"
+                          : "warning"
+                    }
                   />
-                ),
-              },
-            ]}
-            pagination={false}
-            size="small"
-          />
-        </Card>
-      )}
-
-      {/* Recent Activity */}
-      {recentActivity.length > 0 && widgetPrefs.recent_activity?.enabled !== false && (
-        <Card title="最近动态" size="small" style={{ marginTop: 16 }}>
-          <Timeline
-            items={recentActivity.map((log) => ({
-              children: (
-                <div>
-                  <Typography.Text strong>{log.customer_name}</Typography.Text>
-                  <span style={{ marginLeft: 8, fontSize: 12, color: "#888" }}>
-                    {log.summary || log.action}
-                  </span>
-                  <div style={{ fontSize: 11, color: "#bbb" }}>
-                    {log.created_at?.slice(0, 19)} {log.operator ? `· ${log.operator}` : ""}
+                  <Paragraph>{dailyReport.ai_summary}</Paragraph>
+                </div>
+                <div className="dashboard-report-metrics">
+                  <div><strong>{dailyReport.metrics.orders_today}</strong><Text>今日订单</Text></div>
+                  <div><strong>{money(dailyReport.metrics.revenue_today)}</strong><Text>今日营收</Text></div>
+                  <div><strong>{dailyReport.metrics.new_customers}</strong><Text>新增客户</Text></div>
+                  <div className={dailyReport.metrics.low_stock_items > 0 ? "is-risk" : ""}>
+                    <strong>{dailyReport.metrics.low_stock_items}</strong><Text>低库存</Text>
                   </div>
                 </div>
-              ),
-            }))}
-          />
-        </Card>
+                {dailyReport.top_action && (
+                  <div className="dashboard-next-action">
+                    <AimOutlined />
+                    <div>
+                      <Text type="secondary">首要行动</Text>
+                      <Text strong>{dailyReport.top_action}</Text>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="经营简报暂不可用" />
+            )}
+          </Card>
+        )}
+      </section>
+
+      {(widgetPrefs.monthly_trend?.enabled !== false ||
+        widgetPrefs.industry_chart?.enabled !== false) && (
+        <section>
+          <div className="dashboard-section-title">
+            <div>
+              <Title level={4}>客户增长与结构</Title>
+              <Text type="secondary">观察客户新增趋势和组合质量</Text>
+            </div>
+            <Button type="link" onClick={() => navigate("/customers/stats")}>
+              查看客户分析 <ArrowRightOutlined />
+            </Button>
+          </div>
+          <div className="dashboard-chart-grid">
+            {widgetPrefs.monthly_trend?.enabled !== false && (
+              <Card className="dashboard-panel dashboard-trend-card" title="月度新增客户">
+                {stats.monthly.length ? (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={stats.monthly} margin={{ top: 12, right: 8, left: -20, bottom: 0 }}>
+                      <CartesianGrid stroke="#edf0f7" vertical={false} />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} />
+                      <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip cursor={{ fill: "#f6f5ff" }} />
+                      <Bar dataKey="count" name="新增客户" fill="#533afd" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无月度趋势" />
+                )}
+              </Card>
+            )}
+
+            {widgetPrefs.industry_chart?.enabled !== false && (
+              <>
+                <Card className="dashboard-panel" title="行业分布">
+                  {stats.by_industry.length ? (
+                    <>
+                      <ResponsiveContainer width="100%" height={190}>
+                        <PieChart>
+                          <Pie
+                            data={stats.by_industry}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={52}
+                            outerRadius={78}
+                            paddingAngle={2}
+                            isAnimationActive={false}
+                          >
+                            {stats.by_industry.map((item, index) => (
+                              <Cell key={item.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="dashboard-chart-legend">
+                        {stats.by_industry.slice(0, 5).map((item, index) => (
+                          <span key={item.name}>
+                            <i style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                            {item.name} <strong>{item.value}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无行业数据" />
+                  )}
+                </Card>
+                <Card className="dashboard-panel" title="客户等级">
+                  {stats.by_level.length ? (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={stats.by_level}
+                        layout="vertical"
+                        margin={{ top: 12, right: 12, left: 2, bottom: 0 }}
+                      >
+                        <CartesianGrid stroke="#edf0f7" horizontal={false} />
+                        <XAxis type="number" axisLine={false} tickLine={false} allowDecimals={false} />
+                        <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={50} />
+                        <Tooltip cursor={{ fill: "#f6f5ff" }} />
+                        <Bar dataKey="value" name="客户数" fill="#3b82f6" radius={[0, 6, 6, 0]} maxBarSize={26} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无等级数据" />
+                  )}
+                </Card>
+              </>
+            )}
+          </div>
+        </section>
       )}
 
-      {/* AI Global 360 */}
       {widgetPrefs.global_360?.enabled !== false && (
-      <Card style={{ marginTop: 24 }}
-        title={<><AimOutlined style={{ marginRight: 8 }} />AI 全局诊断 (Global 360)</>}
-        extra={<Button icon={<ReloadOutlined />} loading={g360Loading} onClick={async () => {
-          setG360Loading(true);
-          try { const r = await orchestrateGlobal360(); setGlobal360(r.data.data); } catch {}
-          finally { setG360Loading(false); }
-        }}>重新诊断</Button>}
-      >
-        {global360 ? (
-          <div>
-            <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 24 }}>
-              <Col xs={24} sm={8} style={{ textAlign: "center" }}>
+        <Card
+          className="dashboard-panel dashboard-ai-panel"
+          title={
+            <div className="dashboard-ai-title">
+              <span className="dashboard-ai-icon"><AimOutlined /></span>
+              <div>
+                <span>AI 全局经营诊断</span>
+                <Text type="secondary">跨销售、客户、供应链与财务的综合判断</Text>
+              </div>
+            </div>
+          }
+          extra={
+            <Button
+              icon={<ReloadOutlined />}
+              loading={g360Loading}
+              onClick={async () => {
+                setG360Loading(true);
+                try {
+                  const response = await orchestrateGlobal360();
+                  setGlobal360(response.data.data);
+                } finally {
+                  setG360Loading(false);
+                }
+              }}
+            >
+              重新诊断
+            </Button>
+          }
+        >
+          {global360 ? (
+            <>
+              <div className="dashboard-health-summary">
                 <Progress
                   type="circle"
                   percent={global360.enterprise_health_score}
+                  size={132}
+                  strokeWidth={9}
                   strokeColor={
-                    global360.enterprise_health_score >= 80 ? "#52c41a" :
-                    global360.enterprise_health_score >= 60 ? "#faad14" : "#cf1322"
+                    global360.enterprise_health_score >= 80
+                      ? "#10b981"
+                      : global360.enterprise_health_score >= 60
+                        ? "#f59e0b"
+                        : "#ef4444"
                   }
-                  format={(pct) => (
-                    <span style={{ fontSize: 24, fontWeight: 700 }}>
-                      {pct}<div style={{ fontSize: 12, fontWeight: 400, color: "#888" }}>健康分</div>
+                  format={(percent) => (
+                    <span className="dashboard-health-score">
+                      {percent}
+                      <small>健康分</small>
                     </span>
                   )}
-                  size={160}
                 />
-              </Col>
-              <Col xs={24} sm={16}>
-                <Typography.Paragraph style={{ fontSize: 15, marginBottom: 8, whiteSpace: "pre-wrap" }}>
-                  {global360.executive_summary}
-                </Typography.Paragraph>
-                {global360.focus_areas?.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <Typography.Text strong style={{ marginRight: 8 }}>重点关注：</Typography.Text>
-                    {global360.focus_areas.map((area, i) => (
-                      <StatusTag key={i} status={area} tone="info" style={{ marginBottom: 4 }} />
+                <div className="dashboard-health-copy">
+                  <Paragraph>{global360.executive_summary}</Paragraph>
+                  <Space wrap>
+                    {global360.focus_areas?.map((area) => (
+                      <StatusTag key={area} status={area} tone="info" />
                     ))}
-                  </div>
-                )}
-              </Col>
-            </Row>
+                  </Space>
+                </div>
+                <div className="dashboard-health-counts">
+                  <div><strong>{global360.top_opportunities.length}</strong><Text>重点机会</Text></div>
+                  <div><strong>{global360.top_risks.length}</strong><Text>主要风险</Text></div>
+                  <div><strong>{global360.strategic_recommendations.length}</strong><Text>行动建议</Text></div>
+                </div>
+              </div>
 
-            <Collapse
-              size="small"
-              defaultActiveKey={["kpi", "opportunities"]}
-              items={[
-                global360.kpi_health.length > 0 ? {
-                  key: "kpi",
-                  label: <Badge status={global360.kpi_health.some(k => k.status === "预警" || k.status === "warning" || k.status === "red") ? "error" : "success"} text={`KPI 健康度 (${global360.kpi_health.length})`} />,
-                  children: (
-                    <Table
-                      rowKey="kpi"
-                      dataSource={global360.kpi_health}
-                      columns={[
-                        { title: "指标", dataIndex: "kpi", width: 140 },
-                        { title: "当前值", dataIndex: "current", width: 100 },
-                        { title: "目标值", dataIndex: "target", width: 100 },
-                        {
-                          title: "状态", dataIndex: "status", width: 90,
-                          render: (v: string) => (
-                            <Badge
-                              status={
-                                v === "优秀" || v === "healthy" || v === "green" ? "success" :
-                                v === "关注" || v === "warning" || v === "yellow" ? "warning" :
-                                v === "预警" || v === "critical" || v === "red" ? "error" : "default"
-                              }
-                              text={v}
-                            />
-                          ),
-                        },
-                      ]}
-                      pagination={false}
-                      size="small"
-                    />
-                  ),
-                } : null,
-
-                global360.top_opportunities.length > 0 ? {
-                  key: "opportunities",
-                  label: <span>最佳商机 ({global360.top_opportunities.length})</span>,
-                  children: (
-                    <Table
-                      rowKey={(_, i) => String(i)}
-                      dataSource={global360.top_opportunities}
-                      columns={[
-                        { title: "领域", dataIndex: "area", width: 100 },
-                        { title: "描述", dataIndex: "description", ellipsis: true },
-                        {
-                          title: "潜在价值", dataIndex: "potential_value", width: 110,
-                          render: (v: number) => `¥${v?.toLocaleString() ?? 0}`,
-                        },
-                        { title: "投入", dataIndex: "effort", width: 70 },
-                        { title: "时间窗口", dataIndex: "timeframe", width: 100 },
-                      ]}
-                      pagination={false}
-                      size="small"
-                    />
-                  ),
-                } : null,
-
-                global360.top_risks.length > 0 ? {
-                  key: "risks",
-                  label: <span style={{ color: "#cf1322" }}>主要风险 ({global360.top_risks.length})</span>,
-                  children: (
-                    <Table
-                      rowKey={(_, i) => String(i)}
-                      dataSource={global360.top_risks}
-                      columns={[
-                        { title: "领域", dataIndex: "area", width: 100 },
-                        { title: "描述", dataIndex: "description", ellipsis: true },
-                        {
-                          title: "严重程度", dataIndex: "severity", width: 90,
-                          render: (v: string) => (
-                            <StatusTag
-                              status={v}
-                              tone={v.includes("高") || v === "high" ? "danger" : v.includes("中") || v === "medium" ? "warning" : "info"}
-                            />
-                          ),
-                        },
-                        { title: "可能性", dataIndex: "probability", width: 80 },
-                        { title: "缓解措施", dataIndex: "mitigation", ellipsis: true },
-                      ]}
-                      pagination={false}
-                      size="small"
-                    />
-                  ),
-                } : null,
-
-                global360.strategic_recommendations.length > 0 ? {
-                  key: "recommendations",
-                  label: <span>战略建议 ({global360.strategic_recommendations.length})</span>,
-                  children: (
-                    <List
-                      size="small"
-                      dataSource={global360.strategic_recommendations}
-                      renderItem={(r) => (
-                        <List.Item style={{ padding: "6px 0" }}>
-                          <List.Item.Meta
-                            title={
-                              <span>
-                                <StatusTag
-                                  status={r.priority}
-                                  tone={r.priority === "高" || r.priority === "high" ? "danger" : r.priority === "中" || r.priority === "medium" ? "warning" : "info"}
-                                  color="default"
-                                />
-                                <Tag style={{ marginRight: 8 }}>{r.domain}</Tag>
-                                <Typography.Text strong>{r.recommendation}</Typography.Text>
-                              </span>
-                            }
-                            description={<Typography.Text type="secondary">{r.rationale}</Typography.Text>}
+              <Collapse
+                ghost
+                className="dashboard-ai-collapse"
+                defaultActiveKey={["risks"]}
+                items={[
+                  global360.top_risks.length
+                    ? {
+                        key: "risks",
+                        label: <Badge status="error" text={`主要风险 (${global360.top_risks.length})`} />,
+                        children: (
+                          <Table
+                            rowKey={(record) => `${record.area}-${record.description}`}
+                            dataSource={global360.top_risks}
+                            columns={[
+                              { title: "领域", dataIndex: "area", width: 110 },
+                              { title: "风险描述", dataIndex: "description", ellipsis: true },
+                              {
+                                title: "严重程度",
+                                dataIndex: "severity",
+                                width: 96,
+                                render: (value: string) => (
+                                  <StatusTag
+                                    status={value}
+                                    tone={
+                                      value.includes("高") || value === "high"
+                                        ? "danger"
+                                        : value.includes("中") || value === "medium"
+                                          ? "warning"
+                                          : "info"
+                                    }
+                                  />
+                                ),
+                              },
+                              { title: "缓解措施", dataIndex: "mitigation", ellipsis: true },
+                            ]}
+                            pagination={false}
+                            size="small"
                           />
-                        </List.Item>
-                      )}
-                    />
-                  ),
-                } : null,
-
-                global360.cross_domain_correlations?.length > 0 ? {
-                  key: "correlations",
-                  label: <span>跨域关联 ({global360.cross_domain_correlations.length})</span>,
-                  children: (
-                    <Table
-                      rowKey={(_, i) => String(i)}
-                      dataSource={global360.cross_domain_correlations}
-                      columns={[
-                        { title: "域", dataIndex: "domains", width: 150 },
-                        { title: "发现", dataIndex: "finding", ellipsis: true },
-                        { title: "显著性", dataIndex: "significance", width: 100 },
-                      ]}
-                      pagination={false}
-                      size="small"
-                    />
-                  ),
-                } : null,
-              ].filter(Boolean) as { key: string; label: React.ReactNode; children: React.ReactNode }[]}
-            />
-          </div>
-        ) : (
-          <div style={{ textAlign: "center", padding: 24 }}>
-            {g360Loading ? <Spin tip="AI 正在分析企业全局数据..." /> : <Empty description="AI 诊断暂不可用，可稍后重试" />}
-          </div>
-        )}
-      </Card>
+                        ),
+                      }
+                    : null,
+                  global360.top_opportunities.length
+                    ? {
+                        key: "opportunities",
+                        label: `重点机会 (${global360.top_opportunities.length})`,
+                        children: (
+                          <Table
+                            rowKey={(record) => `${record.area}-${record.description}`}
+                            dataSource={global360.top_opportunities}
+                            columns={[
+                              { title: "领域", dataIndex: "area", width: 110 },
+                              { title: "机会描述", dataIndex: "description", ellipsis: true },
+                              {
+                                title: "潜在价值",
+                                dataIndex: "potential_value",
+                                width: 120,
+                                render: (value: number) => money(value),
+                              },
+                              { title: "时间窗口", dataIndex: "timeframe", width: 110 },
+                            ]}
+                            pagination={false}
+                            size="small"
+                          />
+                        ),
+                      }
+                    : null,
+                  global360.strategic_recommendations.length
+                    ? {
+                        key: "recommendations",
+                        label: `行动建议 (${global360.strategic_recommendations.length})`,
+                        children: (
+                          <List
+                            size="small"
+                            dataSource={global360.strategic_recommendations}
+                            renderItem={(recommendation) => (
+                              <List.Item>
+                                <List.Item.Meta
+                                  title={
+                                    <Space wrap>
+                                      <StatusTag
+                                        status={recommendation.priority}
+                                        tone={
+                                          recommendation.priority === "高" || recommendation.priority === "high"
+                                            ? "danger"
+                                            : recommendation.priority === "中" || recommendation.priority === "medium"
+                                              ? "warning"
+                                              : "info"
+                                        }
+                                      />
+                                      <Tag>{recommendation.domain}</Tag>
+                                      <Text strong>{recommendation.recommendation}</Text>
+                                    </Space>
+                                  }
+                                  description={recommendation.rationale}
+                                />
+                              </List.Item>
+                            )}
+                          />
+                        ),
+                      }
+                    : null,
+                ].filter(Boolean) as { key: string; label: React.ReactNode; children: React.ReactNode }[]}
+              />
+            </>
+          ) : (
+            <div className="dashboard-ai-empty">
+              {g360Loading ? <Spin description="AI 正在分析企业经营数据..." /> : <Empty description="AI 诊断暂不可用" />}
+            </div>
+          )}
+        </Card>
       )}
 
-      {/* Daily Report */}
-      {widgetPrefs.daily_report?.enabled !== false && (
-      <Card
-        title={<><CalendarOutlined style={{ marginRight: 8 }} />每日经营报告</>}
-        size="small"
-        style={{ marginTop: 16 }}
-        extra={
-          <Button icon={<ReloadOutlined />} loading={drLoading} onClick={async () => {
-            setDrLoading(true);
-            try { const r = await getDailyReport(); setDailyReport(r.data.data as DailyReport); } catch {}
-            finally { setDrLoading(false); }
-          }}>刷新</Button>
-        }
-      >
-        {dailyReport ? (
-          <div>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} sm={18}>
-                <Paragraph style={{ fontSize: 14, margin: 0 }}>
-                  <StatusTag
-                    status={dailyReport.mood}
-                    tone={dailyReport.mood === "良好" ? "success" : dailyReport.mood === "需关注" ? "danger" : "warning"}
-                  />
-                  {dailyReport.ai_summary}
-                </Paragraph>
-                {dailyReport.top_action && (
-                  <Paragraph style={{ marginTop: 8 }}>
-                    <Text strong>建议: </Text><Text>{dailyReport.top_action}</Text>
-                  </Paragraph>
-                )}
-              </Col>
-              <Col xs={24} sm={6}>
-                <Row gutter={[8, 8]}>
-                  <Col span={12}><Statistic title="今日订单" value={dailyReport.metrics.orders_today} suffix="单" /></Col>
-                  <Col span={12}><Statistic title="今日营收" value={dailyReport.metrics.revenue_today} prefix="¥" precision={0} /></Col>
-                  <Col span={12}><Statistic title="新客户" value={dailyReport.metrics.new_customers} /></Col>
-                  <Col span={12}><Statistic title="低库存" value={dailyReport.metrics.low_stock_items} valueStyle={{ color: dailyReport.metrics.low_stock_items > 0 ? "#ff4d4f" : undefined }} /></Col>
-                </Row>
-              </Col>
-            </Row>
-          </div>
-        ) : (
-          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 16 }}>
-            点击刷新生成今日经营报告
-          </Text>
-        )}
-      </Card>
-      )}
-
-      {/* Widget Customization Drawer */}
       <Drawer
-        title="自定义仪表板"
+        title="自定义仪表盘"
         open={widgetDrawerOpen}
         onClose={() => {
-          // Reset to saved state when closing without saving
           try {
             const saved = localStorage.getItem("dashboard_widgets");
             if (saved) setWidgetPrefs({ ...DEFAULT_WIDGETS, ...JSON.parse(saved) });
-          } catch {}
+          } catch {
+            setWidgetPrefs(DEFAULT_WIDGETS);
+          }
           setWidgetDrawerOpen(false);
         }}
-        width={360}
+        size="default"
         extra={
           <Button type="primary" loading={widgetSaving} onClick={saveWidgetPrefs}>
             保存
           </Button>
         }
       >
-        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-          {Object.entries(widgetPrefs).map(([key, pref]) => (
-            <Row key={key} justify="space-between" align="middle">
-              <Col>
-                <Text>{pref.title}</Text>
-              </Col>
-              <Col>
-                <Switch
-                  checked={pref.enabled}
-                  onChange={(checked) =>
-                    setWidgetPrefs((prev) => ({
-                      ...prev,
-                      [key]: { ...prev[key], enabled: checked },
-                    }))
-                  }
-                />
-              </Col>
-            </Row>
+        <div className="dashboard-widget-list">
+          {Object.entries(widgetPrefs).map(([key, preference]) => (
+            <div className="dashboard-widget-item" key={key}>
+              <Text>{preference.title}</Text>
+              <Switch
+                checked={preference.enabled}
+                onChange={(enabled) =>
+                  setWidgetPrefs((current) => ({
+                    ...current,
+                    [key]: { ...current[key], enabled },
+                  }))
+                }
+              />
+            </div>
           ))}
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            开启或关闭仪表板上的各个模块，点击保存生效。偏好会同步到您的账号。
-          </Text>
-        </Space>
+        </div>
+        <Text type="secondary" className="dashboard-widget-note">
+          模块偏好保存后会同步到当前账号。
+        </Text>
       </Drawer>
     </div>
   );

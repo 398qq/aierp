@@ -88,6 +88,7 @@ const InquiryPortal = lazy(() => import("./pages/public/InquiryPortal"));
 const UserList = lazy(() => import("./pages/system/users/UserList"));
 const WarehouseList = lazy(() => import("./pages/warehouse/WarehouseList"));
 const InventoryLedger = lazy(() => import("./pages/warehouse/InventoryLedger"));
+const InventoryBatches = lazy(() => import("./pages/warehouse/InventoryBatches"));
 const WarehouseIndex = lazy(() => import("./pages/warehouse/index"));
 const TicketList = lazy(() => import("./pages/tickets/TicketList"));
 const TicketForm = lazy(() => import("./pages/tickets/TicketForm"));
@@ -196,6 +197,7 @@ export default function App() {
               <Route path="/warehouse" element={<Suspense fallback={<PageLoader />}><WarehouseIndex /></Suspense>} />
               <Route path="/warehouse/warehouses" element={<Suspense fallback={<PageLoader />}><WarehouseList /></Suspense>} />
               <Route path="/warehouse/inventory-ledger" element={<Suspense fallback={<PageLoader />}><InventoryLedger /></Suspense>} />
+              <Route path="/warehouse/inventory-batches" element={<Suspense fallback={<PageLoader />}><InventoryBatches /></Suspense>} />
               <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
               <Route path="/system/users" element={<Suspense fallback={<PageLoader />}><UserList /></Suspense>} />
               <Route path="/system/roles" element={<Suspense fallback={<PageLoader />}><RolesPage /></Suspense>} />

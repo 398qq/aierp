@@ -240,7 +240,7 @@ export const deleteCustomerVisit = (customerId: number, visitId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/visits/${visitId}`);
 
 export const getUpcomingVisits = (days = 14) =>
-  client.get<APIResponse<Visit[]>>(`/customers/visits/upcoming?days=${days}`);
+  client.get<APIResponse<{ list: Visit[]; total: number }>>(`/visits?page_size=50`);
 
 
 // Level Rules
