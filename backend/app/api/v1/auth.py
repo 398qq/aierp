@@ -156,7 +156,7 @@ async def login(
     )
     user = result.scalar_one_or_none()
 
-    auth_ok = user is not None and verify_password(req.password, user.password)
+    auth_ok = user is not None and await verify_password(req.password, user.password)
 
     if not auth_ok:
         # Record failed attempt under BOTH username and IP keys
@@ -265,12 +265,12 @@ async def change_password(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不可用"
         )
 
-    if not verify_password(req.current_password, user.password):
+    if not await verify_password(req.current_password, user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码错误"
         )
 
-    if verify_password(req.new_password, user.password):
+    if await verify_password(req.new_password, user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与当前密码相同"
         )

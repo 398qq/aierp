@@ -179,14 +179,15 @@ class TestPricingService:
 
 
 class TestSecurity:
+    @pytest.mark.asyncio
     @pytest.mark.unit
-    def test_hash_and_verify_password(self):
+    async def test_hash_and_verify_password(self):
         from app.core.security import hash_password, verify_password
 
         hashed = hash_password("mypassword")
         assert hashed != "mypassword"
-        assert verify_password("mypassword", hashed) is True
-        assert verify_password("wrongpassword", hashed) is False
+        assert await verify_password("mypassword", hashed) is True
+        assert await verify_password("wrongpassword", hashed) is False
 
     @pytest.mark.unit
     def test_create_and_decode_token(self):

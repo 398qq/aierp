@@ -109,7 +109,11 @@ class TestLoginAvailability:
         )
 
         monkeypatch.setattr(auth, "_get_r", AsyncMock(return_value=BrokenRedis()))
-        monkeypatch.setattr(auth, "verify_password", lambda plain, hashed: True)
+
+        async def _fake_verify(plain, hashed):
+            return True
+
+        monkeypatch.setattr(auth, "verify_password", _fake_verify)
         monkeypatch.setattr(auth, "create_access_token", lambda user_id, username: "token")
 
         response = await auth.login(

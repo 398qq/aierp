@@ -94,14 +94,12 @@ def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def verify_password(plain: str, hashed: str) -> bool:
-    """Verify password against bcrypt hash.
+def _verify_password_sync(plain: str, hashed: str) -> bool:
+    """Synchronous bcrypt check (CPU-bound ~200-400ms).
 
-    Bcrypt 4.x dropped the __about__ attribute that passlib 1.7.4 reads at
-    backend load time, which makes `passlib.context.CryptContext.verify`
-    fail. We therefore use the `bcrypt` package directly here, while
-    `hash_password` still relies on passlib for new hashes (the two are
-    wire-compatible because passlib writes standard $2b$ bcrypt hashes).
+    This is wrapped in `run_in_executor` by `verify_password` so the
+    FastAPI event loop is not blocked. Do not call this directly from
+    async code paths — use `await verify_password(...)` instead.
     """
     import bcrypt
 
@@ -115,6 +113,23 @@ def verify_password(plain: str, hashed: str) -> bool:
             return pwd_context.verify(plain, hashed)
         except Exception:
             return False
+
+
+async def verify_password(plain: str, hashed: str) -> bool:
+    """Async wrapper around bcrypt.checkpw to avoid blocking the event loop.
+
+    Stage 14 load test: synchronous bcrypt was the #1 bottleneck — 20
+    concurrent logins serialized at ~200ms each, blowing the 500ms P95
+    budget. Running in the default executor (ThreadPoolExecutor) lets
+    FastAPI serve other requests while bcrypt hashes.
+
+    Trade-off: threads add slight memory overhead but unlock real
+    concurrency. bcrypt is CPU-bound so a process pool would not help.
+    """
+    import asyncio
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _verify_password_sync, plain, hashed)
 
 
 def create_access_token(user_id: int, username: str) -> str:
