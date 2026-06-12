@@ -56,6 +56,7 @@ export type { Brand } from "./catalog";
 export type { Supplier } from "./catalog";
 export type { Warehouse } from "./catalog";
 export type { InventoryItem } from "./catalog";
+export type { InventoryBatch, CogsReport } from "./catalog";
 
 // operations.ts
 export type { PurchaseOrder } from "./operations";

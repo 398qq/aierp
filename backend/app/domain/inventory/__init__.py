@@ -7,6 +7,7 @@ from app.domain.inventory.batch import (
     InventoryBatch,
     allocate_fefo,
     allocate_fifo_by_received,
+    allocate_lowest_cost_first,
     mark_expired_batches,
 )
 from app.domain.inventory.cost_strategy import (
@@ -33,5 +34,6 @@ __all__ = [
     "AllocationResult",
     "allocate_fefo",
     "allocate_fifo_by_received",
+    "allocate_lowest_cost_first",
     "mark_expired_batches",
 ]

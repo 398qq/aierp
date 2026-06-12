@@ -221,6 +221,46 @@ def allocate_fifo_by_received(
     return result
 
 
+def allocate_lowest_cost_first(
+    batches: List[InventoryBatch],
+    qty: int,
+) -> AllocationResult:
+    """LCFO (Lowest-Cost-First-Out) batch allocation.
+
+    Consumes from cheapest batches first to maximize gross margin.
+    This is the real-world default for electronic components distribution
+    where identical products from different purchase batches are
+    interchangeable.
+
+    1. Lowest unit_cost first
+    2. Then earliest received_date (deterministic tiebreaker)
+    """
+    if qty <= 0:
+        raise BusinessRuleViolation("分配数量必须大于零")
+
+    available = [b for b in batches if b.is_available and not b.is_expired]
+    available.sort(key=lambda b: (b.unit_cost, b.received_date, b.batch_no))
+
+    result = AllocationResult()
+    remaining = qty
+    for batch in available:
+        if remaining <= 0:
+            break
+        take = min(remaining, batch.quantity)
+        result.allocations.append(
+            BatchAllocation(
+                batch_id=batch.id,
+                batch_no=batch.batch_no,
+                quantity=take,
+                unit_cost=batch.unit_cost,
+            )
+        )
+        remaining -= take
+
+    result.unfilled_qty = remaining
+    return result
+
+
 def mark_expired_batches(batches: List[InventoryBatch]) -> int:
     """Sweep all batches and mark any past-expiry ones as EXPIRED.
 

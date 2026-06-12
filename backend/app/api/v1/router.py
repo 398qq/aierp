@@ -24,6 +24,7 @@ from app.api.v1 import (
     transactions,
     users,
 )
+from app.api.v1.inventory.batches import router as inventory_batch_router
 from app.api.v1.inventory_transactions import router as inventory_transactions_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -35,6 +36,7 @@ api_router.include_router(products.router)
 api_router.include_router(products.brands_router)
 api_router.include_router(products.suppliers_router)
 api_router.include_router(products.warehouses_router)
+api_router.include_router(inventory_batch_router)
 api_router.include_router(inventory_transactions_router)
 api_router.include_router(transactions.po_router)
 api_router.include_router(transactions.ticket_router)

@@ -223,6 +223,7 @@ class ProductService(BaseCRUDService):
         """Dashboard KPIs (total / in-stock / out-of-stock / low / stale / pending)."""
         inv_subq = _inventory_metrics_subquery()
         sales_subq = _sales_metrics_subquery()
+        supplier_subq = _supplier_metrics_subquery()
 
         base = (
             select(
@@ -239,9 +240,11 @@ class ProductService(BaseCRUDService):
                 inv_subq.c.available,
                 inv_subq.c.safety_stock,
                 sales_subq.c.last_sale_at,
+                supplier_subq.c.supplier_count,
             )
             .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
             .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
+            .outerjoin(supplier_subq, Product.id == supplier_subq.c.product_id)
             .where(Product.deleted_at.is_(None))
             .subquery()
         )
@@ -307,6 +310,16 @@ class ProductService(BaseCRUDService):
                 )
             )
         ).scalar() or 0
+        no_supplier_count = (
+            await db.execute(
+                select(func.count())
+                .select_from(base)
+                .where(
+                    (base.c.supplier_count <= 0)
+                    | (base.c.supplier_count.is_(None))
+                )
+            )
+        ).scalar() or 0
 
         return {
             "total": total,
@@ -315,6 +328,7 @@ class ProductService(BaseCRUDService):
             "low_stock_count": low_stock_count,
             "pending_completion_count": pending_completion_count,
             "stale_30d_count": stale_30d_count,
+            "no_supplier_count": no_supplier_count,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -446,6 +460,11 @@ class ProductService(BaseCRUDService):
             base = base.where(
                 (sales_subq.c.last_sale_at.is_(None))
                 | (sales_subq.c.last_sale_at < cutoff_30d)
+            )
+        elif scene == "no_supplier":
+            base = base.where(
+                (supplier_subq.c.supplier_count <= 0)
+                | (supplier_subq.c.supplier_count.is_(None))
             )
 
         if sort == "name_asc":

@@ -121,3 +121,24 @@ export interface BOMLine {
   position: number; is_critical: boolean; notes: string | null;
   child_product_name?: string; child_product_sku?: string; child_product_mpn?: string | null;
 }
+
+// Inventory batch tracking
+export interface InventoryBatch {
+  id: number; product_id: number; warehouse_id: number;
+  batch_no: string; quantity: number; unit_cost: number; total_value: number;
+  received_date: string | null; expiry_date: string | null;
+  status: string;
+  product_name: string | null; supplier_name: string | null;
+}
+
+export interface CogsReport {
+  items: {
+    product_id: number; product_name: string;
+    quantity: number; revenue: number; cost: number;
+    margin: number; margin_pct: number;
+  }[];
+  summary: {
+    total_revenue: number; total_cost: number;
+    total_margin: number; margin_pct: number;
+  };
+}

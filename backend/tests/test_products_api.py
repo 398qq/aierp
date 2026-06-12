@@ -349,9 +349,28 @@ class TestProductsAPI:
             "low_stock_count",
             "pending_completion_count",
             "stale_30d_count",
+            "no_supplier_count",
             "generated_at",
         ]:
             assert key in payload
+
+    async def test_list_products_scene_no_supplier(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        create_resp = await async_client.post(
+            "/api/v1/products",
+            headers=auth_headers,
+            json={"name": "No Supplier Product", "sku": "NO-SUPPLIER-001"},
+        )
+        assert create_resp.status_code == 201
+
+        resp = await async_client.get(
+            "/api/v1/products?scene=no_supplier", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["total"] >= 1
+        assert any(item["sku"] == "NO-SUPPLIER-001" for item in payload["list"])
 
     async def test_list_products_scene_pending_completion(
         self, async_client: AsyncClient, auth_headers: dict

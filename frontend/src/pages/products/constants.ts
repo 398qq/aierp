@@ -7,14 +7,24 @@
 import type { Brand, Product } from "../../types";
 
 export type SceneValue =
-  | "all" | "in_stock" | "low_stock" | "out_of_stock"
-  | "pending_completion" | "stale_30d";
+  | "all"
+  | "in_stock"
+  | "low_stock"
+  | "out_of_stock"
+  | "pending_completion"
+  | "stale_30d"
+  | "no_supplier";
 
 export type BatchTaskType = "update" | "delete" | "export";
 
 export type ProductTaskKey =
-  | "replenish" | "out" | "complete" | "stale"
-  | "no_supplier" | "ai_search" | "all";
+  | "replenish"
+  | "out"
+  | "complete"
+  | "stale"
+  | "no_supplier"
+  | "ai_search"
+  | "all";
 
 export interface ProductStats {
   total: number;
@@ -23,6 +33,7 @@ export interface ProductStats {
   low_stock_count: number;
   pending_completion_count: number;
   stale_30d_count: number;
+  no_supplier_count: number;
 }
 
 export interface SavedView {
@@ -43,8 +54,16 @@ export interface ProductSalesData {
 }
 
 export const CATEGORIES = [
-  "MLCC", "IC", "电阻", "电容", "连接器",
-  "晶体管", "传感器", "电源管理", "存储", "其他",
+  "MLCC",
+  "IC",
+  "电阻",
+  "电容",
+  "连接器",
+  "晶体管",
+  "传感器",
+  "电源管理",
+  "存储",
+  "其他",
 ];
 
 export const STOCK_OPTIONS: { value: string; label: string }[] = [
@@ -74,6 +93,7 @@ export const TASK_SCENE_MAP: Partial<Record<ProductTaskKey, SceneValue>> = {
   out: "out_of_stock",
   complete: "pending_completion",
   stale: "stale_30d",
+  no_supplier: "no_supplier",
   all: "all",
 };
 
@@ -172,9 +192,22 @@ export const formatDateTime = (value?: string | null): string => {
 export const exportProductsCsv = (rows: Product[], filename: string): boolean => {
   if (!rows.length) return false;
   const headers = [
-    "SKU", "产品名称", "分类", "封装", "规格", "单位", "品牌",
-    "完整度", "供应商数", "分仓数", "库存", "可用", "锁定",
-    "安全库存", "单价", "最近销售",
+    "SKU",
+    "产品名称",
+    "分类",
+    "封装",
+    "规格",
+    "单位",
+    "品牌",
+    "完整度",
+    "供应商数",
+    "分仓数",
+    "库存",
+    "可用",
+    "锁定",
+    "安全库存",
+    "单价",
+    "最近销售",
   ];
   const body = rows.map((p) => [
     p.sku || "",

@@ -177,6 +177,8 @@ class SalesOrderItem(TimestampMixin, Base):
     discount_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
     unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    # COGS — actual cost consumed from inventory batches at delivery time
+    cost_amount: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     order = relationship("SalesOrder", back_populates="items")
