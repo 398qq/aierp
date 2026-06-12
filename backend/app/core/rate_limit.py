@@ -40,7 +40,10 @@ def _env_int(name: str, default: int) -> int:
 
 
 # Global config — overridable via env vars
-RATE_LIMIT_CALLS = _env_int("AIERP_RATE_LIMIT_CALLS", 100)
+# Stage 15 Day 0: default raised 100 → 300 to fit 10-15 concurrent sales reps
+# (each rep issues 20-30 req/min naturally). Override per-env for load tests
+# via AIERP_RATE_LIMIT_CALLS=10000.
+RATE_LIMIT_CALLS = _env_int("AIERP_RATE_LIMIT_CALLS", 300)
 RATE_LIMIT_WINDOW = _env_int("AIERP_RATE_LIMIT_WINDOW", 60)
 RATE_LIMIT_KEY_PREFIX = "aierp:rl:"
 
@@ -62,11 +65,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # Skip health checks and non-API paths
+        # Skip health checks, metrics, and non-API paths
         path = request.url.path
         if (
-            path.startswith("/health")
-            or path in ("/docs", "/openapi.json")
+            path == "/health"
+            or path.startswith("/health/")
+            or path == "/metrics"
+            or path.startswith("/metrics/")
+            or path in ("/docs", "/openapi.json", "/redoc")
             or path.startswith("/api/v1/auth")
         ):
             return await call_next(request)

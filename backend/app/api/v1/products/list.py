@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.schemas.common import fail, ok
-from app.services.cache_service import cache_get_versioned
+from app.services.cache_service import cache_get_versioned, cache_set_versioned
 from app.services.product_service import product_service
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,22 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 @router.get("/stats/summary")
 async def products_stats_summary(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    """Dashboard KPIs (in-stock / stale / pending completion)."""
-    return ok(await product_service.get_stats_summary(db))
+    """Dashboard KPIs (in-stock / stale / pending completion). Cached 120s."""
+    cache_key = "summary"
+    cached_payload = await cache_get_versioned("products:stats", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
+    payload = await product_service.get_stats_summary(db)
+    await cache_set_versioned(
+        "products:stats", cache_key, json.dumps(payload, default=str), ttl=120
+    )
+    return ok(payload)
 
 
 @router.get("")

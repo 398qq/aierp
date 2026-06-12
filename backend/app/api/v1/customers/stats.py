@@ -17,15 +17,18 @@ Endpoints (all under ``/customers`` prefix):
 
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_perm
 from app.database import get_db
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_get_versioned, cache_set_versioned
 from app.services.customer_stats_service import customer_stats_service
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -67,11 +70,22 @@ async def customer_timeline(
 
 @router.get("/stats")
 async def customer_dashboard_stats(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    """Dashboard group-by stats (industry/level/region/source/type + monthly)."""
-    return ok(await customer_stats_service.get_dashboard_stats(db))
+    """Dashboard group-by stats (industry/level/region/source/type + monthly). Cached 120s."""
+    cache_key = "dashboard"
+    cached_payload = await cache_get_versioned("customers:stats", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
+    payload = await customer_stats_service.get_dashboard_stats(db)
+    await cache_set_versioned(
+        "customers:stats", cache_key, json.dumps(payload, default=str), ttl=120
+    )
+    return ok(payload)
 
 
 @router.get("/ai-stats")

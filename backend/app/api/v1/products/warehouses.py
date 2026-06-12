@@ -1,8 +1,10 @@
 """Warehouses and inventory management API."""
 
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,7 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.product import Inventory, Product, Warehouse
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_get_versioned, cache_set_versioned
 
 warehouses_router = APIRouter(prefix="/warehouses", tags=["warehouses"])
 inventory_router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -253,9 +256,18 @@ async def list_inventory(
 
 @inventory_router.get("/overview")
 async def inventory_overview(
+    response: JSONResponse,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
+    """Inventory KPI snapshot. Cached 60s (changes on every stock txn)."""
+    cache_key = "overview"
+    cached_payload = await cache_get_versioned("inventory:overview", cache_key)
+    if cached_payload is not None:
+        response.headers["X-Cache"] = "HIT"
+        return ok(json.loads(cached_payload))
+    response.headers["X-Cache"] = "MISS"
+
     total_value_q = select(
         func.coalesce(func.sum(Inventory.quantity * Inventory.unit_price), 0)
     ).where(Warehouse.deleted_at.is_(None))
@@ -272,14 +284,16 @@ async def inventory_overview(
     product_count_q = select(func.count(func.distinct(Inventory.product_id)))
     product_count = (await db.execute(product_count_q)).scalar() or 0
 
-    return ok(
-        {
-            "total_value": float(total_value),
-            "low_stock_count": low_stock_count,
-            "out_of_stock_count": out_of_stock_count,
-            "product_count": product_count,
-        }
+    payload = {
+        "total_value": float(total_value),
+        "low_stock_count": low_stock_count,
+        "out_of_stock_count": out_of_stock_count,
+        "product_count": product_count,
+    }
+    await cache_set_versioned(
+        "inventory:overview", cache_key, json.dumps(payload, default=str), ttl=60
     )
+    return ok(payload)
 
 
 @inventory_router.post("/adjust")
