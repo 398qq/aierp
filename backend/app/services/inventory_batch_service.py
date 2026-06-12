@@ -29,6 +29,7 @@ from app.domain.inventory.batch import (
     BatchStatus,
     InventoryBatch,
     allocate_fifo_by_received,
+    allocate_lowest_cost_first,
 )
 from app.domain.inventory.cost_strategy import make_cost_strategy
 from app.models.product import Inventory as InventoryORM
@@ -130,7 +131,7 @@ class InventoryBatchService:
             expiry_date.date() if isinstance(expiry_date, datetime) else expiry_date
         )
 
-        domain_batch = DomainBatch(
+        domain_batch = DomainBatch(  # noqa: F841 — used for future domain validation
             product_id=product_id,
             warehouse_id=warehouse_id,
             batch_no=batch_no,
@@ -147,6 +148,7 @@ class InventoryBatchService:
             rohs_compliant=rohs_compliant,
             notes=notes,
         )
+        _ = domain_batch  # explicit placeholder until domain validator is wired
 
         # Persist to ORM
         orm_batch = InventoryBatchORM(
@@ -248,7 +250,7 @@ class InventoryBatchService:
         if strategy == "fifo":
             result = allocate_fifo_by_received(domain_batches, quantity)
         elif strategy == "fefo":
-            from app.domain.inventory.batch import allocate_fefo
+            from app.domain.inventory.batch import allocate_fefo  # noqa: PLC0415 (per-strategy import keeps domain self-contained)
 
             result = allocate_fefo(domain_batches, quantity)
         else:
