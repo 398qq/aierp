@@ -88,20 +88,27 @@ export default function Dashboard() {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    Promise.all([
+    Promise.allSettled([
       getDashboardStats(),
       getUpcomingVisits(14),
       getRecentActivity(10),
       getOverdueFollowUps(),
     ])
-      .then(([s, uv, ra, od]) => {
-        setStats(s.data.data);
-        setUpcomingVisits((uv.data.data || []) as unknown as Visit[]);
-        setRecentActivity((ra.data.data || []) as CustomerLog[]);
-        const odData = od.data.data as { total: number; items: OverdueFollowUp[] } | null;
-        setOverdue(odData?.items || []);
+      .then((results) => {
+        if (results[0].status === "fulfilled") {
+          setStats(results[0].value.data.data);
+        }
+        if (results[1].status === "fulfilled") {
+          setUpcomingVisits((results[1].value.data.data || []) as unknown as Visit[]);
+        }
+        if (results[2].status === "fulfilled") {
+          setRecentActivity((results[2].value.data.data || []) as CustomerLog[]);
+        }
+        if (results[3].status === "fulfilled") {
+          const odData = results[3].value.data.data as { total: number; items: OverdueFollowUp[] } | null;
+          setOverdue(odData?.items || []);
+        }
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
 
     getKpi().then((r) => setKpi(r.data.data as KpiData)).catch(() => {});
