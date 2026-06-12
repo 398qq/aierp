@@ -73,7 +73,7 @@ class Brand(TimestampMixin, Base):
     ai_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     alternative_brands: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
@@ -174,7 +174,7 @@ class Product(TimestampMixin, Base):
     # ── 备注与向量 ──
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
 
     brand = relationship("Brand", back_populates="products", lazy="selectin")
     quotation_items = relationship(
@@ -230,7 +230,7 @@ class Supplier(TimestampMixin, Base):
     )
 
     # ── AI ──
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
