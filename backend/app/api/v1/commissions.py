@@ -247,7 +247,7 @@ async def batch_transition(
                 continue
             try:
                 assert_can_transition_commission(obj.status, to)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 failed.append({"id": cid, "error": f"invalid transition: {obj.status} → {to}"})
                 continue
             previous_status = obj.status

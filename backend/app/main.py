@@ -224,7 +224,7 @@ async def metrics_prometheus():
     business_text = render_prometheus_text()
     # Append prometheus_client default registry (process / python info)
     try:
-        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from prometheus_client import generate_latest
 
         runtime_text = generate_latest().decode("utf-8")
         # The text has the same Prometheus format; just concatenate.

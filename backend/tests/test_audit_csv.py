@@ -8,7 +8,6 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import Base
 
 
 @pytest_asyncio.fixture

@@ -1,0 +1,60 @@
+name: Dependabot auto-merge
+
+# Stage 16 Day 3: patch + minor + CI 绿时自动 squash merge
+# Major 仍需人工 review（避免破坏性升级自动进 master）
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    # Dependabot bot 创建的 PR
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot-auto-merge:
+    name: Auto-merge patch/minor updates
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge patch and minor updates
+        # 条件: 依赖类型是 patch 或 minor + CI 全绿
+        # 注意: 我们用 dependabot 的 groups 把 patch+minor 合并成一个 PR
+        #       major 在另一个 group，仍需人工 review
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        runs-on: ubuntu-latest
+        steps:
+          - name: Enable auto-merge
+            run: gh pr merge --auto --squash "$PR_URL"
+            env:
+              PR_URL: ${{ github.event.pull_request.html_url }}
+              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on major updates (require human review)
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        runs-on: ubuntu-latest
+        steps:
+          - name: Add review-required comment
+            uses: actions/github-script@v7
+            with:
+              script: |
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: '🤖 **Major version update detected** — requires manual review.\n\n' +
+                        'CI must pass + 398qq must approve before merge.\n\n' +
+                        'Check breaking changes: see release notes of each package.'
+                });
+              # Re-enable above after this PR exists; for now skip
+            continue-on-error: true
