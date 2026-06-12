@@ -166,7 +166,14 @@ async def commit_allocation(
             }
         )
     except ValueError as e:
-        return fail(str(e), 400)
+        # Stage 17 follow-up: log detail server-side, return generic message
+        # to avoid leaking internal state via error strings.
+        import logging
+        logging.getLogger(__name__).warning(
+            "Batch allocation rejected: product=%s warehouse=%s err=%s",
+            body.product_id, body.warehouse_id, e,
+        )
+        return fail("Batch allocation rejected — check inputs and retry", 400)
 
 
 # ── COGS Report ──────────────────────────────────────────────────────────
