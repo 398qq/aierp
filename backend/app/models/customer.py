@@ -127,7 +127,7 @@ class Customer(TimestampMixin, Base):
     )
 
     # ── AI ──
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     ai_insights: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     contacts = relationship(

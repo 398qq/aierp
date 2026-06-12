@@ -2,11 +2,20 @@ name: Dependabot auto-merge
 
 # Stage 16 Day 3: patch + minor + CI 绿时自动 squash merge
 # Major 仍需人工 review（避免破坏性升级自动进 master）
+#
+# 关键: 我们的 auto-merge 用 PAT (secrets.AUTO_MERGE_TOKEN), 避开 GITHUB_TOKEN 限制
+#       GITHUB_TOKEN 不能 approve PR (read-only), 用 PAT 才能 approve + merge
+#
+# 流程:
+#   1. dependabot 开 PR
+#   2. dependabot-auto-merge workflow 触发 (pull_request_target)
+#   3. dependabot/fetch-metadata 拿 update type
+#   4. patch+minor: 用 PAT approve → 触发 gh pr merge --auto
+#   5. major: 评论, 必人工
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize]
-    # Dependabot bot 创建的 PR
     branches: [master]
 
 permissions:
@@ -17,44 +26,30 @@ jobs:
   dependabot-auto-merge:
     name: Auto-merge patch/minor updates
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Fetch metadata
         id: metadata
         uses: dependabot/fetch-metadata@v2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.AUTO_MERGE_TOKEN }}
 
-      - name: Auto-merge patch and minor updates
-        # 条件: 依赖类型是 patch 或 minor + CI 全绿
-        # 注意: 我们用 dependabot 的 groups 把 patch+minor 合并成一个 PR
-        #       major 在另一个 group，仍需人工 review
+      - name: Auto-merge patch and minor
         if: |
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        runs-on: ubuntu-latest
-        steps:
-          - name: Enable auto-merge
-            run: gh pr merge --auto --squash "$PR_URL"
-            env:
-              PR_URL: ${{ github.event.pull_request.html_url }}
-              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        # 用 PAT 先 approve, 然后 --auto 等 CI 过后自动 merge
+        run: |
+          gh pr review "$PR_URL" --approve -b "Auto-approved by dependabot-auto-merge (patch/minor)"
+          gh pr merge --auto --squash "$PR_URL"
 
-      - name: Comment on major updates (require human review)
+      - name: Notify on major
         if: steps.metadata.outputs.update-type == 'version-update:semver-major'
-        runs-on: ubuntu-latest
-        steps:
-          - name: Add review-required comment
-            uses: actions/github-script@v7
-            with:
-              script: |
-                github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body: '🤖 **Major version update detected** — requires manual review.\n\n' +
-                        'CI must pass + 398qq must approve before merge.\n\n' +
-                        'Check breaking changes: see release notes of each package.'
-                });
-              # Re-enable above after this PR exists; for now skip
-            continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" -b "🤖 **Major version update** — needs manual review. CI must pass + 398qq must approve before merge."
