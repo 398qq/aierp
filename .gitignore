@@ -114,8 +114,10 @@ backend/check_pw.py
 backend/check_pw2.py
 backend/reset_admin.py
 
-# Generated customer fixtures
-customers/
+# Generated customer fixtures (root only — anchored to /customers/)
+# Critical: must be /customers/ not customers/, otherwise it also matches
+# frontend/src/pages/customers/ and silently drops files in PRs.
+/customers/
 
 # AI CLI session artifacts (per-developer local context)
 GEMINI.md
