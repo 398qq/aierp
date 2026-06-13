@@ -2,15 +2,32 @@ from datetime import datetime, timedelta, timezone
 import logging
 import uuid
 
+import bcrypt
 import jwt
 from jwt import InvalidTokenError as JWTError
-from passlib.context import CryptContext
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt 5 raises ValueError for passwords > 72 bytes; truncate to keep
+# parity with bcrypt 4 behavior (silently truncated). UTF-8 boundary is
+# best-effort: a half-character at the cut is dropped.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _truncate_bcrypt_secret(password: str) -> bytes:
+    if isinstance(password, str):
+        raw = password.encode("utf-8")
+    else:
+        raw = password
+    if len(raw) <= _BCRYPT_MAX_BYTES:
+        return raw
+    truncated = raw[:_BCRYPT_MAX_BYTES]
+    # If we cut a multi-byte char mid-sequence, drop trailing partial bytes.
+    while truncated and (truncated[-1] & 0xC0) == 0x80:
+        truncated = truncated[:-1]
+    return truncated
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -90,8 +107,25 @@ async def revoke_all_user_tokens(user_id: int) -> int:
 # ────────────────────────────────────────────────────────────────────────
 
 
+def _truncate_bcrypt_secret(password: str) -> bytes:
+    if isinstance(password, str):
+        raw = password.encode("utf-8")
+    else:
+        raw = password
+    if len(raw) <= _BCRYPT_MAX_BYTES:
+        return raw
+    truncated = raw[:_BCRYPT_MAX_BYTES]
+    while truncated and (truncated[-1] & 0xC0) == 0x80:
+        truncated = truncated[:-1]
+    return truncated
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt direct (was: passlib CryptContext — passlib 1.7.4 is incompatible
+    # with bcrypt 5 in its internal detect_wrap_bug path, raising ValueError).
+    secret = _truncate_bcrypt_secret(password)
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(secret, salt).decode("utf-8")
 
 
 def _verify_password_sync(plain: str, hashed: str) -> bool:
@@ -101,18 +135,12 @@ def _verify_password_sync(plain: str, hashed: str) -> bool:
     FastAPI event loop is not blocked. Do not call this directly from
     async code paths — use `await verify_password(...)` instead.
     """
-    import bcrypt
-
     try:
-        plain_bytes = plain.encode("utf-8") if isinstance(plain, str) else plain
+        plain_bytes = _truncate_bcrypt_secret(plain)
         hashed_bytes = hashed.encode("utf-8") if isinstance(hashed, str) else hashed
         return bcrypt.checkpw(plain_bytes, hashed_bytes)
     except Exception:
-        # Final fallback to passlib in case the hash uses a non-bcrypt scheme.
-        try:
-            return pwd_context.verify(plain, hashed)
-        except Exception:
-            return False
+        return False
 
 
 async def verify_password(plain: str, hashed: str) -> bool:
