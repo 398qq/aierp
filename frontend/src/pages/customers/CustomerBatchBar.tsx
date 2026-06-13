@@ -1,0 +1,197 @@
+/**
+ * CustomerBatchBar — 批量操作浮动工具栏
+ *
+ * 选中行后出现，提供：批量打标签、批量删除、批量导出、批量状态变更
+ * 权限：仅主管（batch 操作）+ 管理员可见
+ */
+
+import React, { useCallback, useState } from "react";
+import {
+  Button,
+  message,
+  Modal,
+  Select,
+  Space,
+  Tag,
+} from "antd";
+import {
+  DeleteOutlined,
+  ExportOutlined,
+  TagsOutlined,
+} from "@ant-design/icons";
+import {
+  batchDeleteCustomers,
+  batchTagCustomers,
+  exportCustomers,
+  getTags,
+} from "@/api";
+
+// ── 类型 ──
+
+interface CustomerBatchBarProps {
+  selectedIds: number[];
+  selectedCount: number;
+  onClear: () => void;
+  onBatchComplete: () => void;
+}
+
+// ── 组件 ──
+
+export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
+  selectedIds,
+  selectedCount,
+  onClear,
+  onBatchComplete,
+}) => {
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [tagging, setTagging] = useState(false);
+  const [tagModalOpen, setTagModalOpen] = useState(false);
+  const [tagOptions, setTagOptions] = useState<Array<{ value: number; label: string }>>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+
+  // ── 批量删除 ──
+  const handleBatchDelete = useCallback(() => {
+    Modal.confirm({
+      title: `确认删除 ${selectedCount} 个客户？`,
+      content: "此操作为软删除，客户将不再出现在正常列表中。",
+      okText: "确认删除",
+      okType: "danger",
+      cancelText: "取消",
+      onOk: async () => {
+        setDeleting(true);
+        try {
+          await batchDeleteCustomers(selectedIds);
+          message.success(`已删除 ${selectedCount} 个客户`);
+          onBatchComplete();
+          onClear();
+        } catch {
+          message.error("批量删除失败");
+        } finally {
+          setDeleting(false);
+        }
+      },
+    });
+  }, [selectedIds, selectedCount, onBatchComplete, onClear]);
+
+  // ── 批量导出 ──
+  const handleBatchExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await exportCustomers({ ids: selectedIds.join(",") });
+      const blob = res.data as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `customers_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success(`已导出 ${selectedCount} 个客户`);
+    } catch {
+      message.error("导出失败");
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedIds, selectedCount]);
+
+  // ── 批量打标签 ──
+  const handleBatchTag = useCallback(async () => {
+    try {
+      const res = await getTags();
+      const tags = (res.data?.data || res.data) as Array<{ id: number; name: string; color?: string }> | { list: Array<{ id: number; name: string }> };
+      const tagList = Array.isArray(tags) ? tags : (tags as { list: Array<{ id: number; name: string }> }).list || [];
+      setTagOptions(tagList.map((t) => ({ value: t.id, label: t.name })));
+      setSelectedTagIds([]);
+      setTagModalOpen(true);
+    } catch {
+      message.error("加载标签失败");
+    }
+  }, [selectedCount]);
+
+  const handleBatchTagSubmit = useCallback(async () => {
+    if (!selectedTagIds.length) {
+      message.warning("请选择至少一个标签");
+      return;
+    }
+    setTagging(true);
+    try {
+      await batchTagCustomers(selectedIds, selectedTagIds);
+      message.success(`已为 ${selectedCount} 个客户添加标签`);
+      setTagModalOpen(false);
+      setSelectedTagIds([]);
+      onBatchComplete();
+      onClear();
+    } catch {
+      message.error("批量打标签失败");
+    } finally {
+      setTagging(false);
+    }
+  }, [selectedIds, selectedTagIds, selectedCount, onBatchComplete, onClear]);
+
+  if (selectedCount === 0) return null;
+
+  return (
+    <>
+      <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "8px 16px",
+        background: "#e6f4ff",
+        border: "1px solid #91caff",
+        borderRadius: 6,
+        margin: "0 16px 8px",
+      }}
+      >
+        <Tag color="blue" style={{ marginRight: 12 }}>
+          已选 {selectedCount} 项
+        </Tag>
+        <Space>
+          <Button size="small" icon={<TagsOutlined />} onClick={handleBatchTag}>
+            批量打标签
+          </Button>
+          <Button
+            size="small"
+            icon={<ExportOutlined />}
+            loading={exporting}
+            onClick={handleBatchExport}
+          >
+            导出
+          </Button>
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            loading={deleting}
+            onClick={handleBatchDelete}
+          >
+            删除
+          </Button>
+          <Button size="small" onClick={onClear}>
+            取消选择
+          </Button>
+        </Space>
+      </div>
+      <Modal
+        title={`为 ${selectedCount} 个客户添加标签`}
+        open={tagModalOpen}
+        okText="确认"
+        cancelText="取消"
+        confirmLoading={tagging}
+        onOk={handleBatchTagSubmit}
+        onCancel={() => setTagModalOpen(false)}
+      >
+        <Select
+          mode="multiple"
+          style={{ width: "100%", marginTop: 12 }}
+          placeholder="选择标签"
+          options={tagOptions}
+          value={selectedTagIds}
+          onChange={setSelectedTagIds}
+        />
+      </Modal>
+    </>
+  );
+};
+
+export default CustomerBatchBar;
