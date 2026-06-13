@@ -46,7 +46,9 @@ ok()   { echo -e "${GREEN}[OK]${NC} $*" | tee -a "$LOG_FILE"; }
 # ============ Get token from credential helper ============
 get_token() {
     if [[ -f "$CRED_FILE" ]] && [[ -s "$CRED_FILE" ]]; then
-        grep -oP 'https://\K[^@]+' "$CRED_FILE" | head -1
+        # URL may be https://x-access-token:REAL_PAT@github.com (set by 'git -c url.https://...push')
+        # or https://REAL_PAT@github.com. Take the password part (after last ':') for auth header.
+        grep -oP 'https://(?:x-access-token:)?\K[^@]+' "$CRED_FILE" | tail -1 | sed 's/^.*://'
         return 0
     fi
     return 1

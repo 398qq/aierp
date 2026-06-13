@@ -80,7 +80,9 @@ if [[ -n "${1:-}" ]]; then
 else
     # Try to read existing token from helper
     if [[ -f "$CRED_FILE" ]] && [[ -s "$CRED_FILE" ]]; then
-        TOKEN=$(grep -oP 'https://\K[^@]+' "$CRED_FILE" | head -1)
+        # URL may be https://x-access-token:REAL_PAT@github.com (set by 'git -c url.https://...push')
+        # or https://REAL_PAT@github.com. Take the password part (after last ':') for auth header.
+        TOKEN=$(grep -oP 'https://(?:x-access-token:)?\K[^@]+' "$CRED_FILE" | tail -1 | sed 's/^.*://')
         if [[ -n "$TOKEN" ]]; then
             log "Reusing existing token from $CRED_FILE"
         fi
