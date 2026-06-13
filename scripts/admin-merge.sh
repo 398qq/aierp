@@ -60,23 +60,40 @@ gh_api() {
     local method="$1"
     local path="$2"
     local data="${3:-}"
+    local retries="${4:-3}"
     local token
     token="$(get_token)" || { err "No token in $CRED_FILE. Run scripts/setup-credentials.sh first."; exit 1; }
 
-    local args=(-sS -X "$method" -H "Authorization: token $token"
-                -H "Accept: application/vnd.github+json"
-                -H "X-GitHub-Api-Version: 2022-11-28"
-                -w "\n%{http_code}" "https://api.github.com$path")
-    if [[ -n "$data" ]]; then
-        args=(-H "Content-Type: application/json" -d "$data" "${args[@]}")
-        # Insert after -H Content-Type
-    fi
+    local attempt=0
+    while [[ $attempt -lt $retries ]]; do
+        attempt=$((attempt + 1))
+        local args=(-sS --connect-timeout 10 --max-time 60 -X "$method"
+                    -H "Authorization: token $token"
+                    -H "Accept: application/vnd.github+json"
+                    -H "X-GitHub-Api-Version: 2022-11-28"
+                    -w "\n%{http_code}" "https://api.github.com$path")
+        if [[ -n "$data" ]]; then
+            args=(-H "Content-Type: application/json" -d "$data" "${args[@]}")
+        fi
 
-    local response
-    response=$(curl "${args[@]}")
-    # Persist HTTP code to file (subshells can't update parent vars under set -u)
-    echo "$response" | tail -1 > "$GH_HTTP_CODE_FILE"
-    echo "$response" | sed '$d'
+        local response
+        response=$(curl "${args[@]}" 2>/dev/null)
+        local code
+        code=$(echo "$response" | tail -1)
+        if [[ "$code" =~ ^[2-3][0-9][0-9]$ ]]; then
+            echo "$code" > "$GH_HTTP_CODE_FILE"
+            echo "$response" | sed '$d'
+            return 0
+        fi
+        if [[ $attempt -lt $retries ]]; then
+            warn "API $method $path returned $code (attempt $attempt/$retries), retrying in 3s..."
+            sleep 3
+        else
+            echo "$code" > "$GH_HTTP_CODE_FILE"
+            echo ""
+        fi
+    done
+    return 1
 }
 
 # ============ Parse args ============
