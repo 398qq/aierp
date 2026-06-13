@@ -50,7 +50,6 @@ htmlcov/
 
 # Logs
 *.log
-logs/
 
 # Docker
 .dockerignore
@@ -103,7 +102,8 @@ nginx\.conf
 # Workflow artifacts
 .ao-output/
 agency-agents-zh/
-workflows/
+# workflows/ keeps matching but .github/ is now in repo root, no conflict (was the only conflict)
+# Use specific tool output dir names instead:
 
 # One-off utility scripts (development, not production)
 backend/add_contacts.py
@@ -131,3 +131,7 @@ perf/*.html
 # Backups / pre-existing dev artifacts
 DESIGN.md.linear.bak
 .codex/
+workflows/
+
+# Runtime logs (admin-merge, backups, ops-alert) — generated at runtime, never commit
+logs/
