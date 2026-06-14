@@ -22,7 +22,10 @@ from httpx import AsyncClient
 
 @pytest.fixture(autouse=True)
 def _reset_metrics():
-    """Reset Prometheus counters and L1 cache between tests."""
+    """Reset Prometheus counters and L1 cache between tests.
+
+    L2 (Redis) flush is handled by _clean_redis_cache in conftest.py.
+    """
     from app.core.observability.metrics import reset_all
     from app.services.cache_service import _l1_cache, _l1_epochs
 
