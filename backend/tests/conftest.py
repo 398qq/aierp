@@ -217,6 +217,46 @@ async def admin_headers(test_admin):
 
 
 @pytest.fixture(autouse=True)
+def _clean_redis_cache():
+    """Flush all aierp:* L2 Redis keys between tests (Stage 19 fix).
+
+    Root cause: require_perm() caches perm:{user_id}:{resource}:{action} in
+    Redis (PERM_CACHE_TTL). test_user and test_admin in the same process can
+    share the cache, so a previous admin's allow leaks into a sales user's
+    permission check. Same root cause for test_cache_finance_reports L2
+    pollution. Fix: flush aierp:* keys before AND after every test.
+    """
+    import asyncio
+
+    async def _flush():
+        try:
+            from app.services.cache_service import get_redis
+            r = await get_redis()
+            if r is not None:
+                keys = []
+                async for k in r.scan_iter(match="aierp:*"):
+                    keys.append(k)
+                if keys:
+                    await r.delete(*keys)
+        except Exception:
+            pass
+
+    def _run():
+        try:
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(_flush())
+            finally:
+                loop.close()
+        except Exception:
+            pass
+
+    _run()
+    yield
+    _run()
+
+
+@pytest.fixture(autouse=True)
 def _clean_telegram_env():
     """Reset Telegram env vars before each test.
 
