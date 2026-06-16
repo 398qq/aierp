@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button, Select } from "antd";
+import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button, Select, Divider } from "antd";
 import { StatusTag } from "../../ui";
-import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined, ShoppingCartOutlined, DownloadOutlined } from "@ant-design/icons";
+import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined, ShoppingCartOutlined, DownloadOutlined, OrderedListOutlined, InboxOutlined, AlertOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast, createPOFromRestock, getSuppliers, batchAdjustInventory } from "../../api";
 import type { InventoryItem } from "../../types";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 export default function InventoryList() {
   const [data, setData] = useState<InventoryItem[]>([]);
@@ -217,6 +217,15 @@ export default function InventoryList() {
       },
     },
     {
+      title: "批次", key: "batches", width: 80,
+      render: (_: unknown, r: InventoryItem) => (
+        <Button size="small" type="link" icon={<OrderedListOutlined />}
+          onClick={() => navigate(`/warehouse/inventory-batches`)}>
+          批次
+        </Button>
+      ),
+    },
+    {
       title: "操作", key: "action", width: 80,
       render: (_: unknown, r) => (
         <Button size="small" icon={<SwapOutlined />} onClick={() => openAdjust(r)}>调整</Button>
@@ -228,145 +237,169 @@ export default function InventoryList() {
   const deadStockList = overview?.dead_stock as Record<string, unknown>[] | undefined;
 
   return (
-    <div>
-      {/* Intelligence Overview */}
-      {overview && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic title="总库存" value={Number(overview.total_quantity)} />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small" style={{ borderColor: (overview.low_stock_items as number) > 0 ? "#ff4d4f" : undefined }}>
-              <Statistic
-                title={<span><WarningOutlined /> 低库存项</span>}
-                value={Number(overview.low_stock_items)}
-                valueStyle={{ color: (overview.low_stock_items as number) > 0 ? "#ff4d4f" : undefined }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title={<span><FallOutlined /> 呆滞品</span>}
-                value={Number(overview.dead_stock_items)}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title={<span><RiseOutlined /> 建议补货</span>}
-                value={restockList?.length || 0}
-              />
-            </Card>
-          </Col>
-        </Row>
-      )}
+    <div style={{ padding: "0 0 24px 0" }}>
+      <Title level={4} style={{ marginBottom: 16 }}>库存管理</Title>
 
-      {/* Restock Suggestions */}
-      {restockList && restockList.length > 0 && (
-        <Card
-          title={<span><RiseOutlined /> 补货建议</span>}
-          extra={<Button type="primary" size="small" icon={<ShoppingCartOutlined />} onClick={openRestockModal}>一键补货</Button>}
-          size="small"
-          style={{ marginBottom: 16, borderColor: "#faad14" }}
-        >
-          <List
+      {/* KPI Overview */}
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: "#f6ffed", borderColor: "#b7eb8f" }}>
+            <Statistic title={<span><InboxOutlined /> 总库存</span>}
+              value={Number(overview?.total_quantity || 0)} suffix="件"
+              valueStyle={{ color: "#389e0d" }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: (overview?.low_stock_count as number) > 0 ? "#fff7e6" : "#f6ffed", borderColor: (overview?.low_stock_count as number) > 0 ? "#ffd591" : "#b7eb8f" }}>
+            <Statistic title={<span><WarningOutlined /> 低库存项</span>}
+              value={Number(overview?.low_stock_count || 0)} suffix="种"
+              valueStyle={{ color: (overview?.low_stock_count as number) > 0 ? "#d46b08" : "#389e0d" }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: (overview?.dead_stock_items as number) > 0 ? "#fff1f0" : "#f6ffed", borderColor: (overview?.dead_stock_items as number) > 0 ? "#ffa39e" : "#b7eb8f" }}>
+            <Statistic title={<span><FallOutlined /> 呆滞品</span>}
+              value={Number(overview?.dead_stock_items || 0)} suffix="种"
+              valueStyle={{ color: (overview?.dead_stock_items as number) > 0 ? "#cf1322" : "#389e0d" }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: restockList?.length ? "#e6f7ff" : "#f6ffed", borderColor: restockList?.length ? "#91d5ff" : "#b7eb8f" }}>
+            <Statistic title={<span><RiseOutlined /> 建议补货</span>}
+              value={restockList?.length || 0} suffix="种"
+              valueStyle={{ color: restockList?.length ? "#096dd9" : "#389e0d" }} />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Main content: Table + Sidebar */}
+      <Row gutter={[12, 12]}>
+        {/* Left: Inventory Table */}
+        <Col xs={24} lg={16}>
+          <Card
+            title="库存列表"
             size="small"
-            dataSource={restockList}
-            renderItem={(s) => (
-              <List.Item>
-                <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                  <span>
-                    <a onClick={() => navigate(`/products/${s.product_id}`)}>
-                      {String(s.sku || "")} {String(s.name || "")}
-                    </a>
-                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
-                  </span>
-                  <Space>
-                    <Text type="secondary">月均消耗: {String(s.monthly_rate)}</Text>
-                    <Text>库存: {String(s.current_qty)}</Text>
-                    <StatusTag tone="info">建议补: {String(s.suggested_order)}</StatusTag>
-                    <StatusTag tone={s.urgency === "紧急" ? "danger" : s.urgency === "建议" ? "warning" : "neutral"}>
-                      {String(s.urgency)}
-                    </StatusTag>
-                  </Space>
-                </Space>
-              </List.Item>
-            )}
-          />
-        </Card>
-      )}
+            extra={
+              <Space size={4}>
+                {selectedRowKeys.length > 0 && (
+                  <>
+                    <Button size="small" onClick={() => setBatchModalOpen(true)}>批量调整 ({selectedRowKeys.length})</Button>
+                    <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>导出</Button>
+                  </>
+                )}
+                <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>全部导出</Button>
+                <Button size="small" icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+              </Space>
+            }
+          >
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={data}
+              loading={loading}
+              size="small"
+              rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
+              pagination={{ current: page, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`, onChange: (p) => setPage(p) }}
+              scroll={{ x: 1100 }}
+            />
+          </Card>
+        </Col>
 
-      {/* Dead Stock */}
-      {deadStockList && deadStockList.length > 0 && (
-        <Card
-          title={<span><FallOutlined /> 呆滞库存（180天+ 未动）</span>}
-          size="small"
-          style={{ marginBottom: 16, borderColor: "#ff4d4f" }}
-        >
-          <List
-            size="small"
-            dataSource={deadStockList}
-            renderItem={(s) => (
-              <List.Item>
-                <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                  <span>
-                    <a onClick={() => navigate(`/products/${s.product_id}`)}>
-                      {String(s.sku || "")} {String(s.name || "")}
-                    </a>
-                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
-                  </span>
-                  <Space>
-                    <Text>库存: {String(s.quantity)} (仓库 #{String(s.warehouse_id)})</Text>
-                    <Text type="danger">{String(s.suggestion)}</Text>
-                  </Space>
-                </Space>
-              </List.Item>
+        {/* Right: Alerts Sidebar */}
+        <Col xs={24} lg={8}>
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            {restockList && restockList.length > 0 && (
+              <Card size="small" title={<><RiseOutlined /> 补货建议</>}
+                extra={<Button type="primary" size="small" onClick={openRestockModal}>一键补货</Button>}
+                style={{ borderColor: "#faad14" }}>
+                <List size="small" dataSource={restockList.slice(0, 5)} split={false}
+                  renderItem={(s) => (
+                    <List.Item style={{ padding: "4px 0" }}>
+                      <div style={{ width: "100%" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <a onClick={() => navigate(`/products/${s.product_id as number}`)}
+                            style={{ fontWeight: 500, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {String(s.name)}</a>
+                          <StatusTag tone={s.urgency === "紧急" ? "danger" : "warning"}>{String(s.urgency)}</StatusTag>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>库存 {s.current_qty as number} · 安全 {s.safety_stock as number}</Text>
+                          <Text strong style={{ fontSize: 12, color: "#1677ff" }}>补 {s.suggested_order as number}</Text>
+                        </div>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+                {restockList.length > 5 && <Text type="secondary" style={{ fontSize: 12 }}>还有 {restockList.length - 5} 项...</Text>}
+              </Card>
             )}
-          />
-        </Card>
-      )}
 
-      {/* Inventory Table */}
-      <Card
-        title="库存列表"
-        extra={
-          <Space>
-            {selectedRowKeys.length > 0 && (
-              <>
-                <Button size="small" icon={<SwapOutlined />} onClick={() => setBatchModalOpen(true)}>
-                  批量调整 ({selectedRowKeys.length})
-                </Button>
-                <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>
-                  导出 ({selectedRowKeys.length})
-                </Button>
-              </>
+            {deadStockList && deadStockList.length > 0 && (
+              <Card size="small" title={<><FallOutlined /> 呆滞库存</>} style={{ borderColor: "#ff4d4f" }}>
+                <List size="small" dataSource={deadStockList.slice(0, 5)} split={false}
+                  renderItem={(s) => (
+                    <List.Item style={{ padding: "4px 0" }}>
+                      <div style={{ width: "100%" }}>
+                        <a onClick={() => navigate(`/products/${s.product_id as number}`)}
+                          style={{ fontWeight: 500 }}>
+                          {String(s.name || s.sku)}</a>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 12 }}>库存 {String(s.quantity)} · 仓库 #{String(s.warehouse_id)}</Text>
+                        </div>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              </Card>
             )}
-            <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>全部导出</Button>
-            <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+
+            {!restockList?.length && !deadStockList?.length && (
+              <Card size="small">
+                <div style={{ textAlign: "center", padding: 24 }}>
+                  <AlertOutlined style={{ fontSize: 24, color: "#52c41a" }} />
+                  <div style={{ marginTop: 8 }}><Text type="secondary">库存状态良好，无异常</Text></div>
+                </div>
+              </Card>
+            )}
           </Space>
-        }
-      >
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          size="small"
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys),
-          }}
-          pagination={{
-            current: page, total, pageSize: 20,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (p) => setPage(p),
-          }}
-        />
+        </Col>
+      </Row>
+
+      <Divider style={{ margin: "16px 0" }} />
+
+      {/* AI Demand Forecast */}
+      <Card size="small" title={<><BarChartOutlined /> AI 需求预测</>}
+        loading={forecastLoading}
+        extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => {
+          setForecastLoading(true);
+          getDemandForecast(undefined, 20).then((r) => setForecastData((r.data.data || []) as Record<string, unknown>[])).catch(() => {}).finally(() => setForecastLoading(false));
+        }}>刷新</Button>}>
+        {forecastData.length > 0 ? (
+          <Table size="small" dataSource={forecastData as Record<string, unknown>[]} rowKey="product_id" pagination={false}
+            columns={[
+              { title: "SKU", dataIndex: "sku", width: 100, ellipsis: true },
+              { title: "产品名", dataIndex: "name", ellipsis: true },
+              { title: "月预测需求", dataIndex: "monthly_forecast", width: 110, render: (v: number) => v != null ? v.toFixed(0) : "-" },
+              { title: "趋势", dataIndex: "trend", width: 80,
+                render: (t: string) => {
+                  const color = t === "上升" ? "green" : t === "下降" || t === "衰退" ? "red" : t === "新增长" ? "blue" : "default";
+                  return <StatusTag tone={color as any}>{t}</StatusTag>;
+                }},
+              { title: "安全库存", dataIndex: "suggested_safety_stock", width: 90,
+                render: (v: number, r: Record<string, unknown>) => {
+                  const g = Number(v || 0) - Number(r.current_safety_stock || 0);
+                  return <StatusTag tone={g > 10 ? "danger" as any : g > 0 ? "warning" as any : "success" as any}>{v}{g > 0 ? ` +${g}` : ""}</StatusTag>;
+                }},
+              { title: "置信度", dataIndex: "confidence", width: 70,
+                render: (c: string) => <StatusTag tone={c === "高" ? "success" : c === "中" ? "warning" : "danger"}>{c}</StatusTag> },
+              { title: "交期(天)", dataIndex: "lead_time_days", width: 80 },
+            ]} />
+        ) : (
+          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 24 }}>暂无预测数据</Text>
+        )}
       </Card>
+
+      {/* ── Modals ── */}
 
       {/* Adjust Modal */}
       <Modal
@@ -499,55 +532,6 @@ export default function InventoryList() {
         </Space>
       </Modal>
 
-      {/* Demand Forecast Section */}
-      <Card
-        title={<><BarChartOutlined /> AI 需求预测（前20）</>}
-        style={{ marginTop: 24 }}
-        loading={forecastLoading}
-      >
-        {forecastData.length > 0 ? (
-          <Table
-            size="small"
-            dataSource={forecastData as Record<string, unknown>[]}
-            rowKey="product_id"
-            pagination={false}
-            columns={[
-              { title: "SKU", dataIndex: "sku", width: 100, ellipsis: true },
-              { title: "产品名", dataIndex: "name", ellipsis: true },
-              {
-                title: "月预测需求", dataIndex: "monthly_forecast", width: 110,
-                render: (v: number) => v != null ? v.toFixed(0) : "-",
-              },
-              {
-                title: "趋势", dataIndex: "trend", width: 80,
-                render: (t: string) => {
-                  const color = t === "上升" ? "green" : t === "下降" || t === "衰退" ? "red" : t === "新增长" ? "blue" : "default";
-                  return <StatusTag tone={color}>{t}</StatusTag>;
-                },
-              },
-              {
-                title: "安全库存", dataIndex: "suggested_safety_stock", width: 90,
-                render: (v: number, r: Record<string, unknown>) => {
-                  const current = Number(r.current_safety_stock) || 0;
-                  const suggested = Number(v) || 0;
-                  const gap = suggested - current;
-                  const color = gap > 10 ? "red" : gap > 0 ? "orange" : "green";
-                  return <StatusTag tone={color}>{suggested}{gap > 0 ? ` (+${gap})` : ""}</StatusTag>;
-                },
-              },
-              {
-                title: "置信度", dataIndex: "confidence", width: 70,
-                render: (c: string) => <StatusTag tone={c === "高" ? "success" : c === "中" ? "warning" : "danger"}>{c}</StatusTag>,
-              },
-              { title: "交货期(天)", dataIndex: "lead_time_days", width: 80 },
-            ]}
-          />
-        ) : (
-          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 24 }}>
-            暂无预测数据（需有销售历史记录）
-          </Text>
-        )}
-      </Card>
     </div>
   );
 }

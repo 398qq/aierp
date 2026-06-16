@@ -107,19 +107,6 @@ async def revoke_all_user_tokens(user_id: int) -> int:
 # ────────────────────────────────────────────────────────────────────────
 
 
-def _truncate_bcrypt_secret(password: str) -> bytes:
-    if isinstance(password, str):
-        raw = password.encode("utf-8")
-    else:
-        raw = password
-    if len(raw) <= _BCRYPT_MAX_BYTES:
-        return raw
-    truncated = raw[:_BCRYPT_MAX_BYTES]
-    while truncated and (truncated[-1] & 0xC0) == 0x80:
-        truncated = truncated[:-1]
-    return truncated
-
-
 def hash_password(password: str) -> str:
     # bcrypt direct (was: passlib CryptContext — passlib 1.7.4 is incompatible
     # with bcrypt 5 in its internal detect_wrap_bug path, raising ValueError).

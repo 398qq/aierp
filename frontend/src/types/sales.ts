@@ -4,6 +4,7 @@
 export interface Opportunity {
   id: number;
   customer_id: number;
+  customer_name?: string | null;
   product_id: number | null;
   title: string;
   description: string | null;
@@ -169,6 +170,7 @@ export interface SalesOrderItem {
   unit: string | null;
   unit_price: number | null;
   total_price: number | null;
+  cost_amount: number | null;
   tax_rate: number | null;
   discount_rate: number | null;
   notes: string | null;

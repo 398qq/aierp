@@ -359,7 +359,11 @@ export function CustomerSelect({ value, onChange }: { value?: number; onChange?:
   useEffect(() => {
     if (!value || items.some((item) => item.id === value)) return;
     getCustomer(value)
-      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .then((r) => {
+          const d = r.data.data;
+          if (!d) return;
+          setItems((prev) => (prev.some((item) => item.id === value) ? prev : [d, ...prev]));
+        })
       .catch(() => {});
   }, [items, value]);
 
@@ -430,7 +434,11 @@ export function OpportunitySelect({
   useEffect(() => {
     if (!value || items.some((item) => item.id === value)) return;
     getOpportunity(value)
-      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .then((r) => {
+          const d = r.data.data;
+          if (!d) return;
+          setItems((prev) => (prev.some((item) => item.id === value) ? prev : [d, ...prev]));
+        })
       .catch(() => {});
   }, [items, value]);
 
@@ -505,7 +513,11 @@ export function QuotationSelect({
   useEffect(() => {
     if (!value || items.some((item) => item.id === value)) return;
     getQuotation(value)
-      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .then((r) => {
+          const d = r.data.data;
+          if (!d) return;
+          setItems((prev) => (prev.some((item) => item.id === value) ? prev : [d, ...prev]));
+        })
       .catch(() => {});
   }, [items, value]);
 
@@ -537,22 +549,9 @@ export const getProductOptionLabel = (p: Product) => [
 ].filter(Boolean).join(" ");
 
 const loadProductCandidates = async (search: string) => {
-  const pageSize = 100;
-  const first = await getProducts({ page: 1, page_size: pageSize, q: search, sort: "name_asc" });
-  const data = first.data.data;
-  const list = [...(data.list || [])];
-  const total = data.total || list.length;
-  const pageCount = Math.ceil(total / pageSize);
-
-  if (pageCount <= 1) return list;
-
-  const rest = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) =>
-      getProducts({ page: index + 2, page_size: pageSize, q: search, sort: "name_asc" })
-    )
-  );
-  rest.forEach((response) => list.push(...(response.data.data.list || [])));
-  return list;
+  if (!search.trim()) return [] as Product[];
+  const r = await getProducts({ page: 1, page_size: 30, q: search, sort: "name_asc" });
+  return (r.data.data.list || []) as Product[];
 };
 
 export function ProductSelect({
@@ -585,7 +584,11 @@ export function ProductSelect({
   useEffect(() => {
     if (!value || items.some((item) => item.id === value)) return;
     getProduct(value)
-      .then((r) => setItems((prev) => (prev.some((item) => item.id === value) ? prev : [r.data.data, ...prev])))
+      .then((r) => {
+          const d = r.data.data;
+          if (!d) return;
+          setItems((prev) => (prev.some((item) => item.id === value) ? prev : [d, ...prev]));
+        })
       .catch(() => {});
   }, [items, value]);
 

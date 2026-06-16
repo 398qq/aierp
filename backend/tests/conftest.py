@@ -1,10 +1,30 @@
 import os
 import sys
+from urllib.parse import urlparse
 
 # Ensure backend/ is on the import path so 'from app ...' works
 _BACKEND = os.path.join(os.path.dirname(__file__), "..")
 if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
+
+# Tests must never inherit production authentication or cache targets.
+os.environ["APP_ENV"] = "test"
+os.environ["JWT_SECRET"] = "aierp-test-jwt-secret-2026-minimum-32-bytes-do-not-use-in-production"
+os.environ["REDIS_URL"] = os.getenv(
+    "TEST_REDIS_URL", "redis://localhost:6379/15"
+)
+test_database_url = os.getenv(
+    "TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:"
+)
+if not test_database_url.startswith("sqlite") and os.getenv(
+    "AIERP_ALLOW_EXTERNAL_TEST_DATABASE"
+) != "1":
+    raise RuntimeError(
+        "Refusing external TEST_DATABASE_URL without "
+        "AIERP_ALLOW_EXTERNAL_TEST_DATABASE=1"
+    )
+os.environ["TEST_DATABASE_URL"] = test_database_url
+os.environ["DB_URL_OVERRIDE"] = test_database_url
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
@@ -17,10 +37,7 @@ from app.core.security import create_access_token, hash_password  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "sqlite+aiosqlite:///./test.db",
-)
+TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
 
 
 def _patch_vector_columns():
@@ -36,8 +53,8 @@ def _patch_vector_columns():
                 col.type = sa.Text()
 
 
-@pytest.fixture(scope="session")
-def engine():
+@pytest_asyncio.fixture(scope="function")
+async def engine():
     ext = {}
     if "sqlite" in TEST_DATABASE_URL:
         ext["connect_args"] = {"check_same_thread": False}
@@ -45,7 +62,9 @@ def engine():
         # PostgreSQL: single connection to avoid "another operation in progress" errors
         ext["pool_size"] = 1
         ext["max_overflow"] = 0
-    return create_async_engine(TEST_DATABASE_URL, echo=False, **ext)
+    test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, **ext)
+    yield test_engine
+    await test_engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -216,21 +235,25 @@ async def admin_headers(test_admin):
 # ── Stage 10 Day 1: clean TELEGRAM_* env between tests ────────────
 
 
-@pytest.fixture(autouse=True)
-def _clean_redis_cache():
-    """Flush all aierp:* L2 Redis keys between tests (Stage 19 fix).
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_redis_cache():
+    """Clear only the dedicated test Redis database between tests.
 
     Root cause: require_perm() caches perm:{user_id}:{resource}:{action} in
     Redis (PERM_CACHE_TTL). test_user and test_admin in the same process can
     share the cache, so a previous admin's allow leaks into a sales user's
-    permission check. Same root cause for test_cache_finance_reports L2
-    pollution. Fix: flush aierp:* keys before AND after every test.
+    permission check. The test suite is pinned to Redis DB 15 so cleanup cannot
+    delete runtime sessions, permissions, or business caches from DB 0.
     """
-    import asyncio
+    redis_url = os.environ["REDIS_URL"]
+    redis_db = urlparse(redis_url).path.lstrip("/")
+    if os.environ.get("APP_ENV") != "test" or redis_db in {"", "0"}:
+        raise RuntimeError("Refusing to clean Redis outside the dedicated test DB")
 
-    async def _flush():
+    async def _flush() -> None:
         try:
             from app.services.cache_service import get_redis
+
             r = await get_redis()
             if r is not None:
                 keys = []
@@ -241,19 +264,14 @@ def _clean_redis_cache():
         except Exception:
             pass
 
-    def _run():
-        try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(_flush())
-            finally:
-                loop.close()
-        except Exception:
-            pass
-
-    _run()
+    await _flush()
     yield
-    _run()
+    await _flush()
+    from app.database import engine as app_engine
+    from app.services.cache_service import close_redis
+
+    await close_redis()
+    await app_engine.dispose()
 
 
 @pytest.fixture(autouse=True)

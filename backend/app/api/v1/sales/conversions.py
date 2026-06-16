@@ -36,8 +36,10 @@ async def convert_quote_to_order(
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
         return fail("报价单不存在", 404)
-    if quote.status == "won":
-        return fail("报价单已转换", 400)
+    # Check if already converted (has a linked order), not just status==won
+    existing = await svc.get_order_by_quotation(db, quote_id)
+    if existing:
+        return fail(f"报价单已转为订单 {existing.order_no}", 400)
     order = await svc.convert_quotation_to_order(db, quote)
     from app.services.sales_ai_pipeline import validate_quote_to_order
 
@@ -50,6 +52,7 @@ async def convert_quote_to_order(
         pass
     await cache_bump_version("quotations:list")
     await cache_bump_version("quotations:stats")
+    await cache_bump_version("sales-orders:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     await cache_bump_version("reports:predefined:sales")
@@ -84,6 +87,8 @@ async def convert_order_to_delivery(
             validation = ConversionValidation(**ai_result)
     except Exception:
         pass
+    await cache_bump_version("sales-orders:list")
+    await cache_bump_version("delivery-notes:list")
     return ok(
         ConvertResponse(
             id=note.id,

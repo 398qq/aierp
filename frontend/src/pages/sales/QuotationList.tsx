@@ -276,66 +276,63 @@ export default function QuotationList() {
           bordered
           loading={loading}
           dataSource={visibleData}
+          expandable={{
+            expandedRowRender: (record: Quotation) => {
+              const items = record.items || [];
+              if (items.length === 0) return <Typography.Text type="secondary">无明细</Typography.Text>;
+              return (
+                <Table
+                  rowKey="id"
+                  size="small"
+                  dataSource={items}
+                  pagination={false}
+                  columns={[
+                    { title: "#", width: 40, render: (_: unknown, __: unknown, i: number) => i + 1 },
+                    { title: "产品名称", dataIndex: "product_name", ellipsis: true },
+                    { title: "数量", dataIndex: "quantity", width: 80, align: "right" as const },
+                    { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number) => money(v) },
+                    { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
+                  ]}
+                />
+              );
+            },
+          }}
           rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           columns={[
             {
-              title: "#", width: 45, fixed: "left",
-              render: (_: unknown, __: Quotation, index: number) => (page - 1) * 20 + index + 1,
-            },
-            {
-              title: "报价单",
-              dataIndex: "quotation_no",
-              fixed: "left",
-              minWidth: 280,
-              render: (value: string | null, record: Quotation) => {
-                const names = (record.items || []).map((item) => item.product_name).filter(Boolean).slice(0, 3);
-                return (
-                  <Space direction="vertical" size={2}>
-                    <div>
-                      <div className="erp-cell-primary">
-                        <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
-                          {value || record.title || `#${record.id}`}
-                        </Typography.Link>
-                      </div>
-                      <div className="erp-cell-secondary">
-                        <Space size={6} wrap>
-                          {record.customer_name
-                            ? (
-                              <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>
-                                {record.customer_name}
-                              </Typography.Link>
-                            )
-                            : <CustomerLink id={record.customer_id} />}
-                          {record.title && value && <span>{record.title}</span>}
-                        </Space>
-                      </div>
-                    </div>
-                    {names.length > 0 && (
-                      <Space size={[3, 2]} wrap style={{ marginTop: 2 }}>
-                        {names.map((name) => <Tag key={name} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{name}</Tag>)}
-                        {(record.items?.length || 0) > 3 && <Tag style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>+{(record.items?.length || 0) - 3}</Tag>}
-                      </Space>
-                    )}
-                  </Space>
-                );
-              },
-            },
-            { title: "金额", dataIndex: "total_amount", width: 120, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
-            {
-              title: "状态", dataIndex: "status", width: 90,
-              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
-              render: (value: string) => (
-                <>
-                  {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
-                  <SalesStatusTag value={value} />
-                </>
+              title: "单号", dataIndex: "quotation_no", width: 150, fixed: "left",
+              render: (v: string | null, r: Quotation) => (
+                <Typography.Link strong onClick={() => navigate(`/sales/quotations/${r.id}`)}>
+                  {v || `#${r.id}`}
+                </Typography.Link>
               ),
             },
             {
-              title: "有效期",
-              dataIndex: "valid_until",
-              width: 130,
+              title: "公司名称", dataIndex: "customer_name", width: 180, ellipsis: true,
+              render: (v: string | null, r: Quotation) => (
+                v
+                  ? <Typography.Link onClick={() => navigate(`/customers/${r.customer_id}`)}>{v}</Typography.Link>
+                  : <CustomerLink id={r.customer_id} />
+              ),
+            },
+            {
+              title: "含税金额", dataIndex: "total_amount", width: 130, align: "right",
+              sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0),
+              render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text>,
+            },
+            {
+              title: "状态", dataIndex: "status", width: 80,
+              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              render: (value: string) => (
+                <Space size={4}>
+                  {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
+                  <SalesStatusTag value={value} />
+                </Space>
+              ),
+            },
+            {
+              title: "有效期", dataIndex: "valid_until", width: 110,
               sorter: (a, b) => (a.valid_until || "").localeCompare(b.valid_until || ""),
               render: (value: string | null, record: Quotation) => {
                 const due = getDueMeta(value, record.status);
@@ -343,8 +340,7 @@ export default function QuotationList() {
               },
             },
             {
-              title: "AI",
-              width: 90,
+              title: "AI", width: 70,
               render: (_: unknown, record: Quotation) => (
                 <AIInlineBadge
                   riskLevel={aiMap[record.id]?.pricing_health === "poor" ? "high" : aiMap[record.id]?.pricing_health === "fair" ? "medium" : "low"}
@@ -353,30 +349,27 @@ export default function QuotationList() {
               ),
             },
             {
-              title: "下一步",
-              width: 100,
+              title: "下一步", width: 90,
               render: (_: unknown, record: Quotation) => {
                 const due = getDueMeta(record.valid_until, record.status);
                 if (record.status === "draft") return <StatusTag status="发送报价" tone="info" icon={<SendOutlined />} />;
                 if (record.status === "sent" && due.scene === "expired") return <StatusTag status="重新报价" tone="danger" />;
                 if (record.status === "sent") return <StatusTag status="跟进转单" tone="success" icon={<FileDoneOutlined />} />;
-                if (record.status === "won") return <StatusTag status="订单执行" tone="success" />;
-                return <Tag>复盘原因</Tag>;
+                if (record.status === "won") return <StatusTag status="已转订单" tone="success" />;
+                return <Tag>复盘</Tag>;
               },
             },
             {
-              title: "操作",
-              width: 60,
-              fixed: "right",
+              title: "操作", width: 50, fixed: "right",
               render: (_: unknown, record: Quotation) => {
                 const items: MenuProps["items"] = [
                   { key: "view", icon: <FileDoneOutlined />, label: "查看详情", onClick: () => navigate(`/sales/quotations/${record.id}`) },
                   ...(record.status === "draft" ? [{ key: "send", icon: <SendOutlined />, label: "标记发送", onClick: () => handleSend(record) }] : []),
                   { key: "pdf", icon: <DownloadOutlined />, label: "智能 PDF", onClick: () => downloadQuotationPDF(record.id, `quotation_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败")) },
                   { key: "copy", icon: <CopyOutlined />, label: "复制", onClick: () => handleDuplicate(record) },
-                  ...(record.status !== "won" ? [{ key: "convert", icon: <ShoppingCartOutlined />, label: "转订单", onClick: () => {
+                  { key: "convert", icon: <ShoppingCartOutlined />, label: "转订单", onClick: () => {
                     Modal.confirm({ title: "转为销售订单?", content: `将报价 ${record.quotation_no || `#${record.id}`} 转为销售订单`, onOk: () => handleConvert(record) });
-                  } }] : []),
+                  } },
                   { type: "divider" as const },
                   { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                     Modal.confirm({ title: "确定删除?", content: `删除报价 ${record.quotation_no || `#${record.id}`}`, onOk: () => deleteQuotation(record.id).then(() => { message.success("已删除"); refreshAll(); }).catch(() => message.error("删除失败")) });

@@ -85,6 +85,7 @@ import {
   PRODUCT_TASK_LABELS,
 } from "./constants";
 import { useProductTableColumns } from "./useProductTableColumns";
+import { useResizableColumns } from "../../components/ResizableTable";
 import ProductHealthStrip from "./ProductHealthStrip";
 import ProductDetailDrawer from "./ProductDetailDrawer";
 import "./products.css";
@@ -809,6 +810,8 @@ export default function ProductList() {
     onDelete: handleDelete,
   });
 
+  const { columns: resizableColumns, components } = useResizableColumns(columns);
+
   return (
     <div className="product-workbench-page">
       <ProductHealthStrip
@@ -1220,10 +1223,11 @@ export default function ProductList() {
             </div>
             <Table
               rowKey="id"
-              columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+              columns={resizableColumns.filter((c) => visibleCols.includes(String(c.key)))}
               dataSource={tableProducts}
               loading={aiSearchMode ? aiSearching : loading}
               size="small"
+              components={components}
               tableLayout="fixed"
               onChange={handleTableChange}
               rowSelection={

@@ -23,6 +23,7 @@ from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.product import Brand, Inventory, Product, SupplierProduct
 from app.services.base_crud import BaseCRUDService
@@ -467,6 +468,7 @@ class ProductService(BaseCRUDService):
                 | (supplier_subq.c.supplier_count.is_(None))
             )
 
+        order_col: ColumnElement[Any]
         if sort == "name_asc":
             order_col = Product.name.asc()
         elif sort == "name_desc":

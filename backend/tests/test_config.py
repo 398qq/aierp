@@ -1,9 +1,16 @@
 import pytest
+from urllib.parse import urlparse
 
-from app.config import Settings
+from app.config import Settings, settings
 
 
 class TestSettings:
+    def test_suite_uses_isolated_security_and_cache_settings(self):
+        assert settings.APP_ENV == "test"
+        assert len(settings.JWT_SECRET.encode("utf-8")) >= 32
+        assert urlparse(settings.REDIS_URL).path not in {"", "/", "/0"}
+        assert settings.DATABASE_URL.startswith("sqlite+aiosqlite://")
+
     def test_cors_origins_supports_comma_separated_string(self):
         cfg = Settings(
             APP_ENV="development",

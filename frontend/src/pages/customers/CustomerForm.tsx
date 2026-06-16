@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Form, Input, Select, InputNumber } from "antd";
+import { Form, Input, Select, InputNumber, Divider } from "antd";
 
 const { Item: FormItem } = Form;
 const opts = (arr: string[]) => arr.map((v) => ({ label: v, value: v }));
@@ -9,6 +9,9 @@ const industryOptions = ["汽车电子", "消费电子", "工业控制", "通信
 const typeOptions = ["终端", "贸易商", "方案商", "OEM"];
 const regionOptions = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
 const sourceOptions = ["展会", "转介绍", "线上推广", "电话开发", "公司资源"];
+const paymentTermsOptions = ["月结30天", "月结60天", "月结90天", "款到发货", "30%预付+70%发货", "50%预付+50%发货", "Net 30", "Net 60", "T/T 100%"];
+const paymentMethodOptions = ["T/T", "L/C", "D/P", "D/A", "O/A"];
+const incotermOptions = ["FOB", "CIF", "EXW", "DDP", "DAP", "FCA", "CFR"];
 
 const COMPANY_SUFFIXES = [
   "有限责任公司",
@@ -123,6 +126,67 @@ export default function CustomerFormFields() {
       <FormItem name="address" label="地址">
         <Input.TextArea rows={2} placeholder="公司地址" />
       </FormItem>
+
+      <Divider plain style={{ fontSize: 13, color: "#999" }}>税务与法务</Divider>
+      <FormRow cols={2}>
+        <FormItem name="tax_id" label="纳税人识别号">
+          <Input placeholder="纳税人识别号" />
+        </FormItem>
+        <FormItem name="registration_number" label="统一社会信用代码">
+          <Input placeholder="18位统一社会信用代码" />
+        </FormItem>
+      </FormRow>
+
+      <Divider plain style={{ fontSize: 13, color: "#999" }}>发票信息</Divider>
+      <FormRow cols={2}>
+        <FormItem name="invoice_title" label="发票抬头">
+          <Input placeholder="发票抬头（默认同客户名称）" />
+        </FormItem>
+        <FormItem name="invoice_address" label="发票地址">
+          <Input placeholder="开票邮寄地址" />
+        </FormItem>
+      </FormRow>
+
+      <Divider plain style={{ fontSize: 13, color: "#999" }}>银行信息</Divider>
+      <FormRow cols={2}>
+        <FormItem name="bank_name" label="开户行">
+          <Input placeholder="开户银行全称" />
+        </FormItem>
+        <FormItem name="bank_account" label="银行账号">
+          <Input placeholder="银行账号" />
+        </FormItem>
+      </FormRow>
+
+      <Divider plain style={{ fontSize: 13, color: "#999" }}>经营规模</Divider>
+      <FormRow cols={2}>
+        <FormItem name="annual_revenue" label="年营业额">
+          <InputNumber min={0} style={{ width: "100%" }} placeholder="万元" addonAfter="万元" />
+        </FormItem>
+        <FormItem name="employee_count" label="员工人数">
+          <InputNumber min={0} style={{ width: "100%" }} placeholder="人数" addonAfter="人" />
+        </FormItem>
+      </FormRow>
+
+      <Divider plain style={{ fontSize: 13, color: "#999" }}>付款条件</Divider>
+      <FormRow cols={2}>
+        <FormItem name="payment_terms" label="付款条款">
+          <Select placeholder="如：月结30天" options={opts(paymentTermsOptions)} allowClear showSearch />
+        </FormItem>
+        <FormItem name="payment_method" label="付款方式">
+          <Select placeholder="如：T/T" options={opts(paymentMethodOptions)} allowClear />
+        </FormItem>
+      </FormRow>
+
+      <Divider plain style={{ fontSize: 13, color: "#999" }}>物流默认</Divider>
+      <FormRow cols={2}>
+        <FormItem name="delivery_address" label="收货地址">
+          <Input placeholder="默认收货地址" />
+        </FormItem>
+        <FormItem name="default_incoterm" label="默认贸易术语">
+          <Select placeholder="如：FOB" options={opts(incotermOptions)} allowClear />
+        </FormItem>
+      </FormRow>
+
       <FormItem name="notes" label="备注">
         <Input.TextArea rows={3} placeholder="其他备注信息" />
       </FormItem>

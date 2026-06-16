@@ -3,6 +3,7 @@
 import pytest
 import pytest_asyncio
 from datetime import datetime, timezone, timedelta
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -146,3 +147,49 @@ async def test_metrics_with_sample_data(db: AsyncSession):
     assert creates == 1
     # cancellation_rate = 1 / (1+1) = 50%
     # stage_conversion = 1 / 1 = 100% (only 1 order created, 1 completed)
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_metrics_endpoint_counts_completed_orders(
+    async_client: AsyncClient,
+    auth_headers: dict,
+    db_session: AsyncSession,
+):
+    """The endpoint must use the scalar count directly and return a stable payload."""
+    from app.models.audit import StatusTransitionLog
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            StatusTransitionLog(
+                aggregate_type="SalesOrder",
+                aggregate_id=101,
+                aggregate_no="SO-101",
+                status_before=None,
+                status_after="pending",
+                action="create",
+                transitioned_at=now - timedelta(hours=4),
+            ),
+            StatusTransitionLog(
+                aggregate_type="SalesOrder",
+                aggregate_id=101,
+                aggregate_no="SO-101",
+                status_before="pending",
+                status_after="completed",
+                action="complete",
+                transitioned_at=now - timedelta(hours=1),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    response = await async_client.get(
+        "/api/v1/sales/lifecycle-metrics?days_back=30",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["stage_conversion_pct"] == 100.0
+    assert data["sample_counts"]["pending_orders"] == 1
+    assert data["sample_counts"]["completed_orders"] == 1

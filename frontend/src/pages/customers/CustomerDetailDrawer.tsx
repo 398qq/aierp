@@ -16,9 +16,11 @@ import {
 } from "antd";
 import {
   EyeOutlined,
+  MailOutlined,
   PhoneOutlined,
   ShoppingCartOutlined,
   SwapOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { StatusTag } from "../../ui";
 import type { Customer, CustomerStats } from "../../types";
@@ -63,15 +65,28 @@ export default function CustomerDetailDrawer({
             <StatusTag tone={getHealthColor(customer.health_score)}>健康度 {customer.health_score ?? "-"}</StatusTag>
           </Space>
 
+          {/* 主要联系人 */}
+          <Card size="small" title={<><UserOutlined /> 主要联系人</>}>
+            <Descriptions size="small" column={2}>
+              <Descriptions.Item label="姓名">{customer.contact_person || "-"}</Descriptions.Item>
+              <Descriptions.Item label="负责人">{customer.owner || "-"}</Descriptions.Item>
+              <Descriptions.Item label={<><PhoneOutlined /> 电话</>}>
+                {customer.phone ? <a href={`tel:${customer.phone}`}>{customer.phone}</a> : "-"}
+              </Descriptions.Item>
+              <Descriptions.Item label={<><MailOutlined /> 邮箱</>}>
+                {customer.email ? <a href={`mailto:${customer.email}`}>{customer.email}</a> : "-"}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          {/* 基本信息 */}
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="客户编码">{customer.code || "-"}</Descriptions.Item>
             <Descriptions.Item label="客户简称">{customer.short_name || "-"}</Descriptions.Item>
-            <Descriptions.Item label="负责人">{customer.owner || "-"}</Descriptions.Item>
-            <Descriptions.Item label="联系人">{customer.contact_person || "-"}</Descriptions.Item>
-            <Descriptions.Item label="电话">{customer.phone || "-"}</Descriptions.Item>
-            <Descriptions.Item label="邮箱">{customer.email || "-"}</Descriptions.Item>
             <Descriptions.Item label="来源">{customer.source || "-"}</Descriptions.Item>
             <Descriptions.Item label="信用等级">{customer.credit_level || "-"}</Descriptions.Item>
+            <Descriptions.Item label="付款条款">{customer.payment_terms || "-"}</Descriptions.Item>
+            <Descriptions.Item label="付款方式">{customer.payment_method || "-"}</Descriptions.Item>
             <Descriptions.Item label="创建时间">{formatDate(customer.created_at)}</Descriptions.Item>
             <Descriptions.Item label="最近联系">{formatDate(customer.last_contacted_at)}</Descriptions.Item>
             <Descriptions.Item label="地址" span={2}>{customer.address || "-"}</Descriptions.Item>

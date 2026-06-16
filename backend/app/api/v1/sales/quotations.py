@@ -211,6 +211,7 @@ async def list_quotations(
         if include_ai and result.get("list"):
             from app.services.sales_ai_service import enrich_quotation_list
 
+            # Cached list items are dicts, not ORM objects
             ai_map = await enrich_quotation_list(db, result["list"])
             result["ai"] = ai_map
         response.headers["X-Cache"] = "HIT"

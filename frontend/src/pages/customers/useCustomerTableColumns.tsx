@@ -263,26 +263,22 @@ export function useCustomerTableColumns({
       render: (v: string | null) => (v || "-"),
     },
     {
-      title: "联系人",
-      dataIndex: "contact_person",
-      key: "contact_person",
-      width: 90,
-      render: (v: string | null) => v || "-",
-    },
-    {
-      title: "电话",
-      dataIndex: "phone",
-      key: "phone",
-      width: 120,
-      render: (v: string | null) => v || "-",
-    },
-    {
-      title: "邮箱",
-      dataIndex: "email",
-      key: "email",
-      width: 170,
-      render: (v: string | null) =>
-        v ? <Typography.Text copyable style={{ fontSize: 12 }}>{v}</Typography.Text> : "-",
+      title: "主要联系人",
+      key: "primary_contact",
+      width: 200,
+      render: (_: unknown, r: Customer) => {
+        if (!r.contact_person) return <Typography.Text type="secondary">-</Typography.Text>;
+        return (
+          <div>
+            <div style={{ fontWeight: 500 }}>{r.contact_person}</div>
+            <div style={{ color: "#8c8c8c", fontSize: 12 }}>
+              {r.phone && <span>{r.phone}</span>}
+              {r.phone && r.email && <span> · </span>}
+              {r.email && <Typography.Text copyable style={{ fontSize: 12 }}>{r.email}</Typography.Text>}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: "最近联系",

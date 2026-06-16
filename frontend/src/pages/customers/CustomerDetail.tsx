@@ -346,6 +346,20 @@ export default function CustomerDetail() {
                     <Descriptions.Item label="电话">{customer.phone || "-"}</Descriptions.Item>
                     <Descriptions.Item label="邮箱">{customer.email || "-"}</Descriptions.Item>
                   </Descriptions>
+                  <Divider style={{ margin: "8px 0" }} />
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="纳税人识别号">{customer.tax_id || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="统一社会信用代码">{customer.registration_number || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="发票抬头">{customer.invoice_title || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="开户行">{customer.bank_name || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="银行账号">{customer.bank_account || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="年营业额">{customer.annual_revenue ? `${customer.annual_revenue} 万元` : "-"}</Descriptions.Item>
+                    <Descriptions.Item label="员工人数">{customer.employee_count ?? "-"}</Descriptions.Item>
+                    <Descriptions.Item label="付款条款">{customer.payment_terms || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="付款方式">{customer.payment_method || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="收货地址">{customer.delivery_address || "-"}</Descriptions.Item>
+                    <Descriptions.Item label="默认贸易术语">{customer.default_incoterm || "-"}</Descriptions.Item>
+                  </Descriptions>
                 </aside>
               </div>
             </Card>

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE_SECONDS: int = 1800
     DB_POOL_PRE_PING: bool = True
     SLOW_QUERY_THRESHOLD_MS: int = 500
+    DB_URL_OVERRIDE: str = ""
 
     REDIS_URL: str = "redis://localhost:6379/0"
 
@@ -72,10 +73,14 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
+        if self.DB_URL_OVERRIDE:
+            return self.DB_URL_OVERRIDE
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     @property
     def DATABASE_URL_SYNC(self) -> str:
+        if self.DB_URL_OVERRIDE:
+            return self.DB_URL_OVERRIDE.replace("+aiosqlite", "")
         return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     class Config:

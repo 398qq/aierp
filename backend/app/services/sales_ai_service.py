@@ -13,7 +13,7 @@ from app.models.sales import DeliveryNote, Opportunity, Quotation, SalesOrder
 from app.services.cache_service import cache_get_versioned, cache_set_versioned
 
 logger = logging.getLogger(__name__)
-SALES_AI_TIMEOUT_SECONDS = 8
+SALES_AI_TIMEOUT_SECONDS = 25
 
 # Cache TTL for AI enrichment results (30 min — AI model + prompt version stable)
 AI_ENRICHMENT_CACHE_TTL = 1800
@@ -197,7 +197,7 @@ async def enrich_delivery_note(db: AsyncSession, note: DeliveryNote) -> dict | N
 
 
 async def enrich_opportunity_list(
-    db: AsyncSession, opps: list[Opportunity]
+    db: AsyncSession, opps: list[dict]
 ) -> dict[int, dict]:
     from app.services.ai.prompts import list_risk_summary_prompt
 
@@ -206,12 +206,12 @@ async def enrich_opportunity_list(
 
     opp_data = [
         {
-            "id": o.id,
-            "title": o.title,
-            "stage": o.stage or "",
-            "amount": str(o.amount or 0),
-            "status": o.status,
-            "win_probability": str(o.win_probability or ""),
+            "id": o["id"],
+            "title": o.get("title", ""),
+            "stage": o.get("stage", ""),
+            "amount": str(o.get("amount") or 0),
+            "status": o.get("status", ""),
+            "win_probability": str(o.get("win_probability") or ""),
         }
         for o in opps
     ]
@@ -243,20 +243,30 @@ async def enrich_opportunity_list(
     }
 
 
-async def enrich_quotation_list(
-    db: AsyncSession, quotes: list[Quotation]
-) -> dict[int, dict]:
+async def enrich_quotation_list(db: AsyncSession, quotes: list) -> dict[int, dict]:
     from app.services.ai.prompts import quotation_list_enrich_prompt
 
     if not quotes:
         return {}
 
+    def _get(q, key, default=""):
+        if isinstance(q, dict):
+            return q.get(key, default)
+        return getattr(q, key, default)
+
+    def _get_id(q):
+        if isinstance(q, dict):
+            return q["id"]
+        return q.id
+
     quote_data = [
         {
-            "id": q.id,
-            "total_amount": str(q.total_amount),
-            "status": q.status,
-            "item_count": str(len(q.items) if q.items else 0),
+            "id": _get_id(q),
+            "total_amount": str(_get(q, "total_amount", 0)),
+            "status": str(_get(q, "status", "")),
+            "item_count": str(
+                len(_get(q, "items", [])) if _get(q, "items") is not None else 0
+            ),
         }
         for q in quotes
     ]
@@ -279,7 +289,7 @@ async def enrich_quotation_list(
         schema,
     )
     if not result:
-        return {q.id: {"pricing_health": "fair", "flag": None} for q in quotes}
+        return {_get_id(q): {"pricing_health": "fair", "flag": None} for q in quotes}
     return {
         item["id"]: {
             "pricing_health": item.get("pricing_health", "fair"),

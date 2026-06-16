@@ -236,7 +236,7 @@ export const getInventoryTransactions = (params: Record<string, unknown>) =>
   >(`/inventory-transactions`, { params });
 
 export const getInventory = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<InventoryItem>>>("/inventory", { params });
+  client.get<APIResponse<PageData<InventoryItem>>>("/inventory/", { params });
 
 // Inventory intelligence
 export const getInventoryOverview = () => client.get<APIResponse>("/inventory/overview");

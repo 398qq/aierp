@@ -104,10 +104,8 @@ _redis = None
 
 try:
     import redis.asyncio as aioredis
-    from redis.asyncio import Redis
 except ImportError:
-    aioredis = None
-    Redis = None
+    aioredis = None  # type: ignore[assignment]
 
 
 async def get_redis():
@@ -133,6 +131,19 @@ async def get_redis():
         logger.warning("Redis unavailable at %s — caching disabled", settings.REDIS_URL)
         _redis = None
         return None
+
+
+async def close_redis() -> None:
+    """Close the shared Redis client without deleting cached data."""
+    global _redis
+    if _redis is None:
+        return
+    client = _redis
+    _redis = None
+    try:
+        await client.aclose()
+    except Exception:
+        logger.debug("Redis client close failed")
 
 
 async def cache_get(key: str) -> str | None:

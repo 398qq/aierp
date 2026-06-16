@@ -64,7 +64,11 @@ export default function SalesOrderDetail() {
     const items = order?.items || [];
     const quantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
     const amount = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
-    return { count: items.length, quantity, amount };
+    const cost = items.reduce((sum, item) => sum + Number(item.cost_amount || 0), 0);
+    const margin = amount - cost;
+    const marginPct = amount > 0 ? Math.round((margin / amount) * 1000) / 10 : 0;
+    const hasCost = items.some((item) => item.cost_amount != null);
+    return { count: items.length, quantity, amount, cost, margin, marginPct, hasCost };
   }, [order]);
 
   const paymentSummary = useMemo(() => {
@@ -312,9 +316,18 @@ export default function SalesOrderDetail() {
               columns={[
                 { title: "#", width: 40, render: (_: unknown, __: SalesOrderItem, index: number) => index + 1 },
                 { title: "产品", dataIndex: "product_name", ellipsis: true },
-                { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
-                { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number | null) => (v != null ? money(v) : "-") },
-                { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number | null) => (v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-") },
+                { title: "数量", dataIndex: "quantity", width: 60, align: "right" as const },
+                { title: "单价", dataIndex: "unit_price", width: 100, align: "right" as const, render: (v: number | null) => (v != null ? money(v) : "-") },
+                { title: "小计", dataIndex: "total_price", width: 110, align: "right" as const, render: (v: number | null) => (v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-") },
+                { title: "成本", dataIndex: "cost_amount", width: 100, align: "right" as const,
+                  render: (v: number | null) => v != null ? <Typography.Text type="secondary">{money(v)}</Typography.Text> : <Typography.Text type="secondary">-</Typography.Text> },
+                { title: "毛利", key: "margin", width: 100, align: "right" as const,
+                  render: (_: unknown, r: SalesOrderItem) => {
+                    if (r.cost_amount == null || r.total_price == null) return <Typography.Text type="secondary">-</Typography.Text>;
+                    const m = Number(r.total_price) - Number(r.cost_amount);
+                    const pct = Number(r.total_price) > 0 ? Math.round((m / Number(r.total_price)) * 100) : 0;
+                    return <Typography.Text type={m >= 0 ? "success" : "danger"}>{money(m)} ({pct}%)</Typography.Text>;
+                  }},
                 ...(showExtraColumns ? [{ title: "备注", dataIndex: "notes" as keyof SalesOrderItem, width: 160, ellipsis: true, render: (v: string | null) => v || "-" }] : []),
               ]}
               summary={() => (
@@ -324,6 +337,12 @@ export default function SalesOrderDetail() {
                   <Table.Summary.Cell index={2}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={3}>-</Table.Summary.Cell>
                   <Table.Summary.Cell index={4}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5}>
+                    {itemSummary.hasCost ? <Typography.Text type="secondary">{money(itemSummary.cost)}</Typography.Text> : "-"}
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={6}>
+                    {itemSummary.hasCost ? <Typography.Text type={itemSummary.margin >= 0 ? "success" : "danger"}>{money(itemSummary.margin)} ({itemSummary.marginPct}%)</Typography.Text> : "-"}
+                  </Table.Summary.Cell>
                 </Table.Summary.Row>
               )}
               scroll={{ x: "max-content" }}
@@ -348,6 +367,21 @@ export default function SalesOrderDetail() {
                 <Typography.Text type="secondary">总数量</Typography.Text>
                 <Typography.Text>{itemSummary.quantity} 件</Typography.Text>
               </div>
+              {itemSummary.hasCost && (
+                <>
+                  <Divider style={{ margin: "6px 0" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <Typography.Text type="secondary">销售成本</Typography.Text>
+                    <Typography.Text type="secondary">{money(itemSummary.cost)}</Typography.Text>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <Typography.Text type="secondary">毛利</Typography.Text>
+                    <Typography.Text type={itemSummary.margin >= 0 ? "success" : "danger"}>
+                      {money(itemSummary.margin)} ({itemSummary.marginPct}%)
+                    </Typography.Text>
+                  </div>
+                </>
+              )}
               <Divider style={{ margin: "6px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">状态</Typography.Text>

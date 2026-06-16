@@ -35,7 +35,8 @@ class SalesConversionService(BaseCRUDService):
     async def convert_quotation_to_order(
         self, db: AsyncSession, quote: Quotation
     ) -> SalesOrder:
-        assert_can_transition_quotation(quote.status, "won")
+        if quote.status != "won":
+            assert_can_transition_quotation(quote.status, "won")
         order_no = await generate_doc_no(db, "SO", SalesOrder, "order_no")
         order = SalesOrder(
             order_no=order_no,
@@ -97,6 +98,10 @@ class SalesConversionService(BaseCRUDService):
             )
             db.add(dni)
 
+        # Transition order status
+        if order.status == "pending":
+            order.status = "confirmed"
+        db.add(order)
         await db.commit()
         await db.refresh(note)
         return note

@@ -329,13 +329,13 @@ class InventoryBatchORM(TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(default=0, nullable=False)
     locked_quantity: Mapped[int] = mapped_column(default=0, nullable=False)
     unit_cost: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
-    received_date: Mapped[DateTime] = mapped_column(
+    received_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.datetime.utcnow
     )
-    expiry_date: Mapped[DateTime | None] = mapped_column(
+    expiry_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    manufacture_date: Mapped[DateTime | None] = mapped_column(
+    manufacture_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     supplier_id: Mapped[int | None] = mapped_column(

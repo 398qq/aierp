@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy import event
@@ -13,14 +14,18 @@ from app.core.request_context import get_request_id
 
 slow_query_logger = logging.getLogger("app.db.slow_query")
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
-    pool_pre_ping=settings.DB_POOL_PRE_PING,
-)
+_engine_options: dict[str, Any] = {
+    "echo": settings.DEBUG,
+    "pool_pre_ping": settings.DB_POOL_PRE_PING,
+}
+if not settings.DATABASE_URL.startswith("sqlite"):
+    _engine_options.update(
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+    )
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_options)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

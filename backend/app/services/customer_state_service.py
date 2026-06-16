@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.shared.errors import InvalidStateTransition
@@ -47,14 +49,17 @@ async def _transition(
 
     from app.models.customer import Customer
 
-    result = await db.execute(
-        update(Customer)
-        .where(
-            Customer.id == customer_id,
-            Customer.status == current,
-            Customer.deleted_at.is_(None),
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            update(Customer)
+            .where(
+                Customer.id == customer_id,
+                Customer.status == current,
+                Customer.deleted_at.is_(None),
+            )
+            .values(status=target, updated_at=datetime.now(timezone.utc))
         )
-        .values(status=target, updated_at=datetime.now(timezone.utc))
     )
     if result.rowcount == 0:
         logger.warning(

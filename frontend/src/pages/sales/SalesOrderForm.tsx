@@ -66,15 +66,29 @@ export default function SalesOrderForm() {
 
   useEffect(() => {
     if (isEdit) {
+      setLoading(true);
       getSalesOrder(Number(id)).then((r) => {
         const order = r.data.data;
+        if (!order) { message.error("订单不存在"); navigate("/sales/orders"); return; }
         form.setFieldsValue({
-          ...order,
+          customer_id: order.customer_id,
+          quotation_id: order.quotation_id,
+          order_no: order.order_no,
+          status: order.status,
+          total_amount: order.total_amount,
           order_date: order.order_date ? dayjs(order.order_date) : null,
           delivery_date: order.delivery_date ? dayjs(order.delivery_date) : null,
+          customer_po_no: order.customer_po_no,
+          payment_terms: order.payment_terms,
+          incoterms: order.incoterms,
+          discount_rate: order.discount_rate,
+          notes: order.notes,
           items: order.items?.length ? order.items : [{}],
         });
-      });
+      }).catch(() => {
+        message.error("加载订单失败");
+        navigate("/sales/orders");
+      }).finally(() => setLoading(false));
     } else {
       const customerId = Number(searchParams.get("customer_id"));
       const quotationId = Number(searchParams.get("quotation_id"));

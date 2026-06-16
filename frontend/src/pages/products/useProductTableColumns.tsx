@@ -45,7 +45,7 @@ export function useProductTableColumns({
         title: "产品名称",
         dataIndex: "name",
         key: "name",
-        width: 220,
+        width: 160,
         fixed: "left",
         sorter: true,
         render: (text: string, r: Product) => (
@@ -58,15 +58,23 @@ export function useProductTableColumns({
         title: "分类",
         dataIndex: "category",
         key: "category",
-        width: 100,
-        render: (v: string) => (v ? <StatusTag>{v}</StatusTag> : "-"),
+        width: 90,
+        render: (v: string) => {
+          if (!v) return "-";
+          const display = v.length > 5 ? `${v.slice(0, 5)}…` : v;
+          return <Tooltip title={v}><StatusTag>{display}</StatusTag></Tooltip>;
+        },
       },
       {
         title: "封装",
         dataIndex: "package_type",
         key: "package_type",
-        width: 100,
-        render: (v: string | null) => v || "-",
+        width: 90,
+        render: (v: string | null) => {
+          if (!v) return "-";
+          const display = v.length > 7 ? `${v.slice(0, 7)}…` : v;
+          return <Tooltip title={v}>{display}</Tooltip>;
+        },
       },
       {
         title: "规格",

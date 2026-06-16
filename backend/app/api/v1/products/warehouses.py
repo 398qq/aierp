@@ -192,10 +192,13 @@ async def list_inventory(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
+    from app.models.product import Brand
+
     query = (
-        select(Inventory, Product, Warehouse)
+        select(Inventory, Product, Warehouse, Brand.name)
         .join(Product, Inventory.product_id == Product.id)
         .join(Warehouse, Inventory.warehouse_id == Warehouse.id)
+        .outerjoin(Brand, Product.brand_id == Brand.id)
         .where(
             Product.deleted_at.is_(None),
             Warehouse.deleted_at.is_(None),
@@ -224,13 +227,15 @@ async def list_inventory(
     rows = (await db.execute(query)).all()
 
     items = []
-    for inv, prod, wh in rows:
+    for inv, prod, wh, brand_name in rows:
         items.append(
             {
                 "id": inv.id,
                 "product_id": inv.product_id,
                 "product_name": prod.name,
-                "product_sku": prod.sku,
+                "sku": prod.sku,
+                "category": prod.category,
+                "brand_name": brand_name,
                 "mpn": prod.mpn,
                 "warehouse_id": inv.warehouse_id,
                 "warehouse_name": wh.name,
@@ -273,22 +278,81 @@ async def inventory_overview(
     ).where(Warehouse.deleted_at.is_(None))
     total_value = (await db.execute(total_value_q)).scalar() or 0
 
+    total_qty_q = select(func.coalesce(func.sum(Inventory.quantity), 0))
+    total_quantity = (await db.execute(total_qty_q)).scalar() or 0
+
     low_stock_q = select(func.count()).where(
-        Inventory.quantity <= Inventory.safety_stock
+        Inventory.quantity > 0, Inventory.quantity <= Inventory.safety_stock
     )
     low_stock_count = (await db.execute(low_stock_q)).scalar() or 0
 
     out_of_stock_q = select(func.count()).where(Inventory.quantity <= 0)
     out_of_stock_count = (await db.execute(out_of_stock_q)).scalar() or 0
 
+    # Dead stock: items with positive quantity but no movement in 90+ days
+    from datetime import datetime, timedelta, timezone
+
+    days_90_ago = datetime.now(timezone.utc) - timedelta(days=90)
+    dead_stock_q = select(func.count()).where(
+        Inventory.quantity > 0,
+        Inventory.updated_at < days_90_ago,
+    )
+    dead_stock_count = (await db.execute(dead_stock_q)).scalar() or 0
+
     product_count_q = select(func.count(func.distinct(Inventory.product_id)))
     product_count = (await db.execute(product_count_q)).scalar() or 0
 
+    # Restock suggestions: items below safety stock with positive quantity
+    from app.models.product import Product
+
+    restock_q = (
+        select(
+            Inventory.product_id,
+            Inventory.quantity,
+            Inventory.safety_stock,
+            Inventory.warehouse_id,
+            Product.name,
+            Product.sku,
+        )
+        .join(Product, Inventory.product_id == Product.id)
+        .where(
+            Inventory.quantity > 0,
+            Inventory.quantity <= Inventory.safety_stock,
+        )
+        .limit(10)
+    )
+    restock_rows = (await db.execute(restock_q)).all()
+    restock_suggestions = []
+    for r in restock_rows:
+        qty = r[1] or 0
+        safe = r[2] or 0
+        gap = safe - qty
+        suggested = gap + max(100, int(safe * 0.5))
+        urgency = "紧急" if qty <= safe * 0.3 else "建议"
+        restock_suggestions.append(
+            {
+                "product_id": r[0],
+                "current_qty": qty,
+                "safety_stock": safe,
+                "warehouse_id": r[3],
+                "name": r[4] or f"产品#{r[0]}",
+                "sku": r[5] or "",
+                "monthly_rate": round(gap / 3) if gap > 0 else 0,
+                "gap": gap,
+                "suggested_order": suggested,
+                "urgency": urgency,
+            }
+        )
+
     payload = {
+        "total_quantity": int(total_quantity),
         "total_value": float(total_value),
         "low_stock_count": low_stock_count,
+        "low_stock_items": low_stock_count,
         "out_of_stock_count": out_of_stock_count,
+        "dead_stock_items": dead_stock_count,
         "product_count": product_count,
+        "restock_suggestions": restock_suggestions,
     }
     await cache_set_versioned(
         "inventory:overview", cache_key, json.dumps(payload, default=str), ttl=60

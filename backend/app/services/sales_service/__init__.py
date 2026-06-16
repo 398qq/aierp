@@ -29,6 +29,7 @@ from app.services.sales_service.delivery_notes import (
 from app.services.sales_service.orders import (
     create_sales_order,
     delete_sales_order,
+    get_order_by_quotation,
     get_sales_order,
     list_sales_orders,
     update_sales_order,
@@ -96,6 +97,7 @@ __all__ = [
     "create_quotation_from_inquiry",
     "list_sales_orders",
     "get_sales_order",
+    "get_order_by_quotation",
     "create_sales_order",
     "update_sales_order",
     "delete_sales_order",

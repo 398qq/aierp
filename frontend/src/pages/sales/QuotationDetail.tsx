@@ -209,14 +209,12 @@ export default function QuotationDetail() {
               发送报价
             </Button>
           )}
-          {quote.status !== "won" && (
-            <Popconfirm title="确认转为销售订单?" onConfirm={() => runAction(async () => {
-              await convertQuotationToOrder(quote.id);
-              navigate("/sales/orders");
-            }, "已转为订单")}>
-              <Button type="primary" icon={<ShoppingCartOutlined />} loading={actionLoading}>转为订单</Button>
-            </Popconfirm>
-          )}
+          <Popconfirm title="确认转为销售订单?" onConfirm={() => runAction(async () => {
+            await convertQuotationToOrder(quote.id);
+            navigate("/sales/orders");
+          }, "已转为订单")}>
+            <Button type="primary" icon={<ShoppingCartOutlined />} loading={actionLoading}>转为订单</Button>
+          </Popconfirm>
           {quote.status !== "lost" && quote.status !== "won" && (
             <Button
               danger

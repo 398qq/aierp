@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, Upload, message } from "antd";
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
-import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders, importSalesOrderPDF } from "../../api";
 import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
-import type { SalesOrder } from "../../types";
+import type { SalesOrder, SalesOrderItem } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 export default function SalesOrderList() {
@@ -211,22 +211,18 @@ export default function SalesOrderList() {
             {
               title: "订单",
               dataIndex: "order_no",
+              width: 150,
               fixed: "left",
-              minWidth: 220,
               render: (value: string | null, record: SalesOrder) => (
-                <div>
-                  <div className="erp-cell-primary">
-                    <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
-                  </div>
-                  <div className="erp-cell-secondary">
-                    <Space size={8}>
-                      {record.customer_name
-                        ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{record.customer_name}</Typography.Link>
-                        : <CustomerLink id={record.customer_id} />}
-                      <span>产品行 {record.items?.length || 0}</span>
-                    </Space>
-                  </div>
-                </div>
+                <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
+              ),
+            },
+            {
+              title: "客户名称", dataIndex: "customer_name", width: 180, ellipsis: true,
+              render: (v: string | null, r: SalesOrder) => (
+                v
+                  ? <Typography.Link onClick={() => navigate(`/customers/${r.customer_id}`)}>{v}</Typography.Link>
+                  : <CustomerLink id={r.customer_id} />
               ),
             },
             { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
@@ -253,7 +249,7 @@ export default function SalesOrderList() {
               fixed: "right" as const,
               render: (_: unknown, record: SalesOrder) => {
                 const items: MenuProps["items"] = [
-                  { key: "view", label: "查看详情", onClick: () => navigate(`/sales/orders/${record.id}`) },
+                  { key: "view", label: "查看详情", icon: <FileTextOutlined />, onClick: () => navigate(`/sales/orders/${record.id}`) },
                   { key: "delivery", label: "转为发货单", icon: <CarOutlined />, onClick: () => {
                     Modal.confirm({ title: "转为发货单?", content: `将订单 ${record.order_no || `#${record.id}`} 转为发货单`, onOk: async () => {
                       try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); load(); } catch { message.error("转换失败"); }
@@ -274,6 +270,34 @@ export default function SalesOrderList() {
               },
             },
           ]}
+          expandable={{
+            expandedRowRender: (record: SalesOrder) => {
+              const items = record.items || [];
+              if (items.length === 0) return <Typography.Text type="secondary">无明细</Typography.Text>;
+              return (
+                <Table
+                  rowKey="id"
+                  size="small"
+                  dataSource={items}
+                  pagination={false}
+                  columns={[
+                    { title: "#", width: 40, render: (_: unknown, __: unknown, i: number) => i + 1 },
+                    { title: "产品名称", dataIndex: "product_name", ellipsis: true },
+                    { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+                    { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number | null) => v != null ? money(v) : "-" },
+                    { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number | null) => v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-" },
+                    { title: "成本", dataIndex: "cost_amount", width: 100, align: "right" as const, render: (v: number | null) => v != null ? <Typography.Text type="secondary">{money(v)}</Typography.Text> : "-" },
+                    { title: "毛利", key: "margin", width: 100, align: "right" as const,
+                      render: (_: unknown, r: SalesOrderItem) => {
+                        if (r.cost_amount == null || r.total_price == null) return "-";
+                        const m = Number(r.total_price) - Number(r.cost_amount);
+                        return <Typography.Text type={m >= 0 ? "success" : "danger"}>{money(m)}</Typography.Text>;
+                      }},
+                  ]}
+                />
+              );
+            },
+          }}
           pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (count) => `共 ${count} 条` }}
         />
       </Card>

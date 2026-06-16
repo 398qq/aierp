@@ -75,7 +75,44 @@ async def list_opportunities(
         .all()
     )
 
-    return {"list": rows, "total": total, "page": page, "page_size": page_size}
+    # Resolve customer names in bulk
+    from app.models.customer import Customer as CustModel
+
+    cids = [r.customer_id for r in rows if r.customer_id]
+    cname_map: dict[int, str] = {}
+    if cids:
+        cr = await db.execute(
+            select(CustModel.id, CustModel.name).where(
+                CustModel.id.in_(cids), CustModel.deleted_at.is_(None)
+            )
+        )
+        cname_map = {row[0]: row[1] for row in cr.all()}
+
+    list_data = [_serialize_opportunity(r, cname_map.get(r.customer_id)) for r in rows]
+    return {"list": list_data, "total": total, "page": page, "page_size": page_size}
+
+
+def _serialize_opportunity(opp: Opportunity, customer_name: str | None = None) -> dict:
+    return {
+        "id": opp.id,
+        "title": opp.title,
+        "customer_id": opp.customer_id,
+        "customer_name": customer_name,
+        "amount": float(opp.amount) if opp.amount else None,
+        "status": opp.status,
+        "stage": opp.stage,
+        "win_probability": opp.win_probability,
+        "expected_close_date": str(opp.expected_close_date)
+        if opp.expected_close_date
+        else None,
+        "source": opp.source,
+        "assigned_to": opp.assigned_to,
+        "description": opp.description,
+        "notes": opp.notes,
+        "created_at": str(opp.created_at) if opp.created_at else None,
+        "updated_at": str(opp.updated_at) if opp.updated_at else None,
+        "deleted_at": str(opp.deleted_at) if opp.deleted_at else None,
+    }
 
 
 async def get_opportunity(db: AsyncSession, opp_id: int) -> Opportunity | None:

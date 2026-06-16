@@ -64,6 +64,10 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         shutdown()
+        from app.services.cache_service import close_redis
+
+        await close_redis()
+        await engine.dispose()
 
 
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)

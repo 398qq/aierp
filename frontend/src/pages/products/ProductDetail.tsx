@@ -3,9 +3,9 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse, Flex } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
-import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct } from "../../api";
+import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct, getInventoryBatches } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
-import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch } from "../../types";
+import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch, InventoryBatch } from "../../types";
 
 const { Text, Title } = Typography;
 
@@ -40,6 +40,8 @@ export default function ProductDetail() {
   const [salesDocsLoading, setSalesDocsLoading] = useState(false);
   const [recommendCustomers, setRecommendCustomers] = useState<ProductCustomerMatch | null>(null);
   const [recommendLoading, setRecommendLoading] = useState(false);
+  const [batchData, setBatchData] = useState<InventoryBatch[]>([]);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -85,6 +87,13 @@ export default function ProductDetail() {
     productSubstitutes(Number(id)).then((r) => {
       if (r.data.code === 0) setSubstitutes(r.data.data as Record<string, unknown>);
     }).catch(() => {});
+
+    // Load inventory batches for this product
+    setBatchLoading(true);
+    getInventoryBatches({ product_id: Number(id), status: "available" })
+      .then((r) => setBatchData(r.data.data.list || []))
+      .catch(() => {})
+      .finally(() => setBatchLoading(false));
   }, [id]);
 
   const loadSuppliersAndPricing = async (pid: number) => {
@@ -404,6 +413,47 @@ export default function ProductDetail() {
           />
         ) : (
           <Text type="secondary">暂无供应商关联，前往 <a onClick={() => navigate("/suppliers")}>供应商管理</a> 进行关联</Text>
+        )}
+      </Card>
+
+      {/* Inventory Batch Breakdown */}
+      <Card
+        title={<><OrderedListOutlined /> 批次库存 (N={batchData.length})</>}
+        style={{ marginBottom: 16 }}
+        loading={batchLoading}
+        extra={
+          batchData.length > 0 ? (
+            <Button size="small" type="link" onClick={() => navigate("/warehouse/inventory-batches")}>
+              管理批次 →
+            </Button>
+          ) : null
+        }
+      >
+        {batchData.length > 0 ? (
+          <Table
+            size="small"
+            dataSource={batchData}
+            rowKey="id"
+            pagination={false}
+            columns={[
+              { title: "批次号", dataIndex: "batch_no", width: 130 },
+              { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+              {
+                title: "进货单价", dataIndex: "unit_cost", width: 110, align: "right" as const,
+                render: (v: number) => `¥${v.toFixed(4)}`,
+              },
+              {
+                title: "库存成本", width: 120, align: "right" as const,
+                render: (_: unknown, r: InventoryBatch) => `¥${(r.quantity * r.unit_cost).toFixed(2)}`,
+              },
+              { title: "入库日期", dataIndex: "received_date", width: 100 },
+              { title: "供应商", dataIndex: "supplier_name", width: 100, ellipsis: true, render: (v: string | null) => v || "-" },
+            ]}
+          />
+        ) : (
+          <Text type="secondary">
+            暂无批次记录。入库收货时将自动创建批次并记录实际进价。
+          </Text>
         )}
       </Card>
 

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Typography, message } from "antd";
+import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Select, Space, Spin, Switch, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
-import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, deleteOpportunity, getOpportunities } from "../../api";
-import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, stageLabel, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
@@ -32,7 +31,6 @@ export default function OpportunityList() {
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
   const [q, setQ] = useState("");
-  const [view, setView] = useState<"board" | "list">("board");
   const [includeAi, setIncludeAi] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [aiMap, setAiMap] = useState<Record<number, OpportunityAI>>({});
@@ -157,14 +155,6 @@ export default function OpportunityList() {
           <div style={{ width: 260 }}>
             <CustomerSelect value={customerId} onChange={setCustomerId} />
           </div>
-          <Segmented
-            value={view}
-            onChange={(v) => setView(v as "board" | "list")}
-            options={[
-              { label: <><AppstoreOutlined /> 看板</>, value: "board" },
-              { label: <><BarsOutlined /> 列表</>, value: "list" },
-            ]}
-          />
           <Select
             placeholder="状态"
             allowClear
@@ -217,8 +207,6 @@ export default function OpportunityList() {
         <div style={{ textAlign: "center", padding: 60 }}>
           <Spin size="large" />
         </div>
-      ) : view === "board" ? (
-        <PipelineBoard opportunities={data} aiMap={aiMap} loading={loading} onRefresh={load} />
       ) : (
         <Card size="small" title="商机清单">
           <Table
@@ -235,15 +223,22 @@ export default function OpportunityList() {
               {
                 title: "商机",
                 dataIndex: "title",
+                width: 200,
                 ellipsis: true,
                 fixed: "left",
                 render: (value: string, record: Opportunity) => (
-                  <div>
-                    <div className="erp-cell-primary">
-                      <Typography.Link strong onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
-                    </div>
-                    <div className="erp-cell-secondary"><CustomerLink id={record.customer_id} /></div>
-                  </div>
+                  <Typography.Link strong onClick={() => navigate(`/sales/opportunities/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
+                ),
+              },
+              {
+                title: "客户名称",
+                dataIndex: "customer_name",
+                width: 160,
+                ellipsis: true,
+                render: (v: string | null, r: Opportunity) => (
+                  v
+                    ? <Typography.Link onClick={() => navigate(`/customers/${r.customer_id}`)}>{v}</Typography.Link>
+                    : <CustomerLink id={r.customer_id} />
                 ),
               },
               {

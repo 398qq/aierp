@@ -58,6 +58,12 @@ def _serialize_payment(pay, invoice_map: dict[int, str]) -> dict:
     }
 
 
+def _invoice_map(invoice_id: int | None, invoice_no: str | None) -> dict[int, str]:
+    if invoice_id is None or invoice_no is None:
+        return {}
+    return {invoice_id: invoice_no}
+
+
 async def _load_invoice_no(db: AsyncSession, invoice_id: int | None) -> str | None:
     """Fetch invoice_no for a given invoice_id, or None if not linked."""
     if not invoice_id:
@@ -181,9 +187,7 @@ async def get_payment(
     if not pay:
         return fail("回款记录不存在", 404)
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
-    return ok(
-        _serialize_payment(pay, {pay.invoice_id: invoice_no} if pay.invoice_id else {})
-    )
+    return ok(_serialize_payment(pay, _invoice_map(pay.invoice_id, invoice_no)))
 
 
 @router.post("/payments")
@@ -195,9 +199,7 @@ async def create_payment(
     pay = await svc.create_payment(db, body.model_dump())
     await _bump_payment_caches()
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
-    return ok(
-        _serialize_payment(pay, {pay.invoice_id: invoice_no} if pay.invoice_id else {})
-    )
+    return ok(_serialize_payment(pay, _invoice_map(pay.invoice_id, invoice_no)))
 
 
 @router.put("/payments/{pay_id}")
@@ -213,9 +215,7 @@ async def update_payment(
     pay = await svc.update_payment(db, pay, body.model_dump(exclude_none=True))
     await _bump_payment_caches()
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
-    return ok(
-        _serialize_payment(pay, {pay.invoice_id: invoice_no} if pay.invoice_id else {})
-    )
+    return ok(_serialize_payment(pay, _invoice_map(pay.invoice_id, invoice_no)))
 
 
 @router.delete("/payments/{pay_id}")

@@ -11,10 +11,11 @@ hold session state. This keeps service methods easy to compose and test.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.datetime_utils import days_since, safe_float, to_utc
 from app.models.customer import Customer, CustomerFollowUp, CustomerLog
@@ -116,7 +117,7 @@ class CustomerStatsService(BaseCRUDService):
         self, db: AsyncSession, customer_id: int
     ) -> dict[str, Any] | None:
         """Aggregate order / payment / credit / health / RFM for one customer."""
-        customer = await self.get(db, customer_id)
+        customer = cast(Customer | None, await self.get(db, customer_id))
         if customer is None:
             return None
 
@@ -210,7 +211,7 @@ class CustomerStatsService(BaseCRUDService):
         self, db: AsyncSession, customer_id: int
     ) -> list[dict[str, Any]] | None:
         """Build a unified timeline of contact / follow-up / order events."""
-        customer = await self.get(db, customer_id)
+        customer = cast(Customer | None, await self.get(db, customer_id))
         if customer is None:
             return None
 
@@ -491,7 +492,7 @@ class CustomerStatsService(BaseCRUDService):
                 .group_by(SalesOrder.customer_id)
             )
         ).all()
-        order_map = {
+        order_map: dict[int, dict[str, Any]] = {
             int(row[0]): {
                 "count": int(row[1] or 0),
                 "amount": safe_float(row[2]),
@@ -540,7 +541,7 @@ class CustomerStatsService(BaseCRUDService):
                 stats = order_map.get(customer.id, {})
                 order_count = int(stats.get("count", 0))
                 total_amount = safe_float(stats.get("amount"))
-                last_order_at = stats.get("last_order_at")
+                last_order_at = cast(datetime | None, stats.get("last_order_at"))
                 order_count_90d = int(stats.get("count_90d", 0))
 
                 last_contact_at = to_utc(
@@ -793,7 +794,7 @@ class CustomerStatsService(BaseCRUDService):
         now = datetime.now(timezone.utc)
         today = now.date()
 
-        conditions = [
+        conditions: list[ColumnElement[bool]] = [
             CustomerFollowUp.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
         ]

@@ -202,6 +202,19 @@ async def get_sales_order(db: AsyncSession, order_id: int) -> SalesOrder | None:
     return await sales_order_service.get_order(db, order_id)
 
 
+async def get_order_by_quotation(
+    db: AsyncSession, quotation_id: int
+) -> SalesOrder | None:
+    """Find the sales order that was converted from a given quotation."""
+    result = await db.execute(
+        select(SalesOrder).where(
+            SalesOrder.quotation_id == quotation_id,
+            SalesOrder.deleted_at.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_sales_order(
     db: AsyncSession, data: dict, items_data: list[dict] | None = None
 ) -> SalesOrder:

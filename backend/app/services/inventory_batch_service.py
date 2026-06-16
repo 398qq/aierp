@@ -23,6 +23,7 @@ from typing import Any, List, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.domain.inventory.batch import (
     BatchAllocation,
@@ -71,8 +72,11 @@ class BatchAllocationResult:
     @property
     def total_cost(self) -> Decimal:
         return sum(
-            Decimal(str(a.quantity)) * Decimal(str(a.unit_cost))
-            for a in self.allocations
+            (
+                Decimal(str(a.quantity)) * Decimal(str(a.unit_cost))
+                for a in self.allocations
+            ),
+            start=Decimal("0"),
         )
 
     @property
@@ -400,7 +404,9 @@ class InventoryBatchService:
         from app.models.product import Product
         from app.models.product import Supplier
 
-        conditions = [InventoryBatchORM.deleted_at.is_(None)]
+        conditions: list[ColumnElement[bool]] = [
+            InventoryBatchORM.deleted_at.is_(None)
+        ]
         if product_id:
             conditions.append(InventoryBatchORM.product_id == product_id)
         if warehouse_id:
@@ -467,7 +473,7 @@ class InventoryBatchService:
         """
         from app.models.sales import SalesOrder, SalesOrderItem
 
-        conditions = [
+        conditions: list[ColumnElement[bool]] = [
             SalesOrderItem.deleted_at.is_(None),
             SalesOrder.deleted_at.is_(None),
             SalesOrderItem.cost_amount.isnot(None),
