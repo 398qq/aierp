@@ -19,6 +19,13 @@ class CustomerCreate(BaseModel):
     region: str | None = None
     credit_limit: float | None = None
     credit_level: str | None = None
+    # 2026-06-16 修复: 开票/收款必填字段
+    tax_id: str | None = Field(None, max_length=50, description="纳税人识别号/税号")
+    registration_number: str | None = Field(None, max_length=50, description="统一社会信用代码")
+    invoice_title: str | None = Field(None, max_length=255, description="开票抬头")
+    invoice_address: str | None = Field(None, description="开票地址")
+    bank_name: str | None = Field(None, max_length=100, description="开户行名称")
+    bank_account: str | None = Field(None, max_length=50, description="银行账号")
 
 
 class CustomerUpdate(BaseModel):
@@ -37,6 +44,13 @@ class CustomerUpdate(BaseModel):
     region: str | None = None
     credit_limit: float | None = None
     credit_level: str | None = None
+    # 2026-06-16 修复: 开票/收款必填字段
+    tax_id: str | None = Field(None, max_length=50, description="纳税人识别号/税号")
+    registration_number: str | None = Field(None, max_length=50, description="统一社会信用代码")
+    invoice_title: str | None = Field(None, max_length=255, description="开票抬头")
+    invoice_address: str | None = Field(None, description="开票地址")
+    bank_name: str | None = Field(None, max_length=100, description="开户行名称")
+    bank_account: str | None = Field(None, max_length=50, description="银行账号")
 
 
 class CustomerResponse(BaseModel):

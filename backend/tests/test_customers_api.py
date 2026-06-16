@@ -443,6 +443,53 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
+    async def test_compliance_fields_create_and_update(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        """2026-06-16: 开票/收款字段 (tax_id/registration_number/invoice_title/invoice_address/bank_name/bank_account) 应可写入并读出。"""
+        compliance = {
+            "tax_id": "91441900MACDGJQL79",
+            "registration_number": "91441900MACDGJQL79",
+            "invoice_title": "测试公司有限公司",
+            "invoice_address": "广东省东莞市塘厦镇测试路1号",
+            "bank_name": "招商银行东莞塘厦支行",
+            "bank_account": "6225880123456789",
+        }
+
+        # Create 时写入
+        c = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "测试合规字段客户", "type": "终端客户", **compliance},
+        )
+        assert c.status_code == 201, c.text
+        cid = c.json()["data"]["id"]
+
+        # GET 验证字段都写入
+        detail = await async_client.get(
+            f"/api/v1/customers/{cid}", headers=auth_headers
+        )
+        body = detail.json()["data"]
+        for k, v in compliance.items():
+            assert body[k] == v, f"{k}: 期望 {v!r}, 实际 {body[k]!r}"
+
+        # PUT 更新字段（部分更新）
+        partial = {"bank_name": "工商银行塘厦支行", "bank_account": "6222021234567890"}
+        resp = await async_client.put(
+            f"/api/v1/customers/{cid}", headers=auth_headers, json=partial
+        )
+        assert resp.status_code == 200, resp.text
+
+        detail2 = await async_client.get(
+            f"/api/v1/customers/{cid}", headers=auth_headers
+        )
+        body2 = detail2.json()["data"]
+        assert body2["bank_name"] == "工商银行塘厦支行"
+        assert body2["bank_account"] == "6222021234567890"
+        # 其他字段保持不变
+        assert body2["tax_id"] == "91441900MACDGJQL79"
+        assert body2["invoice_title"] == "测试公司有限公司"
+
     async def test_delete_customer(self, async_client: AsyncClient, auth_headers: dict):
         c = await async_client.post(
             "/api/v1/customers",
