@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
+import { Table, Button, Input, Space, message, Card, Modal, Form, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
 import { StatusTag } from "../../ui";
 import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
@@ -112,11 +112,10 @@ export default function BrandList() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [aiPlanOpen, setAiPlanOpen] = useState(false);
   const [stats, setStats] = useState<BrandStats | null>(null);
-  const [activeBrandId, setActiveBrandId] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const fetch = async (p = page, ps = pageSize, keyword = search) => {
+  const fetch = useCallback(async (p = page, ps = pageSize, keyword = search) => {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { page: p, page_size: ps };
@@ -134,16 +133,24 @@ export default function BrandList() {
       setTotal(d.total || 0);
     } catch { message.error("加载品牌失败"); }
     finally { setLoading(false); }
-  };
+  }, [filterLifecycle, filterLevel, filterRisk, filterStatus, filterType, page, pageSize, scene, search, sort]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const resp = await getBrandStats();
       setStats(resp.data.data as unknown as BrandStats);
     } catch { /* non-blocking */ }
-  };
+  }, []);
 
-  useEffect(() => { fetch(); fetchStats(); }, [page, pageSize, filterStatus, filterLevel, filterType, filterLifecycle, filterRisk, scene, sort]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetch();
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [fetch]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     setSearch(params.get("q") || params.get("keyword") || "");
@@ -156,16 +163,6 @@ export default function BrandList() {
     setSort(params.get("sort") || "created_at_desc");
     setPage(1);
   }, [location.search]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (page !== 1) {
-        setPage(1);
-      } else {
-        fetch(1, pageSize, search);
-      }
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -399,11 +396,6 @@ export default function BrandList() {
   const endIndex = Math.min(page * pageSize, total);
   const selectedBrands = data.filter((brand) => selectedRowKeys.includes(brand.id));
   const batchAiSummary = getBatchAiSummary(selectedBrands);
-  const activeBrand = useMemo(
-    () => data.find((brand) => brand.id === activeBrandId) || data[0] || null,
-    [activeBrandId, data],
-  );
-  const activeBrandAction = activeBrand ? getBrandNextAction(activeBrand) : null;
   const operationTasks = useMemo(() => {
     if (!stats) return [];
     return [
@@ -433,221 +425,83 @@ export default function BrandList() {
           flex-direction: column;
           gap: 12px;
         }
-        .brand-command-strip {
-          display: grid;
-          grid-template-columns: 1.5fr repeat(4, minmax(120px, .75fr));
-          gap: 10px;
-          align-items: stretch;
-        }
-        .brand-command-main,
-        .brand-command-metric,
-        .brand-ops-panel,
-        .brand-context-panel {
+        .brand-page-head,
+        .brand-filter-card,
+        .brand-table-card {
           background: #fff;
           border: 1px solid #f0f0f0;
           border-radius: 8px;
         }
-        .brand-command-main {
-          padding: 16px;
+        .brand-page-head {
+          padding: 14px 16px;
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
-          min-height: 116px;
+          gap: 12px;
         }
-        .brand-command-title {
+        .brand-title-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .brand-title {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-bottom: 6px;
+          min-width: 220px;
         }
-        .brand-command-title h4 {
+        .brand-title h4 {
           margin: 0;
         }
-        .brand-command-note {
-          max-width: 620px;
-        }
-        .brand-command-actions {
-          margin-top: 12px;
+        .brand-summary-strip {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
         }
-        .brand-command-metric {
-          padding: 14px;
-          min-height: 116px;
-          cursor: pointer;
-          transition: border-color .16s ease, box-shadow .16s ease;
-        }
-        .brand-command-metric:hover {
-          border-color: #91caff;
-          box-shadow: 0 2px 8px rgba(22, 119, 255, .1);
-        }
-        .brand-metric-label {
-          display: block;
-          font-size: 12px;
-          margin-bottom: 10px;
-        }
-        .brand-metric-value {
+        .brand-summary-item,
+        .brand-task-chip {
           display: flex;
-          align-items: baseline;
-          gap: 6px;
-          font-size: 24px;
-          font-weight: 700;
-          line-height: 1;
-        }
-        .brand-metric-value small {
-          font-size: 12px;
-          font-weight: 400;
-          color: rgba(0,0,0,.45);
-        }
-        .brand-workbench-grid {
-          display: grid;
-          grid-template-columns: 240px minmax(0, 1fr) 280px;
-          gap: 12px;
-          align-items: start;
-        }
-        .brand-ops-panel,
-        .brand-context-panel {
-          padding: 12px;
-          position: sticky;
-          top: 76px;
-        }
-        .brand-panel-head {
-          display: flex;
-          justify-content: space-between;
           align-items: center;
           gap: 8px;
-          margin-bottom: 10px;
-        }
-        .brand-task-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .brand-task-item {
-          width: 100%;
-          padding: 10px;
+          height: 30px;
+          padding: 0 10px;
           border: 1px solid #f0f0f0;
-          border-radius: 8px;
+          border-radius: 6px;
           background: #fafafa;
-          cursor: pointer;
-          transition: border-color .16s ease, background .16s ease;
+          color: rgba(0,0,0,.72);
         }
-        .brand-task-item:hover,
-        .brand-task-item-active {
+        .brand-summary-item {
+          cursor: pointer;
+        }
+        .brand-summary-item:hover,
+        .brand-task-chip:hover,
+        .brand-task-chip-active {
           border-color: #1677ff;
           background: #f0f7ff;
-        }
-        .brand-task-main {
-          display: flex;
-          justify-content: space-between;
-          gap: 8px;
-          align-items: center;
-          margin-bottom: 4px;
-        }
-        .brand-task-note,
-        .brand-context-note {
-          font-size: 12px;
-          color: rgba(0,0,0,.45);
-        }
-        .brand-table-zone {
-          min-width: 0;
-        }
-        .brand-context-body {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .brand-context-title {
-          display: flex;
-          justify-content: space-between;
-          gap: 8px;
-          align-items: flex-start;
-        }
-        .brand-context-name {
-          min-width: 0;
-        }
-        .brand-context-name a {
-          font-weight: 600;
-        }
-        .brand-context-score {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-        }
-        .brand-context-score > div {
-          padding: 10px;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-          background: #fafafa;
-        }
-        .brand-context-number {
-          display: block;
-          margin-top: 4px;
-          font-size: 20px;
-          font-weight: 700;
-        }
-        .brand-context-action {
-          padding: 10px;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-          background: #fafafa;
-        }
-        .brand-row-active td {
-          background: #e6f4ff !important;
         }
         .brand-row-critical td { background: #fff2f0 !important; }
         .brand-row-eol td { background: #fff7e6 !important; }
-        .brand-stat-card {
-          text-align: center;
-          cursor: pointer;
-          border-color: #f0f0f0;
-          transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
-        }
-        .brand-stat-card:hover {
-          border-color: #91caff;
-          box-shadow: 0 2px 8px rgba(22, 119, 255, .12);
-          transform: translateY(-1px);
-        }
-        .brand-stat-card-active {
-          border-color: #1677ff;
-          background: #f0f7ff;
-        }
-        .brand-list-card .ant-card-head {
-          align-items: flex-start;
-          gap: 8px;
-        }
-        .brand-list-card .ant-card-extra {
-          margin-inline-start: 0;
-        }
-        .brand-toolbar {
-          margin-bottom: 12px;
+        .brand-filter-card {
           padding: 12px;
-          background: #fafafa;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
         }
-        .brand-toolbar-row {
+        .brand-filter-main,
+        .brand-filter-extra,
+        .brand-table-head,
+        .brand-batch-bar {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
           align-items: center;
           justify-content: space-between;
         }
-        .brand-scene-switch {
-          max-width: 100%;
-          overflow-x: auto;
-        }
-        .brand-filter-row {
+        .brand-filter-extra {
           margin-top: 10px;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          align-items: center;
+          justify-content: flex-start;
         }
         .brand-filter-search {
           flex: 1 1 280px;
-          max-width: 360px;
+          max-width: 420px;
           min-width: 220px;
         }
         .brand-filter-select {
@@ -658,13 +512,31 @@ export default function BrandList() {
           margin-top: 10px;
           min-height: 22px;
         }
-        .brand-table-meta {
-          margin-bottom: 10px;
+        .brand-task-row {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
-          align-items: center;
-          justify-content: space-between;
+          margin-top: 10px;
+        }
+        .brand-task-chip {
+          border: 1px solid #f0f0f0;
+          border-radius: 6px;
+          background: #fafafa;
+          padding: 5px 8px;
+          cursor: pointer;
+        }
+        .brand-table-card .ant-card-body {
+          padding: 0;
+        }
+        .brand-table-head {
+          padding: 10px 12px;
+          border-bottom: 1px solid #f0f0f0;
+        }
+        .brand-batch-bar {
+          padding: 10px 12px;
+          background: #f6ffed;
+          border: 1px solid #b7eb8f;
+          border-radius: 8px;
         }
         .brand-empty {
           padding: 28px 8px;
@@ -686,26 +558,14 @@ export default function BrandList() {
           font-size: 12px;
         }
         @media (max-width: 768px) {
-          .brand-command-strip {
-            grid-template-columns: 1fr;
-          }
-          .brand-workbench-grid {
-            grid-template-columns: 1fr;
-          }
-          .brand-ops-panel,
-          .brand-context-panel {
-            position: static;
-          }
-          .brand-list-card .ant-card-head {
-            display: block;
-          }
-          .brand-list-card .ant-card-extra {
-            margin-top: 10px;
-          }
-          .brand-toolbar-row {
+          .brand-title-row,
+          .brand-filter-main,
+          .brand-table-head {
             align-items: stretch;
           }
-          .brand-toolbar-row > * {
+          .brand-title-row > *,
+          .brand-filter-main > *,
+          .brand-table-head > * {
             width: 100%;
           }
           .brand-filter-search,
@@ -718,114 +578,42 @@ export default function BrandList() {
           }
         }
       `}</style>
-      <div className="brand-command-strip">
-        <div className="brand-command-main">
-          <div>
-            <div className="brand-command-title">
-              <BankOutlined />
-              <Title level={4}>品牌管理</Title>
-            </div>
-            <Text type="secondary" className="brand-command-note">
-              统一维护品牌主数据、风险、生命周期、授权和产品覆盖，优先处理高风险与资料缺口。
-            </Text>
+
+      <div className="brand-page-head">
+        <div className="brand-title-row">
+          <div className="brand-title">
+            <BankOutlined />
+            <Title level={4}>品牌管理</Title>
+            <Text type="secondary">{total} 个品牌</Text>
           </div>
-          <div className="brand-command-actions">
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增品牌</Button>
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={() => { fetch(); fetchStats(); }}>刷新</Button>
+            <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>导出</Button>
             <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
-            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>品牌看板</Button>
-          </div>
+            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>看板</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增品牌</Button>
+          </Space>
         </div>
-        <div className="brand-command-metric" onClick={() => applyScene("all")}>
-          <Text type="secondary" className="brand-metric-label">品牌总数</Text>
-          <span className="brand-metric-value">{stats?.total ?? 0}<small>个</small></span>
-        </div>
-        <div className="brand-command-metric" onClick={() => applyScene("high_risk")}>
-          <Text type="secondary" className="brand-metric-label">高风险占比</Text>
-          <span className="brand-metric-value">{healthMetrics.highRiskRate}<small>%</small></span>
-        </div>
-        <div className="brand-command-metric" onClick={() => applyScene("eol_nrnd")}>
-          <Text type="secondary" className="brand-metric-label">生命周期风险</Text>
-          <span className="brand-metric-value">{healthMetrics.lifecycleRate}<small>%</small></span>
-        </div>
-        <div className="brand-command-metric" onClick={() => applyScene("no_products")}>
-          <Text type="secondary" className="brand-metric-label">未铺货占比</Text>
-          <span className="brand-metric-value">{healthMetrics.noProductRate}<small>%</small></span>
+        <div className="brand-summary-strip">
+          <div className="brand-summary-item" onClick={() => applyScene("all")}>总数 <Text strong>{stats?.total ?? 0}</Text></div>
+          <div className="brand-summary-item" onClick={() => applyScene("high_risk")}>高风险 <Text strong>{stats?.high_risk_count ?? 0}</Text><Text type="secondary">{healthMetrics.highRiskRate}%</Text></div>
+          <div className="brand-summary-item" onClick={() => applyScene("eol_nrnd")}>EOL/NRND <Text strong>{stats?.eol_nrnd_count ?? 0}</Text><Text type="secondary">{healthMetrics.lifecycleRate}%</Text></div>
+          <div className="brand-summary-item" onClick={() => applyScene("no_products")}>未铺货 <Text strong>{stats?.no_product_count ?? 0}</Text><Text type="secondary">{healthMetrics.noProductRate}%</Text></div>
+          <div className="brand-summary-item" onClick={() => applyScene("automotive")}>车规 <Text strong>{stats?.automotive_count ?? 0}</Text><Text type="secondary">{healthMetrics.automotiveRate}%</Text></div>
         </div>
       </div>
 
-      <div className="brand-workbench-grid">
-        <aside className="brand-ops-panel">
-          <div className="brand-panel-head">
-            <Text strong>运营队列</Text>
-            <Button size="small" type="link" onClick={() => navigate("/brands/stats")}>看板</Button>
-          </div>
-          <div className="brand-task-list">
-            {operationTasks.map((item) => (
-              <div
-                key={item.key}
-                className={`brand-task-item${scene === item.key ? " brand-task-item-active" : ""}`}
-                onClick={() => applyScene(item.key)}
-              >
-                <div className="brand-task-main">
-                  <Text strong>{item.label}</Text>
-                  <StatusTag tone={item.color}>{item.count}</StatusTag>
-                </div>
-                <div className="brand-task-note">{item.note}</div>
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <main className="brand-table-zone">
-
-      <Card
-        className="brand-list-card"
-        title={
-          <Space>
-            品牌列表
-            {selectedRowKeys.length > 0 && (
-              <StatusTag tone="info">{selectedRowKeys.length} 已选</StatusTag>
-            )}
-          </Space>
-        }
-        extra={
+      <div className="brand-filter-card">
+        <div className="brand-filter-main">
           <Space wrap>
-            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>看板</Button>
-            <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>导出</Button>
-            <Button icon={<ReloadOutlined />} onClick={() => { fetch(); fetchStats(); }}>刷新</Button>
-            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
-            {selectedRowKeys.length > 0 && (
-              <>
-                <Button icon={<RobotOutlined />} onClick={() => setAiPlanOpen(true)}>AI 编排</Button>
-                <Button icon={<EditOutlined />} onClick={() => setBatchModalOpen(true)}>批量更新</Button>
-                <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个品牌？`} onConfirm={handleBatchDelete}>
-                  <Button danger icon={<DeleteOutlined />}>批量删除</Button>
-                </Popconfirm>
-              </>
-            )}
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
-          </Space>
-        }
-      >
-        <div className="brand-toolbar">
-          <div className="brand-toolbar-row">
-            <Segmented
-              className="brand-scene-switch"
-              options={SCENE_OPTIONS}
-              value={scene}
-              onChange={(v) => applyScene(v as BrandScene)}
-            />
-            <Space wrap>
-              <Select value={sort} style={{ width: 120 }} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} />
-              <Button onClick={resetFilters}>重置</Button>
-            </Space>
-          </div>
-          <div className="brand-filter-row">
             <Input.Search
               placeholder="搜索品牌、产品线、关键词"
               allowClear
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               onSearch={(v) => {
                 setSearch(v);
                 if (page !== 1) setPage(1);
@@ -838,42 +626,86 @@ export default function BrandList() {
             <Select className="brand-filter-select" placeholder="类型" allowClear value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
             <Select className="brand-filter-select" placeholder="生命周期" allowClear value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
             <Select className="brand-filter-select" placeholder="风险" allowClear value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
-          </div>
-          <div className="brand-filter-tags">
-            {activeFilterTags.length > 0 ? (
-              <Space wrap>
-                {activeFilterTags.map((item) => (
-                  <StatusTag key={item.key} tone="info" closable onClose={item.onClose}>
-                    {item.label}
-                  </StatusTag>
-                ))}
-              </Space>
-            ) : (
-              <Text type="secondary">当前显示全部品牌</Text>
-            )}
-          </div>
+          </Space>
+          <Space wrap>
+            <Select value={sort} style={{ width: 120 }} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} />
+            <Button onClick={resetFilters}>重置</Button>
+          </Space>
         </div>
-        <div className="brand-table-meta">
-          <Text type="secondary">
-            {total > 0 ? `显示 ${startIndex}-${endIndex} / 共 ${total} 个品牌` : "暂无品牌数据"}
-          </Text>
-          <Space wrap size={6}>
-            {sort !== "created_at_desc" && <StatusTag tone="info">排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}</StatusTag>}
-            {hasCustomView && <Button size="small" onClick={resetFilters}>清空视图</Button>}
+        <div className="brand-filter-extra">
+          <Segmented
+            options={SCENE_OPTIONS}
+            value={scene}
+            onChange={(v) => applyScene(v as BrandScene)}
+          />
+        </div>
+        {operationTasks.length > 0 && (
+          <div className="brand-task-row">
+            {operationTasks.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`brand-task-chip${scene === item.key ? " brand-task-chip-active" : ""}`}
+                onClick={() => applyScene(item.key)}
+                title={item.note}
+              >
+                <Space size={6}>
+                  <span>{item.label}</span>
+                  <StatusTag tone={item.color}>{item.count}</StatusTag>
+                </Space>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="brand-filter-tags">
+          {activeFilterTags.length > 0 ? (
+            <Space wrap>
+              {activeFilterTags.map((item) => (
+                <StatusTag key={item.key} tone="info" closable onClose={item.onClose}>
+                  {item.label}
+                </StatusTag>
+              ))}
+              {sort !== "created_at_desc" && <StatusTag tone="info">排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}</StatusTag>}
+              {hasCustomView && <Button size="small" onClick={resetFilters}>清空视图</Button>}
+            </Space>
+          ) : (
+            <Text type="secondary">当前显示全部品牌</Text>
+          )}
+        </div>
+      </div>
+
+      {selectedRowKeys.length > 0 && (
+        <div className="brand-batch-bar">
+          <Space wrap>
+            <StatusTag tone="info">已选 {selectedRowKeys.length} 个品牌</StatusTag>
+            <Button icon={<RobotOutlined />} onClick={() => setAiPlanOpen(true)}>AI 编排</Button>
+            <Button icon={<EditOutlined />} onClick={() => setBatchModalOpen(true)}>批量更新</Button>
+            <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个品牌？`} onConfirm={handleBatchDelete}>
+              <Button danger icon={<DeleteOutlined />}>批量删除</Button>
+            </Popconfirm>
+            <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
+          </Space>
+        </div>
+      )}
+
+      <Card className="brand-table-card" size="small">
+        <div className="brand-table-head">
+          <Space wrap>
+            <Text strong>品牌列表</Text>
+            <Text type="secondary">
+              {total > 0 ? `显示 ${startIndex}-${endIndex} / 共 ${total} 个品牌` : "暂无品牌数据"}
+            </Text>
+            {scene !== "all" && <StatusTag tone="info">{SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}</StatusTag>}
           </Space>
         </div>
         <Table
           rowKey="id" columns={columns} dataSource={data}
           rowSelection={rowSelection}
           rowClassName={(record) => {
-            if (activeBrand?.id === record.id) return "brand-row-active";
             if (record.risk_level === "critical" || (record.risk_score ?? 0) >= 80) return "brand-row-critical";
             if (record.lifecycle_stage === "eol") return "brand-row-eol";
             return "";
           }}
-          onRow={(record) => ({
-            onClick: () => setActiveBrandId(record.id),
-          })}
           loading={loading} size="small" pagination={{
             current: page, total, pageSize: pageSize,
             pageSizeOptions: ["10", "20", "50", "100"],
@@ -892,68 +724,6 @@ export default function BrandList() {
           scroll={{ x: 1300 }}
         />
       </Card>
-        </main>
-
-        <aside className="brand-context-panel">
-          <div className="brand-panel-head">
-            <Text strong>品牌上下文</Text>
-            {activeBrand && <StatusTag tone={activeBrandAction?.color}>{activeBrandAction?.label}</StatusTag>}
-          </div>
-          {activeBrand ? (
-            <div className="brand-context-body">
-              <div className="brand-context-title">
-                <div className="brand-context-name">
-                  <a onClick={() => navigate(`/brands/${activeBrand.id}`)}>{activeBrand.name}</a>
-                  <div className="brand-context-note">{activeBrand.name_cn || activeBrand.code || "未补充中文名/编码"}</div>
-                </div>
-                {activeBrand.level && <StatusTag tone={levelColor[activeBrand.level]}>{activeBrand.level}级</StatusTag>}
-              </div>
-              <Space wrap size={6}>
-                {activeBrand.status && <StatusTag tone={statusColor[activeBrand.status] || "neutral"}>{statusLabel[activeBrand.status] || activeBrand.status}</StatusTag>}
-                {activeBrand.brand_type && <StatusTag>{typeLabel[activeBrand.brand_type] || activeBrand.brand_type}</StatusTag>}
-                {activeBrand.lifecycle_stage && <StatusTag tone={lcTagColor[activeBrand.lifecycle_stage] || "neutral"}>{activeBrand.lifecycle_stage.toUpperCase()}</StatusTag>}
-                {activeBrand.is_automotive && <StatusTag tone="info">车规</StatusTag>}
-              </Space>
-              <div className="brand-context-score">
-                <div>
-                  <Text type="secondary">风险分</Text>
-                  <span className="brand-context-number">{activeBrand.risk_score ?? "-"}</span>
-                </div>
-                <div>
-                  <Text type="secondary">完整度</Text>
-                  <span className="brand-context-number">{activeBrand.completion_score ?? 0}%</span>
-                </div>
-                <div>
-                  <Text type="secondary">产品数</Text>
-                  <span className="brand-context-number">{activeBrand.product_count ?? 0}</span>
-                </div>
-                <div>
-                  <Text type="secondary">交期</Text>
-                  <span className="brand-context-number">{activeBrand.lead_time_days ?? "-"}</span>
-                </div>
-              </div>
-              <div className="brand-context-action">
-                <Text strong>建议动作</Text>
-                <div style={{ marginTop: 6 }}>
-                  {activeBrandAction && <StatusTag tone={activeBrandAction.color}>{activeBrandAction.label}</StatusTag>}
-                </div>
-                <div className="brand-context-note" style={{ marginTop: 6 }}>
-                  {activeBrand.missing_fields?.length
-                    ? `缺少 ${activeBrand.missing_fields.slice(0, 4).join("、")}`
-                    : activeBrand.product_lines || "资料完整后可进入常规维护"}
-                </div>
-              </div>
-              <Space direction="vertical" style={{ width: "100%" }}>
-                <Button block onClick={() => navigate(`/brands/${activeBrand.id}`)}>打开详情</Button>
-                <Button block onClick={() => openEdit(activeBrand)}>编辑主数据</Button>
-                <Button block onClick={() => { setSelectedRowKeys([activeBrand.id]); setAiPlanOpen(true); }}>AI 编排</Button>
-              </Space>
-            </div>
-          ) : (
-            <Text type="secondary">暂无品牌数据</Text>
-          )}
-        </aside>
-      </div>
 
       <Modal
         title={editing ? "编辑品牌" : "新增品牌"}

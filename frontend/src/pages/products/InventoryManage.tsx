@@ -330,8 +330,11 @@ export default function InventoryManage() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="unit_price" label="单价 (含税)">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} placeholder="0.0000" />
+          <Form.Item name="unit_price" label="成本单价">
+            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} placeholder="进货成本单价" />
+          </Form.Item>
+          <Form.Item name="batch_no" label="批次号" tooltip="手动入库时建议填写批次号，便于后续批次追踪">
+            <Input placeholder="如: 手动入库-20260616，留空自动生成" />
           </Form.Item>
         </Form>
       </Modal>
