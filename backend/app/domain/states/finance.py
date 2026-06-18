@@ -3,7 +3,7 @@
 Invoice:       draft → sent → paid | cancelled (terminal)
                sent → overdue → paid
 PaymentRecord: pending → completed | overdue
-Contract:      draft → active → expired | terminated (terminal)
+Contract:      draft → signed → active → expired | terminated (terminal)
 Commission:    draft → pending_approval → approved → paid | rejected | cancelled
 """
 
@@ -56,7 +56,8 @@ def assert_can_transition_payment(current: str, target: str) -> None:
 # ── Contract ─────────────────────────────────────────────────
 
 CONTRACT_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"active", "cancelled"},
+    "draft": {"signed", "cancelled"},
+    "signed": {"active", "cancelled"},
     "active": {"expired", "terminated"},
     "expired": set(),
     "terminated": set(),

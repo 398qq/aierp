@@ -16,6 +16,7 @@ import logging
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -24,8 +25,9 @@ from app.api.v1.finance._shared import (
     _contracts_cache_key,
 )
 from app.database import get_db
-from app.schemas.common import fail, ok
-from app.schemas.finance import ContractCreate, ContractUpdate
+from app.models.customer import Customer
+from app.schemas.common import APIResponse, PageData, fail, ok
+from app.schemas.finance import ContractCreate, ContractResponse, ContractUpdate
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
@@ -82,7 +84,28 @@ def _ocr_pdf_content(content: bytes) -> str:
         return ""
 
 
-@router.get("/contracts")
+def _serialize_contract(ct) -> dict:
+    """Convert a Contract ORM object to a JSON-safe dict."""
+    return {
+        "id": ct.id,
+        "contract_no": ct.contract_no,
+        "customer_id": ct.customer_id,
+        "customer_name": ct.customer.name if ct.customer else None,
+        "sales_order_id": ct.sales_order_id,
+        "title": ct.title,
+        "amount": float(ct.amount) if ct.amount else 0.0,
+        "currency": ct.currency,
+        "signed_date": ct.signed_date.isoformat() if ct.signed_date else None,
+        "expire_date": ct.expire_date.isoformat() if ct.expire_date else None,
+        "status": ct.status,
+        "file_url": ct.file_url,
+        "notes": ct.notes,
+        "created_at": ct.created_at.isoformat() if ct.created_at else None,
+        "updated_at": ct.updated_at.isoformat() if ct.updated_at else None,
+    }
+
+
+@router.get("/contracts", response_model=APIResponse[PageData[ContractResponse]])
 async def list_contracts(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -104,9 +127,15 @@ async def list_contracts(
     )
     cached_payload = await cache_get_versioned("contracts:list", cache_key)
     if cached_payload is not None:
-        response.headers["X-Cache"] = "HIT"
-        response.headers["X-Cache-Key"] = cache_key
-        return ok(json.loads(cached_payload))
+        parsed = json.loads(cached_payload)
+        items = parsed.get("list") if isinstance(parsed, dict) else None
+        # Guard against stale pre-serialization cache (ORM objects → strings)
+        if items is None or (items and not isinstance(items[0], dict)):
+            pass  # stale — fall through to MISS and overwrite
+        else:
+            response.headers["X-Cache"] = "HIT"
+            response.headers["X-Cache-Key"] = cache_key
+            return ok(parsed)
     response.headers["X-Cache"] = "MISS"
     from app.services.finance_service import list_contracts as svc_list
 
@@ -119,30 +148,32 @@ async def list_contracts(
         sort_by=sort_by,
         sort_order=sort_order,
     )
+    # Eager-load customers to avoid N+1 during serialization
+    contracts = list(result["list"])
+    if contracts:
+        cust_ids = list({c.customer_id for c in contracts if c.customer_id})
+        if cust_ids:
+            cust_map = {
+                c.id: c
+                for c in (
+                    await db.execute(select(Customer).where(Customer.id.in_(cust_ids)))
+                )
+                .scalars()
+                .all()
+            }
+            for ct in contracts:
+                ct.customer = cust_map.get(ct.customer_id)
+    serialized = {**result, "list": [_serialize_contract(c) for c in contracts]}
     await cache_set_versioned(
         "contracts:list",
         cache_key,
-        json.dumps(result, default=str),
+        json.dumps(serialized),
         CONTRACTS_LIST_CACHE_TTL,
     )
-    return ok(result)
+    return ok(serialized)
 
 
-@router.get("/contracts/{contract_id}")
-async def get_contract(
-    contract_id: int,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    from app.services.finance_service import get_contract as svc_get
-
-    ct = await svc_get(db, contract_id)
-    if not ct:
-        return fail("合同不存在", 404)
-    return ok(ct)
-
-
-@router.post("/contracts")
+@router.post("/contracts", response_model=APIResponse[ContractResponse])
 async def create_contract(
     body: ContractCreate,
     db: AsyncSession = Depends(get_db),
@@ -153,45 +184,6 @@ async def create_contract(
     ct = await svc_create(db, body.model_dump())
     await cache_bump_version("contracts:list")
     return ok(ct)
-
-
-@router.put("/contracts/{contract_id}")
-async def update_contract(
-    contract_id: int,
-    body: ContractUpdate,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    from app.services.finance_service import (
-        get_contract as svc_get,
-        update_contract as svc_update,
-    )
-
-    ct = await svc_get(db, contract_id)
-    if not ct:
-        return fail("合同不存在", 404)
-    ct = await svc_update(db, ct, body.model_dump(exclude_none=True))
-    await cache_bump_version("contracts:list")
-    return ok(ct)
-
-
-@router.delete("/contracts/{contract_id}")
-async def delete_contract(
-    contract_id: int,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    from app.services.finance_service import (
-        get_contract as svc_get,
-        delete_contract as svc_del,
-    )
-
-    ct = await svc_get(db, contract_id)
-    if not ct:
-        return fail("合同不存在", 404)
-    await svc_del(db, ct)
-    await cache_bump_version("contracts:list")
-    return ok({"deleted": contract_id})
 
 
 @router.post("/contracts/import-pdf")
@@ -284,3 +276,56 @@ async def import_contract_pdf(
             },
         }
     )
+
+
+@router.get("/contracts/{contract_id}", response_model=APIResponse[ContractResponse])
+async def get_contract(
+    contract_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import get_contract as svc_get
+
+    ct = await svc_get(db, contract_id)
+    if not ct:
+        return fail("合同不存在", 404)
+    return ok(ct)
+
+
+@router.put("/contracts/{contract_id}", response_model=APIResponse[ContractResponse])
+async def update_contract(
+    contract_id: int,
+    body: ContractUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import (
+        get_contract as svc_get,
+        update_contract as svc_update,
+    )
+
+    ct = await svc_get(db, contract_id)
+    if not ct:
+        return fail("合同不存在", 404)
+    ct = await svc_update(db, ct, body.model_dump(exclude_none=True))
+    await cache_bump_version("contracts:list")
+    return ok(ct)
+
+
+@router.delete("/contracts/{contract_id}")
+async def delete_contract(
+    contract_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.services.finance_service import (
+        get_contract as svc_get,
+        delete_contract as svc_del,
+    )
+
+    ct = await svc_get(db, contract_id)
+    if not ct:
+        return fail("合同不存在", 404)
+    await svc_del(db, ct)
+    await cache_bump_version("contracts:list")
+    return ok({"deleted": contract_id})
