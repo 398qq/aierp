@@ -3,6 +3,7 @@
 // Importing from this index is equivalent to importing the file directly
 // (TypeScript re-exports are transparent). Existing import sites work unchanged.
 
+export { getApiErrorMessage } from "./client";
 export * from "./ai";
 export * from "./auth";
 export * from "./brands";

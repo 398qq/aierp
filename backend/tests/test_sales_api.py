@@ -147,7 +147,7 @@ class TestOpportunities:
         resp = await async_client.get(
             "/api/v1/opportunities/99999", headers=auth_headers
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         assert resp.json()["code"] == 404
 
     async def test_update_opportunity(

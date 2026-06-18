@@ -33,6 +33,43 @@ function getRequestPath(url?: string) {
   }
 }
 
+/** Extract a human-readable message from any axios error.
+
+  * \`\`\`
+  * import { getApiErrorMessage } from "@/api/client";
+  *
+  * try { await createProduct(data) }
+  * catch (e) { message.error(getApiErrorMessage(e)); }
+  * \`\`\`
+  *
+  * Priority:
+  * 1. Server-provided \`\`msg\`\` / \`\`message\`\` in the response body
+  * 2. Axios-level \`\`error.code\`\` / \`\`error.message\`\` (timeout, network)
+  * 3. Static fallback you provide as the second argument
+  */
+export function getApiErrorMessage(error: unknown, fallback = "操作失败"): string {
+  if (!error || typeof error !== "object") return fallback;
+
+  const apiErr = error as APIError;
+
+  // Server-provided message (normalized by the response interceptor below)
+  if (apiErr.response?.data?.msg) return apiErr.response.data.msg;
+  if (apiErr.response?.data?.message) return apiErr.response.data.message;
+
+  // Timeout / network error
+  if (apiErr.code === "ECONNABORTED" || /timeout/i.test(apiErr.message || "")) {
+    return "请求超时，请稍后重试";
+  }
+  if (!apiErr.response?.status) return "网络连接失败，请检查网络";
+
+  // HTTP-level fallback
+  const httpStatus = apiErr.response.status;
+  if (httpStatus === 403) return "无权限访问";
+  if (httpStatus >= 500) return "服务器错误，请稍后重试";
+
+  return fallback;
+}
+
 const client = axios.create({
   baseURL: "/api/v1",
   timeout: 30000,

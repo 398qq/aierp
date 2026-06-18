@@ -66,7 +66,18 @@ async def lifespan(app: FastAPI):
         shutdown()
 
 
-app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.VERSION,
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    description="AIERP — AI-powered ERP platform for small/medium electronics trading companies.\n\n"
+    "Covers the full sales pipeline: opportunity → quotation → order → delivery → invoice → payment, "
+    "plus procurement, inventory, customer/supplier management, and AI-driven intelligence features.",
+    contact={"name": "AIERP Team"},
+)
 _started_at = time.time()
 
 # Stage 9 Day 1: prometheus_client default collectors (process_*, python_gc_*,
