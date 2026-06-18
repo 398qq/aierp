@@ -415,9 +415,9 @@ class TestQuotations:
         match = next((q for q in items if q["id"] == quo_id), None)
         assert match is not None, "newly created quotation not in list"
         assert match.get("customer_id") == test_customer["id"]
-        assert match.get("customer_name") == customer_name, (
-            f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
-        )
+        assert (
+            match.get("customer_name") == customer_name
+        ), f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
 
         # Detail endpoint
         detail_resp = await async_client.get(
@@ -784,9 +784,9 @@ class TestSalesOrders:
         match = next((o for o in items if o["id"] == order_id), None)
         assert match is not None, "newly created order not in list"
         assert match.get("customer_id") == test_customer["id"]
-        assert match.get("customer_name") == customer_name, (
-            f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
-        )
+        assert (
+            match.get("customer_name") == customer_name
+        ), f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
 
         # Detail
         detail_resp = await async_client.get(
@@ -1234,6 +1234,38 @@ class TestDeliveryNotes:
         )
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] == 2
+
+    async def test_pending_to_delivered_triggers_auto_deduction(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """P0 fix: pending→delivered must trigger inventory deduction (was bypassed)."""
+        from unittest.mock import AsyncMock, patch
+
+        # Create delivery note
+        c = await async_client.post(
+            "/api/v1/delivery-notes",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "sales_order_id": 1,
+                "status": "pending",
+                "items": [{"product_name": "Widget-P0", "quantity": 10}],
+            },
+        )
+        note_id = c.json()["data"]["id"]
+
+        with patch(
+            "app.services.sales_service.delivery_notes.deduct_for_delivery",
+            new_callable=AsyncMock,
+        ) as mock_deduct:
+            resp = await async_client.put(
+                f"/api/v1/delivery-notes/{note_id}",
+                headers=auth_headers,
+                json={"status": "delivered"},
+            )
+            assert resp.status_code == 200
+            # Bug: pending→delivered bypasses shipped → auto-deduction never fires
+            mock_deduct.assert_called_once()
 
 
 class TestSalesDashboard:

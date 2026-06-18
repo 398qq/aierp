@@ -189,7 +189,9 @@ async def login(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已停用")
 
-    token = create_access_token(user.id, user.username)
+    token = create_access_token(
+        user.id, user.username, token_version=user.token_version or 0
+    )
     response = JSONResponse(
         content=ok({"token": token, "username": user.username, "role": user.role})
     )

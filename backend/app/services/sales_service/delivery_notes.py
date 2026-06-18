@@ -199,7 +199,7 @@ class DeliveryNoteService(BaseCRUDService):
 
         if (
             new_status
-            and new_status in ("shipped", "completed")
+            and new_status in ("shipped", "completed", "delivered")
             and old_status != new_status
         ):
             await self._auto_deduct_delivery(db, note)
