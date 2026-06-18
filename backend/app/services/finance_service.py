@@ -593,9 +593,40 @@ async def create_commission(db: AsyncSession, data: dict) -> Commission:
             id=data["sales_order_id"],
         )
     data["customer_id"] = so
-    data["commission_amount"] = _compute_commission_amount(
-        data.get("base_amount", 0), data.get("rate", 0)
-    )
+
+    # 013 scheme engine: resolve scheme-based commission if user & base available
+    if data.get("sales_user_id") and data.get("base_amount") is not None:
+        try:
+            from app.services.commission_scheme_service import compute_commission
+
+            result = await compute_commission(
+                db,
+                user_id=data["sales_user_id"],
+                base_amount=Decimal(str(data["base_amount"])),
+                product_category=data.get("product_category"),
+                customer_level=None,
+                period=data.get("period", ""),
+            )
+            if result.scheme_id:  # Scheme resolved
+                data["rate"] = float(result.rate)
+                data["commission_amount"] = float(result.amount)
+                data["commission_scheme_id"] = result.scheme_id
+                data["scheme_snapshot"] = result.scheme_snapshot
+            else:
+                # Fallback to hardcoded calculation
+                data["commission_amount"] = _compute_commission_amount(
+                    data.get("base_amount", 0), data.get("rate", 0)
+                )
+        except Exception:
+            # Fallback if scheme engine fails (e.g. missing migration)
+            data["commission_amount"] = _compute_commission_amount(
+                data.get("base_amount", 0), data.get("rate", 0)
+            )
+    else:
+        data["commission_amount"] = _compute_commission_amount(
+            data.get("base_amount", 0), data.get("rate", 0)
+        )
+
     data.setdefault(
         "commission_no", await generate_doc_no(db, "CM", Commission, "commission_no")
     )

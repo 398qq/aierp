@@ -6,9 +6,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Integer,
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -82,7 +84,9 @@ class SalesTarget(TimestampMixin, Base):
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     target_orders: Mapped[int | None] = mapped_column(nullable=True)
     commission_rate: Mapped[float] = mapped_column(
-        DECIMAL(8, 4), default=0.05, server_default="0.05",
+        DECIMAL(8, 4),
+        default=0.05,
+        server_default="0.05",
         comment="Per-user commission rate (e.g. 0.05 = 5%)",
     )
     period_start: Mapped[datetime.datetime | None] = mapped_column(
@@ -145,6 +149,10 @@ class Commission(TimestampMixin, Base):
         draft → pending_approval → approved → paid
                                   ↘ rejected → (terminal)
                                   ↘ cancelled → (terminal)
+
+    Since 013 scheme engine: ``commission_scheme_id`` + ``scheme_snapshot``
+    record which scheme was used and what the configuration was at calculation
+    time, so future scheme changes don't retroactively alter paid commissions.
     """
 
     __tablename__ = "commissions"
@@ -175,6 +183,14 @@ class Commission(TimestampMixin, Base):
     )
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # 013 scheme integration
+    commission_scheme_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("commission_schemes.id"), nullable=True, default=None
+    )
+    scheme_snapshot: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, default=None
+    )
 
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     sales_user = relationship("User", foreign_keys=[sales_user_id])
