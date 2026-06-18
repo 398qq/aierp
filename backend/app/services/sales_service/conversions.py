@@ -104,6 +104,66 @@ class SalesConversionService(BaseCRUDService):
         await db.refresh(note)
         return note
 
+    async def convert_delivery_to_invoice(
+        self, db: AsyncSession, note: DeliveryNote
+    ) -> Invoice | None:
+        """Convert a delivered delivery note into an invoice.
+
+        Guards:
+        - Delivery must be delivered or shipped (not pending/cancelled)
+        - No duplicate invoice for the same delivery note
+        """
+        if note.status not in ("shipped", "delivered"):
+            return None
+
+        from app.models.finance import Invoice as InvoiceModel
+
+        existing = await db.execute(
+            select(func.count()).where(
+                InvoiceModel.sales_order_id == note.sales_order_id,
+                InvoiceModel.deleted_at.is_(None),
+            )
+        )
+        if (existing.scalar() or 0) > 0:
+            return None
+
+        invoice_no = await generate_doc_no(db, "INV", Invoice, "invoice_no")
+        order = (
+            await db.get(SalesOrder, note.sales_order_id)
+            if note.sales_order_id
+            else None
+        )
+
+        inv = Invoice(
+            invoice_no=invoice_no,
+            sales_order_id=note.sales_order_id,
+            customer_id=note.customer_id,
+            amount=order.total_amount if order else 0,
+            tax_amount=round((order.total_amount if order else 0) * 0.13, 4),
+            invoice_date=datetime.now(timezone.utc),
+            due_date=datetime.now(timezone.utc)
+            if not (order and order.delivery_date)
+            else order.delivery_date,
+            status="draft",
+        )
+        db.add(inv)
+        await db.flush()
+
+        for dni in note.items:
+            line = InvoiceLine(
+                invoice_id=inv.id,
+                product_id=dni.product_id,
+                product_name=dni.product_name,
+                quantity=dni.quantity,
+                unit_price=getattr(dni, "unit_price", None),
+                total_price=getattr(dni, "total_price", None),
+            )
+            db.add(line)
+
+        await db.commit()
+        await db.refresh(inv)
+        return inv
+
 
 # ── Module-level proxies (back-compat) ────────────────────────────────
 
@@ -116,6 +176,12 @@ async def convert_order_to_delivery(
     db: AsyncSession, order: SalesOrder
 ) -> DeliveryNote | None:
     return await sales_conversion_service.convert_order_to_delivery(db, order)
+
+
+async def convert_delivery_to_invoice(
+    db: AsyncSession, note: DeliveryNote
+) -> Invoice | None:
+    return await sales_conversion_service.convert_delivery_to_invoice(db, note)
 
 
 sales_conversion_service = SalesConversionService()

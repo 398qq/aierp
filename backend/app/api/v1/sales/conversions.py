@@ -92,3 +92,33 @@ async def convert_order_to_delivery(
             ai_validation=validation,
         )
     )
+
+
+@router.post("/delivery-notes/{note_id}/convert-to-invoice")
+async def convert_delivery_to_invoice(
+    note_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Convert a delivered delivery note into an invoice.
+
+    Guards: delivery must be shipped/delivered, no duplicate invoice per order.
+    """
+    from app.models.sales import DeliveryNote as DeliveryNoteModel
+
+    note = await db.get(DeliveryNoteModel, note_id)
+    if not note or note.deleted_at:
+        return fail("发货单不存在", 404)
+    inv = await svc.convert_delivery_to_invoice(db, note)
+    if not inv:
+        return fail("发货单状态不允许转换或已存在对应发票", 409)
+    await cache_bump_version("invoices:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
+    return ok(
+        ConvertResponse(
+            id=inv.id,
+            document_no=inv.invoice_no or "",
+            msg="发货单已转换为发票",
+        )
+    )
