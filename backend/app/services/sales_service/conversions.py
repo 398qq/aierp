@@ -97,6 +97,9 @@ class SalesConversionService(BaseCRUDService):
             )
             db.add(dni)
 
+        # Auto-transition order state: conversion to delivery = commitment
+        if order.status in ("pending", "draft"):
+            order.status = "confirmed"
         await db.commit()
         await db.refresh(note)
         return note
