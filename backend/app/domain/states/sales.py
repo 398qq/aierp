@@ -58,10 +58,12 @@ def assert_can_transition_quotation(current: str, target: str) -> None:
 
 SALES_ORDER_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"confirmed", "cancelled"},
+    "draft": {"confirmed", "cancelled"},  # legacy v1 aggregate — synonym for pending
     "confirmed": {"shipped", "partially_shipped", "cancelled"},
     "partially_shipped": {"shipped", "cancelled"},
     "shipped": {"delivered", "completed"},
     "delivered": {"completed"},
+    "invoiced": {"completed"},  # legacy v1 aggregate — synonym for delivered
     "completed": set(),
     "cancelled": set(),
 }
