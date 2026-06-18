@@ -248,6 +248,26 @@ async def logout(
     return response
 
 
+@router.post("/logout-all")
+async def logout_all(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Revoke ALL active sessions for the current user by bumping token_version.
+
+    All JWTs issued before this call become invalid immediately.
+    """
+    from app.core.security import revoke_all_user_tokens
+
+    user_id = current_user["user_id"]
+    new_version = await revoke_all_user_tokens(user_id, db=db)
+    response = JSONResponse(
+        content=ok({"token_version": new_version}, msg="已注销所有设备")
+    )
+    response.delete_cookie(TOKEN_COOKIE_NAME)
+    return response
+
+
 @router.post("/change-password")
 async def change_password(
     req: ChangePasswordRequest,
