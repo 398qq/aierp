@@ -5,7 +5,7 @@ import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { getContracts, deleteContract, importContractPDF } from "../../api";
+import { getContracts, deleteContract, importContractPDF, getApiErrorMessage } from "../../api";
 import client from "../../api/client";
 import type { Contract } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
@@ -41,7 +41,7 @@ export default function ContractList() {
       const resp = await getContracts(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -128,7 +128,7 @@ export default function ContractList() {
                 { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                   Modal.confirm({ title: "确定删除?", content: `删除合同 #${r.id}？`, onOk: async () => {
-                    try { await deleteContract(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                    try { await deleteContract(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                   }});
                 }},
               ];
@@ -172,7 +172,7 @@ export default function ContractList() {
             setImportResult({ created: data.created, errors: data.errors || [] });
             if (data.created > 0) { message.success(`成功导入 ${data.created} 条合同`); load(); }
             if (data.errors?.length > 0) { message.warning(`${data.errors.length} 行导入失败`); }
-          } catch { message.error("导入失败"); }
+          } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败")); }
           finally { setImporting(false); }
         }}
         okText="开始导入"

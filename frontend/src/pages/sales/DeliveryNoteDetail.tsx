@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, message, Popconfirm, Space, Spin, Switch, Table, Tag, Tooltip, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CheckCircleOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
-import { getDeliveryNote, getPayments, markDeliveryNotePaid, updateDeliveryNote } from "../../api";
+import { getDeliveryNote, getPayments, markDeliveryNotePaid, updateDeliveryNote, getApiErrorMessage } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { DeliveryNote, PaymentRecord } from "../../types";
 import { CustomerLink, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
@@ -84,9 +84,7 @@ export default function DeliveryNoteDetail() {
                 await updateDeliveryNote(note.id, { status: "shipped" });
                 message.success("已发货，库存已自动扣减");
                 setNote({ ...note, status: "shipped" });
-              } catch {
-                message.error("操作失败");
-              }
+              } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
             }}>标记发货</Button>
           ) : null}
           {payments.length === 0 ? (
@@ -106,9 +104,7 @@ export default function DeliveryNoteDetail() {
                     ]);
                     setNote(noteResp.data.data);
                     setPayments(payResp.data.data.list || []);
-                  } catch {
-                    message.error("操作失败");
-                  }
+                  } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
                 }}
               >
                 <Button icon={<DollarOutlined />} type="primary" ghost>登记回款</Button>

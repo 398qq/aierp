@@ -39,12 +39,7 @@ import {
   ShoppingCartOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import {
-  getCustomer360,
-  getCustomerAIRecommendationSummary,
-  getSimilarCustomers,
-  searchSimilarCustomers,
-} from "@/api";
+import { getCustomer360, getCustomerAIRecommendationSummary, getSimilarCustomers, searchSimilarCustomers, getApiErrorMessage } from "@/api";
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -158,9 +153,7 @@ export const CustomerAIPanel: React.FC<AIPanelProps> = ({
         const d = (resSim.value.data as { data?: SimilarCustomer[] })?.data;
         setSimilarCustomers(d || []);
       }
-    } catch {
-      message.error("加载 AI 数据失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载 AI 数据失败")); } finally {
       setLoading(false);
     }
   }, [customerId]);
@@ -177,9 +170,7 @@ export const CustomerAIPanel: React.FC<AIPanelProps> = ({
       const res = await searchSimilarCustomers(semanticQuery, 10);
       const payload = (res.data as { data?: SimilarCustomer[] })?.data;
       setSearchResults(payload || []);
-    } catch {
-      message.error("语义搜索失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "语义搜索失败")); } finally {
       setSearching(false);
     }
   }, [semanticQuery]);

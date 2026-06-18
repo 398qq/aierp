@@ -4,6 +4,7 @@ import { Card, Form, Input, DatePicker, Button, Space, InputNumber, Select, mess
 import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import client from "../../api/client";
+import { getApiErrorMessage } from "../../api";
 import dayjs from "dayjs";
 
 interface Account { id: number; code: string; name: string; type: string; }
@@ -46,7 +47,7 @@ export default function JournalEntryForm() {
       });
       message.success("凭证创建成功");
       navigate("/finance/journal-entries");
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setSaving(false); }
   };
 

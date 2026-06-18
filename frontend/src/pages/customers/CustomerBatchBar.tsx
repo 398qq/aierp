@@ -19,12 +19,7 @@ import {
   ExportOutlined,
   TagsOutlined,
 } from "@ant-design/icons";
-import {
-  batchDeleteCustomers,
-  batchTagCustomers,
-  exportCustomers,
-  getTags,
-} from "@/api";
+import { batchDeleteCustomers, batchTagCustomers, exportCustomers, getTags, getApiErrorMessage } from "@/api";
 
 // ── 类型 ──
 
@@ -65,9 +60,7 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
           message.success(`已删除 ${selectedCount} 个客户`);
           onBatchComplete();
           onClear();
-        } catch {
-          message.error("批量删除失败");
-        } finally {
+        } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); } finally {
           setDeleting(false);
         }
       },
@@ -87,9 +80,7 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
       a.click();
       URL.revokeObjectURL(url);
       message.success(`已导出 ${selectedCount} 个客户`);
-    } catch {
-      message.error("导出失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导出失败")); } finally {
       setExporting(false);
     }
   }, [selectedIds, selectedCount]);
@@ -103,9 +94,7 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
       setTagOptions(tagList.map((t) => ({ value: t.id, label: t.name })));
       setSelectedTagIds([]);
       setTagModalOpen(true);
-    } catch {
-      message.error("加载标签失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载标签失败")); }
   }, [selectedCount]);
 
   const handleBatchTagSubmit = useCallback(async () => {
@@ -121,9 +110,7 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
       setSelectedTagIds([]);
       onBatchComplete();
       onClear();
-    } catch {
-      message.error("批量打标签失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量打标签失败")); } finally {
       setTagging(false);
     }
   }, [selectedIds, selectedTagIds, selectedCount, onBatchComplete, onClear]);

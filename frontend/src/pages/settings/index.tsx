@@ -6,13 +6,7 @@ import {
 import { StatusTag, type StatusTone } from "../../ui";
 import { PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
-import {
-  getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule,
-  getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts,
-  getLevelRules, createLevelRule, updateLevelRule, deleteLevelRule,
-  autoLevel,
-  changePassword,
-} from "../../api";
+import { getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule, getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts, getLevelRules, createLevelRule, updateLevelRule, deleteLevelRule, autoLevel, changePassword, getApiErrorMessage } from "../../api";
 import type { AlertRule, AlertEvent, LevelRule } from "../../types";
 
 const { Title, Text } = Typography;
@@ -104,20 +98,20 @@ export default function Settings() {
       }
       setArModalOpen(false);
       loadAlertRules();
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
   };
 
   const handleDeleteAR = async (id: number) => {
-    try { await deleteAlertRule(id); message.success("已删除"); loadAlertRules(); } catch { message.error("删除失败"); }
+    try { await deleteAlertRule(id); message.success("已删除"); loadAlertRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   // ---- Alert Events ----
   const handleMarkRead = async (id: number) => {
-    try { await markAlertRead(id); loadAlertEvents(); } catch { message.error("操作失败"); }
+    try { await markAlertRead(id); loadAlertEvents(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const handleMarkAllRead = async () => {
-    try { await markAllAlertsRead(); message.success("已全部标记已读"); loadAlertEvents(); } catch { message.error("操作失败"); }
+    try { await markAllAlertsRead(); message.success("已全部标记已读"); loadAlertEvents(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const handleCheckAlerts = async () => {
@@ -126,7 +120,7 @@ export default function Settings() {
       const resp = await checkAlerts();
       message.success(`预警检查完成，生成 ${resp.data.data.generated} 条预警`);
       loadAlertEvents();
-    } catch { message.error("预警检查失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "预警检查失败")); }
     finally { setCheckLoading(false); }
   };
 
@@ -149,11 +143,11 @@ export default function Settings() {
       }
       setLrModalOpen(false);
       loadLevelRules();
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
   };
 
   const handleDeleteLR = async (id: number) => {
-    try { await deleteLevelRule(id); message.success("已删除"); loadLevelRules(); } catch { message.error("删除失败"); }
+    try { await deleteLevelRule(id); message.success("已删除"); loadLevelRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleAutoLevel = async () => {
@@ -161,7 +155,7 @@ export default function Settings() {
     try {
       const resp = await autoLevel();
       message.success(`自动分级完成，更新 ${resp.data.data.updated} 个客户`);
-    } catch { message.error("自动分级失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "自动分级失败")); }
     finally { setAutoLevelLoading(false); }
   };
 
@@ -193,7 +187,7 @@ export default function Settings() {
       title: "启用", dataIndex: "enabled", width: 60,
       render: (v: boolean, r: AlertRule) => (
         <Switch size="small" checked={v} onChange={async () => {
-          try { await updateAlertRule(r.id, { enabled: !v }); loadAlertRules(); } catch { message.error("操作失败"); }
+          try { await updateAlertRule(r.id, { enabled: !v }); loadAlertRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
         }} />
       ),
     },
@@ -246,7 +240,7 @@ export default function Settings() {
       title: "启用", dataIndex: "enabled", width: 60,
       render: (v: boolean, r: LevelRule) => (
         <Switch size="small" checked={v} onChange={async () => {
-          try { await updateLevelRule(r.id, { enabled: !v }); loadLevelRules(); } catch { message.error("操作失败"); }
+          try { await updateLevelRule(r.id, { enabled: !v }); loadLevelRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
         }} />
       ),
     },

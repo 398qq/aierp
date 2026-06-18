@@ -27,7 +27,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
-import { getCustomers } from "@/api";
+import { getCustomers, getApiErrorMessage } from "@/api";
 import type { Customer } from "@/types";
 import { ErrorBoundary, StatusTag, useColumnResize } from "@/ui";
 import CustomerModuleShell from "./CustomerModuleShell";
@@ -174,9 +174,7 @@ export default function CustomerListPage() {
       const payload = res.data?.data as { list?: Customer[]; total?: number } | undefined;
       setData(payload?.list || []);
       setTotal(payload?.total || 0);
-    } catch {
-      message.error("加载客户列表失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户列表失败")); } finally {
       setLoading(false);
     }
   }, [page, debouncedSearch, group, statusFilter]);

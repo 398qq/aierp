@@ -57,32 +57,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import {
-  batchDeleteCustomers,
-  batchTagCustomers,
-  checkAlerts,
-  createTag,
-  createFollowUp,
-  deleteCustomer,
-  detectDuplicates,
-  downloadImportTemplate,
-  exportCustomers,
-  generateDefaultCustomerTags,
-  getAlertEvents,
-  getCustomer,
-  getCustomers,
-  getCustomerStats,
-  getDashboardStats,
-  getFollowUpReminders,
-  getGlobalFollowUps,
-  getTags,
-  importCustomers,
-  markAllAlertsRead,
-  mergeCustomers,
-  recommendProductsForCustomer,
-  searchSimilarCustomers,
-  updateFollowUp,
-} from "../../api";
+import { batchDeleteCustomers, batchTagCustomers, checkAlerts, createTag, createFollowUp, deleteCustomer, detectDuplicates, downloadImportTemplate, exportCustomers, generateDefaultCustomerTags, getAlertEvents, getCustomer, getCustomers, getCustomerStats, getDashboardStats, getFollowUpReminders, getGlobalFollowUps, getTags, importCustomers, markAllAlertsRead, mergeCustomers, recommendProductsForCustomer, searchSimilarCustomers, updateFollowUp, getApiErrorMessage } from "../../api";
 import type {
   Customer,
   CustomerProductMatch,
@@ -448,9 +423,7 @@ export default function CustomerList() {
       setGlobalFollowUps(payload?.list || []);
       setGlobalFollowUpTotal(payload?.total || 0);
       setGlobalFollowUpCounts(payload?.counts || {});
-    } catch {
-      message.error("加载全局跟进集合失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载全局跟进集合失败")); } finally {
       setGlobalFollowUpLoading(false);
     }
   };
@@ -484,9 +457,7 @@ export default function CustomerList() {
       const resp = await getCustomers(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch {
-      message.error("加载客户列表失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户列表失败")); } finally {
       setLoading(false);
     }
   };
@@ -608,9 +579,7 @@ export default function CustomerList() {
       await deleteCustomer(id);
       message.success("已删除");
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleExport = async () => {
@@ -635,9 +604,7 @@ export default function CustomerList() {
       a.click();
       URL.revokeObjectURL(url);
       message.success("导出成功");
-    } catch {
-      message.error("导出失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导出失败")); }
   };
 
   const handleTemplate = async () => {
@@ -649,9 +616,7 @@ export default function CustomerList() {
       a.download = "customer_template.csv";
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      message.error("下载模板失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "下载模板失败")); }
   };
 
   const handleImport = async (file: File) => {
@@ -678,9 +643,7 @@ export default function CustomerList() {
       message.success(`已删除 ${selectedRowKeys.length} 条`);
       setSelectedRowKeys([]);
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch {
-      message.error("批量删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
   };
 
   const handleBatchTag = async () => {
@@ -692,9 +655,7 @@ export default function CustomerList() {
       setTagModalOpen(false);
       setBatchTagIds([]);
       fetch();
-    } catch {
-      message.error("批量打标签失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量打标签失败")); }
   };
 
   const handleCreateBatchTag = async () => {
@@ -712,9 +673,7 @@ export default function CustomerList() {
       setTagCreateName("");
       setTagCreateColor("blue");
       message.success("标签已创建");
-    } catch {
-      message.error("创建标签失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建标签失败")); } finally {
       setTagCreating(false);
     }
   };
@@ -727,9 +686,7 @@ export default function CustomerList() {
       const tagsResp = await getTags();
       setTags((tagsResp.data.data || []).sort((a, b) => a.name.localeCompare(b.name)));
       message.success(data?.created ? `已生成 ${data.created} 个客户标签` : "默认客户标签已存在");
-    } catch {
-      message.error("生成默认标签失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成默认标签失败")); } finally {
       setTagGenerating(false);
     }
   };
@@ -742,9 +699,7 @@ export default function CustomerList() {
       setDuplicatePairs(pairs);
       setDupModalOpen(true);
       if (!pairs.length) message.info("未发现疑似重复客户");
-    } catch {
-      message.error("检测失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "检测失败")); } finally {
       setDupLoading(false);
     }
   };
@@ -764,9 +719,7 @@ export default function CustomerList() {
       setMergeSource(null);
       setDupModalOpen(false);
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch {
-      message.error("合并失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "合并失败")); } finally {
       setMerging(false);
     }
   };
@@ -777,9 +730,7 @@ export default function CustomerList() {
       const resp = await checkAlerts();
       message.success(`预警检查完成，生成 ${resp.data.data.generated} 条`);
       await refreshAlertCount();
-    } catch {
-      message.error("预警检查失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "预警检查失败")); } finally {
       setAlertChecking(false);
     }
   };
@@ -789,9 +740,7 @@ export default function CustomerList() {
       await markAllAlertsRead();
       setAlertCount(0);
       message.success("已全部标记为已读");
-    } catch {
-      message.error("操作失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const handleSemanticSearch = async () => {
@@ -800,9 +749,7 @@ export default function CustomerList() {
     try {
       const resp = await searchSimilarCustomers(semanticQ);
       setSemanticResults((resp.data.data || []) as SimilarCustomer[]);
-    } catch {
-      message.error("语义搜索失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "语义搜索失败")); } finally {
       setSemanticLoading(false);
     }
   };
@@ -834,9 +781,7 @@ export default function CustomerList() {
       ]);
       setDetailCustomer(detailResp.data.data);
       setDetailStats(statsResp.data.data);
-    } catch {
-      message.error("加载客户详情失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户详情失败")); } finally {
       setDetailLoading(false);
     }
   };
@@ -862,9 +807,7 @@ export default function CustomerList() {
       });
       message.success("跟进已完成");
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch {
-      message.error("完成跟进失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "完成跟进失败")); } finally {
       setReminderActionKey(null);
     }
   };
@@ -879,9 +822,7 @@ export default function CustomerList() {
       });
       message.success("已延期 1 天");
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch {
-      message.error("延期失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "延期失败")); } finally {
       setReminderActionKey(null);
     }
   };
@@ -896,9 +837,7 @@ export default function CustomerList() {
       });
       message.success("跟进已完成");
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch {
-      message.error("完成跟进失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "完成跟进失败")); } finally {
       setReminderActionKey(null);
     }
   };
@@ -931,9 +870,7 @@ export default function CustomerList() {
     try {
       const resp = await recommendProductsForCustomer(customer.id);
       setProductRecResult(resp.data.data as CustomerProductMatch);
-    } catch {
-      message.error("AI产品推荐失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI产品推荐失败")); } finally {
       setProductRecLoading(false);
     }
   };
@@ -960,9 +897,7 @@ export default function CustomerList() {
       setQuickFollowUpCustomer(null);
       quickFollowUpForm.resetFields();
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch {
-      message.error("创建跟进失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建跟进失败")); } finally {
       setQuickFollowUpSaving(false);
     }
   };

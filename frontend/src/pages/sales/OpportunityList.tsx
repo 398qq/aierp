@@ -4,7 +4,7 @@ import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Se
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
-import { batchUpdateOpportunities, deleteOpportunity, getOpportunities } from "../../api";
+import { batchUpdateOpportunities, deleteOpportunity, getOpportunities, getApiErrorMessage } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, stageLabel, statusDot, ERP_STATUS_DOT } from "./salesUi";
@@ -50,9 +50,7 @@ export default function OpportunityList() {
       const resp = await getOpportunities(params);
       setData(resp.data.data.list || []);
       setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, OpportunityAI> }).ai || {}) : {});
-    } catch {
-      message.error("加载失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); } finally {
       setLoading(false);
     }
   };
@@ -107,9 +105,7 @@ export default function OpportunityList() {
       message.success("阶段已更新");
       setSelected([]);
       load();
-    } catch {
-      message.error("批量更新失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); }
   };
 
   return (
@@ -299,7 +295,7 @@ export default function OpportunityList() {
                     { type: "divider" as const },
                     { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                       Modal.confirm({ title: "确定删除?", content: `删除商机 #${record.id}？`, onOk: async () => {
-                        try { await deleteOpportunity(record.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                        try { await deleteOpportunity(record.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                       }});
                     }},
                   ];

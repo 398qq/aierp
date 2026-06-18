@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
-import { getTarget, createTarget, updateTarget } from "../../api";
+import { getTarget, createTarget, updateTarget, getApiErrorMessage } from "../../api";
 import { SalesModuleShell } from "./salesUi";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -31,7 +31,7 @@ export default function TargetForm() {
       if (isEdit) { await updateTarget(Number(id), payload); message.success("目标已更新"); }
       else { await createTarget(payload); message.success("目标已创建"); }
       navigate("/sales/targets");
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setLoading(false); }
   };
 

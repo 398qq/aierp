@@ -8,7 +8,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { App, Form, Input, Select, DatePicker, Button, Card, Spin, Space } from "antd";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { createFollowUp, updateFollowUp, getFollowUps } from "../../api";
+import { createFollowUp, updateFollowUp, getFollowUps, getApiErrorMessage } from "../../api";
 import type { FollowUp } from "../../types";
 import { FOLLOW_UP_METHOD_OPTIONS, FOLLOW_UP_PRIORITY_OPTIONS, FOLLOW_UP_STATUS_OPTIONS } from "./customerUi";
 import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
@@ -87,9 +87,7 @@ export default function FollowUpForm() {
         message.success("创建成功");
       }
       navigate(`/customers/${custId}/follow-ups`);
-    } catch {
-      message.error("保存失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); } finally {
       setLoading(false);
     }
   };

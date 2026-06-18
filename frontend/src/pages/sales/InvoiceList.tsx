@@ -4,7 +4,7 @@ import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typogra
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { getInvoices, deleteInvoice } from "../../api";
+import { getInvoices, deleteInvoice, getApiErrorMessage } from "../../api";
 import type { Invoice } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
@@ -31,7 +31,7 @@ export default function InvoiceList() {
       const resp = await getInvoices(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -134,7 +134,7 @@ export default function InvoiceList() {
                 { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                   Modal.confirm({ title: "确定删除?", content: `删除发票 #${r.id}？`, onOk: async () => {
-                    try { await deleteInvoice(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                    try { await deleteInvoice(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                   }});
                 }},
               ];

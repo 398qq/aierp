@@ -4,6 +4,7 @@ import { StatusTag } from "../../ui";
 import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
+import { getApiErrorMessage } from "../../api";
 
 interface ApprovalReq {
   id: number; doc_type: string; doc_id: number;
@@ -38,7 +39,7 @@ export default function ApprovalList() {
       if (status && status !== "all") params.status = status;
       const resp = await client.get("/approvals/requests", { params });
       setData(resp.data.data?.list || []);
-    } catch { message.error("加载审批列表失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载审批列表失败")); }
     finally { setLoading(false); }
   };
 
@@ -49,7 +50,7 @@ export default function ApprovalList() {
       const resp = await client.get(`/approvals/requests/${id}`);
       setDetail(resp.data.data);
       setDetailOpen(true);
-    } catch { message.error("加载详情失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载详情失败")); }
   };
 
   const handleAction = async (id: number, action: string) => {
@@ -60,7 +61,7 @@ export default function ApprovalList() {
       setDetailOpen(false);
       setComment("");
       fetch(tab);
-    } catch { message.error("操作失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
     finally { setActing(false); }
   };
 

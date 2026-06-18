@@ -17,7 +17,7 @@ import {
   ToolOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { createSupplier, getSupplierStats, getSuppliers, updateSupplier } from "../../api";
+import { createSupplier, getSupplierStats, getSuppliers, updateSupplier, getApiErrorMessage } from "../../api";
 import client from "../../api/client";
 import type { Supplier } from "../../types";
 
@@ -142,9 +142,7 @@ export default function SupplierList() {
       const resp = await getSuppliers(params);
       setData(resp.data.data.list as Supplier[]);
       setTotal(resp.data.data.total as number);
-    } catch {
-      message.error("加载供应商失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载供应商失败")); } finally {
       setLoading(false);
     }
   };
@@ -313,9 +311,7 @@ export default function SupplierList() {
       message.success("已删除");
       fetch();
       fetchStats();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleBatchDelete = async () => {

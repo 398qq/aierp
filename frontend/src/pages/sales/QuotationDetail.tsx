@@ -14,7 +14,7 @@ import {
   SendOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
-import { convertQuotationToOrder, downloadQuotationPDF, duplicateQuotation, getCustomer, getQuotation, sendQuotation, updateQuotationStatus } from "../../api";
+import { convertQuotationToOrder, downloadQuotationPDF, duplicateQuotation, getCustomer, getQuotation, sendQuotation, updateQuotationStatus, getApiErrorMessage } from "../../api";
 import type { QuotationPDFOptions } from "../../api";
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
@@ -140,9 +140,7 @@ export default function QuotationDetail() {
       await action();
       message.success(success);
       await load();
-    } catch {
-      message.error("操作失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); } finally {
       setActionLoading(false);
     }
   };
@@ -238,9 +236,7 @@ export default function QuotationDetail() {
             try {
               await client.post("/approvals/submit", { doc_type: "quotation", doc_id: quote.id });
               message.success("已提交审批");
-            } catch {
-              message.error("提交审批失败");
-            }
+            } catch (e: unknown) { message.error(getApiErrorMessage(e, "提交审批失败")); }
           }}>
             提交审批
           </Button>

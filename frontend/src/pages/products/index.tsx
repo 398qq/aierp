@@ -40,24 +40,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import {
-  aiParseBom,
-  aiParseProduct,
-  aiSearchProducts,
-  batchDeleteProducts,
-  batchUpdateProducts,
-  createProduct,
-  deleteProduct,
-  getBrands,
-  getProduct,
-  getProductInventories,
-  getProducts,
-  getProductSales,
-  getProductStats,
-  importProducts,
-  updateProduct,
-  updateProductInventory,
-} from "../../api";
+import { aiParseBom, aiParseProduct, aiSearchProducts, batchDeleteProducts, batchUpdateProducts, createProduct, deleteProduct, getBrands, getProduct, getProductInventories, getProducts, getProductSales, getProductStats, importProducts, updateProduct, updateProductInventory, getApiErrorMessage } from "../../api";
 import type { Brand, InventoryItem, Product } from "../../types";
 import {
   BatchTaskType,
@@ -375,9 +358,7 @@ export default function ProductList() {
       } else {
         message.error(r.data.msg || "搜索失败");
       }
-    } catch {
-      message.error("AI 搜索失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 搜索失败")); } finally {
       setAiSearching(false);
     }
   };
@@ -454,9 +435,7 @@ export default function ProductList() {
       await deleteProduct(id);
       message.success("已删除");
       await Promise.all([fetch(), loadStats()]);
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleBatchDelete = async () => {
@@ -465,9 +444,7 @@ export default function ProductList() {
       message.success(`已删除 ${selectedRowKeys.length} 个产品`);
       setSelectedRowKeys([]);
       await Promise.all([fetch(), loadStats()]);
-    } catch {
-      message.error("批量删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
   };
 
   const handleBatchUpdate = async (values: Record<string, unknown>) => {
@@ -486,9 +463,7 @@ export default function ProductList() {
       setSelectedRowKeys([]);
       setBatchTaskConfirm(false);
       await Promise.all([fetch(), loadStats()]);
-    } catch {
-      message.error("批量更新失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); } finally {
       setBatchEditing(false);
     }
   };
@@ -577,9 +552,7 @@ export default function ProductList() {
       setDetailProduct(prodResp.data.data);
       setDetailInventories((invResp.data.data.list || []) as InventoryItem[]);
       setDetailSales((salesResp.data.data || null) as ProductSalesData | null);
-    } catch {
-      message.error("加载产品详情失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载产品详情失败")); } finally {
       setDetailLoading(false);
     }
   };
@@ -606,9 +579,7 @@ export default function ProductList() {
       const first = invList[0];
       setQuickInventoryId(first.id);
       setQuickValue(type === "price" ? (first.unit_price ?? 0) : (first.safety_stock ?? 0));
-    } catch {
-      message.error("加载库存记录失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存记录失败")); } finally {
       setQuickActionLoading(false);
     }
   };
@@ -639,9 +610,7 @@ export default function ProductList() {
       if (detailProduct && quickActionProduct && detailProduct.id === quickActionProduct.id) {
         await openDetail(quickActionProduct);
       }
-    } catch {
-      message.error("保存失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); } finally {
       setQuickActionSaving(false);
     }
   };
@@ -680,9 +649,7 @@ export default function ProductList() {
       setAiText("");
       setModalOpen(true);
       message.success("AI 解析完成，请确认后保存");
-    } catch {
-      message.error("AI 解析失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 解析失败")); } finally {
       setAiParsing(false);
     }
   };
@@ -713,9 +680,7 @@ export default function ProductList() {
       setBomText("");
       message.success(`BOM 解析完成，成功创建 ${created}/${items.length} 个产品`);
       await Promise.all([fetch(1), loadStats()]);
-    } catch {
-      message.error("BOM 解析失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "BOM 解析失败")); } finally {
       setBomParsing(false);
     }
   };
@@ -740,9 +705,7 @@ export default function ProductList() {
       } else {
         message.error(resp.data.msg || "导入失败");
       }
-    } catch {
-      message.error("导入失败，请检查文件格式");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败，请检查文件格式")); } finally {
       setImporting(false);
     }
   };

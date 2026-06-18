@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, Select, message, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getTickets, deleteTicket } from "../../api";
+import { getTickets, deleteTicket, getApiErrorMessage } from "../../api";
 import type { Ticket } from "../../types";
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
@@ -38,7 +38,7 @@ export default function TicketList() {
       const resp = await getTickets(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -49,7 +49,7 @@ export default function TicketList() {
       await deleteTicket(id);
       message.success("已删除");
       load();
-    } catch { message.error("删除失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   return (

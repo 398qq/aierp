@@ -3,7 +3,7 @@ import { Table, Button, Space, Card, Select, Input, message } from "antd";
 import { StatusTag } from "../../ui";
 import { ReloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getInventoryTransactions, getWarehouses } from "../../api";
+import { getInventoryTransactions, getWarehouses, getApiErrorMessage } from "../../api";
 import type { Warehouse } from "../../types";
 
 const TRANSACTION_TYPES = [
@@ -74,9 +74,7 @@ export default function InventoryLedger() {
         setData(resp.data.data.list as InventoryTransactionRecord[]);
         setTotal(resp.data.data.total);
       }
-    } catch {
-      message.error("加载库存流水失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存流水失败")); } finally {
       setLoading(false);
     }
   };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, Button, message, Spin } from "antd";
-import { getTicket, createTicket, updateTicket } from "../../api";
+import { getTicket, createTicket, updateTicket, getApiErrorMessage } from "../../api";
 import { getCustomers } from "../../api";
 import type { Customer, Ticket } from "../../types";
 
@@ -65,7 +65,7 @@ export default function TicketForm() {
         message.success("工单已创建");
       }
       navigate("/tickets");
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setLoading(false); }
   };
 

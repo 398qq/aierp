@@ -7,11 +7,7 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import {
-  getProductInventories, createProductInventory,
-  updateProductInventory, deleteProductInventory,
-  getProducts, getWarehouses,
-} from "../../api";
+import { getProductInventories, createProductInventory, updateProductInventory, deleteProductInventory, getProducts, getWarehouses, getApiErrorMessage } from "../../api";
 import type { InventoryItem, Product, Warehouse } from "../../types";
 
 const { Title, Text } = Typography;
@@ -63,9 +59,7 @@ export default function InventoryManage() {
         setData(list);
         setTotal(resp.data.data.total as number);
       }
-    } catch {
-      message.error("加载库存数据失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存数据失败")); } finally {
       setLoading(false);
     }
   };

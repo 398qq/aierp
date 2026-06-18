@@ -30,13 +30,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
-import {
-  getCustomer360,
-  getCustomerQuotationHistory,
-  getCustomerLogs,
-  getContacts,
-  getCustomerTags,
-} from "@/api";
+import { getCustomer360, getCustomerQuotationHistory, getCustomerLogs, getContacts, getCustomerTags, getApiErrorMessage } from "@/api";
 import type { CustomerLog, CustomerQuotationHistory } from "@/types";
 import { StatusTag } from "@/ui";
 import { CustomerAIPanel } from "./CustomerAIPanel";
@@ -180,9 +174,7 @@ export const CustomerDetailPanel: React.FC<DetailPanelProps> = ({
         const payload = (resTags.value.data as { data?: Array<typeof tags[0]> })?.data;
         setTags(payload || []);
       }
-    } catch {
-      message.error("加载客户详情失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户详情失败")); } finally {
       setLoading360(false);
     }
   }, [customerId, open]);

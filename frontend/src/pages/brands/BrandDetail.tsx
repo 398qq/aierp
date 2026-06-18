@@ -4,7 +4,7 @@ import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typogra
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand } from "../../api";
+import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand, getApiErrorMessage } from "../../api";
 import type { Brand, Product, BrandProfile, BrandPortfolio, SimilarBrand, BrandComparison, BrandHealth, BrandRisk, BrandSupplierMatrix, BrandRecommendation, BrandProductPerformance, BrandCustomerPenetration, BrandLifecycle, BrandPriceTrends } from "../../types";
 import { getBrandAiTasks, getBrandNextAction } from "./brandAiOrchestration";
 
@@ -59,7 +59,7 @@ export default function BrandDetail() {
       ]);
       setBrand(brandRes.data.data as Brand);
       setProducts(prodRes.data.data.list as Product[]);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -68,7 +68,7 @@ export default function BrandDetail() {
     try {
       const resp = await getBrandProfile(Number(id));
       if (resp.data.code === 0) setProfile(resp.data.data as BrandProfile);
-    } catch { message.error("生成品牌画像失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成品牌画像失败")); }
     finally { setProfileLoading(false); }
   };
 
@@ -77,7 +77,7 @@ export default function BrandDetail() {
     try {
       const resp = await getBrandPortfolio(Number(id));
       if (resp.data.code === 0) setPortfolio(resp.data.data as BrandPortfolio);
-    } catch { message.error("产品线分析失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "产品线分析失败")); }
     finally { setPortfolioLoading(false); }
   };
 
@@ -86,7 +86,7 @@ export default function BrandDetail() {
     try {
       const resp = await getSimilarBrands(Number(id));
       if (resp.data.code === 0) setSimilarBrands(resp.data.data as SimilarBrand[]);
-    } catch { message.error("加载相似品牌失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载相似品牌失败")); }
     finally { setSimilarLoading(false); }
   };
 
@@ -104,7 +104,7 @@ export default function BrandDetail() {
     try {
       const resp = await compareBrands(Number(id), compareBrandId);
       if (resp.data.code === 0) setComparison(resp.data.data as BrandComparison);
-    } catch { message.error("品牌对比失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "品牌对比失败")); }
     finally { setCompareLoading(false); }
   };
 
@@ -122,7 +122,7 @@ export default function BrandDetail() {
         }
         setImportModalOpen(false);
       }
-    } catch { message.error("导入失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败")); }
     finally { setImportLoading(false); }
   };
 
@@ -131,7 +131,7 @@ export default function BrandDetail() {
     try {
       const resp = await getBrandHealth(Number(id));
       if (resp.data.code === 0) setHealth(resp.data.data as BrandHealth);
-    } catch { message.error("健康分析失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "健康分析失败")); }
     finally { setHealthLoading(false); }
   };
 
@@ -140,7 +140,7 @@ export default function BrandDetail() {
     try {
       const resp = await getBrandRisk(Number(id));
       if (resp.data.code === 0) setRisk(resp.data.data as BrandRisk);
-    } catch { message.error("风险评估失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "风险评估失败")); }
     finally { setRiskLoading(false); }
   };
 
@@ -149,7 +149,7 @@ export default function BrandDetail() {
     try {
       const resp = await getBrandSupplierMatrix(Number(id));
       if (resp.data.code === 0) setSupplierMatrix(resp.data.data as BrandSupplierMatrix);
-    } catch { message.error("供应商矩阵分析失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "供应商矩阵分析失败")); }
     finally { setMatrixLoading(false); }
   };
 
@@ -158,32 +158,28 @@ export default function BrandDetail() {
     try {
       const resp = await getBrandRecommendations(Number(id));
       if (resp.data.code === 0) setRecommendations(resp.data.data as BrandRecommendation);
-    } catch { message.error("品牌推荐失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "品牌推荐失败")); }
     finally { setRecLoading(false); }
   };
 
   const loadPerformance = async () => {
     setPerfLoading(true);
-    try { const r = await getBrandProductPerformance(Number(id)); if (r.data.code === 0) setPerf(r.data.data as BrandProductPerformance); }
-    catch { message.error("产品绩效分析失败"); } finally { setPerfLoading(false); }
+    try { const r = await getBrandProductPerformance(Number(id)); if (r.data.code === 0) setPerf(r.data.data as BrandProductPerformance); } catch (e: unknown) { message.error(getApiErrorMessage(e, "产品绩效分析失败")); } finally { setPerfLoading(false); }
   };
 
   const loadPenetration = async () => {
     setPenetrationLoading(true);
-    try { const r = await getBrandCustomerPenetration(Number(id)); if (r.data.code === 0) setPenetration(r.data.data as BrandCustomerPenetration); }
-    catch { message.error("客户渗透分析失败"); } finally { setPenetrationLoading(false); }
+    try { const r = await getBrandCustomerPenetration(Number(id)); if (r.data.code === 0) setPenetration(r.data.data as BrandCustomerPenetration); } catch (e: unknown) { message.error(getApiErrorMessage(e, "客户渗透分析失败")); } finally { setPenetrationLoading(false); }
   };
 
   const loadLifecycle = async () => {
     setLifecycleLoading(true);
-    try { const r = await getBrandLifecycle(Number(id)); if (r.data.code === 0) setLifecycle(r.data.data as BrandLifecycle); }
-    catch { message.error("生命周期预测失败"); } finally { setLifecycleLoading(false); }
+    try { const r = await getBrandLifecycle(Number(id)); if (r.data.code === 0) setLifecycle(r.data.data as BrandLifecycle); } catch (e: unknown) { message.error(getApiErrorMessage(e, "生命周期预测失败")); } finally { setLifecycleLoading(false); }
   };
 
   const loadPriceTrends = async () => {
     setPriceTrendsLoading(true);
-    try { const r = await getBrandPriceTrends(Number(id)); if (r.data.code === 0) setPriceTrends(r.data.data as BrandPriceTrends); }
-    catch { message.error("价格趋势分析失败"); } finally { setPriceTrendsLoading(false); }
+    try { const r = await getBrandPriceTrends(Number(id)); if (r.data.code === 0) setPriceTrends(r.data.data as BrandPriceTrends); } catch (e: unknown) { message.error(getApiErrorMessage(e, "价格趋势分析失败")); } finally { setPriceTrendsLoading(false); }
   };
 
   const handleAutoComplete = async () => {
@@ -195,7 +191,7 @@ export default function BrandDetail() {
         message.success(d.message);
         await loadData();
       }
-    } catch { message.error("AI补全失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI补全失败")); }
     finally { setAutoCompleteLoading(false); }
   };
 

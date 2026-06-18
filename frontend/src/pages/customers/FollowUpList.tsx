@@ -11,7 +11,7 @@ import type { ColumnsType } from "antd/es/table";
 import type { TablePaginationConfig } from "antd/es/table/interface";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
-import { getFollowUps, deleteFollowUp, updateFollowUp } from "../../api";
+import { getFollowUps, deleteFollowUp, updateFollowUp, getApiErrorMessage } from "../../api";
 import type { FollowUp } from "../../types";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
 
@@ -51,9 +51,7 @@ export default function FollowUpList() {
       } else {
         setAllData([]);
       }
-    } catch {
-      message.error("加载跟进记录失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载跟进记录失败")); } finally {
       setLoading(false);
     }
   };
@@ -76,9 +74,7 @@ export default function FollowUpList() {
       await deleteFollowUp(custId, followupId);
       message.success("删除成功");
       load();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleComplete = async (followupId: number) => {
@@ -89,9 +85,7 @@ export default function FollowUpList() {
       });
       message.success("已完成");
       load();
-    } catch {
-      message.error("操作失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const openReschedule = (record: FollowUp) => {
@@ -116,9 +110,7 @@ export default function FollowUpList() {
       setRescheduleRecord(null);
       setRescheduleAt(null);
       load();
-    } catch {
-      message.error("更新跟进时间失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进时间失败")); } finally {
       setRescheduling(false);
     }
   };
@@ -171,9 +163,7 @@ export default function FollowUpList() {
       message.success("跟进已更新");
       closeUpdate();
       load();
-    } catch {
-      message.error("更新跟进失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进失败")); } finally {
       setUpdating(false);
     }
   };

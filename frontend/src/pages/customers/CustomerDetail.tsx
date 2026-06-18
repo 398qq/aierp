@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { App, Tabs, Descriptions, Button, Space, Spin, Alert, Tag, Card, Form, Input, Modal, Popconfirm, Timeline, Select, Empty, Progress, Col, Row, Statistic, Upload, List, Typography, Tooltip, Table, DatePicker, InputNumber, Divider, Flex } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, ShoppingCartOutlined, TagsOutlined, RiseOutlined, WalletOutlined, WarningOutlined, UploadOutlined, PaperClipOutlined, DownloadOutlined, HeartOutlined, FileTextOutlined, ApartmentOutlined, FileSearchOutlined, CalendarOutlined, LinkOutlined, DisconnectOutlined, BulbOutlined, PieChartOutlined, SwapOutlined } from "@ant-design/icons";
-import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, generateDefaultCustomerTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers } from "../../api";
+import { getCustomer, getContacts, createContact, updateContact, deleteContact, getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, updateCustomer, getTimeline, getTags, createTag, generateDefaultCustomerTags, getCustomerTags, linkTag, unlinkTag, getCustomerStats, getCustomerLogs, getChildren, getGroupStats, linkParent, unlinkParent, getCustomerVisits, createCustomerVisit, updateCustomerVisit, deleteCustomerVisit, recommendProductsForCustomer, getSimilarCustomers, getApiErrorMessage } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
@@ -118,11 +118,11 @@ export default function CustomerDetail() {
   useEffect(() => { loadTags(); }, [customerId]);
 
   const handleUnlinkTag = async (tagId: number) => {
-    try { await unlinkTag(customerId, tagId); loadTags(); } catch { message.error("移除标签失败"); }
+    try { await unlinkTag(customerId, tagId); loadTags(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "移除标签失败")); }
   };
 
   const handleLinkTag = async (tagId: number) => {
-    try { await linkTag(customerId, tagId); loadTags(); message.success("标签已添加"); } catch { message.error("添加标签失败"); }
+    try { await linkTag(customerId, tagId); loadTags(); message.success("标签已添加"); } catch (e: unknown) { message.error(getApiErrorMessage(e, "添加标签失败")); }
   };
 
   const handleCreateAndLinkTag = async (name: string, color: string) => {
@@ -146,7 +146,7 @@ export default function CustomerDetail() {
     try {
       const resp = await recommendProductsForCustomer(customerId);
       if (resp.data.code === 0) { setRecResult(resp.data.data as CustomerProductMatch); setRecModalOpen(true); }
-    } catch { message.error("AI 推荐失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 推荐失败")); }
     finally { setRecLoading(false); }
   };
 
@@ -396,7 +396,7 @@ export default function CustomerDetail() {
                           actions={[
                             <EditOutlined key="edit" onClick={() => { setEditingContact(c); setContactModalOpen(true); }} />,
                             <Popconfirm key="del" title="确定删除?" onConfirm={async () => {
-                              try { await deleteContact(customerId, c.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                              try { await deleteContact(customerId, c.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                             }}><DeleteOutlined /></Popconfirm>,
                           ]}
                         >
@@ -432,7 +432,7 @@ export default function CustomerDetail() {
                           actions={[
                             <EditOutlined key="edit" onClick={() => { setEditingFollowUp(f); setFollowupModalOpen(true); }} />,
                             <Popconfirm key="del" title="确定删除?" onConfirm={async () => {
-                              try { await deleteFollowUp(customerId, f.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                              try { await deleteFollowUp(customerId, f.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                             }}><DeleteOutlined /></Popconfirm>,
                           ]}
                         >
@@ -720,7 +720,7 @@ function ContactFormModal({ open, customerId, contact, onClose, onSaved }: { ope
       }
       form.resetFields();
       onSaved();
-    } catch { message.error("保存失败"); } finally { setLoading(false); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); } finally { setLoading(false); }
   };
 
   return (
@@ -786,7 +786,7 @@ function FollowUpFormModal({ open, customerId, followUp, onClose, onSaved }: { o
       }
       form.resetFields();
       onSaved();
-    } catch { message.error("保存失败"); } finally { setLoading(false); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); } finally { setLoading(false); }
   };
 
   return (
@@ -962,9 +962,7 @@ function TagManageModal({
       await onCreate(name, newTagColor);
       setNewTagName("");
       setNewTagColor("blue");
-    } catch {
-      message.error("创建标签失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建标签失败")); } finally {
       setCreating(false);
     }
   };
@@ -973,9 +971,7 @@ function TagManageModal({
     setGenerating(true);
     try {
       await onGenerateDefaults();
-    } catch {
-      message.error("生成默认标签失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成默认标签失败")); } finally {
       setGenerating(false);
     }
   };
@@ -1098,11 +1094,11 @@ function GroupPanel({ customerId, customerName }: { customerId: number; customer
 
   const handleLink = async () => {
     if (!parentId) return;
-    try { await linkParent(customerId, parentId); message.success("关联成功"); setLinkOpen(false); load(); } catch { message.error("关联失败"); }
+    try { await linkParent(customerId, parentId); message.success("关联成功"); setLinkOpen(false); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "关联失败")); }
   };
 
   const handleUnlink = async () => {
-    try { await unlinkParent(customerId); message.success("已解除关联"); load(); } catch { message.error("解除失败"); }
+    try { await unlinkParent(customerId); message.success("已解除关联"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "解除失败")); }
   };
 
   if (loading) return <Spin />;
@@ -1225,11 +1221,11 @@ function VisitPanel({ customerId }: { customerId: number }) {
       }
       setModalOpen(false);
       load();
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await deleteCustomerVisit(customerId, id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+    try { await deleteCustomerVisit(customerId, id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const TYPE: Record<string, string> = { visit: "拜访", call: "电话", online: "线上" };

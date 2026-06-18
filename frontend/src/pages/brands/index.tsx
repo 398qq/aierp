@@ -4,7 +4,7 @@ import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfir
 import { StatusTag } from "../../ui";
 import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats } from "../../api";
+import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats, getApiErrorMessage } from "../../api";
 import type { Brand } from "../../types";
 import { getBatchAiSummary, getBrandNextAction } from "./brandAiOrchestration";
 
@@ -132,7 +132,7 @@ export default function BrandList() {
       const d = resp.data.data as { list: Brand[]; total: number };
       setData(d.list || []);
       setTotal(d.total || 0);
-    } catch { message.error("加载品牌失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载品牌失败")); }
     finally { setLoading(false); }
   };
 
@@ -192,7 +192,7 @@ export default function BrandList() {
       }
       setModalOpen(false);
       fetch();
-    } catch { message.error("操作失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
     finally { setSubmitting(false); }
   };
 
@@ -201,7 +201,7 @@ export default function BrandList() {
       await deleteBrand(id);
       message.success("删除成功");
       fetch();
-    } catch { message.error("删除失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleImport = async () => {
@@ -217,7 +217,7 @@ export default function BrandList() {
       }
       setImportOpen(false);
       setImportText("");
-    } catch { message.error("导入失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败")); }
     finally { setImportLoading(false); }
   };
 
@@ -235,7 +235,7 @@ export default function BrandList() {
       setBatchValue("");
       setSelectedRowKeys([]);
       fetch();
-    } catch { message.error("批量更新失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); }
     finally { setBatchSubmitting(false); }
   };
 
@@ -247,7 +247,7 @@ export default function BrandList() {
       message.success(`已删除 ${selectedRowKeys.length} 个品牌`);
       setSelectedRowKeys([]);
       fetch();
-    } catch { message.error("批量删除失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
     finally { setBatchSubmitting(false); }
   };
 

@@ -7,7 +7,7 @@ import {
   SearchOutlined, CheckCircleOutlined, CalculatorOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getInventoryBatches, getInventoryCogs, previewAllocation, commitBatchAllocation } from "../../api";
+import { getInventoryBatches, getInventoryCogs, previewAllocation, commitBatchAllocation, getApiErrorMessage } from "../../api";
 import type { InventoryBatch, CogsReport } from "../../types";
 
 const { Text, Title } = Typography;
@@ -102,7 +102,7 @@ export default function InventoryBatches() {
           unfilled_qty: 0,
           is_fully_allocated: true,
         });
-      } catch { message.error("预览失败"); }
+      } catch (e: unknown) { message.error(getApiErrorMessage(e, "预览失败")); }
       finally { setPreviewing(false); }
     } else {
       // Auto: use strategy-based allocation
@@ -115,7 +115,7 @@ export default function InventoryBatches() {
           strategy,
         } as any);
         setPreviewResult(r.data.data);
-      } catch { message.error("预览失败"); }
+      } catch (e: unknown) { message.error(getApiErrorMessage(e, "预览失败")); }
       finally { setPreviewing(false); }
     }
   };

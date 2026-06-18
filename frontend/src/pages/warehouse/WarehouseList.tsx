@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Table, Button, Space, message, Card, Modal, Form, Input, Popconfirm, Tooltip, Tag } from "antd";
 import { PlusOutlined, ReloadOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse } from "../../api";
+import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, getApiErrorMessage } from "../../api";
 import type { Warehouse } from "../../types";
 import WarehouseForm from "./WarehouseForm";
 
@@ -33,9 +33,7 @@ export default function WarehouseList() {
         setData(resp.data.data.list as WarehouseRecord[]);
         setTotal(resp.data.data.total);
       }
-    } catch {
-      message.error("加载仓库失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载仓库失败")); } finally {
       setLoading(false);
     }
   };
@@ -51,9 +49,7 @@ export default function WarehouseList() {
       message.success("创建成功");
       setCreateOpen(false);
       fetch();
-    } catch {
-      message.error("创建失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建失败")); } finally {
       setCreateLoading(false);
     }
   };
@@ -72,9 +68,7 @@ export default function WarehouseList() {
       setEditOpen(false);
       setEditRecord(null);
       fetch();
-    } catch {
-      message.error("更新失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新失败")); } finally {
       setEditLoading(false);
     }
   };
@@ -84,9 +78,7 @@ export default function WarehouseList() {
       await deleteWarehouse(id);
       message.success("已删除");
       fetch();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const columns: ColumnsType<WarehouseRecord> = [

@@ -3,7 +3,7 @@ import { App, Button, Input, Modal, Typography } from "antd";
 import type { FormInstance } from "antd/es/form";
 import dayjs from "dayjs";
 import { useState } from "react";
-import { recognizeFollowUp } from "../../api";
+import { recognizeFollowUp, getApiErrorMessage } from "../../api";
 import type { FollowUpRecognition } from "../../types";
 
 interface FollowUpAIRecognizerProps {
@@ -71,9 +71,7 @@ export default function FollowUpAIRecognizer({
       form.setFieldsValue(buildFormValues(recognized, rawText));
       setOpen(false);
       message.success(recognized.summary || "AI识别完成，请确认后保存");
-    } catch {
-      message.error("AI识别失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI识别失败")); } finally {
       setRecognizing(false);
     }
   };

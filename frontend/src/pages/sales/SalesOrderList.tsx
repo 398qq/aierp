@@ -5,7 +5,7 @@ import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders, importSalesOrderPDF } from "../../api";
+import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders, importSalesOrderPDF, getApiErrorMessage } from "../../api";
 import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { SalesOrder } from "../../types";
@@ -42,9 +42,7 @@ export default function SalesOrderList() {
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
       setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, { delivery_risk?: string; flag?: string }> }).ai || {}) : {});
-    } catch {
-      message.error("加载失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); } finally {
       setLoading(false);
     }
   };
@@ -67,9 +65,7 @@ export default function SalesOrderList() {
       message.success("已批量删除");
       setSelected([]);
       load();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handlePdfImport = async () => {
@@ -256,13 +252,13 @@ export default function SalesOrderList() {
                   { key: "view", label: "查看详情", onClick: () => navigate(`/sales/orders/${record.id}`) },
                   { key: "delivery", label: "转为发货单", icon: <CarOutlined />, onClick: () => {
                     Modal.confirm({ title: "转为发货单?", content: `将订单 ${record.order_no || `#${record.id}`} 转为发货单`, onOk: async () => {
-                      try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); load(); } catch { message.error("转换失败"); }
+                      try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "转换失败")); }
                     } });
                   }},
                   { type: "divider" as const },
                   { key: "delete", label: "删除", danger: true, icon: <DeleteOutlined />, onClick: () => {
                     Modal.confirm({ title: "确定删除?", content: `删除订单 ${record.order_no || `#${record.id}`}`, onOk: async () => {
-                      try { await deleteSalesOrder(record.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                      try { await deleteSalesOrder(record.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                     } });
                   }},
                 ];

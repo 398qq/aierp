@@ -14,16 +14,7 @@ import {
   SendOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
-import {
-  batchDeleteQuotations,
-  convertQuotationToOrder,
-  deleteQuotation,
-  downloadQuotationPDF,
-  duplicateQuotation,
-  getQuotationStats,
-  getQuotations,
-  sendQuotation,
-} from "../../api";
+import { batchDeleteQuotations, convertQuotationToOrder, deleteQuotation, downloadQuotationPDF, duplicateQuotation, getQuotationStats, getQuotations, sendQuotation, getApiErrorMessage } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { Quotation, QuotationStats } from "../../types";
 import { CustomerLink, CustomerSelect, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
@@ -91,9 +82,7 @@ export default function QuotationList() {
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
       setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, { pricing_health?: string; flag?: string }> }).ai || {}) : {});
-    } catch {
-      message.error("加载报价失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载报价失败")); } finally {
       setLoading(false);
     }
   };
@@ -130,9 +119,7 @@ export default function QuotationList() {
       message.success("已批量删除");
       setSelected([]);
       refreshAll();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleDuplicate = async (record: Quotation) => {
@@ -140,9 +127,7 @@ export default function QuotationList() {
       const resp = await duplicateQuotation(record.id);
       message.success("已复制为新报价");
       navigate(`/sales/quotations/${resp.data.data.id}/edit`);
-    } catch {
-      message.error("复制失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "复制失败")); }
   };
 
   const handleSend = async (record: Quotation) => {
@@ -150,9 +135,7 @@ export default function QuotationList() {
       await sendQuotation(record.id);
       message.success("已标记为已发送");
       refreshAll();
-    } catch {
-      message.error("发送失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "发送失败")); }
   };
 
   const handleConvert = async (record: Quotation) => {
@@ -160,9 +143,7 @@ export default function QuotationList() {
       await convertQuotationToOrder(record.id);
       message.success("已转为订单");
       refreshAll();
-    } catch {
-      message.error("转换失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "转换失败")); }
   };
 
   const sceneCount = (key: QuoteScene) => {

@@ -4,7 +4,7 @@ import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progr
 import { StatusTag } from "../../ui";
 import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined, ShoppingCartOutlined, DownloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast, createPOFromRestock, getSuppliers, batchAdjustInventory } from "../../api";
+import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast, createPOFromRestock, getSuppliers, batchAdjustInventory, getApiErrorMessage } from "../../api";
 import type { InventoryItem } from "../../types";
 
 const { Text } = Typography;
@@ -39,9 +39,7 @@ export default function InventoryList() {
       setData(invResp.data.data.list as InventoryItem[]);
       setTotal(invResp.data.data.total as number);
       if (ovResp.data.code === 0) setOverview(ovResp.data.data as Record<string, unknown>);
-    } catch {
-      message.error("加载库存失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存失败")); } finally {
       setLoading(false);
     }
   };
@@ -69,7 +67,7 @@ export default function InventoryList() {
       message.success("库存调整成功");
       setAdjustModalOpen(false);
       fetch();
-    } catch { message.error("调整失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "调整失败")); }
     finally { setAdjusting(false); }
   };
 
@@ -97,7 +95,7 @@ export default function InventoryList() {
       try {
         const r = await getSuppliers({ page: 1, page_size: 100 });
         setSuppliers((r.data.data?.list || []) as { id: number; name: string }[]);
-      } catch { message.error("加载供应商列表失败"); }
+      } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载供应商列表失败")); }
     }
   };
 
@@ -113,7 +111,7 @@ export default function InventoryList() {
       await createPOFromRestock(payload);
       message.success("采购订单已生成，请前往采购模块查看");
       setRestockModalOpen(false);
-    } catch { message.error("生成采购订单失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成采购订单失败")); }
     finally { setRestocking(false); }
   };
 
@@ -142,7 +140,7 @@ export default function InventoryList() {
       setBatchModalOpen(false);
       setSelectedRowKeys([]);
       fetch();
-    } catch { message.error("批量调整失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量调整失败")); }
     finally { setBatching(false); }
   };
 

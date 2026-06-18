@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Modal, Space, Spin, Table, Tag, Tooltip, Typography, InputNumber, message } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, DollarOutlined, EditOutlined, CheckCircleOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
-import { getPurchaseOrder, receivePurchaseOrder } from "../../api";
+import { getPurchaseOrder, receivePurchaseOrder, getApiErrorMessage } from "../../api";
 import client from "../../api/client";
 import type { PurchaseOrder } from "../../types";
 import { ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, shortDate, money } from "./salesUi";
@@ -60,7 +60,7 @@ export default function PurchaseOrderDetail() {
       await receivePurchaseOrder(po.id, receiveWarehouseId);
       message.success(`PO ${po.order_no || `#${po.id}`} 已收货，库存已入库`);
       fetch();
-    } catch { message.error("收货失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "收货失败")); }
     finally { setReceiving(false); }
   };
 
@@ -128,7 +128,7 @@ export default function PurchaseOrderDetail() {
             </>
           )}
           <Button onClick={async () => {
-            try { await client.post("/approvals/submit", { doc_type: "purchase_order", doc_id: po.id }); message.success("已提交审批"); } catch { message.error("提交审批失败"); }
+            try { await client.post("/approvals/submit", { doc_type: "purchase_order", doc_id: po.id }); message.success("已提交审批"); } catch (e: unknown) { message.error(getApiErrorMessage(e, "提交审批失败")); }
           }}>提交审批</Button>
         </Space>
       </Card>

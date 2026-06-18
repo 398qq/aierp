@@ -3,7 +3,7 @@ import { Table, Button, Space, Select, Input, message, Popconfirm, Card, Modal, 
 import { StatusTag, type StatusTone } from "../../../ui";
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getUsers, deleteUser } from "../../../api";
+import { getUsers, deleteUser, getApiErrorMessage } from "../../../api";
 import client from "../../../api/client";
 import UserForm from "./UserForm";
 
@@ -57,7 +57,7 @@ export default function UserList() {
       const d = resp.data.data;
       setData((d.list || []) as unknown as UserItem[]);
       setTotal(d.total || 0);
-    } catch { message.error("加载用户失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载用户失败")); }
     finally { setLoading(false); }
   };
 
@@ -69,8 +69,7 @@ export default function UserList() {
   const openEdit = (u: UserItem) => { setEditing(u); setFormOpen(true); };
 
   const handleDelete = async (id: number) => {
-    try { await deleteUser(id); message.success("删除成功"); load(); }
-    catch { message.error("删除失败"); }
+    try { await deleteUser(id); message.success("删除成功"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const onFormSuccess = () => { setFormOpen(false); load(); };
@@ -85,7 +84,7 @@ export default function UserList() {
       ]);
       setAllRoles(rolesResp.data.data || []);
       setAssignedRoleIds(userRolesResp.data.data?.role_ids || []);
-    } catch { message.error("加载角色失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载角色失败")); }
   };
 
   const saveRoleAssign = async () => {
@@ -95,7 +94,7 @@ export default function UserList() {
       await client.put(`/permissions/users/${roleUser.id}/roles`, { role_ids: assignedRoleIds });
       message.success("角色分配成功");
       setRoleModalOpen(false);
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setRoleSaving(false); }
   };
 
