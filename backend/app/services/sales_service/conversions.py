@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.states import assert_can_transition_quotation
+from app.models.finance import Invoice, InvoiceLine
 from app.models.sales import (
     DeliveryNote,
     DeliveryNoteItem,
@@ -116,12 +117,10 @@ class SalesConversionService(BaseCRUDService):
         if note.status not in ("shipped", "delivered"):
             return None
 
-        from app.models.finance import Invoice as InvoiceModel
-
         existing = await db.execute(
             select(func.count()).where(
-                InvoiceModel.sales_order_id == note.sales_order_id,
-                InvoiceModel.deleted_at.is_(None),
+                Invoice.sales_order_id == note.sales_order_id,
+                Invoice.deleted_at.is_(None),
             )
         )
         if (existing.scalar() or 0) > 0:
@@ -138,8 +137,8 @@ class SalesConversionService(BaseCRUDService):
             invoice_no=invoice_no,
             sales_order_id=note.sales_order_id,
             customer_id=note.customer_id,
-            amount=order.total_amount if order else 0,
-            tax_amount=round((order.total_amount if order else 0) * 0.13, 4),
+            amount=float(order.total_amount) if order else 0,
+            tax_amount=round(float(order.total_amount) * 0.13, 4) if order else 0,
             invoice_date=datetime.now(timezone.utc),
             due_date=datetime.now(timezone.utc)
             if not (order and order.delivery_date)

@@ -380,24 +380,28 @@ async def import_entity(
             elif entity == "contracts":
                 signed_str = row_dict.get("signed_date", row_dict.get("签署日期", ""))
                 expire_str = row_dict.get("expire_date", row_dict.get("到期日期", ""))
-                ct = Contract(
-                    contract_no=row_dict.get("contract_no", row_dict.get("合同号", "")),
-                    title=row_dict.get("title", row_dict.get("标题", "")),
-                    customer_id=int(row_dict.get("customer_id", 0)),
-                    sales_order_id=int(row_dict.get("sales_order_id"))
-                    if row_dict.get("sales_order_id")
-                    else None,
-                    amount=float(row_dict.get("amount", row_dict.get("金额", 0))),
-                    signed_date=datetime.date.fromisoformat(signed_str)
-                    if signed_str
-                    else None,
-                    expire_date=datetime.date.fromisoformat(expire_str)
-                    if expire_str
-                    else None,
-                    status=row_dict.get("status", row_dict.get("状态", "draft")),
-                    notes=row_dict.get("notes", row_dict.get("备注", "")),
+                from app.services.finance_service import create_contract
+
+                await create_contract(
+                    db,
+                    {
+                        "contract_no": row_dict.get(
+                            "contract_no", row_dict.get("合同号", "")
+                        ),
+                        "title": row_dict.get("title", row_dict.get("标题", "")),
+                        "customer_id": int(row_dict.get("customer_id", 0)),
+                        "sales_order_id": int(row_dict.get("sales_order_id"))
+                        if row_dict.get("sales_order_id")
+                        else None,
+                        "amount": float(
+                            row_dict.get("amount", row_dict.get("金额", 0))
+                        ),
+                        "signed_date": signed_str or None,
+                        "expire_date": expire_str or None,
+                        "status": row_dict.get("status", row_dict.get("状态", "draft")),
+                        "notes": row_dict.get("notes", row_dict.get("备注", "")),
+                    },
                 )
-                db.add(ct)
             created += 1
         except Exception as e:
             errors.append(f"行 {i + 2}: {str(e)}")

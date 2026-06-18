@@ -14,6 +14,7 @@ from sqlalchemy import select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 from app.core.security import create_access_token, hash_password  # noqa: E402
+from app.api.deps import get_uow  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -69,6 +70,8 @@ async def db_session(engine, create_tables):
 
 @pytest_asyncio.fixture
 async def async_client(db_session):
+    from app.application.uow import UnitOfWork
+
     async def override_get_db():
         try:
             yield db_session
@@ -77,7 +80,17 @@ async def async_client(db_session):
             await db_session.rollback()
             raise
 
+    async def override_get_uow():
+        uow = UnitOfWork(db_session)
+        try:
+            yield uow
+            await uow.commit()
+        except Exception:
+            await uow.rollback()
+            raise
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_uow] = override_get_uow
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
@@ -231,6 +244,7 @@ def _clean_redis_cache():
     async def _flush():
         try:
             from app.services.cache_service import get_redis
+
             r = await get_redis()
             if r is not None:
                 keys = []
