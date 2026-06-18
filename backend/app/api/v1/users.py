@@ -11,8 +11,8 @@ from app.core.permissions import _invalidate_perm_cache
 from app.database import get_db
 from app.models.user import User
 from app.models.rbac import Role
-from app.schemas.common import ok, fail
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.common import ok, fail, APIResponse, PageData
+from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -35,7 +35,7 @@ class PaginatedUsers(BaseModel):
     page_size: int
 
 
-@router.get("")
+@router.get("", response_model=APIResponse[PageData[UserResponse]])
 async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
@@ -95,7 +95,7 @@ async def list_users(
 
 
 # --- Detail ---
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=APIResponse[UserResponse])
 async def get_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
@@ -114,7 +114,7 @@ async def get_user(
 
 
 # --- Create ---
-@router.post("")
+@router.post("", response_model=APIResponse[UserResponse])
 async def create_user(
     body: UserCreate,
     db: AsyncSession = Depends(get_db),
@@ -159,7 +159,7 @@ async def create_user(
 
 
 # --- Update ---
-@router.put("/{user_id}")
+@router.put("/{user_id}", response_model=APIResponse[UserResponse])
 async def update_user(
     user_id: int,
     body: UserUpdate,

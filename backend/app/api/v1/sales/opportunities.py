@@ -20,21 +20,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.api.v1.sales._shared import (
     OPPORTUNITIES_LIST_CACHE_TTL,
-    _opportunities_cache_key,
+    _opportunities_cache_key
 )
 from app.database import get_db
-from app.schemas.common import fail, ok
+from app.schemas.common import fail, ok, APIResponse, PageData
 from app.schemas.sales import (
+    OpportunityResponse,
     BatchDeleteRequest,
     OpportunityBatchUpdate,
     OpportunityCreate,
-    OpportunityUpdate,
+    OpportunityUpdate
 )
 from app.services import sales_service as svc
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
-    cache_set_versioned,
+    cache_set_versioned
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def _bump_opportunity_caches() -> None:
     await cache_bump_version("dashboard:kpi")
 
 
-@router.get("/opportunities")
+@router.get("/opportunities", response_model=APIResponse[PageData[OpportunityResponse]])
 async def list_opportunities(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -65,7 +66,7 @@ async def list_opportunities(
     sort_by: str = "id",
     sort_order: str = "desc",
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     cache_key = _opportunities_cache_key(
         page=page,
@@ -76,8 +77,8 @@ async def list_opportunities(
         assigned_to=assigned_to,
         q=q,
         sort_by=sort_by,
-        sort_order=sort_order,
-    )
+        sort_order=sort_order
+)
     cached_payload = await cache_get_versioned("opportunities:list", cache_key)
     if cached_payload is not None:
         result = json.loads(cached_payload)
@@ -101,8 +102,8 @@ async def list_opportunities(
         assigned_to=assigned_to,
         q=q,
         sort_by=sort_by,
-        sort_order=sort_order,
-    )
+        sort_order=sort_order
+)
     if include_ai and result["list"]:
         from app.services.sales_ai_service import enrich_opportunity_list
 
@@ -112,17 +113,17 @@ async def list_opportunities(
         "opportunities:list",
         cache_key,
         json.dumps(result, default=str),
-        OPPORTUNITIES_LIST_CACHE_TTL,
-    )
+        OPPORTUNITIES_LIST_CACHE_TTL
+)
     return ok(result)
 
 
-@router.get("/opportunities/{opp_id}")
+@router.get("/opportunities/{opp_id}", response_model=APIResponse[OpportunityResponse])
 async def get_opportunity(
     opp_id: int,
     include_ai: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     opp = await svc.get_opportunity(db, opp_id)
     if not opp:
@@ -139,11 +140,11 @@ async def get_opportunity(
     return ok(opp)
 
 
-@router.post("/opportunities", status_code=201)
+@router.post("/opportunities", status_code=201, response_model=APIResponse[OpportunityResponse])
 async def create_opportunity(
     body: OpportunityCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     opp = await svc.create_opportunity(db, body.model_dump())
     from app.services.sales_ai_pipeline import after_opportunity_save
@@ -153,12 +154,12 @@ async def create_opportunity(
     return ok(opp)
 
 
-@router.put("/opportunities/{opp_id}")
+@router.put("/opportunities/{opp_id}", response_model=APIResponse[OpportunityResponse])
 async def update_opportunity(
     opp_id: int,
     body: OpportunityUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     opp = await svc.get_opportunity(db, opp_id)
     if not opp:
@@ -175,7 +176,7 @@ async def update_opportunity(
 async def delete_opportunity(
     opp_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     opp = await svc.get_opportunity(db, opp_id)
     if not opp:
@@ -189,7 +190,7 @@ async def delete_opportunity(
 async def batch_delete_opportunities(
     body: BatchDeleteRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     for oid in body.ids:
         opp = await svc.get_opportunity(db, oid)
@@ -203,7 +204,7 @@ async def batch_delete_opportunities(
 async def batch_update_opportunities(
     body: OpportunityBatchUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     count = 0
     for oid in body.ids:

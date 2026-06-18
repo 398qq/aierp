@@ -18,8 +18,8 @@ from app.api.v1.finance._shared import (
     _targets_cache_key,
 )
 from app.database import get_db
-from app.schemas.common import fail, ok
-from app.schemas.finance import SalesTargetCreate, SalesTargetUpdate
+from app.schemas.common import fail, ok, APIResponse, PageData
+from app.schemas.finance import SalesTargetCreate, SalesTargetUpdate, SalesTargetResponse
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
@@ -37,7 +37,7 @@ async def _bump_target_caches() -> None:
     await cache_bump_version("targets:stats")
 
 
-@router.get("/targets")
+@router.get("/targets", response_model=APIResponse[PageData[SalesTargetResponse]])
 async def list_targets(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -111,7 +111,7 @@ async def get_target_stats(
     return ok(result)
 
 
-@router.get("/targets/{target_id}")
+@router.get("/targets/{target_id}", response_model=APIResponse[SalesTargetResponse])
 async def get_target(
     target_id: int,
     db: AsyncSession = Depends(get_db),
@@ -125,7 +125,7 @@ async def get_target(
     return ok(t)
 
 
-@router.post("/targets")
+@router.post("/targets", response_model=APIResponse[SalesTargetResponse])
 async def create_target(
     body: SalesTargetCreate,
     db: AsyncSession = Depends(get_db),
@@ -138,7 +138,7 @@ async def create_target(
     return ok(t)
 
 
-@router.put("/targets/{target_id}")
+@router.put("/targets/{target_id}", response_model=APIResponse[SalesTargetResponse])
 async def update_target(
     target_id: int,
     body: SalesTargetUpdate,
