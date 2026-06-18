@@ -12,6 +12,7 @@ which owns the same URL namespace and tags.
 
 from fastapi import APIRouter
 
+from app.api.v1.finance.commission_schemes import router as commission_schemes_router
 from app.api.v1.finance.contracts import router as contracts_router
 from app.api.v1.finance.invoices import router as invoices_router
 from app.api.v1.finance.payments import router as payments_router
@@ -22,5 +23,6 @@ router.include_router(invoices_router)
 router.include_router(payments_router)
 router.include_router(contracts_router)
 router.include_router(targets_router)
+router.include_router(commission_schemes_router)
 
 __all__ = ["router"]
