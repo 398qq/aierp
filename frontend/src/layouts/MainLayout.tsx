@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, Button, Typography, theme, Badge, Drawer, Input, Card, Tag, Spin, Space, List } from "antd";
+import {
+  Layout,
+  Menu,
+  Button,
+  Typography,
+  theme,
+  Badge,
+  Drawer,
+  Input,
+  Card,
+  Tag,
+  Spin,
+  Space,
+  List,
+} from "antd";
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -75,17 +89,67 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = ["/", "/dashboard/global360", "/dashboard/watchtower", "/customers", "/customers/segments", "/products", "/brands", "/suppliers/stats", "/suppliers", "/suppliers/compare", "/inventory", "/warehouse", "/warehouse/warehouses", "/warehouse/inventory-ledger", "/warehouse/inventory-batches", "/ai/chat", "/settings", "/system/users", "/system/roles", "/system/approvals", "/system/approval-rules", "/system/audit-logs", "/procurement/dashboard", "/reports/sales", "/reports/ar", "/reports/inventory", "/reports/procurement", "/reports/ap", "/finance/accounts", "/finance/journal-entries", "/finance/pnl", "/finance/commissions", "/sales/dashboard", "/sales/opportunities", "/sales/quotations", "/sales/orders", "/sales/delivery-notes", "/sales/invoices", "/sales/payments", "/sales/purchase-orders", "/sales/purchase-orders/new", "/sales/contracts", "/sales/targets", "/sales/inquiry", "/tickets", "/data/import-export"];
-  const selectedKey = menuKeys
-    .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
-    .sort((a, b) => b.length - a.length)[0] || location.pathname;
+  const menuKeys = [
+    "/",
+    "/dashboard/global360",
+    "/dashboard/watchtower",
+    "/customers",
+    "/customers/segments",
+    "/products",
+    "/brands",
+    "/suppliers/stats",
+    "/suppliers",
+    "/suppliers/compare",
+    "/inventory",
+    "/warehouse",
+    "/warehouse/warehouses",
+    "/warehouse/inventory-ledger",
+    "/warehouse/inventory-batches",
+    "/ai/chat",
+    "/settings",
+    "/system/users",
+    "/system/roles",
+    "/system/approvals",
+    "/system/approval-rules",
+    "/system/audit-logs",
+    "/procurement/dashboard",
+    "/reports/sales",
+    "/reports/ar",
+    "/reports/inventory",
+    "/reports/procurement",
+    "/reports/ap",
+    "/finance/accounts",
+    "/finance/journal-entries",
+    "/finance/pnl",
+    "/finance/commissions",
+    "/sales/dashboard",
+    "/sales/opportunities",
+    "/sales/quotations",
+    "/sales/orders",
+    "/sales/delivery-notes",
+    "/sales/invoices",
+    "/sales/payments",
+    "/sales/purchase-orders",
+    "/sales/purchase-orders/new",
+    "/sales/contracts",
+    "/sales/targets",
+    "/sales/inquiry",
+    "/tickets",
+    "/data/import-export",
+  ];
+  const selectedKey =
+    menuKeys
+      .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
+      .sort((a, b) => b.length - a.length)[0] || location.pathname;
 
   useEffect(() => {
     const fetchUnread = async () => {
       try {
         const resp = await getUnreadCount();
         setUnreadCount(resp.data.data.count || 0);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     fetchUnread();
     const interval = setInterval(fetchUnread, 60000);
@@ -94,7 +158,9 @@ export default function MainLayout() {
 
   const menuItems = [
     {
-      key: "_grp_dashboard", icon: <DashboardOutlined />, label: "仪表板",
+      key: "_grp_dashboard",
+      icon: <DashboardOutlined />,
+      label: "仪表板",
       children: [
         { key: "/", icon: <DashboardOutlined />, label: "经营总览" },
         { key: "/dashboard/global360", icon: <PieChartOutlined />, label: "全局360" },
@@ -102,7 +168,9 @@ export default function MainLayout() {
       ],
     },
     {
-      key: "_grp_customers", icon: <TeamOutlined />, label: "客户管理",
+      key: "_grp_customers",
+      icon: <TeamOutlined />,
+      label: "客户管理",
       children: [
         { key: "/customers", icon: <TeamOutlined />, label: "客户列表" },
         { key: "/customers/segments", icon: <PieChartOutlined />, label: "客户分群" },
@@ -110,30 +178,44 @@ export default function MainLayout() {
       ],
     },
     {
-      key: "_grp_products", icon: <ShopOutlined />, label: "产品管理",
+      key: "_grp_products",
+      icon: <ShopOutlined />,
+      label: "产品管理",
       children: [
         { key: "/products", icon: <ShopOutlined />, label: "产品列表" },
         { key: "/products/price-import", icon: <UploadOutlined />, label: "价格数据导入" },
         { key: "/brands", icon: <TagOutlined />, label: "品牌管理" },
-        { key: "_grp_suppliers", icon: <TeamOutlined />, label: "供应商",
+        {
+          key: "_grp_suppliers",
+          icon: <TeamOutlined />,
+          label: "供应商",
           children: [
             { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
             { key: "/suppliers", icon: <TeamOutlined />, label: "供应商列表" },
             { key: "/suppliers/compare", icon: <SwapOutlined />, label: "供应商对比" },
           ],
         },
-        { key: "_grp_warehouse", icon: <StockOutlined />, label: "仓库管理",
+        {
+          key: "_grp_warehouse",
+          icon: <StockOutlined />,
+          label: "仓库管理",
           children: [
             { key: "/warehouse/warehouses", icon: <ShopOutlined />, label: "仓库列表" },
             { key: "/warehouse/inventory-ledger", icon: <FileTextOutlined />, label: "库存台账" },
-            { key: "/warehouse/inventory-batches", icon: <FileTextOutlined />, label: "批次管理与COGS" },
+            {
+              key: "/warehouse/inventory-batches",
+              icon: <FileTextOutlined />,
+              label: "批次管理与COGS",
+            },
           ],
         },
         { key: "/inventory", icon: <StockOutlined />, label: "库存管理" },
       ],
     },
     {
-      key: "/sales", icon: <ThunderboltOutlined />, label: "销售管理",
+      key: "/sales",
+      icon: <ThunderboltOutlined />,
+      label: "销售管理",
       children: [
         { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "销售工作台" },
         { key: "/sales/opportunities", icon: <ThunderboltOutlined />, label: "商机管理" },
@@ -151,13 +233,17 @@ export default function MainLayout() {
     { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
     { key: "/tickets", icon: <IssuesCloseOutlined />, label: "工单管理" },
     {
-      key: "_grp_procurement", icon: <ShoppingCartOutlined />, label: "采购智能",
+      key: "_grp_procurement",
+      icon: <ShoppingCartOutlined />,
+      label: "采购智能",
       children: [
         { key: "/procurement/dashboard", icon: <DashboardOutlined />, label: "采购仪表板" },
       ],
     },
     {
-      key: "_grp_reports", icon: <PieChartOutlined />, label: "报表分析",
+      key: "_grp_reports",
+      icon: <PieChartOutlined />,
+      label: "报表分析",
       children: [
         { key: "/reports/sales", icon: <PieChartOutlined />, label: "销售报表" },
         { key: "/reports/ar", icon: <DollarOutlined />, label: "应收账款" },
@@ -166,23 +252,28 @@ export default function MainLayout() {
       ],
     },
     {
-      key: "_grp_finance", icon: <DollarOutlined />, label: "财务管理",
+      key: "_grp_finance",
+      icon: <DollarOutlined />,
+      label: "财务管理",
       children: [
         { key: "/finance/accounts", icon: <FileTextOutlined />, label: "会计科目" },
         { key: "/finance/journal-entries", icon: <ProfileOutlined />, label: "记账凭证" },
         { key: "/finance/pnl", icon: <PieChartOutlined />, label: "损益表" },
         { key: "/finance/commissions", icon: <TrophyOutlined />, label: "佣金管理" },
+        { key: "/finance/commission-schemes", icon: <SettingOutlined />, label: "提成方案" },
         { key: "/reports/ap", icon: <DollarOutlined />, label: "应付账款" },
       ],
     },
     {
-      key: "_grp_data", icon: <UploadOutlined />, label: "数据管理",
-      children: [
-        { key: "/data/import-export", icon: <SwapOutlined />, label: "批量导入导出" },
-      ],
+      key: "_grp_data",
+      icon: <UploadOutlined />,
+      label: "数据管理",
+      children: [{ key: "/data/import-export", icon: <SwapOutlined />, label: "批量导入导出" }],
     },
     {
-      key: "_grp_system", icon: <SettingOutlined />, label: "系统管理",
+      key: "_grp_system",
+      icon: <SettingOutlined />,
+      label: "系统管理",
       children: [
         { key: "/system/users", icon: <TeamOutlined />, label: "用户管理" },
         { key: "/system/roles", icon: <TeamOutlined />, label: "角色权限" },
@@ -201,9 +292,15 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} theme="dark"
-        breakpoint="lg" collapsedWidth={isMobile ? 0 : 80}
-        style={isMobile ? { position: "fixed", zIndex: 100, height: "100vh" } : undefined}>
+      <Sider
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        theme="dark"
+        breakpoint="lg"
+        collapsedWidth={isMobile ? 0 : 80}
+        style={isMobile ? { position: "fixed", zIndex: 100, height: "100vh" } : undefined}
+      >
         <div style={{ padding: 16, textAlign: "center" }}>
           <Text strong style={{ color: token.colorWhite, fontSize: collapsed ? 14 : 18 }}>
             {collapsed ? "AI" : "AIERP"}
@@ -218,15 +315,36 @@ export default function MainLayout() {
         />
       </Sider>
       <Layout>
-        <Header style={{ background: token.colorBgContainer, padding: "0 24px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 16 }}>
+        <Header
+          style={{
+            background: token.colorBgContainer,
+            padding: "0 24px",
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: 16,
+          }}
+        >
           <Badge count={unreadCount} size="small">
-            <Button type="text" icon={<BellOutlined />} onClick={() => navigate("/notifications")} />
+            <Button
+              type="text"
+              icon={<BellOutlined />}
+              onClick={() => navigate("/notifications")}
+            />
           </Badge>
           <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>
             退出
           </Button>
         </Header>
-        <Content style={{ margin: isMobile ? 8 : 24, padding: isMobile ? 12 : 24, background: token.colorBgContainer, borderRadius: 8, minHeight: 280 }}>
+        <Content
+          style={{
+            margin: isMobile ? 8 : 24,
+            padding: isMobile ? 12 : 24,
+            background: token.colorBgContainer,
+            borderRadius: 8,
+            minHeight: 280,
+          }}
+        >
           <Outlet />
         </Content>
       </Layout>
@@ -259,11 +377,7 @@ export default function MainLayout() {
               onChange={(e) => setNlpQuery(e.target.value)}
               onPressEnter={handleNlpSubmit}
             />
-            <Button
-              type="primary"
-              loading={nlpLoading}
-              onClick={handleNlpSubmit}
-            >
+            <Button type="primary" loading={nlpLoading} onClick={handleNlpSubmit}>
               发送
             </Button>
           </Space.Compact>
@@ -335,8 +449,7 @@ export default function MainLayout() {
                     dataSource={nlpResult.actions}
                     renderItem={(action, idx) => (
                       <List.Item>
-                        <Typography.Text strong>{action.action}</Typography.Text>
-                        {" "}
+                        <Typography.Text strong>{action.action}</Typography.Text>{" "}
                         <Tag color="orange">{action.urgency}</Tag>
                       </List.Item>
                     )}
@@ -347,11 +460,7 @@ export default function MainLayout() {
                 <Card size="small" title="追问建议">
                   <Space wrap>
                     {nlpResult.suggested_followups.map((q, idx) => (
-                      <Button
-                        key={idx}
-                        size="small"
-                        onClick={() => setNlpQuery(q)}
-                      >
+                      <Button key={idx} size="small" onClick={() => setNlpQuery(q)}>
                         {q}
                       </Button>
                     ))}
