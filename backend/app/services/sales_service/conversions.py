@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.states import assert_can_transition_quotation
-from app.models.finance import Invoice, InvoiceLine
+from app.models.finance import CreditNote, Invoice, InvoiceLine
 from app.models.sales import (
     DeliveryNote,
     DeliveryNoteItem,
@@ -193,7 +193,7 @@ class SalesConversionService(BaseCRUDService):
             total_amount=(
                 float(note.sales_order.total_amount) if note.sales_order else 0
             ),
-            status="pending",
+            status="approved",
             reason=reason or "",
         )
         db.add(rn)
@@ -239,6 +239,54 @@ async def convert_delivery_to_return(
     db: AsyncSession, note: DeliveryNote, reason: str = ""
 ) -> "ReturnNote | None":
     return await sales_conversion_service.convert_delivery_to_return(db, note, reason)
+
+
+async def complete_return_note(db: AsyncSession, return_note_id: int) -> dict | None:
+    """Complete a return note: transition to completed + auto-generate credit note.
+
+    Returns dict with {return_status, credit_note_no, credit_note_amount}
+    or None if validation fails.
+    """
+    from app.domain.states import assert_can_transition_return
+    from app.models.sales import ReturnNote
+    from app.services.docno import generate_doc_no
+
+    rn = await db.get(ReturnNote, return_note_id)
+    if not rn or rn.deleted_at:
+        return None
+    if rn.status != "approved":
+        return None
+
+    assert_can_transition_return(rn.status, "completed")
+    rn.status = "completed"
+
+    # Auto-generate credit note
+    cn_no = await generate_doc_no(db, "CN", CreditNote, "credit_note_no")
+    cn = CreditNote(
+        credit_note_no=cn_no,
+        customer_id=rn.customer_id,
+        sales_order_id=rn.sales_order_id,
+        return_note_id=rn.id,
+        amount=-float(rn.total_amount),
+        tax_amount=-round(float(rn.total_amount) * 0.13, 4),
+        status="issued",
+        reason=rn.reason or "退货冲红",
+    )
+    db.add(cn)
+    await db.commit()
+    await db.refresh(cn)
+
+    return {
+        "return_status": rn.status,
+        "credit_note_no": cn.credit_note_no,
+        "credit_note_amount": cn.amount,
+    }
+
+
+async def convert_delivery_to_invoice(
+    db: AsyncSession, note: DeliveryNote
+) -> Invoice | None:
+    return await sales_conversion_service.convert_delivery_to_invoice(db, note)
 
 
 sales_conversion_service = SalesConversionService()

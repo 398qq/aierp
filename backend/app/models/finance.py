@@ -229,3 +229,33 @@ class InvoiceLine(TimestampMixin, Base):
 
     invoice = relationship("Invoice", back_populates="lines")
     product = relationship("Product", foreign_keys=[product_id])
+
+
+class CreditNote(TimestampMixin, Base):
+    """Credit note (冲红发票) — offsets an original Invoice after a return.
+
+    Lifecycle: draft → issued | cancelled.
+    Amount is always negative (credit). Linked to both ReturnNote and the
+    original Invoice for audit trail.
+    """
+
+    __tablename__ = "credit_notes"
+
+    credit_note_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    invoice_id: Mapped[int | None] = mapped_column(
+        ForeignKey("invoices.id"), nullable=True
+    )
+    return_note_id: Mapped[int] = mapped_column(ForeignKey("return_notes.id"))
+    amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    tax_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    customer = relationship("Customer", foreign_keys=[customer_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+    invoice = relationship("Invoice", foreign_keys=[invoice_id])
+    return_note = relationship("ReturnNote", foreign_keys=[return_note_id])

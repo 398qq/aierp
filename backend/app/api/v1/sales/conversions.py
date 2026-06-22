@@ -147,3 +147,16 @@ async def convert_delivery_to_return(
             msg="发货单已转换为退货单",
         )
     )
+
+
+@router.post("/return-notes/{return_id}/complete")
+async def complete_return(
+    return_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Complete a return note — transitions to completed + auto-generates credit note."""
+    result = await svc.complete_return_note(db, return_id)
+    if not result:
+        return fail("退货单不存在或未审批", 409)
+    return ok(result)

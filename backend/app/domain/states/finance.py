@@ -108,3 +108,24 @@ def assert_can_transition_commission(current: str, target: str) -> None:
             target=target,
             allowed=sorted(allowed),
         )
+
+
+# ── CreditNote ─────────────────────────────────────────────────
+
+CREDIT_NOTE_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"issued", "cancelled"},
+    "issued": set(),
+    "cancelled": set(),
+}
+
+
+def assert_can_transition_credit_note(current: str, target: str) -> None:
+    allowed = CREDIT_NOTE_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise InvalidStateTransition(
+            f"冲红发票状态转换非法: {current} → {target}",
+            entity="CreditNote",
+            current=current,
+            target=target,
+            allowed=sorted(allowed),
+        )
