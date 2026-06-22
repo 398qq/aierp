@@ -12,7 +12,7 @@ should encapsulate.
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -120,5 +120,30 @@ async def convert_delivery_to_invoice(
             id=inv.id,
             document_no=inv.invoice_no or "",
             msg="发货单已转换为发票",
+        )
+    )
+
+
+@router.post("/delivery-notes/{note_id}/convert-to-return")
+async def convert_delivery_to_return(
+    note_id: int,
+    reason: str = Query(""),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Create a return note from a delivered/shipped delivery note."""
+    from app.models.sales import DeliveryNote as DNModel
+
+    note = await db.get(DNModel, note_id)
+    if not note or note.deleted_at:
+        return fail("发货单不存在", 404)
+    rn = await svc.convert_delivery_to_return(db, note, reason)
+    if not rn:
+        return fail("发货单状态不允许退货或已存在退货单", 409)
+    return ok(
+        ConvertResponse(
+            id=rn.id,
+            document_no=rn.return_no or "",
+            msg="发货单已转换为退货单",
         )
     )

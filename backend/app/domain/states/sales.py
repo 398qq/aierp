@@ -103,6 +103,28 @@ def assert_can_transition_delivery(current: str, target: str) -> None:
         )
 
 
+# ── ReturnNote ─────────────────────────────────────────────────
+
+RETURN_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"approved", "rejected"},
+    "approved": {"completed", "rejected"},
+    "completed": set(),
+    "rejected": set(),
+}
+
+
+def assert_can_transition_return(current: str, target: str) -> None:
+    allowed = RETURN_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise InvalidStateTransition(
+            f"退货单状态转换非法: {current} → {target}",
+            entity="ReturnNote",
+            current=current,
+            target=target,
+            allowed=sorted(allowed),
+        )
+
+
 # ── Customer ──────────────────────────────────────────────────
 # 7 状态全自动转换:
 #   new_lead → active → converted → vip | inactive → churned

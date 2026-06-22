@@ -163,6 +163,58 @@ class SalesConversionService(BaseCRUDService):
         await db.refresh(inv)
         return inv
 
+    async def convert_delivery_to_return(
+        self, db: AsyncSession, note: DeliveryNote, reason: str = ""
+    ) -> "ReturnNote | None":
+        """Convert a delivered delivery note into a return note.
+
+        Guards: delivery must be delivered, no duplicate return.
+        """
+        from app.models.sales import ReturnNote, ReturnNoteItem
+
+        if note.status not in ("shipped", "delivered"):
+            return None
+
+        existing = await db.execute(
+            select(func.count()).where(
+                ReturnNote.delivery_note_id == note.id,
+                ReturnNote.deleted_at.is_(None),
+            )
+        )
+        if (existing.scalar() or 0) > 0:
+            return None
+
+        return_no = await generate_doc_no(db, "RTN", ReturnNote, "return_no")
+        rn = ReturnNote(
+            return_no=return_no,
+            delivery_note_id=note.id,
+            sales_order_id=note.sales_order_id,
+            customer_id=note.customer_id,
+            total_amount=(
+                float(note.sales_order.total_amount) if note.sales_order else 0
+            ),
+            status="pending",
+            reason=reason or "",
+        )
+        db.add(rn)
+        await db.flush()
+
+        for dni in note.items:
+            db.add(
+                ReturnNoteItem(
+                    return_note_id=rn.id,
+                    product_id=dni.product_id,
+                    product_name=dni.product_name,
+                    quantity=dni.quantity,
+                    unit_price=getattr(dni, "unit_price", None),
+                    total_price=getattr(dni, "total_price", None),
+                )
+            )
+
+        await db.commit()
+        await db.refresh(rn)
+        return rn
+
 
 # ── Module-level proxies (back-compat) ────────────────────────────────
 
@@ -181,6 +233,12 @@ async def convert_delivery_to_invoice(
     db: AsyncSession, note: DeliveryNote
 ) -> Invoice | None:
     return await sales_conversion_service.convert_delivery_to_invoice(db, note)
+
+
+async def convert_delivery_to_return(
+    db: AsyncSession, note: DeliveryNote, reason: str = ""
+) -> "ReturnNote | None":
+    return await sales_conversion_service.convert_delivery_to_return(db, note, reason)
 
 
 sales_conversion_service = SalesConversionService()

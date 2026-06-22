@@ -1406,6 +1406,70 @@ class TestConversions:
         assert r.json()["code"] == 0
         assert "invoice_no" in r.json()["data"]
 
+    # ── Return note conversion ──────────────────────────────────────
+
+    async def test_convert_delivery_to_return_success(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """delivered note → return note should succeed."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return?reason=质量问题",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["code"] == 0
+        assert "RTN" in r.json()["data"]["document_no"]
+
+    async def test_convert_delivery_to_return_rejects_pending(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """pending note must NOT convert to return."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        r = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return", headers=auth_headers
+        )
+        assert r.json()["code"] == 409
+
+    async def test_convert_delivery_to_return_duplicate_fails(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """Second return for same delivery must fail."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r1 = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return", headers=auth_headers
+        )
+        assert r1.json()["code"] == 0
+        r2 = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return", headers=auth_headers
+        )
+        assert r2.json()["code"] == 409
+
 
 class TestSalesDashboard:
     """Sales dashboard endpoints."""

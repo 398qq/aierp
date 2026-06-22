@@ -16,11 +16,13 @@ from app.domain.states.sales import (
     DELIVERY_TRANSITIONS,
     OPPORTUNITY_TRANSITIONS,
     QUOTATION_TRANSITIONS,
+    RETURN_TRANSITIONS,
     SALES_ORDER_TRANSITIONS,
     assert_can_transition_customer,
     assert_can_transition_delivery,
     assert_can_transition_opportunity,
     assert_can_transition_quotation,
+    assert_can_transition_return,
     assert_can_transition_sales_order,
 )
 
@@ -55,11 +57,13 @@ __all__ = [
     "CUSTOMER_TRANSITIONS",
     "OPPORTUNITY_TRANSITIONS",
     "QUOTATION_TRANSITIONS",
+    "RETURN_TRANSITIONS",
     "SALES_ORDER_TRANSITIONS",
     "DELIVERY_TRANSITIONS",
     "assert_can_transition_customer",
     "assert_can_transition_opportunity",
     "assert_can_transition_quotation",
+    "assert_can_transition_return",
     "assert_can_transition_sales_order",
     "assert_can_transition_delivery",
     # Finance
