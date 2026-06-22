@@ -160,3 +160,63 @@ async def complete_return(
     if not result:
         return fail("退货单不存在或未审批", 409)
     return ok(result)
+
+
+@router.post("/delivery-notes/batch-convert-to-invoice")
+async def batch_convert_to_invoice(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Batch convert multiple delivery notes to invoices."""
+    from app.models.sales import DeliveryNote
+
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return fail("ids 必须为非空列表", 400)
+
+    succeeded, failed = 0, []
+    for note_id in ids:
+        note = await db.get(DeliveryNote, int(note_id))
+        if not note or note.deleted_at or note.status not in ("shipped", "delivered"):
+            failed.append({"id": note_id, "error": "状态不允许或不存在"})
+            continue
+        result = await svc.convert_delivery_to_invoice(db, note)
+        if result:
+            succeeded += 1
+        else:
+            failed.append({"id": note_id, "error": "转换失败"})
+
+    return ok({"succeeded": succeeded, "failed": len(failed), "details": failed})
+
+
+@router.post("/sales-orders/batch-confirm")
+async def batch_confirm_orders(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Batch confirm multiple pending sales orders."""
+    from app.models.sales import SalesOrder
+    from app.domain.states import assert_can_transition_sales_order
+
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return fail("ids 必须为非空列表", 400)
+
+    succeeded, failed = 0, []
+    for oid in ids:
+        order = await db.get(SalesOrder, int(oid))
+        if not order or order.deleted_at:
+            failed.append({"id": oid, "error": "订单不存在"})
+            continue
+        try:
+            assert_can_transition_sales_order(order.status, "confirmed")
+        except Exception:
+            failed.append({"id": oid, "error": f"状态 {order.status} 不允许确认"})
+            continue
+        order.status = "confirmed"
+        succeeded += 1
+
+    await db.commit()
+    return ok({"succeeded": succeeded, "failed": len(failed), "details": failed})
