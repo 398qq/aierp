@@ -1,12 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Empty, message, Popconfirm, Space, Spin, Switch, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Divider,
+  Empty,
+  message,
+  Popconfirm,
+  Space,
+  Spin,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, CheckCircleOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
-import { getDeliveryNote, getPayments, markDeliveryNotePaid, updateDeliveryNote, getApiErrorMessage } from "../../api";
+import {
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  DollarOutlined,
+  EditOutlined,
+  FileTextOutlined,
+  SwapOutlined,
+} from "@ant-design/icons";
+import {
+  getDeliveryNote,
+  getPayments,
+  markDeliveryNotePaid,
+  updateDeliveryNote,
+  getApiErrorMessage,
+  convertDeliveryToInvoice,
+  convertDeliveryToReturn,
+} from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { DeliveryNote, PaymentRecord } from "../../types";
-import { CustomerLink, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import {
+  CustomerLink,
+  ErpStatusTimeline,
+  MetricBand,
+  SalesModuleShell,
+  SalesStatusTag,
+  money,
+  shortDate,
+} from "./salesUi";
 
 const STATUS_STEPS = [
   { key: "pending", label: "待发货" },
@@ -76,16 +115,30 @@ export default function DeliveryNoteDetail() {
       activeKey="delivery"
       extra={
         <>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/delivery-notes")}>返回</Button>
-          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/delivery-notes/${note.id}/edit`)}>编辑</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/delivery-notes")}>
+            返回
+          </Button>
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => navigate(`/sales/delivery-notes/${note.id}/edit`)}
+          >
+            编辑
+          </Button>
           {note.status === "pending" ? (
-            <Button type="primary" onClick={async () => {
-              try {
-                await updateDeliveryNote(note.id, { status: "shipped" });
-                message.success("已发货，库存已自动扣减");
-                setNote({ ...note, status: "shipped" });
-              } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
-            }}>标记发货</Button>
+            <Button
+              type="primary"
+              onClick={async () => {
+                try {
+                  await updateDeliveryNote(note.id, { status: "shipped" });
+                  message.success("已发货，库存已自动扣减");
+                  setNote({ ...note, status: "shipped" });
+                } catch (e: unknown) {
+                  message.error(getApiErrorMessage(e, "操作失败"));
+                }
+              }}
+            >
+              标记发货
+            </Button>
           ) : null}
           {payments.length === 0 ? (
             <Tooltip title="登记回款后回款栏将显示「已收款」">
@@ -104,17 +157,66 @@ export default function DeliveryNoteDetail() {
                     ]);
                     setNote(noteResp.data.data);
                     setPayments(payResp.data.data.list || []);
-                  } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
+                  } catch (e: unknown) {
+                    message.error(getApiErrorMessage(e, "操作失败"));
+                  }
                 }}
               >
-                <Button icon={<DollarOutlined />} type="primary" ghost>登记回款</Button>
+                <Button icon={<DollarOutlined />} type="primary" ghost>
+                  登记回款
+                </Button>
               </Popconfirm>
             </Tooltip>
           ) : (
-            <Button icon={<CheckCircleOutlined />} type="text" disabled style={{ color: "#52c41a" }}>
+            <Button
+              icon={<CheckCircleOutlined />}
+              type="text"
+              disabled
+              style={{ color: "#52c41a" }}
+            >
               已收款
             </Button>
           )}
+          {["shipped", "delivered"].includes(note.status) ? (
+            <Popconfirm
+              title="生成发票？"
+              description="将基于此发货单创建发票"
+              okText="确认"
+              cancelText="取消"
+              onConfirm={async () => {
+                try {
+                  const resp = await convertDeliveryToInvoice(note.id);
+                  message.success(`已生成发票 ${resp.data.data.document_no}`);
+                  const noteResp = await getDeliveryNote(note.id, includeAi);
+                  setNote(noteResp.data.data);
+                } catch (e: unknown) {
+                  message.error(getApiErrorMessage(e, "生成发票失败"));
+                }
+              }}
+            >
+              <Button icon={<FileTextOutlined />}>生成发票</Button>
+            </Popconfirm>
+          ) : null}
+          {note.status === "delivered" ? (
+            <Popconfirm
+              title="申请退货？"
+              description="将创建退货单，可在退货管理中查看"
+              okText="确认"
+              cancelText="取消"
+              onConfirm={async () => {
+                try {
+                  const resp = await convertDeliveryToReturn(note.id);
+                  message.success(`已创建退货单 ${resp.data.data.document_no}`);
+                  const noteResp = await getDeliveryNote(note.id, includeAi);
+                  setNote(noteResp.data.data);
+                } catch (e: unknown) {
+                  message.error(getApiErrorMessage(e, "创建退货失败"));
+                }
+              }}
+            >
+              <Button icon={<SwapOutlined />}>申请退货</Button>
+            </Popconfirm>
+          ) : null}
           <Space>
             <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
             <span style={{ fontSize: 13 }}>AI</span>
@@ -131,7 +233,14 @@ export default function DeliveryNoteDetail() {
         ]}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 12, alignItems: "start" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 320px",
+          gap: 12,
+          alignItems: "start",
+        }}
+      >
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Card title="发货信息" extra={<SalesStatusTag value={note.status} />} size="small">
             <Descriptions column={2} size="small">
@@ -140,10 +249,18 @@ export default function DeliveryNoteDetail() {
                   订单 #{note.sales_order_id}
                 </Typography.Link>
               </Descriptions.Item>
-              <Descriptions.Item label="客户"><CustomerLink id={note.customer_id} /></Descriptions.Item>
-              <Descriptions.Item label="发货日期">{shortDate(note.delivery_date)}</Descriptions.Item>
-              <Descriptions.Item label="签收日期">{shortDate(note.received_date)}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={2}>{note.notes || "-"}</Descriptions.Item>
+              <Descriptions.Item label="客户">
+                <CustomerLink id={note.customer_id} />
+              </Descriptions.Item>
+              <Descriptions.Item label="发货日期">
+                {shortDate(note.delivery_date)}
+              </Descriptions.Item>
+              <Descriptions.Item label="签收日期">
+                {shortDate(note.received_date)}
+              </Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>
+                {note.notes || "-"}
+              </Descriptions.Item>
             </Descriptions>
           </Card>
 
@@ -173,11 +290,23 @@ export default function DeliveryNoteDetail() {
                 size="small"
                 pagination={false}
                 columns={[
-                  { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => money(v) },
-                  { title: "方式", dataIndex: "payment_method", width: 80 },
-                  { title: "日期", dataIndex: "payment_date", width: 110, render: (v: string) => v?.slice(0, 10) || "-" },
                   {
-                    title: "状态", dataIndex: "status", width: 80,
+                    title: "金额",
+                    dataIndex: "amount",
+                    width: 120,
+                    render: (v: number) => money(v),
+                  },
+                  { title: "方式", dataIndex: "payment_method", width: 80 },
+                  {
+                    title: "日期",
+                    dataIndex: "payment_date",
+                    width: 110,
+                    render: (v: string) => v?.slice(0, 10) || "-",
+                  },
+                  {
+                    title: "状态",
+                    dataIndex: "status",
+                    width: 80,
                     render: (v: string) => {
                       const m: Record<string, { color: string; label: string }> = {
                         pending: { color: "orange", label: "待收款" },
@@ -196,7 +325,14 @@ export default function DeliveryNoteDetail() {
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-          <Card size="small" title={<><DollarOutlined /> 发货摘要</>}>
+          <Card
+            size="small"
+            title={
+              <>
+                <DollarOutlined /> 发货摘要
+              </>
+            }
+          >
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">关联订单</Typography.Text>
@@ -247,10 +383,14 @@ export default function DeliveryNoteDetail() {
                 <Alert showIcon type="success" message="已签收，发货流程完成。" />
               ) : null}
               {note.sales_order_id ? (
-                <Button block onClick={() => navigate(`/sales/orders/${note.sales_order_id}`)}>查看关联订单</Button>
+                <Button block onClick={() => navigate(`/sales/orders/${note.sales_order_id}`)}>
+                  查看关联订单
+                </Button>
               ) : null}
               {note.customer_id ? (
-                <Button block onClick={() => navigate(`/customers/${note.customer_id}`)}>查看客户</Button>
+                <Button block onClick={() => navigate(`/customers/${note.customer_id}`)}>
+                  查看客户
+                </Button>
               ) : null}
             </Space>
           </Card>
