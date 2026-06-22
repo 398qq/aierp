@@ -26,7 +26,7 @@ from app.api.deps import get_current_user
 from app.api.v1.sales._shared import (
     QUOTATIONS_LIST_CACHE_TTL,
     QUOTATIONS_STATS_CACHE_TTL,
-    _quotations_cache_key
+    _quotations_cache_key,
 )
 from app.database import get_db
 from app.models.sales import Quotation
@@ -37,13 +37,13 @@ from app.schemas.sales import (
     QuotationCreate,
     QuotationFromInquiryRequest,
     QuotationStatusUpdate,
-    QuotationUpdate
+    QuotationUpdate,
 )
 from app.services import sales_service as svc
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
-    cache_set_versioned
+    cache_set_versioned,
 )
 
 logger = logging.getLogger(__name__)
@@ -195,7 +195,7 @@ async def list_quotations(
     sort_by: str = "id",
     sort_order: str = "desc",
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     cache_key = _quotations_cache_key(
         page=page,
@@ -204,8 +204,8 @@ async def list_quotations(
         status=status,
         q=q,
         sort_by=sort_by,
-        sort_order=sort_order
-)
+        sort_order=sort_order,
+    )
     cached_payload = await cache_get_versioned("quotations:list", cache_key)
     if cached_payload is not None:
         result = json.loads(cached_payload)
@@ -227,8 +227,8 @@ async def list_quotations(
         status=status,
         q=q,
         sort_by=sort_by,
-        sort_order=sort_order
-)
+        sort_order=sort_order,
+    )
     # Eager-load customer + opportunity + items on every Quotation in the
     # page so the response can include customer_name without triggering
     # async lazy-loads. We use a separate IN query instead of joinedload
@@ -268,8 +268,8 @@ async def list_quotations(
                 await db.execute(
                     select(QuotationItem).where(
                         QuotationItem.quotation_id.in_(quote_ids),
-                        QuotationItem.deleted_at.is_(None)
-)
+                        QuotationItem.deleted_at.is_(None),
+                    )
                 )
             )
             .scalars()
@@ -303,7 +303,7 @@ async def list_quotations(
 async def quotation_stats(
     response: JSONResponse,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     cache_key = "quotations:stats:global"
     cached_payload = await cache_get_versioned("quotations:stats", cache_key)
@@ -317,8 +317,8 @@ async def quotation_stats(
         "quotations:stats",
         cache_key,
         json.dumps(result, default=str),
-        QUOTATIONS_STATS_CACHE_TTL
-)
+        QUOTATIONS_STATS_CACHE_TTL,
+    )
     return ok(result)
 
 
@@ -327,7 +327,7 @@ async def get_quotation(
     quote_id: int,
     include_ai: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -348,7 +348,7 @@ async def get_quotation(
 async def duplicate_quotation(
     quote_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -363,7 +363,7 @@ async def update_quotation_status(
     quote_id: int,
     body: QuotationStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -392,7 +392,7 @@ async def get_quotation_pdf(
     contact_phone: str | None = Query(None, max_length=60),
     terms: str | None = Query(None, max_length=2000),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     from app.models.sales import Quotation
     from app.models.customer import Customer
@@ -431,23 +431,25 @@ async def get_quotation_pdf(
             "prepared_by": prepared_by,
             "contact_phone": contact_phone,
             "terms": terms,
-        }
-)
+        },
+    )
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="quotation_{quote.quotation_no or quote_id}.pdf"'
-        }
+        },
+    )
+
+
+@router.post(
+    "/quotations", status_code=201, response_model=APIResponse[QuotationResponse]
 )
-
-
-@router.post("/quotations", status_code=201, response_model=APIResponse[QuotationResponse])
 async def create_quotation(
     body: QuotationCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     data = body.model_dump()
     items_data = data.pop("items", [])
@@ -464,7 +466,7 @@ async def update_quotation(
     quote_id: int,
     body: QuotationUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -484,7 +486,7 @@ async def update_quotation(
 async def delete_quotation(
     quote_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
@@ -498,7 +500,7 @@ async def delete_quotation(
 async def batch_delete_quotations(
     body: BatchDeleteRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     for qid in body.ids:
         quote = await svc.get_quotation(db, qid)
@@ -512,21 +514,21 @@ async def batch_delete_quotations(
 async def send_quotation(
     quote_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
         return fail("报价单不存在", 404)
     quote = await svc.send_quotation(db, quote)
     await _bump_quotation_caches()
-    return ok(quote)
+    return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
 @router.post("/quotations/from-inquiry", status_code=201)
 async def create_quotation_from_inquiry(
     body: QuotationFromInquiryRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user)
+    _user: dict = Depends(get_current_user),
 ):
     try:
         quote = await svc.create_quotation_from_inquiry(
@@ -536,8 +538,8 @@ async def create_quotation_from_inquiry(
             title=body.title,
             valid_until=body.valid_until,
             notes=body.notes,
-            items=body.items
-)
+            items=body.items,
+        )
         await _bump_quotation_caches()
         return ok({"id": quote.id, "quotation_no": quote.quotation_no})
     except ValueError as e:

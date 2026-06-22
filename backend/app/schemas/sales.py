@@ -40,6 +40,8 @@ class OpportunityUpdate(BaseModel):
 
 
 class OpportunityResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: int
     customer_id: int
     customer_name: str | None = None
