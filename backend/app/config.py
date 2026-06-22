@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     APP_NAME: str = "AIERP"
-    VERSION: str = "2.0.0"
+    VERSION: str = "2.1.0"
     DEBUG: bool = True
     APP_ENV: str = "development"
 
