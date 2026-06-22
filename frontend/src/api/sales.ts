@@ -1,28 +1,111 @@
 import client from "./client";
 import type {
-  AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
-  ChurnRisk, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
-  DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
-  FollowUp, FollowUpRecognition, FollowUpReminder, GlobalFollowUp,
-  Global360, GroupStats,
-  Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
+  AlertEvent,
+  AlertRule,
+  APIResponse,
+  Attachment,
+  Brand,
+  BrandComparison,
+  BrandCustomerPenetration,
+  BrandHealth,
+  BrandImport,
+  BrandLifecycle,
+  BrandPortfolio,
+  BrandPriceTrends,
+  BrandProductPerformance,
+  BrandProfile,
+  BrandRecommendation,
+  BrandRisk,
+  BrandSupplierMatrix,
+  ChurnRisk,
+  Contract,
+  Customer,
+  Customer360,
+  CustomerAIRecommendationSummary,
+  CustomerAIStats,
+  CustomerAIWorkQueuePage,
+  CustomerLog,
+  CustomerProductMatch,
+  CustomerRecognition,
+  CustomerStats,
+  DashboardStats,
+  DashboardWidget,
+  DeliveryNote,
+  DeliveryNoteAI,
+  Document,
+  DuplicatePair,
+  FollowUp,
+  FollowUpRecognition,
+  FollowUpReminder,
+  GlobalFollowUp,
+  Global360,
+  GroupStats,
+  Invoice,
+  KpiData,
+  LevelRule,
+  LifecycleAnalysis,
+  LoginData,
   MergeResult,
-  NLPQueryResult, NormalizedSpec,
+  NLPQueryResult,
+  NormalizedSpec,
   InventoryItem,
   NotificationItem,
-  Opportunity, OpportunityAI, OverdueFollowUp,
-  PageData, PaymentRecord, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360, ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder,
-  Quotation, QuotationAI, QuotationStats, RFMAnalysis,
-  SalesOrder, SalesOrderAI, SalesTarget, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard,
-  Tag, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent,
-  Visit, VisitEffectiveness, VisitReport, VisitSentiment,
+  Opportunity,
+  OpportunityAI,
+  OverdueFollowUp,
+  PageData,
+  PaymentRecord,
+  POAutoSuggest,
+  POOptimization,
+  PORiskAssessment,
+  PriceBenchmark,
+  PriceRecommendation,
+  ProcurementPlan,
+  Product,
+  Product360,
+  ProductAssociation,
+  ProductCustomerMatch,
+  ProductProfile,
+  PurchaseOrder,
+  Quotation,
+  QuotationAI,
+  QuotationStats,
+  RFMAnalysis,
+  SalesOrder,
+  SalesOrderAI,
+  SalesTarget,
+  Sample,
+  SimilarBrand,
+  Supplier,
+  Supplier360,
+  SupplierAlternatives,
+  SupplierComparison,
+  SupplierDelayPrediction,
+  SupplierNegotiation,
+  SupplierPriceVariance,
+  SupplierProductLink,
+  SupplierScorecard,
+  Tag,
+  Ticket,
+  TicketClassification,
+  TicketCluster,
+  TicketResolutionPrediction,
+  TicketResponse,
+  TimelineEvent,
+  Visit,
+  VisitEffectiveness,
+  VisitReport,
+  VisitSentiment,
   Warehouse,
 } from "../types";
 
 // Sales — Opportunities
 
 export const getOpportunities = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Opportunity> & { ai?: Record<number, OpportunityAI> }>>("/opportunities", { params });
+  client.get<APIResponse<PageData<Opportunity> & { ai?: Record<number, OpportunityAI> }>>(
+    "/opportunities",
+    { params },
+  );
 
 export const getOpportunity = (id: number, includeAi = false) =>
   client.get<APIResponse<Opportunity>>(`/opportunities/${id}?include_ai=${includeAi}`);
@@ -33,8 +116,7 @@ export const createOpportunity = (data: Record<string, unknown>) =>
 export const updateOpportunity = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<Opportunity>>(`/opportunities/${id}`, data);
 
-export const deleteOpportunity = (id: number) =>
-  client.delete<APIResponse>(`/opportunities/${id}`);
+export const deleteOpportunity = (id: number) => client.delete<APIResponse>(`/opportunities/${id}`);
 
 export const batchDeleteOpportunities = (ids: number[]) =>
   client.post<APIResponse>("/opportunities/batch-delete", { ids });
@@ -47,10 +129,12 @@ export const batchUpdateOpportunities = (ids: number[], stage?: string, win_prob
 // Sales — Quotations
 
 export const getQuotations = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Quotation> & { ai?: Record<number, QuotationAI> }>>("/quotations", { params });
+  client.get<APIResponse<PageData<Quotation> & { ai?: Record<number, QuotationAI> }>>(
+    "/quotations",
+    { params },
+  );
 
-export const getQuotationStats = () =>
-  client.get<APIResponse<QuotationStats>>("/quotations/stats");
+export const getQuotationStats = () => client.get<APIResponse<QuotationStats>>("/quotations/stats");
 
 export const getQuotation = (id: number, includeAi = false) =>
   client.get<APIResponse<Quotation>>(`/quotations/${id}?include_ai=${includeAi}`);
@@ -61,11 +145,9 @@ export const createQuotation = (data: Record<string, unknown>) =>
 export const updateQuotation = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<Quotation>>(`/quotations/${id}`, data);
 
-export const deleteQuotation = (id: number) =>
-  client.delete<APIResponse>(`/quotations/${id}`);
+export const deleteQuotation = (id: number) => client.delete<APIResponse>(`/quotations/${id}`);
 
-export const sendQuotation = (id: number) =>
-  client.put<APIResponse>(`/quotations/${id}/send`);
+export const sendQuotation = (id: number) => client.put<APIResponse>(`/quotations/${id}/send`);
 
 export const updateQuotationStatus = (id: number, status: string) =>
   client.put<APIResponse<Quotation>>(`/quotations/${id}/status`, { status });
@@ -83,7 +165,9 @@ export const createQuotationFromInquiry = (inquiryId: number, items?: Record<str
   });
 
 export const convertQuotationToOrder = (id: number) =>
-  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/quotations/${id}/convert-to-order`);
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(
+    `/quotations/${id}/convert-to-order`,
+  );
 
 export type QuotationPDFOptions = {
   template?: "smart" | "standard" | "compact";
@@ -100,7 +184,11 @@ export type QuotationPDFOptions = {
   terms?: string;
 };
 
-export const downloadQuotationPDF = async (id: number, filename?: string, options?: QuotationPDFOptions) => {
+export const downloadQuotationPDF = async (
+  id: number,
+  filename?: string,
+  options?: QuotationPDFOptions,
+) => {
   const resp = await client.get(`/quotations/${id}/pdf`, { params: options, responseType: "blob" });
   const url = window.URL.createObjectURL(new Blob([resp.data]));
   const link = document.createElement("a");
@@ -117,7 +205,10 @@ export const downloadQuotationPDF = async (id: number, filename?: string, option
 // Sales — Sales Orders
 
 export const getSalesOrders = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<SalesOrder> & { ai?: Record<number, SalesOrderAI> }>>("/sales-orders", { params });
+  client.get<APIResponse<PageData<SalesOrder> & { ai?: Record<number, SalesOrderAI> }>>(
+    "/sales-orders",
+    { params },
+  );
 
 export const getSalesOrder = (id: number, includeAi = false) =>
   client.get<APIResponse<SalesOrder>>(`/sales-orders/${id}?include_ai=${includeAi}`);
@@ -128,14 +219,15 @@ export const createSalesOrder = (data: Record<string, unknown>) =>
 export const updateSalesOrder = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<SalesOrder>>(`/sales-orders/${id}`, data);
 
-export const deleteSalesOrder = (id: number) =>
-  client.delete<APIResponse>(`/sales-orders/${id}`);
+export const deleteSalesOrder = (id: number) => client.delete<APIResponse>(`/sales-orders/${id}`);
 
 export const batchDeleteSalesOrders = (ids: number[]) =>
   client.post<APIResponse>("/sales-orders/batch-delete", { ids });
 
 export const convertSalesOrderToDelivery = (id: number) =>
-  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(`/sales-orders/${id}/convert-to-delivery`);
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(
+    `/sales-orders/${id}/convert-to-delivery`,
+  );
 
 export type SalesOrderPDFImportResult = {
   id: number;
@@ -151,7 +243,11 @@ export type SalesOrderPDFImportResult = {
   };
   matched: {
     customer_name: string;
-    products: Array<{ source?: string | null; product_id: number | null; product_name: string | null }>;
+    products: Array<{
+      source?: string | null;
+      product_id: number | null;
+      product_name: string | null;
+    }>;
   };
   raw_text_preview: string;
 };
@@ -179,8 +275,15 @@ export type SalesOrderPDFOptions = {
   terms?: string;
 };
 
-export const downloadSalesOrderPDF = async (id: number, filename?: string, options?: SalesOrderPDFOptions) => {
-  const resp = await client.get(`/sales-orders/${id}/pdf`, { params: options, responseType: "blob" });
+export const downloadSalesOrderPDF = async (
+  id: number,
+  filename?: string,
+  options?: SalesOrderPDFOptions,
+) => {
+  const resp = await client.get(`/sales-orders/${id}/pdf`, {
+    params: options,
+    responseType: "blob",
+  });
   const url = window.URL.createObjectURL(new Blob([resp.data]));
   const link = document.createElement("a");
   link.href = url;
@@ -196,7 +299,10 @@ export const downloadSalesOrderPDF = async (id: number, filename?: string, optio
 // Sales — Delivery Notes
 
 export const getDeliveryNotes = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<DeliveryNote> & { ai?: Record<number, DeliveryNoteAI> }>>("/delivery-notes", { params });
+  client.get<APIResponse<PageData<DeliveryNote> & { ai?: Record<number, DeliveryNoteAI> }>>(
+    "/delivery-notes",
+    { params },
+  );
 
 export const getDeliveryNote = (id: number, includeAi = false) =>
   client.get<APIResponse<DeliveryNote>>(`/delivery-notes/${id}?include_ai=${includeAi}`);
@@ -213,6 +319,16 @@ export const deleteDeliveryNote = (id: number) =>
 export const batchDeleteDeliveryNotes = (ids: number[]) =>
   client.post<APIResponse>("/delivery-notes/batch-delete", { ids });
 
+export const convertDeliveryToInvoice = (id: number) =>
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(
+    `/delivery-notes/${id}/convert-to-invoice`,
+  );
+
+export const convertDeliveryToReturn = (id: number, reason: string = "") =>
+  client.post<APIResponse<{ id: number; document_no: string; msg: string }>>(
+    `/delivery-notes/${id}/convert-to-return?reason=${encodeURIComponent(reason)}`,
+  );
+
 // ============================================================
 
 // Finance — Sales Targets
@@ -221,7 +337,15 @@ export const getTargets = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<SalesTarget>>>("/sales/targets", { params });
 
 export const getTargetStats = () =>
-  client.get<APIResponse<{ total_target: number; total_actual: number; achievement_pct: number; count: number; completed: number }>>("/sales/targets/stats");
+  client.get<
+    APIResponse<{
+      total_target: number;
+      total_actual: number;
+      achievement_pct: number;
+      count: number;
+      completed: number;
+    }>
+  >("/sales/targets/stats");
 
 export const getTarget = (id: number) =>
   client.get<APIResponse<SalesTarget>>(`/sales/targets/${id}`);
@@ -232,8 +356,7 @@ export const createTarget = (data: Record<string, unknown>) =>
 export const updateTarget = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<SalesTarget>>(`/sales/targets/${id}`, data);
 
-export const deleteTarget = (id: number) =>
-  client.delete<APIResponse>(`/sales/targets/${id}`);
+export const deleteTarget = (id: number) => client.delete<APIResponse>(`/sales/targets/${id}`);
 
 // ============================================================
 
@@ -243,11 +366,12 @@ export const getSalesDashboardOverview = () =>
   client.get<APIResponse<import("../types").SalesDashboardOverview>>("/sales/dashboard/overview");
 
 export const getSalesDashboardTrends = (months = 12) =>
-  client.get<APIResponse<import("../types").SalesDashboardTrends>>(`/sales/dashboard/trends?months=${months}`);
+  client.get<APIResponse<import("../types").SalesDashboardTrends>>(
+    `/sales/dashboard/trends?months=${months}`,
+  );
 
 export const getSalesDashboardAlerts = () =>
   client.get<APIResponse<import("../types").SalesDashboardAlerts>>("/sales/dashboard/alerts");
-
 
 // Inquiry Auto-Reply
 export interface InquiryMatchedProduct {
@@ -295,9 +419,7 @@ export const inquiryAutoReply = (data: {
   contact_name?: string;
   contact_info?: string;
   channel?: string;
-}) =>
-  client.post<APIResponse<InquiryAutoReplyResponse>>("/inquiry/auto-reply", data);
+}) => client.post<APIResponse<InquiryAutoReplyResponse>>("/inquiry/auto-reply", data);
 
 export const getInquiries = (params: { limit?: number; sort_by?: string; order?: string }) =>
   client.get<APIResponse<{ list: InquiryRecord[]; total: number }>>("/inquiries", { params });
-
