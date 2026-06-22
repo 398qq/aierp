@@ -20,7 +20,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_uow
@@ -379,3 +379,114 @@ async def convert_delivery_to_invoice_v2(
 
     await uow.session.flush()
     return ok({"id": inv.id, "invoice_no": inv.invoice_no})
+
+
+# ── List endpoints (thin wrappers for v2 completeness) ──────────────────────
+
+
+@router.get("/orders")
+async def list_orders_v2(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    customer_id: int | None = None,
+    uow: UnitOfWork = Depends(get_uow),
+    user: dict = Depends(get_current_user),
+):
+    """List sales orders (v2 — UoW session)."""
+    from app.models.sales import SalesOrder
+
+    base = select(SalesOrder).where(SalesOrder.deleted_at.is_(None))
+    cnt_q = (
+        select(func.count())
+        .select_from(SalesOrder)
+        .where(SalesOrder.deleted_at.is_(None))
+    )
+    if status:
+        base = base.where(SalesOrder.status == status)
+        cnt_q = cnt_q.where(SalesOrder.status == status)
+    if customer_id:
+        base = base.where(SalesOrder.customer_id == customer_id)
+        cnt_q = cnt_q.where(SalesOrder.customer_id == customer_id)
+
+    total = (await uow.session.execute(cnt_q)).scalar() or 0
+    rows = (
+        (
+            await uow.session.execute(
+                base.order_by(SalesOrder.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ok(
+        {
+            "list": [
+                {
+                    "id": o.id,
+                    "order_no": o.order_no,
+                    "status": o.status,
+                    "customer_id": o.customer_id,
+                    "total_amount": float(o.total_amount),
+                }
+                for o in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
+
+
+@router.get("/delivery-notes")
+async def list_delivery_notes_v2(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    uow: UnitOfWork = Depends(get_uow),
+    user: dict = Depends(get_current_user),
+):
+    """List delivery notes (v2 — UoW session)."""
+    from app.models.sales import DeliveryNote
+
+    base = select(DeliveryNote).where(DeliveryNote.deleted_at.is_(None))
+    cnt_q = (
+        select(func.count())
+        .select_from(DeliveryNote)
+        .where(DeliveryNote.deleted_at.is_(None))
+    )
+    if status:
+        base = base.where(DeliveryNote.status == status)
+        cnt_q = cnt_q.where(DeliveryNote.status == status)
+
+    total = (await uow.session.execute(cnt_q)).scalar() or 0
+    rows = (
+        (
+            await uow.session.execute(
+                base.order_by(DeliveryNote.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ok(
+        {
+            "list": [
+                {
+                    "id": d.id,
+                    "delivery_no": d.delivery_no,
+                    "status": d.status,
+                    "customer_id": d.customer_id,
+                    "sales_order_id": d.sales_order_id,
+                }
+                for d in rows
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
