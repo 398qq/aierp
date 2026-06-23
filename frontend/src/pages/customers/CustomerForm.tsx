@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Form, Input, Select, InputNumber } from "antd";
+import { Form, Input, Select, InputNumber, Divider, Typography } from "antd";
 
 const { Item: FormItem } = Form;
 const opts = (arr: string[]) => arr.map((v) => ({ label: v, value: v }));
@@ -51,6 +51,18 @@ function FormRow({ cols, children }: { cols: number; children: ReactNode }) {
     </div>
   );
 }
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <Divider
+      orientation="left"
+      orientationMargin={0}
+      plain
+      style={{ fontSize: 12, color: "#8c8c8c", margin: "8px 0 4px" }}
+    >
+      {children}
+    </Divider>
+  );
+}
 
 export default function CustomerFormFields() {
   const form = Form.useFormInstance();
@@ -80,6 +92,7 @@ export default function CustomerFormFields() {
 
   return (
     <>
+      <SectionTitle>基本信息</SectionTitle>
       <FormRow cols={2}>
         <FormItem
           name="name"
@@ -94,7 +107,7 @@ export default function CustomerFormFields() {
       </FormRow>
       <FormRow cols={3}>
         <FormItem name="short_name" label="简称">
-          <Input placeholder="根据客户名称自动生成，可手动修改" />
+          <Input placeholder="自动生成，可手动修改" />
         </FormItem>
         <FormItem name="customer_type" label="客户类型">
           <Select placeholder="选择类型" options={opts(typeOptions)} allowClear />
@@ -105,59 +118,65 @@ export default function CustomerFormFields() {
       </FormRow>
       <FormRow cols={3}>
         <FormItem name="level" label="等级">
-          <Select placeholder="选择等级" options={opts(levelOptions)} allowClear />
+          <Select placeholder="等级" options={opts(levelOptions)} allowClear />
         </FormItem>
         <FormItem name="region" label="区域">
-          <Select placeholder="选择区域" options={opts(regionOptions)} allowClear />
+          <Select placeholder="区域" options={opts(regionOptions)} allowClear />
         </FormItem>
         <FormItem name="source" label="来源">
-          <Select placeholder="选择来源" options={opts(sourceOptions)} allowClear />
+          <Select placeholder="来源" options={opts(sourceOptions)} allowClear />
         </FormItem>
       </FormRow>
+      <FormRow cols={2}>
+        <FormItem name="annual_revenue" label="年营业额(万)">
+          <InputNumber min={0} style={{ width: "100%" }} placeholder="万元" />
+        </FormItem>
+        <FormItem name="employee_count" label="员工数">
+          <InputNumber min={0} style={{ width: "100%" }} placeholder="人" />
+        </FormItem>
+      </FormRow>
+
+      <SectionTitle>联系信息</SectionTitle>
       <FormRow cols={3}>
         <FormItem name="contact_person" label="联系人">
-          <Input placeholder="主要联系人姓名" />
+          <Input placeholder="姓名" />
         </FormItem>
         <FormItem name="phone" label="电话">
-          <Input placeholder="联系电话" />
+          <Input placeholder="电话" />
         </FormItem>
         <FormItem name="email" label="邮箱">
-          <Input placeholder="联系邮箱" />
+          <Input placeholder="邮箱" />
         </FormItem>
       </FormRow>
-      <FormRow cols={3}>
-        <FormItem name="owner" label="负责人">
-          <Input placeholder="客户归属负责人" />
+      <FormRow cols={2}>
+        <FormItem name="website" label="网站">
+          <Input placeholder="https://" maxLength={500} />
         </FormItem>
+        <FormItem name="owner" label="负责人">
+          <Input placeholder="归属负责人" />
+        </FormItem>
+      </FormRow>
+
+      <SectionTitle>信用与商务</SectionTitle>
+      <FormRow cols={3}>
         <FormItem name="credit_limit" label="信用额度">
-          <InputNumber min={0} style={{ width: "100%" }} placeholder="授信额度" />
+          <InputNumber min={0} style={{ width: "100%" }} placeholder="¥" />
         </FormItem>
         <FormItem name="credit_level" label="信用等级">
-          <Select placeholder="选择信用等级" options={opts(levelOptions)} allowClear />
+          <Select placeholder="信用等级" options={opts(levelOptions)} allowClear />
+        </FormItem>
+        <FormItem name="price_tier" label="价格等级">
+          <Select
+            placeholder="价格等级"
+            allowClear
+            options={[
+              { label: "A", value: "A" },
+              { label: "B", value: "B" },
+              { label: "C", value: "C" },
+            ]}
+          />
         </FormItem>
       </FormRow>
-
-      <FormRow cols={3}>
-        <FormItem name="tax_id" label="纳税人识别号">
-          <Input placeholder="纳税人识别号" maxLength={50} />
-        </FormItem>
-        <FormItem name="invoice_title" label="发票抬头">
-          <Input placeholder="发票抬头" maxLength={255} />
-        </FormItem>
-        <FormItem name="invoice_address" label="发票地址">
-          <Input placeholder="发票地址" />
-        </FormItem>
-      </FormRow>
-
-      <FormRow cols={2}>
-        <FormItem name="bank_name" label="开户行">
-          <Input placeholder="开户银行" maxLength={255} />
-        </FormItem>
-        <FormItem name="bank_account" label="银行账号">
-          <Input placeholder="银行账号" maxLength={50} />
-        </FormItem>
-      </FormRow>
-
       <FormRow cols={2}>
         <FormItem name="payment_terms" label="付款条件">
           <Select
@@ -183,8 +202,7 @@ export default function CustomerFormFields() {
           />
         </FormItem>
       </FormRow>
-
-      <FormRow cols={3}>
+      <FormRow cols={2}>
         <FormItem name="currency" label="币种">
           <Select
             placeholder="币种"
@@ -195,18 +213,7 @@ export default function CustomerFormFields() {
             ]}
           />
         </FormItem>
-        <FormItem name="price_tier" label="价格等级">
-          <Select
-            placeholder="价格等级"
-            allowClear
-            options={[
-              { label: "A", value: "A" },
-              { label: "B", value: "B" },
-              { label: "C", value: "C" },
-            ]}
-          />
-        </FormItem>
-        <FormItem name="default_incoterm" label="默认贸易条款">
+        <FormItem name="default_incoterm" label="贸易条款">
           <Select
             placeholder="贸易条款"
             allowClear
@@ -220,18 +227,41 @@ export default function CustomerFormFields() {
         </FormItem>
       </FormRow>
 
+      <SectionTitle>税务与银行</SectionTitle>
       <FormRow cols={2}>
-        <FormItem name="delivery_address" label="收货地址">
-          <Input placeholder="收货地址" />
+        <FormItem name="tax_id" label="纳税人识别号">
+          <Input placeholder="税号" maxLength={50} />
         </FormItem>
-        <FormItem name="website" label="网站">
-          <Input placeholder="https://" maxLength={500} />
+        <FormItem name="registration_number" label="统一社会信用代码">
+          <Input placeholder="18位代码" maxLength={50} />
+        </FormItem>
+      </FormRow>
+      <FormRow cols={2}>
+        <FormItem name="invoice_title" label="发票抬头">
+          <Input placeholder="发票抬头" maxLength={255} />
+        </FormItem>
+        <FormItem name="invoice_address" label="发票地址">
+          <Input placeholder="发票收取地址" />
+        </FormItem>
+      </FormRow>
+      <FormRow cols={2}>
+        <FormItem name="bank_name" label="开户行">
+          <Input placeholder="开户银行全称" maxLength={255} />
+        </FormItem>
+        <FormItem name="bank_account" label="银行账号">
+          <Input placeholder="银行账号" maxLength={50} />
         </FormItem>
       </FormRow>
 
-      <FormItem name="address" label="地址">
-        <Input.TextArea rows={2} placeholder="公司地址" />
+      <SectionTitle>物流与地址</SectionTitle>
+      <FormItem name="address" label="注册地址">
+        <Input.TextArea rows={2} placeholder="公司注册地址" />
       </FormItem>
+      <FormItem name="delivery_address" label="收货地址">
+        <Input placeholder="默认收货地址" />
+      </FormItem>
+
+      <SectionTitle>其他</SectionTitle>
       <FormItem name="notes" label="备注">
         <Input.TextArea rows={3} placeholder="其他备注信息" />
       </FormItem>
