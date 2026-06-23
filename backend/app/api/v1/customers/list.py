@@ -111,8 +111,11 @@ async def list_customers(
             or_(
                 Customer.name.ilike(f"%{_keyword}%"),
                 Customer.code.ilike(f"%{_keyword}%"),
+                Customer.short_name.ilike(f"%{_keyword}%"),
                 Customer.contact_person.ilike(f"%{_keyword}%"),
                 Customer.phone.ilike(f"%{_keyword}%"),
+                Customer.tax_id.ilike(f"%{_keyword}%"),
+                Customer.email.ilike(f"%{_keyword}%"),
             )
         )
     if level:

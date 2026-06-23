@@ -5,7 +5,15 @@ const { Item: FormItem } = Form;
 const opts = (arr: string[]) => arr.map((v) => ({ label: v, value: v }));
 
 const levelOptions = ["A", "B", "C", "D"];
-const industryOptions = ["汽车电子", "消费电子", "工业控制", "通信设备", "医疗器械", "安防监控", "其他"];
+const industryOptions = [
+  "汽车电子",
+  "消费电子",
+  "工业控制",
+  "通信设备",
+  "医疗器械",
+  "安防监控",
+  "其他",
+];
 const typeOptions = ["终端", "贸易商", "方案商", "OEM"];
 const regionOptions = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
 const sourceOptions = ["展会", "转介绍", "线上推广", "电话开发", "公司资源"];
@@ -37,7 +45,11 @@ export function generateCustomerShortName(name?: string | null) {
 }
 
 function FormRow({ cols, children }: { cols: number; children: ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "0 16px" }}>{children}</div>;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "0 16px" }}>
+      {children}
+    </div>
+  );
 }
 
 export default function CustomerFormFields() {
@@ -69,7 +81,11 @@ export default function CustomerFormFields() {
   return (
     <>
       <FormRow cols={2}>
-        <FormItem name="name" label="客户名称" rules={[{ required: true, message: "请输入客户名称" }]}>
+        <FormItem
+          name="name"
+          label="客户名称"
+          rules={[{ required: true, message: "请输入客户名称" }]}
+        >
           <Input placeholder="公司全称" />
         </FormItem>
         <FormItem name="code" label="客户编码">
@@ -120,6 +136,99 @@ export default function CustomerFormFields() {
           <Select placeholder="选择信用等级" options={opts(levelOptions)} allowClear />
         </FormItem>
       </FormRow>
+
+      <FormRow cols={3}>
+        <FormItem name="tax_id" label="纳税人识别号">
+          <Input placeholder="纳税人识别号" maxLength={50} />
+        </FormItem>
+        <FormItem name="invoice_title" label="发票抬头">
+          <Input placeholder="发票抬头" maxLength={255} />
+        </FormItem>
+        <FormItem name="invoice_address" label="发票地址">
+          <Input placeholder="发票地址" />
+        </FormItem>
+      </FormRow>
+
+      <FormRow cols={2}>
+        <FormItem name="bank_name" label="开户行">
+          <Input placeholder="开户银行" maxLength={255} />
+        </FormItem>
+        <FormItem name="bank_account" label="银行账号">
+          <Input placeholder="银行账号" maxLength={50} />
+        </FormItem>
+      </FormRow>
+
+      <FormRow cols={2}>
+        <FormItem name="payment_terms" label="付款条件">
+          <Select
+            placeholder="付款条件"
+            allowClear
+            options={[
+              { label: "款到发货", value: "款到发货" },
+              { label: "月结30天", value: "月结30天" },
+              { label: "月结60天", value: "月结60天" },
+              { label: "Net 30", value: "Net 30" },
+            ]}
+          />
+        </FormItem>
+        <FormItem name="payment_method" label="付款方式">
+          <Select
+            placeholder="付款方式"
+            allowClear
+            options={[
+              { label: "T/T", value: "T/T" },
+              { label: "L/C", value: "L/C" },
+              { label: "银行承兑", value: "银行承兑" },
+            ]}
+          />
+        </FormItem>
+      </FormRow>
+
+      <FormRow cols={3}>
+        <FormItem name="currency" label="币种">
+          <Select
+            placeholder="币种"
+            options={[
+              { label: "CNY", value: "CNY" },
+              { label: "USD", value: "USD" },
+              { label: "EUR", value: "EUR" },
+            ]}
+          />
+        </FormItem>
+        <FormItem name="price_tier" label="价格等级">
+          <Select
+            placeholder="价格等级"
+            allowClear
+            options={[
+              { label: "A", value: "A" },
+              { label: "B", value: "B" },
+              { label: "C", value: "C" },
+            ]}
+          />
+        </FormItem>
+        <FormItem name="default_incoterm" label="默认贸易条款">
+          <Select
+            placeholder="贸易条款"
+            allowClear
+            options={[
+              { label: "FOB", value: "FOB" },
+              { label: "CIF", value: "CIF" },
+              { label: "EXW", value: "EXW" },
+              { label: "DDP", value: "DDP" },
+            ]}
+          />
+        </FormItem>
+      </FormRow>
+
+      <FormRow cols={2}>
+        <FormItem name="delivery_address" label="收货地址">
+          <Input placeholder="收货地址" />
+        </FormItem>
+        <FormItem name="website" label="网站">
+          <Input placeholder="https://" maxLength={500} />
+        </FormItem>
+      </FormRow>
+
       <FormItem name="address" label="地址">
         <Input.TextArea rows={2} placeholder="公司地址" />
       </FormItem>
