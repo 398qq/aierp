@@ -88,7 +88,7 @@ export default function ContractList() {
           <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
         </div>
       </Space>
-      <Table
+      <Table className="erp-table"
         rowKey="id" loading={loading} dataSource={data}
         rowClassName={erpRowClass}
         scroll={{ x: "max-content" }}
@@ -143,11 +143,11 @@ export default function ContractList() {
         summary={(pageData: readonly Contract[]) => {
           const total = pageData.reduce((s, r) => s + r.amount, 0);
           return (
-            <Table.Summary.Row>
-              <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
-              <Table.Summary.Cell index={1} colSpan={2} />
-              <Table.Summary.Cell index={3} align="right"><Typography.Text strong>{money(total)}</Typography.Text></Table.Summary.Cell>
-              <Table.Summary.Cell index={4} colSpan={4} />
+            <Table className="erp-table".Summary.Row>
+              <Table className="erp-table".Summary.Cell index={0}>合计</Table.Summary.Cell>
+              <Table className="erp-table".Summary.Cell index={1} colSpan={2} />
+              <Table className="erp-table".Summary.Cell index={3} align="right"><Typography.Text strong>{money(total)}</Typography.Text></Table.Summary.Cell>
+              <Table className="erp-table".Summary.Cell index={4} colSpan={4} />
             </Table.Summary.Row>
           );
         }}

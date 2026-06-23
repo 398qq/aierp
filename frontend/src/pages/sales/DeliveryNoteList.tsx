@@ -119,7 +119,7 @@ export default function DeliveryNoteList() {
         { title: "发货行数", value: stats.lineCount },
       ]} />
 
-      <Card>
+      <Card className="erp-table">
         <Space style={{ marginBottom: 16 }} wrap>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
           <Input.Search

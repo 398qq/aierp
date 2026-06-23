@@ -216,7 +216,7 @@ export default function OpportunityList() {
       ) : view === "board" ? (
         <PipelineBoard opportunities={data} aiMap={aiMap} loading={loading} onRefresh={load} />
       ) : (
-        <Card size="small" title="商机清单">
+        <Card size="small" title="商机清单" className="erp-table">
           <Table
             rowKey="id"
             dataSource={data}
