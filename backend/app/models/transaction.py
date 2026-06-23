@@ -169,7 +169,9 @@ class Ticket(TimestampMixin, Base):
     __tablename__ = "tickets"
 
     ticket_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    sla_deadline: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sla_deadline: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     customer_id: Mapped[int | None] = mapped_column(
         ForeignKey("customers.id"), nullable=True
     )
@@ -233,13 +235,19 @@ class Sample(TimestampMixin, Base):
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     tracking_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     sample_result: Mapped[str | None] = mapped_column(Text, nullable=True)
-    apply_date: Mapped[datetime.datetime | None] = mapped_column(
+    apply_date: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.datetime.utcnow
+    )
+    shipped_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    shipped_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    received_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    received_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", back_populates="samples")
