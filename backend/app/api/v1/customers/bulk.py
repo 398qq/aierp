@@ -108,6 +108,24 @@ async def import_customers(
             email = row.get("邮箱", "").strip() or None
             address = row.get("地址", "").strip() or None
             notes = row.get("备注", "").strip() or None
+            # ERP new fields
+            website = row.get("网站", "").strip() or None
+            tax_id = row.get("纳税人识别号", "").strip() or None
+            registration_number = row.get("统一社会信用代码", "").strip() or None
+            invoice_title = row.get("发票抬头", "").strip() or None
+            invoice_address = row.get("发票地址", "").strip() or None
+            bank_name = row.get("开户行", "").strip() or None
+            bank_account = row.get("银行账号", "").strip() or None
+            price_tier = row.get("价格等级", "").strip() or None
+            annual_revenue_str = row.get("年营业额", "").strip()
+            annual_revenue = float(annual_revenue_str) if annual_revenue_str else None
+            employee_count_str = row.get("员工数", "").strip()
+            employee_count = int(employee_count_str) if employee_count_str else None
+            payment_terms = row.get("付款条件", "").strip() or None
+            payment_method = row.get("付款方式", "").strip() or None
+            currency = row.get("币种", "").strip() or "CNY"
+            delivery_address = row.get("收货地址", "").strip() or None
+            default_incoterm = row.get("贸易条款", "").strip() or None
             if code:
                 stmt = select(Customer).where(
                     Customer.code == code, Customer.deleted_at.is_(None)
@@ -147,6 +165,21 @@ async def import_customers(
                         ("email", email),
                         ("address", address),
                         ("notes", notes),
+                        ("website", website),
+                        ("tax_id", tax_id),
+                        ("registration_number", registration_number),
+                        ("invoice_title", invoice_title),
+                        ("invoice_address", invoice_address),
+                        ("bank_name", bank_name),
+                        ("bank_account", bank_account),
+                        ("price_tier", price_tier),
+                        ("annual_revenue", annual_revenue),
+                        ("employee_count", employee_count),
+                        ("payment_terms", payment_terms),
+                        ("payment_method", payment_method),
+                        ("currency", currency),
+                        ("delivery_address", delivery_address),
+                        ("default_incoterm", default_incoterm),
                     ]:
                         if val is not None:
                             setattr(cust, attr, val)
@@ -178,8 +211,23 @@ async def import_customers(
                 contact_person=contact_person,
                 phone=phone,
                 email=email,
+                website=website,
                 address=address,
                 notes=notes,
+                tax_id=tax_id,
+                registration_number=registration_number,
+                invoice_title=invoice_title,
+                invoice_address=invoice_address,
+                bank_name=bank_name,
+                bank_account=bank_account,
+                price_tier=price_tier,
+                annual_revenue=annual_revenue,
+                employee_count=employee_count,
+                payment_terms=payment_terms,
+                payment_method=payment_method,
+                currency=currency,
+                delivery_address=delivery_address,
+                default_incoterm=default_incoterm,
             )
             db.add(customer)
             imported += 1
