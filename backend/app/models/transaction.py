@@ -160,8 +160,6 @@ class Payment(TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
-    resolution_time_minutes: Mapped[int | None] = mapped_column(nullable=True)
 
     customer = relationship("Customer", foreign_keys=[customer_id])
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
@@ -237,22 +235,12 @@ class Sample(TimestampMixin, Base):
     tracking_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     sample_result: Mapped[str | None] = mapped_column(Text, nullable=True)
-    shipped_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    received_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     apply_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    ship_date: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    receive_date: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    status: Mapped[str] = mapped_column(String(30), default="requested")
-    tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    shipped_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    received_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
-    resolution_time_minutes: Mapped[int | None] = mapped_column(nullable=True)
 
     customer = relationship("Customer", back_populates="samples")
     product = relationship("Product", foreign_keys=[product_id])
