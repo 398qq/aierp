@@ -160,6 +160,8 @@ class Payment(TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_time_minutes: Mapped[int | None] = mapped_column(nullable=True)
 
     customer = relationship("Customer", foreign_keys=[customer_id])
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
@@ -169,6 +171,7 @@ class Ticket(TimestampMixin, Base):
     __tablename__ = "tickets"
 
     ticket_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sla_deadline: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     customer_id: Mapped[int | None] = mapped_column(
         ForeignKey("customers.id"), nullable=True
     )
@@ -183,6 +186,8 @@ class Ticket(TimestampMixin, Base):
     )
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_time_minutes: Mapped[int | None] = mapped_column(nullable=True)
 
     customer = relationship("Customer", back_populates="tickets")
 
@@ -191,6 +196,9 @@ class Visit(TimestampMixin, Base):
     __tablename__ = "visits"
 
     visit_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    visit_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    duration_minutes: Mapped[int | None] = mapped_column(nullable=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     contact_id: Mapped[int | None] = mapped_column(
         ForeignKey("customer_contacts.id"), nullable=True
@@ -225,6 +233,12 @@ class Sample(TimestampMixin, Base):
     )
     quantity: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    tracking_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    sample_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    shipped_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    received_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     apply_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -237,6 +251,8 @@ class Sample(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="requested")
     tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_time_minutes: Mapped[int | None] = mapped_column(nullable=True)
 
     customer = relationship("Customer", back_populates="samples")
     product = relationship("Product", foreign_keys=[product_id])

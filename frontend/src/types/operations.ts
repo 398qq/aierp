@@ -31,14 +31,19 @@ export interface Ticket {
   id: number; ticket_no: string | null; customer_id: number | null;
   title: string; description: string | null; status: string; priority: string;
   category: string | null; assigned_to: string | null;
+  sla_deadline: string | null; root_cause: string | null;
+  resolution_time_minutes: number | null;
   resolved_at: string | null; notes: string | null; created_at: string | null;
 }
 
 export interface Visit {
   id: number; visit_no: string | null; customer_id: number; contact_id: number | null;
-  title: string | null; visit_date: string | null; type: string | null;
-  status: string | null; content: string | null; result: string | null;
-  next_plan: string | null; stage: string | null; purpose: string | null;
+  title: string | null; visit_type: string | null; location: string | null;
+  duration_minutes: number | null;
+  visit_date: string | null; type: string | null;
+  status: string | null; outcome: string | null; next_plan: string | null;
+  content: string | null; result: string | null;
+  stage: string | null; purpose: string | null;
   main_product: string | null; key_points: string | null;
   followup_date: string | null; created_at: string;
 }
@@ -46,9 +51,10 @@ export interface Visit {
 export interface Sample {
   id: number; customer_id: number; product_id: number | null;
   quantity: number; unit: string | null;
-  apply_date: string | null; ship_date: string | null; receive_date: string | null;
-  status: string; tracking_number: string | null; notes: string | null;
-  created_at: string;
+  status: string; tracking_no: string | null;
+  approved_by: number | null; sample_result: string | null;
+  apply_date: string | null; shipped_date: string | null; received_date: string | null;
+  notes: string | null; created_at: string;
 }
 
 export interface CustomerLog {
