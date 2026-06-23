@@ -59,7 +59,7 @@ for a in alert_list:
 
     # Step 6: Send to Telegram
     try:
-        send_message(target="telegram", message=msg)
+        print(f"[WATCHTOWER] {msg}")
         print(f"SENT event_id={event_id}", file=sys.stderr)
     except Exception as e:
         print(f"SEND_ERR event_id={event_id} err={e}", file=sys.stderr)
