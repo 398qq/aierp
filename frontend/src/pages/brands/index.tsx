@@ -335,6 +335,18 @@ export default function BrandList() {
       ) : "-",
     },
     {
+      title: "RoHS", dataIndex: "rohs_status", width: 65,
+      render: (v) => v === "compliant" ? <StatusTag tone="success">合规</StatusTag> : v === "exempt" ? <StatusTag tone="warning">豁免</StatusTag> : v === "non_compliant" ? <StatusTag tone="danger">不合规</StatusTag> : "-",
+    },
+    {
+      title: "定位", dataIndex: "positioning", width: 60,
+      render: (v) => v === "high" ? <StatusTag tone="success">高端</StatusTag> : v === "mid" ? <StatusTag>中端</StatusTag> : v === "low" ? <StatusTag tone="warning">低端</StatusTag> : "-",
+    },
+    {
+      title: "MOQ", dataIndex: "moq", width: 60, align: "right",
+      render: (v) => v != null ? v : "-",
+    },
+    {
       title: "完整度", dataIndex: "completion_score", width: 95,
       render: (v: number | null, r) => {
         const score = v ?? 0;

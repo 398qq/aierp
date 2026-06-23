@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Table, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
 import { getInvoice } from "../../api";
@@ -92,7 +92,10 @@ export default function InvoiceDetail() {
           >
             <Descriptions column={2} size="small">
               <Descriptions.Item label="金额">{money(inv.amount)}</Descriptions.Item>
+              <Descriptions.Item label="小计">{inv.subtotal != null ? money(inv.subtotal) : "-"}</Descriptions.Item>
               <Descriptions.Item label="税额">{money(inv.tax_amount)}</Descriptions.Item>
+              <Descriptions.Item label="币种">{inv.currency || "CNY"}</Descriptions.Item>
+              <Descriptions.Item label="到期日">{inv.due_date?.slice(0, 10) || "-"}</Descriptions.Item>
               <Descriptions.Item label="类型">{inv.invoice_type}</Descriptions.Item>
               <Descriptions.Item label="关联订单">
                 {inv.sales_order_id ? (
@@ -106,6 +109,27 @@ export default function InvoiceDetail() {
               <Descriptions.Item label="备注" span={2}>{inv.notes || "-"}</Descriptions.Item>
             </Descriptions>
           </Card>
+
+          {inv.items && inv.items.length > 0 && (
+            <Card title="发票行项" size="small">
+              <Table
+                rowKey="id"
+                size="small"
+                dataSource={inv.items}
+                pagination={false}
+                columns={[
+                  { title: "产品", dataIndex: "product_name", width: 180 },
+                  { title: "数量", dataIndex: "quantity", width: 70, align: "right" },
+                  { title: "单位", dataIndex: "unit", width: 60 },
+                  { title: "单价", dataIndex: "unit_price", width: 90, align: "right", render: (v: number|null) => v != null ? money(v) : "-" },
+                  { title: "金额", dataIndex: "total_price", width: 100, align: "right", render: (v: number|null) => v != null ? money(v) : "-" },
+                  { title: "税率", dataIndex: "tax_rate", width: 70, align: "right", render: (v: number|null) => v != null ? `${v}%` : "-" },
+                  { title: "税额", dataIndex: "tax_amount", width: 90, align: "right", render: (v: number|null) => v != null ? money(v) : "-" },
+                  { title: "备注", dataIndex: "notes", ellipsis: true },
+                ]}
+              />
+            </Card>
+          )}
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
