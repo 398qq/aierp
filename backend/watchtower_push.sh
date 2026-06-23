@@ -12,7 +12,8 @@ trap 'rm -f "$ALERTS_FILE" "$CUSTOMERS_FILE"' EXIT
 LOGIN_RESP=$(curl -sS -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}')
-TOKEN=$(echo "$LOGIN_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['token'])")
+printf '%s' "$LOGIN_RESP" > /tmp/watchtower_login.json
+TOKEN=$(python3 -c "import json; d=json.load(open('/tmp/watchtower_login.json')); print(d['data']['token'])")
 
 # ── Trigger scan ──
 echo "Triggering watchtower scan..."
