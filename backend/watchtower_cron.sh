@@ -2,18 +2,26 @@
 set -e
 
 BASE="http://localhost:8080"
-LOGIN=$(curl -s -X POST "$BASE/api/v1/auth/login" \
+
+# Step 1: Login
+LOGIN_RESP=$(curl -s -X POST "$BASE/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}')
-TOKEN=$(echo "$LOGIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['token'])" 2>/dev/null)
-echo "LOGIN_CODE=$(echo "$LOGIN" | python3 -c "import sys,json; print(json.load(sys.stdin)['code'])")"
+TOKEN=$(echo "$LOGIN_RESP" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+echo "TOKEN=$TOKEN"
 
-echo "Triggering scan..."
-SCAN=$(curl -s -X GET "$BASE/api/v1/ai/watchtower/scan?days_back=90" \
+# Step 2: Trigger full scan
+echo "=== Triggering scan ==="
+SCAN_RESP=$(curl -s -X GET "$BASE/api/v1/ai/watchtower/scan?days_back=90" \
   -H "Authorization: Bearer $TOKEN")
-echo "SCAN=$SCAN"
+echo "$SCAN_RESP"
 
-echo "Fetching unread alerts..."
-ALERTS=$(curl -s -X GET "$BASE/api/v1/customers/alerts?is_read=false&page_size=10" \
+# Step 3: Query unread alerts
+echo "=== Querying unread alerts ==="
+ALERTS_RESP=$(curl -s -X GET "$BASE/api/v1/customers/alerts?is_read=false&page_size=10" \
   -H "Authorization: Bearer $TOKEN")
-echo "ALERTS=$ALERTS"
+echo "$ALERTS_RESP"
+
+# Save alerts for processing
+echo "$ALERTS_RESP" > /tmp/alerts_raw.json
+echo "alerts saved to /tmp/alerts_raw.json"

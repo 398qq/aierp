@@ -17,7 +17,7 @@ def api(method, path, token=None, data=None):
 
 # Step 1: Login
 login = api(
-    "POST", "/api/v1/auth/login", data={"username": "testadmin", "password": "admin123"}
+    "POST", "/api/v1/auth/login", data={"username": "admin", "password": "admin123"}
 )
 token = login["data"]["token"]
 print(f"TOKEN_OK", file=sys.stderr)
@@ -34,11 +34,11 @@ except Exception as e:
 print("Fetching unread alerts...", file=sys.stderr)
 alerts = api("GET", "/api/v1/customers/alerts?is_read=false&page_size=10", token=token)
 
-if not alerts.get("data") or not alerts["data"].get("alerts"):
+if not alerts.get("data") or not alerts["data"].get("list"):
     print("HEARTBEAT_OK: no new alerts")
     sys.exit(0)
 
-alert_list = alerts["data"]["alerts"]
+alert_list = [a for a in alerts["data"]["list"] if not a.get("is_read")]
 print(f"FOUND {len(alert_list)} unread alerts", file=sys.stderr)
 
 # Steps 5-7: Format, send, mark read
@@ -49,9 +49,9 @@ for a in alert_list:
     rule_type = a.get("rule_type", "")
     severity = a.get("severity", "")
     customer_name = a.get("customer_name", "")
-    anomaly_summary = a.get("anomaly_summary", "")
-    ai_suggestion = a.get("ai_suggestion", "")
-    event_id = a.get("event_id", "")
+    anomaly_summary = a.get("message") or a.get("anomaly_summary") or ""
+    ai_suggestion = a.get("ai_suggestion") or ""
+    event_id = a.get("id") or a.get("event_id") or ""
 
     msg = f"🚨 Watchtower 告警\nrule_type: {rule_type}\nseverity: {severity}\ncustomer: {customer_name}\nanomaly_summary: {anomaly_summary}"
     if ai_suggestion:
