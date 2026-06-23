@@ -57,7 +57,33 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { batchDeleteCustomers, batchTagCustomers, checkAlerts, createTag, createFollowUp, deleteCustomer, detectDuplicates, downloadImportTemplate, exportCustomers, generateDefaultCustomerTags, getAlertEvents, getCustomer, getCustomers, getCustomerStats, getDashboardStats, getFollowUpReminders, getGlobalFollowUps, getTags, importCustomers, markAllAlertsRead, mergeCustomers, recommendProductsForCustomer, searchSimilarCustomers, updateFollowUp, getApiErrorMessage } from "../../api";
+import {
+  batchDeleteCustomers,
+  batchTagCustomers,
+  checkAlerts,
+  createTag,
+  createFollowUp,
+  deleteCustomer,
+  detectDuplicates,
+  downloadImportTemplate,
+  exportCustomers,
+  generateDefaultCustomerTags,
+  getAlertEvents,
+  getCustomer,
+  getCustomers,
+  getCustomerStats,
+  getDashboardStats,
+  getFollowUpReminders,
+  getGlobalFollowUps,
+  getTags,
+  importCustomers,
+  markAllAlertsRead,
+  mergeCustomers,
+  recommendProductsForCustomer,
+  searchSimilarCustomers,
+  updateFollowUp,
+  getApiErrorMessage,
+} from "../../api";
 import type {
   Customer,
   CustomerProductMatch,
@@ -146,9 +172,23 @@ export default function CustomerList() {
   // 8 filter / sort states extracted to useCustomersFilter (Stage 3 Day 1)
   const filter = useCustomersFilter();
   const {
-    q, scene, industry, level, region, source, creditLevel,
-    sortBy, sortOrder,
-    setQ, setScene, setIndustry, setLevel, setRegion, setSource, setCreditLevel, setSort,
+    q,
+    scene,
+    industry,
+    level,
+    region,
+    source,
+    creditLevel,
+    sortBy,
+    sortOrder,
+    setQ,
+    setScene,
+    setIndustry,
+    setLevel,
+    setRegion,
+    setSource,
+    setCreditLevel,
+    setSort,
   } = filter;
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -237,7 +277,10 @@ export default function CustomerList() {
   const searchText = q.trim();
   const activeSmartTask: SmartTaskKey = searchText ? "all" : smartTask;
 
-  const overdueCustomerIds = useMemo(() => new Set(overdueList.map((item) => item.customer_id)), [overdueList]);
+  const overdueCustomerIds = useMemo(
+    () => new Set(overdueList.map((item) => item.customer_id)),
+    [overdueList],
+  );
   const selectedIdSet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
   const selectedA = useMemo(
     () => data.filter((item) => selectedIdSet.has(item.id) && item.level === "A").length,
@@ -261,21 +304,40 @@ export default function CustomerList() {
     () => [industry, level, region, source, creditLevel].filter(Boolean).length,
     [industry, level, region, source, creditLevel],
   );
-  const activeFilterItems = useMemo<Array<{ key: string; label: string; clear: () => void }>>(() => {
+  const activeFilterItems = useMemo<
+    Array<{ key: string; label: string; clear: () => void }>
+  >(() => {
     const items: Array<{ key: string; label: string; clear: () => void }> = [];
     const selectedScene = SCENE_OPTIONS.find((item) => item.value === scene);
     if (searchText) items.push({ key: "q", label: `搜索：${searchText}`, clear: () => setQ("") });
     if (selectedScene && scene !== "all") {
-      items.push({ key: "scene", label: `场景：${selectedScene.label}`, clear: () => setScene("all") });
+      items.push({
+        key: "scene",
+        label: `场景：${selectedScene.label}`,
+        clear: () => setScene("all"),
+      });
     }
-    if (industry) items.push({ key: "industry", label: `行业：${industry}`, clear: () => setIndustry(undefined) });
-    if (level) items.push({ key: "level", label: `等级：${level}`, clear: () => setLevel(undefined) });
-    if (region) items.push({ key: "region", label: `区域：${region}`, clear: () => setRegion(undefined) });
-    if (source) items.push({ key: "source", label: `来源：${source}`, clear: () => setSource(undefined) });
+    if (industry)
+      items.push({
+        key: "industry",
+        label: `行业：${industry}`,
+        clear: () => setIndustry(undefined),
+      });
+    if (level)
+      items.push({ key: "level", label: `等级：${level}`, clear: () => setLevel(undefined) });
+    if (region)
+      items.push({ key: "region", label: `区域：${region}`, clear: () => setRegion(undefined) });
+    if (source)
+      items.push({ key: "source", label: `来源：${source}`, clear: () => setSource(undefined) });
     if (creditLevel) {
-      items.push({ key: "creditLevel", label: `信用：${creditLevel}`, clear: () => setCreditLevel(undefined) });
+      items.push({
+        key: "creditLevel",
+        label: `信用：${creditLevel}`,
+        clear: () => setCreditLevel(undefined),
+      });
     }
-    if (overdueOnly) items.push({ key: "overdueOnly", label: "仅逾期客户", clear: () => setOverdueOnly(false) });
+    if (overdueOnly)
+      items.push({ key: "overdueOnly", label: "仅逾期客户", clear: () => setOverdueOnly(false) });
     return items.map((item) => ({
       ...item,
       clear: () => {
@@ -294,23 +356,27 @@ export default function CustomerList() {
     [followUpReminders],
   );
   const visibleReminders = useMemo(
-    () => reminderBucket === "all"
-      ? followUpReminders
-      : followUpReminders.filter((item) => item.due_bucket === reminderBucket),
+    () =>
+      reminderBucket === "all"
+        ? followUpReminders
+        : followUpReminders.filter((item) => item.due_bucket === reminderBucket),
     [followUpReminders, reminderBucket],
   );
   const nextFollowUpByCustomer = useMemo(() => {
     const map = new Map<number, FollowUpReminder>();
     for (const item of followUpReminders) {
       const existing = map.get(item.customer_id);
-      if (!existing || new Date(item.planned_at).getTime() < new Date(existing.planned_at).getTime()) {
+      if (
+        !existing ||
+        new Date(item.planned_at).getTime() < new Date(existing.planned_at).getTime()
+      ) {
         map.set(item.customer_id, item);
       }
     }
     return map;
   }, [followUpReminders]);
   const baseTableData = useMemo(
-    () => overdueOnly ? data.filter((item) => overdueCustomerIds.has(item.id)) : data,
+    () => (overdueOnly ? data.filter((item) => overdueCustomerIds.has(item.id)) : data),
     [data, overdueOnly, overdueCustomerIds],
   );
   const customerMatchesSmartTask = (customer: Customer, task: SmartTaskKey) => {
@@ -320,31 +386,85 @@ export default function CustomerList() {
     if (task === "all") return true;
     if (task === "today") return next?.due_bucket === "today";
     if (task === "overdue") return overdueCustomerIds.has(customer.id);
-    if (task === "high_risk") return overdueCustomerIds.has(customer.id) || (customer.health_score != null && customer.health_score < 60);
-    if (task === "key_stale") return customer.level === "A" && (lastContactAge == null || lastContactAge > 30);
+    if (task === "high_risk")
+      return (
+        overdueCustomerIds.has(customer.id) ||
+        (customer.health_score != null && customer.health_score < 60)
+      );
+    if (task === "key_stale")
+      return customer.level === "A" && (lastContactAge == null || lastContactAge > 30);
     if (task === "new_customers") return createdAge != null && createdAge <= 14;
     if (task === "ai_suggested") return getCustomerPriorityScore(customer, next) >= 65;
     return true;
   };
   const tableData = useMemo(
-    () => baseTableData
-      .filter((item) => customerMatchesSmartTask(item, activeSmartTask))
-      .sort((a, b) => {
-        const scoreA = getCustomerPriorityScore(a, nextFollowUpByCustomer.get(a.id));
-        const scoreB = getCustomerPriorityScore(b, nextFollowUpByCustomer.get(b.id));
-        return scoreB - scoreA;
-      }),
+    () =>
+      baseTableData
+        .filter((item) => customerMatchesSmartTask(item, activeSmartTask))
+        .sort((a, b) => {
+          const scoreA = getCustomerPriorityScore(a, nextFollowUpByCustomer.get(a.id));
+          const scoreB = getCustomerPriorityScore(b, nextFollowUpByCustomer.get(b.id));
+          return scoreB - scoreA;
+        }),
     [activeSmartTask, baseTableData, nextFollowUpByCustomer, overdueCustomerIds],
   );
   const smartTaskItems = useMemo(() => {
-    const items: Array<{ key: SmartTaskKey; label: string; count: number; color: string; note: string }> = [
-      { key: "today", label: SMART_TASK_LABELS.today, count: data.filter((item) => customerMatchesSmartTask(item, "today")).length, color: "orange", note: "今天需要推进" },
-      { key: "overdue", label: SMART_TASK_LABELS.overdue, count: data.filter((item) => customerMatchesSmartTask(item, "overdue")).length, color: "red", note: "已超过计划时间" },
-      { key: "high_risk", label: SMART_TASK_LABELS.high_risk, count: data.filter((item) => customerMatchesSmartTask(item, "high_risk")).length, color: "red", note: "健康度低或逾期" },
-      { key: "key_stale", label: SMART_TASK_LABELS.key_stale, count: data.filter((item) => customerMatchesSmartTask(item, "key_stale")).length, color: "gold", note: "重点客户需唤醒" },
-      { key: "new_customers", label: SMART_TASK_LABELS.new_customers, count: data.filter((item) => customerMatchesSmartTask(item, "new_customers")).length, color: "blue", note: "14天内新建" },
-      { key: "ai_suggested", label: SMART_TASK_LABELS.ai_suggested, count: data.filter((item) => customerMatchesSmartTask(item, "ai_suggested")).length, color: "purple", note: "综合优先级较高" },
-      { key: "all", label: SMART_TASK_LABELS.all, count: data.length, color: "default", note: "回到普通列表" },
+    const items: Array<{
+      key: SmartTaskKey;
+      label: string;
+      count: number;
+      color: string;
+      note: string;
+    }> = [
+      {
+        key: "today",
+        label: SMART_TASK_LABELS.today,
+        count: data.filter((item) => customerMatchesSmartTask(item, "today")).length,
+        color: "orange",
+        note: "今天需要推进",
+      },
+      {
+        key: "overdue",
+        label: SMART_TASK_LABELS.overdue,
+        count: data.filter((item) => customerMatchesSmartTask(item, "overdue")).length,
+        color: "red",
+        note: "已超过计划时间",
+      },
+      {
+        key: "high_risk",
+        label: SMART_TASK_LABELS.high_risk,
+        count: data.filter((item) => customerMatchesSmartTask(item, "high_risk")).length,
+        color: "red",
+        note: "健康度低或逾期",
+      },
+      {
+        key: "key_stale",
+        label: SMART_TASK_LABELS.key_stale,
+        count: data.filter((item) => customerMatchesSmartTask(item, "key_stale")).length,
+        color: "gold",
+        note: "重点客户需唤醒",
+      },
+      {
+        key: "new_customers",
+        label: SMART_TASK_LABELS.new_customers,
+        count: data.filter((item) => customerMatchesSmartTask(item, "new_customers")).length,
+        color: "blue",
+        note: "14天内新建",
+      },
+      {
+        key: "ai_suggested",
+        label: SMART_TASK_LABELS.ai_suggested,
+        count: data.filter((item) => customerMatchesSmartTask(item, "ai_suggested")).length,
+        color: "purple",
+        note: "综合优先级较高",
+      },
+      {
+        key: "all",
+        label: SMART_TASK_LABELS.all,
+        count: data.length,
+        color: "default",
+        note: "回到普通列表",
+      },
     ];
     return items;
   }, [data, nextFollowUpByCustomer, overdueCustomerIds]);
@@ -352,22 +472,34 @@ export default function CustomerList() {
     () => data.find((item) => item.id === contextCustomerId) || tableData[0] || null,
     [contextCustomerId, data, tableData],
   );
-  const contextNextFollowUp = contextCustomer ? nextFollowUpByCustomer.get(contextCustomer.id) : undefined;
-  const contextPriorityScore = contextCustomer ? getCustomerPriorityScore(contextCustomer, contextNextFollowUp) : 0;
-  const contextSuggestedAction = contextCustomer ? getCustomerSuggestedAction(contextCustomer, contextNextFollowUp) : "";
+  const contextNextFollowUp = contextCustomer
+    ? nextFollowUpByCustomer.get(contextCustomer.id)
+    : undefined;
+  const contextPriorityScore = contextCustomer
+    ? getCustomerPriorityScore(contextCustomer, contextNextFollowUp)
+    : 0;
+  const contextSuggestedAction = contextCustomer
+    ? getCustomerSuggestedAction(contextCustomer, contextNextFollowUp)
+    : "";
   const contextTalkTrack = useMemo(
-    () => contextCustomer ? buildFollowUpTalkTrack(contextCustomer, contextNextFollowUp) : [],
+    () => (contextCustomer ? buildFollowUpTalkTrack(contextCustomer, contextNextFollowUp) : []),
     [contextCustomer, contextNextFollowUp],
   );
   const customerBoardColumns = useMemo(() => {
     const stages = [...LEVELS, "未分级"];
     return stages.map((stage) => {
       const customers = tableData.filter((customer) => (customer.level || "未分级") === stage);
-      const overdueCount = customers.filter((customer) => overdueCustomerIds.has(customer.id)).length;
+      const overdueCount = customers.filter((customer) =>
+        overdueCustomerIds.has(customer.id),
+      ).length;
       const avgPriority = customers.length
-        ? Math.round(customers.reduce((sum, customer) => (
-          sum + getCustomerPriorityScore(customer, nextFollowUpByCustomer.get(customer.id))
-        ), 0) / customers.length)
+        ? Math.round(
+            customers.reduce(
+              (sum, customer) =>
+                sum + getCustomerPriorityScore(customer, nextFollowUpByCustomer.get(customer.id)),
+              0,
+            ) / customers.length,
+          )
         : 0;
       return { stage, customers, overdueCount, avgPriority };
     });
@@ -409,10 +541,7 @@ export default function CustomerList() {
     }
   };
 
-  const loadGlobalFollowUps = async (
-    bucket = globalFollowUpBucket,
-    query = globalFollowUpQ,
-  ) => {
+  const loadGlobalFollowUps = async (bucket = globalFollowUpBucket, query = globalFollowUpQ) => {
     setGlobalFollowUpLoading(true);
     try {
       const params: Record<string, unknown> = { page: 1, page_size: 30 };
@@ -423,7 +552,9 @@ export default function CustomerList() {
       setGlobalFollowUps(payload?.list || []);
       setGlobalFollowUpTotal(payload?.total || 0);
       setGlobalFollowUpCounts(payload?.counts || {});
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载全局跟进集合失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载全局跟进集合失败"));
+    } finally {
       setGlobalFollowUpLoading(false);
     }
   };
@@ -432,10 +563,10 @@ export default function CustomerList() {
     setLoading(true);
     try {
       const sceneFilter = SCENE_FILTERS[scene];
-      const resolvedLevel = level ?? sceneFilter.level;
-      const resolvedRegion = region ?? sceneFilter.region;
-      const resolvedSource = source ?? sceneFilter.source;
-      const resolvedCreditLevel = creditLevel ?? sceneFilter.creditLevel;
+      const resolvedLevel = level ?? (sceneFilter as any).level;
+      const resolvedRegion = region ?? (sceneFilter as any).region;
+      const resolvedSource = source ?? (sceneFilter as any).source;
+      const resolvedCreditLevel = creditLevel ?? (sceneFilter as any).creditLevel;
 
       const params: Record<string, unknown> = {
         page: p,
@@ -443,6 +574,8 @@ export default function CustomerList() {
         sort_by: sortBy,
         sort_order: sortOrder,
       };
+
+      if (scene === "pending_erp") params.missing_erp = "1";
 
       if (search.trim()) {
         params.keyword = search.trim();
@@ -457,7 +590,9 @@ export default function CustomerList() {
       const resp = await getCustomers(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户列表失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载客户列表失败"));
+    } finally {
       setLoading(false);
     }
   };
@@ -488,7 +623,9 @@ export default function CustomerList() {
   }, [page, pageSize, industry, level, region, source, creditLevel, sortBy, sortOrder, scene]);
 
   useEffect(() => {
-    getTags().then((r) => setTags(r.data.data || [])).catch(() => {});
+    getTags()
+      .then((r) => setTags(r.data.data || []))
+      .catch(() => {});
     loadStats();
     loadOverdue();
     loadGlobalFollowUps();
@@ -579,7 +716,9 @@ export default function CustomerList() {
       await deleteCustomer(id);
       message.success("已删除");
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "删除失败"));
+    }
   };
 
   const handleExport = async () => {
@@ -594,7 +733,8 @@ export default function CustomerList() {
       if (level ?? sceneFilter.level) params.level = level ?? sceneFilter.level;
       if (region ?? sceneFilter.region) params.region = region ?? sceneFilter.region;
       if (source ?? sceneFilter.source) params.source = source ?? sceneFilter.source;
-      if (creditLevel ?? sceneFilter.creditLevel) params.credit_level = creditLevel ?? sceneFilter.creditLevel;
+      if (creditLevel ?? sceneFilter.creditLevel)
+        params.credit_level = creditLevel ?? sceneFilter.creditLevel;
 
       const resp = await exportCustomers(params);
       const url = URL.createObjectURL(new Blob([resp.data]));
@@ -604,7 +744,9 @@ export default function CustomerList() {
       a.click();
       URL.revokeObjectURL(url);
       message.success("导出成功");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导出失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "导出失败"));
+    }
   };
 
   const handleTemplate = async () => {
@@ -616,21 +758,30 @@ export default function CustomerList() {
       a.download = "customer_template.csv";
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "下载模板失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "下载模板失败"));
+    }
   };
 
   const handleImport = async (file: File) => {
     setImporting(true);
     try {
       const resp = await importCustomers(file);
-      const result = resp.data.data as { created?: number; skipped?: number; imported?: number; updated?: number };
+      const result = resp.data.data as {
+        created?: number;
+        skipped?: number;
+        imported?: number;
+        updated?: number;
+      };
       const created = result.created ?? result.imported ?? 0;
       const skipped = result.skipped ?? 0;
       const updated = result.updated ?? 0;
       message.success(`导入成功：新建 ${created} 条，更新 ${updated} 条，跳过 ${skipped} 条`);
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
     } catch (err: any) {
-      message.error(err?.response?.data?.msg || err?.response?.data?.detail || "导入失败，请检查文件格式");
+      message.error(
+        err?.response?.data?.msg || err?.response?.data?.detail || "导入失败，请检查文件格式",
+      );
     } finally {
       setImporting(false);
     }
@@ -643,7 +794,9 @@ export default function CustomerList() {
       message.success(`已删除 ${selectedRowKeys.length} 条`);
       setSelectedRowKeys([]);
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量删除失败"));
+    }
   };
 
   const handleBatchTag = async () => {
@@ -655,7 +808,9 @@ export default function CustomerList() {
       setTagModalOpen(false);
       setBatchTagIds([]);
       fetch();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量打标签失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量打标签失败"));
+    }
   };
 
   const handleCreateBatchTag = async () => {
@@ -673,7 +828,9 @@ export default function CustomerList() {
       setTagCreateName("");
       setTagCreateColor("blue");
       message.success("标签已创建");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建标签失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "创建标签失败"));
+    } finally {
       setTagCreating(false);
     }
   };
@@ -686,7 +843,9 @@ export default function CustomerList() {
       const tagsResp = await getTags();
       setTags((tagsResp.data.data || []).sort((a, b) => a.name.localeCompare(b.name)));
       message.success(data?.created ? `已生成 ${data.created} 个客户标签` : "默认客户标签已存在");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成默认标签失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "生成默认标签失败"));
+    } finally {
       setTagGenerating(false);
     }
   };
@@ -699,7 +858,9 @@ export default function CustomerList() {
       setDuplicatePairs(pairs);
       setDupModalOpen(true);
       if (!pairs.length) message.info("未发现疑似重复客户");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "检测失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "检测失败"));
+    } finally {
       setDupLoading(false);
     }
   };
@@ -719,7 +880,9 @@ export default function CustomerList() {
       setMergeSource(null);
       setDupModalOpen(false);
       await Promise.all([fetch(), loadStats(), loadOverdue()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "合并失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "合并失败"));
+    } finally {
       setMerging(false);
     }
   };
@@ -730,7 +893,9 @@ export default function CustomerList() {
       const resp = await checkAlerts();
       message.success(`预警检查完成，生成 ${resp.data.data.generated} 条`);
       await refreshAlertCount();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "预警检查失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "预警检查失败"));
+    } finally {
       setAlertChecking(false);
     }
   };
@@ -740,7 +905,9 @@ export default function CustomerList() {
       await markAllAlertsRead();
       setAlertCount(0);
       message.success("已全部标记为已读");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "操作失败"));
+    }
   };
 
   const handleSemanticSearch = async () => {
@@ -749,7 +916,9 @@ export default function CustomerList() {
     try {
       const resp = await searchSimilarCustomers(semanticQ);
       setSemanticResults((resp.data.data || []) as SimilarCustomer[]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "语义搜索失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "语义搜索失败"));
+    } finally {
       setSemanticLoading(false);
     }
   };
@@ -767,7 +936,7 @@ export default function CustomerList() {
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
     if (s.field && typeof s.field === "string") {
       if (s.order === "ascend") setSort(s.field, "asc");
-      else setSort(s.field, "desc");  // covers "descend" + null + undefined
+      else setSort(s.field, "desc"); // covers "descend" + null + undefined
     }
   };
 
@@ -781,7 +950,9 @@ export default function CustomerList() {
       ]);
       setDetailCustomer(detailResp.data.data);
       setDetailStats(statsResp.data.data);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户详情失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载客户详情失败"));
+    } finally {
       setDetailLoading(false);
     }
   };
@@ -807,7 +978,9 @@ export default function CustomerList() {
       });
       message.success("跟进已完成");
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "完成跟进失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "完成跟进失败"));
+    } finally {
       setReminderActionKey(null);
     }
   };
@@ -822,7 +995,9 @@ export default function CustomerList() {
       });
       message.success("已延期 1 天");
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "延期失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "延期失败"));
+    } finally {
       setReminderActionKey(null);
     }
   };
@@ -837,7 +1012,9 @@ export default function CustomerList() {
       });
       message.success("跟进已完成");
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "完成跟进失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "完成跟进失败"));
+    } finally {
       setReminderActionKey(null);
     }
   };
@@ -858,7 +1035,10 @@ export default function CustomerList() {
       method: next?.method || "phone",
       status: "planned",
       priority: contextPriorityScore >= 75 ? "high" : "medium",
-      planned_at: dayjs().add(next?.due_bucket === "overdue" || next?.due_bucket === "today" ? 2 : 24, "hour"),
+      planned_at: dayjs().add(
+        next?.due_bucket === "overdue" || next?.due_bucket === "today" ? 2 : 24,
+        "hour",
+      ),
       assigned_to: customer.owner || "",
       content: buildFollowUpPlanContent(customer, next),
     });
@@ -870,7 +1050,9 @@ export default function CustomerList() {
     try {
       const resp = await recommendProductsForCustomer(customer.id);
       setProductRecResult(resp.data.data as CustomerProductMatch);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI产品推荐失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "AI产品推荐失败"));
+    } finally {
       setProductRecLoading(false);
     }
   };
@@ -897,7 +1079,9 @@ export default function CustomerList() {
       setQuickFollowUpCustomer(null);
       quickFollowUpForm.resetFields();
       await Promise.all([loadOverdue(), loadGlobalFollowUps(), fetch()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建跟进失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "创建跟进失败"));
+    } finally {
       setQuickFollowUpSaving(false);
     }
   };
@@ -916,16 +1100,35 @@ export default function CustomerList() {
   const moreActionsContent = (
     <Space direction="vertical" size={8} style={{ width: 260 }}>
       <Upload accept=".csv" showUploadList={false} beforeUpload={handleImport} disabled={importing}>
-        <Button style={{ width: 260 }} icon={<UploadOutlined />} loading={importing}>导入客户</Button>
+        <Button style={{ width: 260 }} icon={<UploadOutlined />} loading={importing}>
+          导入客户
+        </Button>
       </Upload>
-      <Button block onClick={handleTemplate}>下载导入模板</Button>
-      <Button block icon={<DownloadOutlined />} onClick={handleExport}>导出当前筛选</Button>
-      <Button block icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>疑似重复检测</Button>
-      <Button block icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>语义搜索</Button>
+      <Button block onClick={handleTemplate}>
+        下载导入模板
+      </Button>
+      <Button block icon={<DownloadOutlined />} onClick={handleExport}>
+        导出当前筛选
+      </Button>
+      <Button
+        block
+        icon={<SafetyCertificateOutlined />}
+        loading={dupLoading}
+        onClick={handleDetectDups}
+      >
+        疑似重复检测
+      </Button>
+      <Button block icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>
+        语义搜索
+      </Button>
       <Button block danger={alertCount > 0} loading={alertChecking} onClick={handleCheckAlerts}>
         {alertCount > 0 ? `预警检查(${alertCount})` : "预警检查"}
       </Button>
-      {alertCount > 0 && <Button block onClick={handleMarkAllAlertsRead}>全部预警标为已读</Button>}
+      {alertCount > 0 && (
+        <Button block onClick={handleMarkAllAlertsRead}>
+          全部预警标为已读
+        </Button>
+      )}
       <Divider style={{ margin: "4px 0" }} />
       <Typography.Text type="secondary">显示列</Typography.Text>
       <Checkbox.Group
@@ -941,12 +1144,16 @@ export default function CustomerList() {
     <CustomerModuleShell
       title="客户工作台"
       subtitle="筛选客户、处理跟进提醒并完成批量运营"
-      extra={(
+      extra={
         <>
-          <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>AI队列</Button>
-          <Button icon={<BulbOutlined />} onClick={() => setSemanticOpen(true)}>AI搜索</Button>
+          <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>
+            AI队列
+          </Button>
+          <Button icon={<BulbOutlined />} onClick={() => setSemanticOpen(true)}>
+            AI搜索
+          </Button>
         </>
-      )}
+      }
     >
       {/* inline styles (CustomerList.css removed Stage 5 Day 2 — see CUSTOMER_CSS_AUDIT.md) */}
 
@@ -989,7 +1196,9 @@ export default function CustomerList() {
                 <RobotOutlined />
                 <Typography.Text strong>AI任务队列</Typography.Text>
               </Space>
-              <Button size="small" type="link" onClick={() => navigate("/customers/workbench")}>完整队列</Button>
+              <Button size="small" type="link" onClick={() => navigate("/customers/workbench")}>
+                完整队列
+              </Button>
             </div>
             {smartTaskItems.map((item) => (
               <button
@@ -1014,24 +1223,41 @@ export default function CustomerList() {
           <div className={`customer-ai-panel${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
             <div className="customer-ai-panel-head">
               <Space size={6}>
-                <BellOutlined style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }} />
+                <BellOutlined
+                  style={{ color: reminderCounts.overdue > 0 ? "#cf1322" : undefined }}
+                />
                 <Typography.Text strong>跟进提醒</Typography.Text>
               </Space>
-              <Button size="small" type="link" onClick={() => setReminderDrawerOpen(true)}>明细</Button>
+              <Button size="small" type="link" onClick={() => setReminderDrawerOpen(true)}>
+                明细
+              </Button>
             </div>
             <div className="customer-ai-context-body">
               <Space size={[4, 6]} wrap>
-                <StatusTag tone={reminderCounts.overdue > 0 ? "danger" : "neutral"}>逾期 {reminderCounts.overdue}</StatusTag>
-                <StatusTag tone={reminderCounts.today > 0 ? "warning" : "neutral"}>今日 {reminderCounts.today}</StatusTag>
-                <StatusTag tone={reminderCounts.upcoming > 0 ? "info" : "neutral"}>未来 {reminderCounts.upcoming}</StatusTag>
+                <StatusTag tone={reminderCounts.overdue > 0 ? "danger" : "neutral"}>
+                  逾期 {reminderCounts.overdue}
+                </StatusTag>
+                <StatusTag tone={reminderCounts.today > 0 ? "warning" : "neutral"}>
+                  今日 {reminderCounts.today}
+                </StatusTag>
+                <StatusTag tone={reminderCounts.upcoming > 0 ? "info" : "neutral"}>
+                  未来 {reminderCounts.upcoming}
+                </StatusTag>
               </Space>
-              <div className="customer-ai-context-note">{formatReminderRefreshTime(reminderRefreshedAt)}</div>
-              <Button size="small" icon={<ReloadOutlined />} loading={reminderLoading} onClick={loadOverdue} style={{ marginTop: 8 }}>
+              <div className="customer-ai-context-note">
+                {formatReminderRefreshTime(reminderRefreshedAt)}
+              </div>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                loading={reminderLoading}
+                onClick={loadOverdue}
+                style={{ marginTop: 8 }}
+              >
                 刷新提醒
               </Button>
             </div>
           </div>
-
         </aside>
 
         <main className="customer-ai-main">
@@ -1070,230 +1296,275 @@ export default function CustomerList() {
           />
           {workbenchTab === "customers" && (
             <>
-      <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
-        <CustomerFilterBar
-          q={q}
-          scene={scene}
-          industry={industry}
-          level={level}
-          region={region}
-          source={source}
-          creditLevel={creditLevel}
-          advancedOpen={advancedOpen}
-          activeAdvancedFilterCount={activeAdvancedFilterCount}
-          levelACount={levelACount}
-          alertCount={alertCount}
-          monthlyNewCount={monthlyNewCount}
-          topIndustry={topIndustry}
-          statsLoading={statsLoading}
-          activeFilterItems={activeFilterItems}
-          moreActionsContent={moreActionsContent}
-          onSearchChange={(value) => {
-            setQ(value);
-            setSmartTask("all");
-            setActiveViewPreset("all");
-            setOverdueOnly(false);
-            setPage(1);
-          }}
-          onSceneChange={(v) => {
-            setScene(v);
-            setPage(1);
-          }}
-          onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
-          onResetFilters={resetFilters}
-          onIndustryChange={(v) => {
-            setIndustry(v);
-            setPage(1);
-          }}
-          onLevelChange={(v) => {
-            setLevel(v);
-            setPage(1);
-          }}
-          onRegionChange={(v) => {
-            setRegion(v);
-            setPage(1);
-          }}
-          onSourceChange={(v) => {
-            setSource(v);
-            setPage(1);
-          }}
-          onCreditLevelChange={(v) => {
-            setCreditLevel(v);
-            setPage(1);
-          }}
-          onClearFilter={(key) => {
-            const item = activeFilterItems.find((i) => i.key === key);
-            item?.clear();
-          }}
-        />
-      </Card>
+              <Card size="small" className="customer-toolbar-card" style={{ marginBottom: 12 }}>
+                <CustomerFilterBar
+                  q={q}
+                  scene={scene}
+                  industry={industry}
+                  level={level}
+                  region={region}
+                  source={source}
+                  creditLevel={creditLevel}
+                  advancedOpen={advancedOpen}
+                  activeAdvancedFilterCount={activeAdvancedFilterCount}
+                  levelACount={levelACount}
+                  alertCount={alertCount}
+                  monthlyNewCount={monthlyNewCount}
+                  topIndustry={topIndustry}
+                  statsLoading={statsLoading}
+                  activeFilterItems={activeFilterItems}
+                  moreActionsContent={moreActionsContent}
+                  onSearchChange={(value) => {
+                    setQ(value);
+                    setSmartTask("all");
+                    setActiveViewPreset("all");
+                    setOverdueOnly(false);
+                    setPage(1);
+                  }}
+                  onSceneChange={(v) => {
+                    setScene(v);
+                    setPage(1);
+                  }}
+                  onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
+                  onResetFilters={resetFilters}
+                  onIndustryChange={(v) => {
+                    setIndustry(v);
+                    setPage(1);
+                  }}
+                  onLevelChange={(v) => {
+                    setLevel(v);
+                    setPage(1);
+                  }}
+                  onRegionChange={(v) => {
+                    setRegion(v);
+                    setPage(1);
+                  }}
+                  onSourceChange={(v) => {
+                    setSource(v);
+                    setPage(1);
+                  }}
+                  onCreditLevelChange={(v) => {
+                    setCreditLevel(v);
+                    setPage(1);
+                  }}
+                  onClearFilter={(key) => {
+                    const item = activeFilterItems.find((i) => i.key === key);
+                    item?.clear();
+                  }}
+                />
+              </Card>
 
-      {selectedRowKeys.length > 0 && (
-        <div className="customer-batch-bar">
-          <Space wrap>
-            <StatusTag tone="info">已选 {selectedRowKeys.length} 个客户</StatusTag>
-            <StatusTag tone="danger">A级 {selectedA}</StatusTag>
-            <StatusTag tone="warning">逾期跟进 {selectedOverdue}</StatusTag>
-            <Popconfirm title={`确定删除 ${selectedRowKeys.length} 个客户?`} onConfirm={handleBatchDelete}>
-              <Button danger icon={<DeleteOutlined />}>批量删除</Button>
-            </Popconfirm>
-            <Button icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>批量打标签</Button>
-            <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
-          </Space>
-        </div>
-      )}
+              {selectedRowKeys.length > 0 && (
+                <div className="customer-batch-bar">
+                  <Space wrap>
+                    <StatusTag tone="info">已选 {selectedRowKeys.length} 个客户</StatusTag>
+                    <StatusTag tone="danger">A级 {selectedA}</StatusTag>
+                    <StatusTag tone="warning">逾期跟进 {selectedOverdue}</StatusTag>
+                    <Popconfirm
+                      title={`确定删除 ${selectedRowKeys.length} 个客户?`}
+                      onConfirm={handleBatchDelete}
+                    >
+                      <Button danger icon={<DeleteOutlined />}>
+                        批量删除
+                      </Button>
+                    </Popconfirm>
+                    <Button icon={<TagsOutlined />} onClick={() => setTagModalOpen(true)}>
+                      批量打标签
+                    </Button>
+                    <Button onClick={() => setSelectedRowKeys([])}>清空选择</Button>
+                  </Space>
+                </div>
+              )}
 
-      <Card
-        className="customer-table-card"
-        size="small"
-        title={(
-          <div className="customer-table-title">
-            <Typography.Text strong>智能客户列表</Typography.Text>
-            <Typography.Text type="secondary">
-              {overdueOnly ? tableData.length : total} 条
-            </Typography.Text>
-            <StatusTag tone="info">{SMART_TASK_LABELS[activeSmartTask]}</StatusTag>
-            {activeFilterItems.length > 0 && <StatusTag tone="info">已筛选</StatusTag>}
-            {overdueOnly && <StatusTag tone="danger">仅逾期</StatusTag>}
-          </div>
-        )}
-        extra={(
-          <Space size={8}>
-            <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => fetch()}>
-              刷新列表
-            </Button>
-          </Space>
-        )}
-      >
-        {customerView === "board" ? (
-          <div className="customer-board">
-            {customerBoardColumns.map((column) => (
-              <section className="customer-board-column" key={column.stage}>
-                <div className="customer-board-column-head">
-                  <div>
-                    <Space size={6}>
-                      <StatusTag tone={getLevelColor(column.stage === "未分级" ? null : column.stage)}>{column.stage}</StatusTag>
-                      <Typography.Text strong>{column.customers.length}</Typography.Text>
-                    </Space>
-                    <div className="customer-board-column-meta">
-                      逾期 {column.overdueCount} | 平均优先级 {column.avgPriority || "-"}
-                    </div>
+              <Card
+                className="customer-table-card"
+                size="small"
+                title={
+                  <div className="customer-table-title">
+                    <Typography.Text strong>智能客户列表</Typography.Text>
+                    <Typography.Text type="secondary">
+                      {overdueOnly ? tableData.length : total} 条
+                    </Typography.Text>
+                    <StatusTag tone="info">{SMART_TASK_LABELS[activeSmartTask]}</StatusTag>
+                    {activeFilterItems.length > 0 && <StatusTag tone="info">已筛选</StatusTag>}
+                    {overdueOnly && <StatusTag tone="danger">仅逾期</StatusTag>}
                   </div>
-                  {column.overdueCount > 0 && <BellOutlined style={{ color: "#cf1322" }} />}
-                </div>
-                <div className="customer-board-list">
-                  {column.customers.length === 0 ? (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户" />
-                  ) : column.customers.map((customer) => {
-                    const next = nextFollowUpByCustomer.get(customer.id);
-                    const priority = getCustomerPriorityScore(customer, next);
-                    const overdue = overdueCustomerIds.has(customer.id);
-                    const active = contextCustomer?.id === customer.id;
-                    return (
-                      <div
-                        key={customer.id}
-                        className={`customer-board-card${overdue ? " is-overdue" : ""}${active ? " is-active" : ""}`}
-                        onClick={() => setContextCustomerId(customer.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") setContextCustomerId(customer.id);
-                        }}
-                      >
-                        <div className="customer-board-card-head">
-                          <Typography.Link
-                            strong
-                            className="customer-board-card-name"
-                            ellipsis
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              navigate(`/customers/${customer.id}`);
-                            }}
-                          >
-                            {customer.name}
-                          </Typography.Link>
-                          <StatusTag tone={priority >= 75 ? "danger" : priority >= 60 ? "warning" : "info"}>{priority}</StatusTag>
+                }
+                extra={
+                  <Space size={8}>
+                    <Button
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      loading={loading}
+                      onClick={() => fetch()}
+                    >
+                      刷新列表
+                    </Button>
+                  </Space>
+                }
+              >
+                {customerView === "board" ? (
+                  <div className="customer-board">
+                    {customerBoardColumns.map((column) => (
+                      <section className="customer-board-column" key={column.stage}>
+                        <div className="customer-board-column-head">
+                          <div>
+                            <Space size={6}>
+                              <StatusTag
+                                tone={getLevelColor(
+                                  column.stage === "未分级" ? null : column.stage,
+                                )}
+                              >
+                                {column.stage}
+                              </StatusTag>
+                              <Typography.Text strong>{column.customers.length}</Typography.Text>
+                            </Space>
+                            <div className="customer-board-column-meta">
+                              逾期 {column.overdueCount} | 平均优先级 {column.avgPriority || "-"}
+                            </div>
+                          </div>
+                          {column.overdueCount > 0 && <BellOutlined style={{ color: "#cf1322" }} />}
                         </div>
-                        <div className="customer-board-card-meta">
-                          {[customer.industry, customer.region, customer.owner].filter(Boolean).join(" / ") || "暂无画像信息"}
+                        <div className="customer-board-list">
+                          {column.customers.length === 0 ? (
+                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户" />
+                          ) : (
+                            column.customers.map((customer) => {
+                              const next = nextFollowUpByCustomer.get(customer.id);
+                              const priority = getCustomerPriorityScore(customer, next);
+                              const overdue = overdueCustomerIds.has(customer.id);
+                              const active = contextCustomer?.id === customer.id;
+                              return (
+                                <div
+                                  key={customer.id}
+                                  className={`customer-board-card${overdue ? " is-overdue" : ""}${active ? " is-active" : ""}`}
+                                  onClick={() => setContextCustomerId(customer.id)}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ")
+                                      setContextCustomerId(customer.id);
+                                  }}
+                                >
+                                  <div className="customer-board-card-head">
+                                    <Typography.Link
+                                      strong
+                                      className="customer-board-card-name"
+                                      ellipsis
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        navigate(`/customers/${customer.id}`);
+                                      }}
+                                    >
+                                      {customer.name}
+                                    </Typography.Link>
+                                    <StatusTag
+                                      tone={
+                                        priority >= 75
+                                          ? "danger"
+                                          : priority >= 60
+                                            ? "warning"
+                                            : "info"
+                                      }
+                                    >
+                                      {priority}
+                                    </StatusTag>
+                                  </div>
+                                  <div className="customer-board-card-meta">
+                                    {[customer.industry, customer.region, customer.owner]
+                                      .filter(Boolean)
+                                      .join(" / ") || "暂无画像信息"}
+                                  </div>
+                                  <Space size={[4, 6]} wrap style={{ marginTop: 7 }}>
+                                    {customer.health_score != null && (
+                                      <StatusTag tone={getHealthColor(customer.health_score)}>
+                                        健康 {customer.health_score}
+                                      </StatusTag>
+                                    )}
+                                    {next && (
+                                      <StatusTag tone={getReminderDueMeta(next).color}>
+                                        {getReminderDueMeta(next).text}
+                                      </StatusTag>
+                                    )}
+                                    {overdue && <StatusTag tone="danger">逾期</StatusTag>}
+                                  </Space>
+                                  <div className="customer-board-card-meta">
+                                    {getCustomerSuggestedAction(customer, next)}
+                                  </div>
+                                  <div className="customer-board-card-actions">
+                                    <Button
+                                      size="small"
+                                      icon={<PhoneOutlined />}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openQuickFollowUp(customer);
+                                      }}
+                                    >
+                                      跟进
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      icon={<EyeOutlined />}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        navigate(`/customers/${customer.id}`);
+                                      }}
+                                    >
+                                      详情
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
-                        <Space size={[4, 6]} wrap style={{ marginTop: 7 }}>
-                          {customer.health_score != null && <StatusTag tone={getHealthColor(customer.health_score)}>健康 {customer.health_score}</StatusTag>}
-                          {next && <StatusTag tone={getReminderDueMeta(next).color}>{getReminderDueMeta(next).text}</StatusTag>}
-                          {overdue && <StatusTag tone="danger">逾期</StatusTag>}
-                        </Space>
-                        <div className="customer-board-card-meta">
-                          {getCustomerSuggestedAction(customer, next)}
-                        </div>
-                        <div className="customer-board-card-actions">
-                          <Button
-                            size="small"
-                            icon={<PhoneOutlined />}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openQuickFollowUp(customer);
-                            }}
-                          >
-                            跟进
-                          </Button>
-                          <Button
-                            size="small"
-                            icon={<EyeOutlined />}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              navigate(`/customers/${customer.id}`);
-                            }}
-                          >
-                            详情
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-        ) : (
-          <Table
-            rowKey="id"
-            size="middle"
-            sticky
-            columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
-            dataSource={tableData}
-            loading={loading}
-            onChange={handleTableChange}
-            rowSelection={{
-              columnWidth: 44,
-              selectedRowKeys,
-              onChange: (keys) => setSelectedRowKeys(keys as number[]),
-            }}
-            rowClassName={(record) => {
-              if (contextCustomer?.id === record.id) return "customer-row-selected";
-              if (overdueCustomerIds.has(record.id)) return "customer-row-overdue";
-              if (record.level === "A") return "customer-row-key";
-              return "";
-            }}
-            onRow={(record) => ({
-              onClick: () => setContextCustomerId(record.id),
-            })}
-            scroll={{ x: 1600 }}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" /> }}
-            pagination={{
-              current: page,
-              total: activeSmartTask !== "all" || overdueOnly ? tableData.length : total,
-              pageSize,
-              pageSizeOptions: ["10", "20", "50", "100"],
-              showSizeChanger: true,
-              showTotal: (t) => `共 ${t} 条`,
-              onChange: (p, ps) => {
-                setPage(p);
-                setPageSize(ps);
-              },
-            }}
-          />
-        )}
-      </Card>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <Table
+                    rowKey="id"
+                    size="middle"
+                    sticky
+                    columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+                    dataSource={tableData}
+                    loading={loading}
+                    onChange={handleTableChange}
+                    rowSelection={{
+                      columnWidth: 44,
+                      selectedRowKeys,
+                      onChange: (keys) => setSelectedRowKeys(keys as number[]),
+                    }}
+                    rowClassName={(record) => {
+                      if (contextCustomer?.id === record.id) return "customer-row-selected";
+                      if (overdueCustomerIds.has(record.id)) return "customer-row-overdue";
+                      if (record.level === "A") return "customer-row-key";
+                      return "";
+                    }}
+                    onRow={(record) => ({
+                      onClick: () => setContextCustomerId(record.id),
+                    })}
+                    scroll={{ x: 1600 }}
+                    locale={{
+                      emptyText: (
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无客户数据" />
+                      ),
+                    }}
+                    pagination={{
+                      current: page,
+                      total: activeSmartTask !== "all" || overdueOnly ? tableData.length : total,
+                      pageSize,
+                      pageSizeOptions: ["10", "20", "50", "100"],
+                      showSizeChanger: true,
+                      showTotal: (t) => `共 ${t} 条`,
+                      onChange: (p, ps) => {
+                        setPage(p);
+                        setPageSize(ps);
+                      },
+                    }}
+                  />
+                )}
+              </Card>
             </>
           )}
 
@@ -1301,7 +1572,7 @@ export default function CustomerList() {
             <Card
               className="customer-followup-card customer-table-card"
               size="small"
-              title={(
+              title={
                 <div className="customer-table-title">
                   <Typography.Text strong>客户跟进全局集合</Typography.Text>
                   <StatusTag>总计 {globalFollowUpCounts.all ?? globalFollowUpTotal}</StatusTag>
@@ -1310,12 +1581,17 @@ export default function CustomerList() {
                   <StatusTag tone="info">未来 {globalFollowUpCounts.upcoming || 0}</StatusTag>
                   <StatusTag tone="success">已完成 {globalFollowUpCounts.closed || 0}</StatusTag>
                 </div>
-              )}
-              extra={(
-                <Button size="small" icon={<ReloadOutlined />} loading={globalFollowUpLoading} onClick={() => loadGlobalFollowUps()}>
+              }
+              extra={
+                <Button
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  loading={globalFollowUpLoading}
+                  onClick={() => loadGlobalFollowUps()}
+                >
                   刷新集合
                 </Button>
-              )}
+              }
             >
               <div className="customer-followup-toolbar">
                 <Input.Search
@@ -1333,7 +1609,7 @@ export default function CustomerList() {
                   value={globalFollowUpBucket}
                   options={GLOBAL_FOLLOW_UP_BUCKETS.map((item) => ({
                     value: item.key,
-                    label: `${item.label} ${item.key === "all" ? (globalFollowUpCounts.all ?? globalFollowUpTotal) : (globalFollowUpCounts[item.key] || 0)}`,
+                    label: `${item.label} ${item.key === "all" ? (globalFollowUpCounts.all ?? globalFollowUpTotal) : globalFollowUpCounts[item.key] || 0}`,
                   }))}
                   onChange={(value) => {
                     const next = value as GlobalFollowUpBucket;
@@ -1345,35 +1621,55 @@ export default function CustomerList() {
               <List
                 loading={globalFollowUpLoading}
                 dataSource={globalFollowUps}
-                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" /> }}
+                locale={{
+                  emptyText: (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" />
+                  ),
+                }}
                 renderItem={(item) => {
                   const due = getGlobalFollowUpDueMeta(item);
                   const isClosed = item.due_bucket === "closed";
                   return (
                     <List.Item
-                      actions={isClosed ? [
-                        <Button key="customer" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
-                          查看客户
-                        </Button>,
-                      ] : [
-                        <Button
-                          key="complete"
-                          size="small"
-                          type="link"
-                          loading={reminderActionKey === `global-complete-${item.id}`}
-                          onClick={() => handleCompleteGlobalFollowUp(item)}
-                        >
-                          完成
-                        </Button>,
-                        <Button key="customer" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
-                          查看客户
-                        </Button>,
-                      ]}
+                      actions={
+                        isClosed
+                          ? [
+                              <Button
+                                key="customer"
+                                size="small"
+                                type="link"
+                                onClick={() => navigate(`/customers/${item.customer_id}`)}
+                              >
+                                查看客户
+                              </Button>,
+                            ]
+                          : [
+                              <Button
+                                key="complete"
+                                size="small"
+                                type="link"
+                                loading={reminderActionKey === `global-complete-${item.id}`}
+                                onClick={() => handleCompleteGlobalFollowUp(item)}
+                              >
+                                完成
+                              </Button>,
+                              <Button
+                                key="customer"
+                                size="small"
+                                type="link"
+                                onClick={() => navigate(`/customers/${item.customer_id}`)}
+                              >
+                                查看客户
+                              </Button>,
+                            ]
+                      }
                     >
                       <List.Item.Meta
-                        title={(
+                        title={
                           <Space size={6} wrap>
-                            <Typography.Link onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                            <Typography.Link
+                              onClick={() => navigate(`/customers/${item.customer_id}`)}
+                            >
                               {item.customer_name}
                             </Typography.Link>
                             <StatusTag tone={due.color}>{due.text}</StatusTag>
@@ -1381,19 +1677,26 @@ export default function CustomerList() {
                             <FollowUpMethodTag method={item.method} />
                             <FollowUpPriorityTag priority={item.priority} />
                             {(item.assigned_to || item.owner) && (
-                              <Typography.Text type="secondary">{item.assigned_to || item.owner}</Typography.Text>
+                              <Typography.Text type="secondary">
+                                {item.assigned_to || item.owner}
+                              </Typography.Text>
                             )}
                           </Space>
-                        )}
-                        description={(
+                        }
+                        description={
                           <Space direction="vertical" size={2}>
                             <Typography.Text type="secondary">
-                              计划 {formatDateTime(item.planned_at)} | 创建 {formatDateTime(item.created_at)}
+                              计划 {formatDateTime(item.planned_at)} | 创建{" "}
+                              {formatDateTime(item.created_at)}
                             </Typography.Text>
                             {item.content && <Typography.Text>{item.content}</Typography.Text>}
-                            {item.result && <Typography.Text type="secondary">结果：{item.result}</Typography.Text>}
+                            {item.result && (
+                              <Typography.Text type="secondary">
+                                结果：{item.result}
+                              </Typography.Text>
+                            )}
                           </Space>
-                        )}
+                        }
                       />
                     </List.Item>
                   );
@@ -1410,7 +1713,11 @@ export default function CustomerList() {
                 <BulbOutlined />
                 <Typography.Text strong>AI上下文</Typography.Text>
               </Space>
-              {contextCustomer && <StatusTag tone={getLevelColor(contextCustomer.level)}>{contextCustomer.level || "-"}</StatusTag>}
+              {contextCustomer && (
+                <StatusTag tone={getLevelColor(contextCustomer.level)}>
+                  {contextCustomer.level || "-"}
+                </StatusTag>
+              )}
             </div>
             {!contextCustomer ? (
               <div className="customer-ai-context-body">
@@ -1418,11 +1725,16 @@ export default function CustomerList() {
               </div>
             ) : (
               <div className="customer-ai-context-body">
-                <Typography.Link strong onClick={() => navigate(`/customers/${contextCustomer.id}`)}>
+                <Typography.Link
+                  strong
+                  onClick={() => navigate(`/customers/${contextCustomer.id}`)}
+                >
                   {contextCustomer.name}
                 </Typography.Link>
                 <div className="customer-ai-context-note">
-                  {[contextCustomer.short_name, contextCustomer.industry, contextCustomer.region].filter(Boolean).join(" / ") || "暂无画像信息"}
+                  {[contextCustomer.short_name, contextCustomer.industry, contextCustomer.region]
+                    .filter(Boolean)
+                    .join(" / ") || "暂无画像信息"}
                 </div>
                 <div className="customer-ai-score">
                   <div>
@@ -1432,8 +1744,16 @@ export default function CustomerList() {
                   <div className="customer-ai-score-value">{contextPriorityScore}</div>
                 </div>
                 <Space size={[4, 6]} wrap>
-                  {contextCustomer.health_score != null && <StatusTag tone={getHealthColor(contextCustomer.health_score)}>健康 {contextCustomer.health_score}</StatusTag>}
-                  {contextNextFollowUp && <StatusTag tone={getReminderDueMeta(contextNextFollowUp).color}>{getReminderDueMeta(contextNextFollowUp).text}</StatusTag>}
+                  {contextCustomer.health_score != null && (
+                    <StatusTag tone={getHealthColor(contextCustomer.health_score)}>
+                      健康 {contextCustomer.health_score}
+                    </StatusTag>
+                  )}
+                  {contextNextFollowUp && (
+                    <StatusTag tone={getReminderDueMeta(contextNextFollowUp).color}>
+                      {getReminderDueMeta(contextNextFollowUp).text}
+                    </StatusTag>
+                  )}
                   {contextCustomer.owner && <StatusTag>负责人 {contextCustomer.owner}</StatusTag>}
                 </Space>
                 <div className="customer-ai-action-box">
@@ -1455,20 +1775,53 @@ export default function CustomerList() {
                     </Button>
                   </Space>
                   <ol>
-                    {contextTalkTrack.map((line) => <li key={line}>{line}</li>)}
+                    {contextTalkTrack.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
                   </ol>
                 </div>
                 <Descriptions column={1} size="small" style={{ marginTop: 10 }}>
-                  <Descriptions.Item label="联系人">{contextCustomer.contact_person || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="联系人">
+                    {contextCustomer.contact_person || "-"}
+                  </Descriptions.Item>
                   <Descriptions.Item label="电话">{contextCustomer.phone || "-"}</Descriptions.Item>
-                  <Descriptions.Item label="最近联系">{formatDate(contextCustomer.last_contacted_at)}</Descriptions.Item>
-                  <Descriptions.Item label="计划跟进">{formatDateTime(contextNextFollowUp?.planned_at)}</Descriptions.Item>
+                  <Descriptions.Item label="最近联系">
+                    {formatDate(contextCustomer.last_contacted_at)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="计划跟进">
+                    {formatDateTime(contextNextFollowUp?.planned_at)}
+                  </Descriptions.Item>
                 </Descriptions>
                 <div className="customer-ai-context-actions">
-                  <Button size="small" type="primary" icon={<PhoneOutlined />} onClick={() => openAIPlannedFollowUp(contextCustomer, contextNextFollowUp)}>转跟进</Button>
-                  <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/customers/${contextCustomer.id}`)}>详情</Button>
-                  <Button size="small" icon={<ShoppingCartOutlined />} onClick={() => navigate(`/sales/orders/new?customer_id=${contextCustomer.id}`)}>订单</Button>
-                  <Button size="small" icon={<RobotOutlined />} onClick={() => navigate(`/customers/${contextCustomer.id}/360`)}>AI 360</Button>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<PhoneOutlined />}
+                    onClick={() => openAIPlannedFollowUp(contextCustomer, contextNextFollowUp)}
+                  >
+                    转跟进
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<EyeOutlined />}
+                    onClick={() => navigate(`/customers/${contextCustomer.id}`)}
+                  >
+                    详情
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<ShoppingCartOutlined />}
+                    onClick={() => navigate(`/sales/orders/new?customer_id=${contextCustomer.id}`)}
+                  >
+                    订单
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<RobotOutlined />}
+                    onClick={() => navigate(`/customers/${contextCustomer.id}/360`)}
+                  >
+                    AI 360
+                  </Button>
                 </div>
                 {contextNextFollowUp && (
                   <div className="customer-ai-context-actions">
@@ -1505,13 +1858,30 @@ export default function CustomerList() {
                         <div className="customer-ai-context-note">{productRecResult.summary}</div>
                       )}
                       {productRecResult.recommendations.slice(0, 3).map((item) => (
-                        <div className="customer-ai-product-item" key={`${item.product_name}-${item.brand}`}>
+                        <div
+                          className="customer-ai-product-item"
+                          key={`${item.product_name}-${item.brand}`}
+                        >
                           <Space size={4} wrap>
                             <Typography.Text strong>{item.product_name}</Typography.Text>
                             {item.brand && <StatusTag>{item.brand}</StatusTag>}
-                            {item.priority && <StatusTag tone={item.priority === "高" ? "danger" : item.priority === "中" ? "warning" : "info"}>{item.priority}</StatusTag>}
+                            {item.priority && (
+                              <StatusTag
+                                tone={
+                                  item.priority === "高"
+                                    ? "danger"
+                                    : item.priority === "中"
+                                      ? "warning"
+                                      : "info"
+                                }
+                              >
+                                {item.priority}
+                              </StatusTag>
+                            )}
                           </Space>
-                          <div className="customer-ai-context-note">{item.reason || item.estimated_potential || "-"}</div>
+                          <div className="customer-ai-context-note">
+                            {item.reason || item.estimated_potential || "-"}
+                          </div>
                         </div>
                       ))}
                     </>
@@ -1529,9 +1899,32 @@ export default function CustomerList() {
             </div>
             <div className="customer-ai-context-body">
               <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                <Button block size="small" icon={<SendOutlined />} onClick={() => setSemanticOpen(true)}>AI语义搜索</Button>
-                <Button block size="small" icon={<SafetyCertificateOutlined />} loading={dupLoading} onClick={handleDetectDups}>重复检测</Button>
-                <Button block size="small" icon={<TagsOutlined />} disabled={!selectedRowKeys.length} onClick={() => setTagModalOpen(true)}>批量标签</Button>
+                <Button
+                  block
+                  size="small"
+                  icon={<SendOutlined />}
+                  onClick={() => setSemanticOpen(true)}
+                >
+                  AI语义搜索
+                </Button>
+                <Button
+                  block
+                  size="small"
+                  icon={<SafetyCertificateOutlined />}
+                  loading={dupLoading}
+                  onClick={handleDetectDups}
+                >
+                  重复检测
+                </Button>
+                <Button
+                  block
+                  size="small"
+                  icon={<TagsOutlined />}
+                  disabled={!selectedRowKeys.length}
+                  onClick={() => setTagModalOpen(true)}
+                >
+                  批量标签
+                </Button>
               </Space>
             </div>
           </div>
