@@ -1377,7 +1377,7 @@ export default function CustomerList() {
               )}
 
               <Card
-                className="customer-table-card"
+                className="customer-table-card erp-table"
                 size="small"
                 title={
                   <div className="customer-table-title">

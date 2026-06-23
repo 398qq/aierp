@@ -1161,7 +1161,7 @@ export default function ProductList() {
             </div>
           )}
 
-          <div className="product-table-panel">
+          <div className="product-table-panel erp-table">
             <div className="product-table-header">
               <div className="product-table-title">
                 <strong>{aiSearchMode ? "AI 搜索结果" : currentListTitle}</strong>

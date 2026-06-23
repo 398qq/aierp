@@ -788,7 +788,7 @@ export default function BrandList() {
           </div>
         </aside>
 
-        <main className="brand-table-zone">
+        <main className="brand-table-zone erp-table">
 
       <Card
         className="brand-list-card"

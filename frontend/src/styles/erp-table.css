@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ERP Professional Table Styles — 全局企业级表格体验
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 表格容器 ── */
+.erp-table .ant-card-body { padding: 0 !important; overflow: hidden; }
+.erp-table .ant-card-head {
+  min-height: 40px; padding: 0 14px;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fafafa;
+}
+.erp-table .ant-card-head-title { padding: 6px 0; font-size: 13px; font-weight: 650; }
+.erp-table .ant-card-extra { padding: 6px 0; }
+
+/* ── 表头：专业 ERP 风格 ── */
+.erp-table .ant-table-thead > tr > th {
+  background: #f5f5f5 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #434343 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 7px 10px !important;
+  border-bottom: 2px solid #d9d9d9 !important;
+  border-right: 1px solid #eee;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.erp-table .ant-table-thead th:last-child { border-right: none; }
+.erp-table .ant-table-thead th.ant-table-column-has-sorters:hover {
+  background: #e8e8e8 !important;
+  cursor: pointer;
+}
+
+/* ── 数据行：高密度信息展示 ── */
+.erp-table .ant-table-tbody > tr > td {
+  padding: 5px 10px !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  border-bottom: 1px solid #f0f0f0;
+  border-right: 1px solid #f5f5f5;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle !important;
+}
+.erp-table .ant-table-tbody > tr > td:last-child { border-right: none; }
+.erp-table .ant-table-tbody > tr { height: 34px; }
+
+/* 斑马纹 */
+.erp-table .ant-table-tbody > tr.ant-table-row:nth-child(even) > td {
+  background: #fafafa;
+}
+
+/* 悬停高亮 */
+.erp-table .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: #e6f4ff !important;
+  border-bottom-color: #91caff;
+}
+
+/* 选择框列 */
+.erp-table .ant-table-selection-column { padding: 5px 6px !important; }
+
+/* ── 固定列阴影 ── */
+.erp-table .ant-table-cell-fix-left-last::after {
+  pointer-events: none;
+  box-shadow: inset 10px 0 8px -8px rgba(0,0,0,0.08);
+}
+.erp-table .ant-table-cell-fix-right-first::after {
+  pointer-events: none;
+  box-shadow: inset -10px 0 8px -8px rgba(0,0,0,0.08);
+}
+
+/* ── 数字列右对齐等宽 ── */
+.erp-table .ant-table-cell.ant-table-column-align-right {
+  font-family: "SF Mono", "Consolas", "Menlo", monospace;
+  font-size: 12px;
+}
+
+/* ── 列排序图标 ── */
+.erp-table .ant-table-column-sorters {
+  justify-content: flex-start;
+  gap: 2px;
+}
+.erp-table .ant-table-column-sorter {
+  color: #bfbfbf;
+  font-size: 10px;
+}
+
+/* ── 分页 ── */
+.erp-table .ant-table-pagination {
+  margin: 8px 12px 6px !important;
+}
+.erp-table .ant-pagination-item,
+.erp-table .ant-pagination-prev,
+.erp-table .ant-pagination-next {
+  min-width: 28px !important; height: 28px !important;
+  line-height: 26px !important; font-size: 12px;
+}
+.erp-table .ant-pagination-item a { font-size: 12px; padding: 0 4px; }
+.erp-table .ant-table-pagination.ant-pagination { margin: 8px 0 !important; }
+
+/* ── 表格 wrapper 边框 ── */
+.erp-table .ant-table-container {
+  border: 1px solid #e8e8e8;
+  border-radius: 0;
+}
+
+/* ── 空状态 ── */
+.erp-table .ant-empty { margin: 40px 0; }
+.erp-table .ant-empty-description { font-size: 12px; color: #8c8c8c; }
+
+/* ── 加载遮罩 ── */
+.erp-table .ant-spin-container::after { background: rgba(255,255,255,0.6); }
+
+/* ── 状态标签在表格内紧凑 ── */
+.erp-table .ant-tag { margin: 0; font-size: 11px; line-height: 18px; padding: 0 6px; }
