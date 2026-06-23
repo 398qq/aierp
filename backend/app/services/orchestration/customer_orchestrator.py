@@ -256,9 +256,11 @@ async def orchestrate_customer_360(db: AsyncSession, customer_id: int) -> dict:
                     "quantity": s.quantity,
                     "status": s.status,
                     "apply_date": s.apply_date.isoformat() if s.apply_date else None,
-                    "ship_date": s.ship_date.isoformat() if s.ship_date else None,
-                    "receive_date": s.receive_date.isoformat()
-                    if s.receive_date
+                    "shipped_date": s.shipped_date.isoformat()
+                    if s.shipped_date
+                    else None,
+                    "received_date": s.received_date.isoformat()
+                    if s.received_date
                     else None,
                 }
                 for s in recent_samples[:5]
