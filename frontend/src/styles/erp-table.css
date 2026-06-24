@@ -115,3 +115,136 @@
 
 /* ── 状态标签在表格内紧凑 ── */
 .erp-table .ant-tag { margin: 0; font-size: 11px; line-height: 18px; padding: 0 6px; }
+
+/* ── 客户主数据台账 ── */
+.customer-ledger {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+}
+
+.customer-ledger-command,
+.customer-ledger-filters,
+.customer-filter-state,
+.customer-table-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+}
+
+.customer-ledger-command {
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.customer-ledger-switch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.customer-ledger-filters {
+  justify-content: flex-start;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.customer-filter-state {
+  justify-content: flex-start;
+  min-height: 32px;
+  padding-top: 0;
+  color: #595959;
+}
+
+.customer-ledger-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(132px, 1fr));
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fcfcfc;
+}
+
+.customer-ledger-metric {
+  min-width: 0;
+  padding: 9px 12px;
+  border-right: 1px solid #f0f0f0;
+}
+
+.customer-ledger-metric:last-child {
+  border-right: 0;
+}
+
+.customer-ledger-metric span {
+  display: block;
+  color: #595959;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.customer-ledger-metric strong {
+  margin-right: 4px;
+  color: #1f1f1f;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 26px;
+  font-variant-numeric: tabular-nums;
+}
+
+.customer-ledger-metric em {
+  color: #8c8c8c;
+  font-style: normal;
+  font-size: 12px;
+}
+
+.customer-ledger-metric.is-warning strong {
+  color: #ad6800;
+}
+
+.customer-ledger-metric.is-danger strong {
+  color: #cf1322;
+}
+
+.customer-table-frame {
+  padding: 0 12px 12px;
+}
+
+.customer-table-titlebar {
+  min-height: 36px;
+  padding: 0 0 8px;
+}
+
+.customer-ledger-table .ant-table {
+  border-radius: 0;
+}
+
+.customer-ledger-table .ant-table-tbody > tr.customer-row-missing-profile > td:first-child {
+  box-shadow: inset 3px 0 0 #faad14;
+}
+
+.customer-ledger-table .ant-table-tbody > tr.customer-row-stale > td {
+  background-image: linear-gradient(0deg, rgba(250, 173, 20, 0.035), rgba(250, 173, 20, 0.035));
+}
+
+.customer-ledger-table .ant-table-tbody > tr.customer-row-missing-profile:hover > td,
+.customer-ledger-table .ant-table-tbody > tr.customer-row-stale:hover > td {
+  background: #e6f4ff !important;
+}
+
+@media (max-width: 960px) {
+  .customer-ledger-command,
+  .customer-ledger-filters,
+  .customer-filter-state,
+  .customer-table-titlebar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .customer-ledger-metrics {
+    grid-template-columns: repeat(2, minmax(132px, 1fr));
+  }
+}

@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Button,
   Dropdown,
+  Empty,
   Input,
   message,
   Segmented,
@@ -14,7 +15,7 @@ import {
   Space,
   Table,
   Tag,
-  theme,
+  Tooltip,
   Typography,
 } from "antd";
 import {
@@ -24,10 +25,13 @@ import {
   EllipsisOutlined,
   PhoneFilled,
   ThunderboltOutlined,
+  ReloadOutlined,
+  ExportOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
-import { getCustomers, getApiErrorMessage } from "@/api";
+import { exportCustomers, getCustomers, getApiErrorMessage } from "@/api";
 import type { Customer } from "@/types";
 import { ErrorBoundary, StatusTag, useColumnResize } from "@/ui";
 import CustomerModuleShell from "./CustomerModuleShell";
@@ -44,16 +48,70 @@ import {
 const { Text } = Typography;
 
 const CREDIT_COLORS: Record<string, string> = {
-  A: "green", B: "blue", C: "orange", D: "red",
+  AAA: "green",
+  AA: "cyan",
+  A: "blue",
+  B: "orange",
+  C: "red",
+  D: "red",
 };
 
-function relativeTime(iso: string): string {
+const LEVEL_COLORS: Record<string, string> = {
+  A: "red",
+  B: "gold",
+  C: "blue",
+  D: "default",
+};
+
+const TAX_STATUS = {
+  complete: { label: "资料齐", color: "green" },
+  missing: { label: "待补齐", color: "orange" },
+};
+
+const CUSTOMER_LEVELS = ["A", "B", "C", "D"];
+const CUSTOMER_REGIONS = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
+
+function relativeTime(iso?: string | null): string {
+  if (!iso) return "-";
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   if (diff === 0) return "今天";
   if (diff === 1) return "昨天";
   if (diff < 30) return `${diff}天前`;
   if (diff < 365) return `${Math.floor(diff / 30)}月前`;
   return `${Math.floor(diff / 365)}年前`;
+}
+
+function formatMoney(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return `¥${value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "-";
+  return value.slice(0, 10);
+}
+
+function isErpProfileComplete(customer: Customer): boolean {
+  return Boolean(
+    (customer.tax_id || customer.unified_social_credit_code)
+      && customer.invoice_title
+      && customer.invoice_address
+      && customer.payment_terms
+  );
+}
+
+function isStaleContact(iso?: string | null): boolean {
+  if (!iso) return true;
+  return Date.now() - new Date(iso).getTime() > 30 * 86400000;
+}
+
+function getSummary(data: Customer[]) {
+  const active = data.filter((item) => ["active", "vip", "converted"].includes(item.status || "")).length;
+  const missingErp = data.filter((item) => !isErpProfileComplete(item)).length;
+  const highValue = data.filter((item) => (item.total_amount || 0) > 0).length;
+  const stale = data.filter((item) => isStaleContact(item.last_contacted_at)).length;
+  const pageAmount = data.reduce((sum, item) => sum + (item.total_amount || 0), 0);
+  return { active, missingErp, highValue, stale, pageAmount };
 }
 
 interface CustomerColumnActions {
@@ -65,34 +123,82 @@ interface CustomerColumnActions {
 function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
   return [
   {
-    title: "客户名称", dataIndex: "name", width: 180,
-    render: (name: string) => (
-      <Text strong copyable={{ tooltips: false }} style={{ cursor: "pointer" }}>{name}</Text>
+    title: "客户", dataIndex: "name", width: 250, fixed: "left",
+    render: (name: string, record) => (
+      <Space direction="vertical" size={0}>
+        <Text strong copyable={{ tooltips: false }} style={{ cursor: "pointer" }}>{name}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {record.code || "-"} {record.short_name ? `· ${record.short_name}` : ""}
+        </Text>
+      </Space>
     ),
   },
   {
-    title: "行业", dataIndex: "industry", width: 100, ellipsis: true,
-    render: (v: string | null) => v || "-",
+    title: "负责人", dataIndex: "owner", width: 110,
+    render: (v: string | null) => v || <Text type="secondary">未分配</Text>,
   },
   {
-    title: "状态", dataIndex: "status", width: 100,
+    title: "生命周期", dataIndex: "status", width: 110,
     render: (s: string) => {
       const c = STATUS_CONFIG[s] || { label: s || "-", color: "default" };
       return <StatusTag tone={c.color as "green" | "blue" | "gold"}>{c.label}</StatusTag>;
     },
   },
   {
-    title: "信用等级", dataIndex: "credit_level", width: 100,
-    render: (l: string) => l ? <Tag color={CREDIT_COLORS[l] || "default"}>{l}</Tag> : "-",
+    title: "等级", dataIndex: "level", width: 80,
+    render: (level: string | null) => level ? <Tag color={LEVEL_COLORS[level] || "default"}>{level}</Tag> : "-",
   },
   {
-    title: "最后互动", dataIndex: "last_contacted_at", width: 120,
-    render: (d: string | null) => d ? relativeTime(d) : <Text type="secondary">-</Text>,
+    title: "行业/区域", dataIndex: "industry", width: 150,
+    render: (_: string | null, record) => (
+      <Space direction="vertical" size={0}>
+        <Text>{record.industry || "-"}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{record.region || "-"}</Text>
+      </Space>
+    ),
   },
   {
-    title: "交易金额", dataIndex: "total_amount", width: 140, align: "right",
-    render: (v: number | null) =>
-      v != null ? <Text style={{ fontVariantNumeric: "tabular-nums" }}>¥{v.toLocaleString("zh-CN")}</Text> : "-",
+    title: "主联系人", dataIndex: "contact_person", width: 170,
+    render: (_: string | null, record) => (
+      <Space direction="vertical" size={0}>
+        <Text>{record.contact_person || "-"}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{record.phone || record.email || "-"}</Text>
+      </Space>
+    ),
+  },
+  {
+    title: "交易额", dataIndex: "total_amount", width: 120, align: "right", sorter: false,
+    render: (v: number | null) => <Text style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(v)}</Text>,
+  },
+  {
+    title: "信用/账期", dataIndex: "credit_level", width: 140,
+    render: (level: string | null, record) => (
+      <Space direction="vertical" size={0}>
+        {level ? <Tag color={CREDIT_COLORS[level] || "default"}>{level}</Tag> : <Text type="secondary">无评级</Text>}
+        <Text type="secondary" style={{ fontSize: 12 }}>{record.payment_terms || "未设账期"}</Text>
+      </Space>
+    ),
+  },
+  {
+    title: "开票资料", dataIndex: "tax_id", width: 120,
+    render: (_: string | null, record) => {
+      const complete = isErpProfileComplete(record);
+      const tax = complete ? TAX_STATUS.complete : TAX_STATUS.missing;
+      return (
+        <Tooltip title={complete ? "税号、抬头、地址、账期已维护" : "税号/统一社会信用代码、发票抬头、发票地址或账期缺失"}>
+          <Tag color={tax.color}>{tax.label}</Tag>
+        </Tooltip>
+      );
+    },
+  },
+  {
+    title: "最近联系", dataIndex: "last_contacted_at", width: 125,
+    render: (d: string | null) => (
+      <Space direction="vertical" size={0}>
+        <Text>{relativeTime(d)}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{formatDate(d)}</Text>
+      </Space>
+    ),
   },
   {
     title: "操作", key: "actions", width: 56, align: "center", fixed: "right",
@@ -131,7 +237,6 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
 
 export default function CustomerListPage() {
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -145,6 +250,28 @@ export default function CustomerListPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [group, setGroup] = useState<GroupValue>("all");
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [levelFilter, setLevelFilter] = useState<string | undefined>();
+  const [regionFilter, setRegionFilter] = useState<string | undefined>();
+  const [missingErp, setMissingErp] = useState(false);
+
+  const buildListParams = useCallback(() => {
+    const params: Record<string, unknown> = {
+      page,
+      page_size: 50,
+      q: debouncedSearch || undefined,
+      sort_by: "last_contacted_at",
+      sort_order: "asc",
+    };
+    if (group !== "all") {
+      const gf = GROUP_FILTERS[group];
+      if (gf.status) params.status = gf.status.join(",");
+    }
+    if (statusFilter) params.status = statusFilter;
+    if (levelFilter) params.level = levelFilter;
+    if (regionFilter) params.region = regionFilter;
+    if (missingErp) params.missing_erp = true;
+    return params;
+  }, [page, debouncedSearch, group, statusFilter, levelFilter, regionFilter, missingErp]);
 
   // 搜索防抖 300ms
   useEffect(() => {
@@ -156,20 +283,7 @@ export default function CustomerListPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = {
-        page,
-        page_size: 50,
-        q: debouncedSearch || undefined,
-        sort_by: "last_contacted_at",
-        sort_order: "asc",
-      };
-      // Apply group preset filters
-      if (group !== "all") {
-        const gf = GROUP_FILTERS[group];
-        if (gf.status) params.status = gf.status.join(",");
-      }
-      // Apply explicit status filter (overrides group)
-      if (statusFilter) params.status = statusFilter;
+      const params = buildListParams();
       const res = await getCustomers(params);
       const payload = res.data?.data as { list?: Customer[]; total?: number } | undefined;
       setData(payload?.list || []);
@@ -177,7 +291,7 @@ export default function CustomerListPage() {
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户列表失败")); } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, group, statusFilter]);
+  }, [buildListParams]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -190,39 +304,145 @@ export default function CustomerListPage() {
     },
   });
   const columns = useColumnResize(baseColumns);
+  const summary = getSummary(data);
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setGroup("all");
+    setStatusFilter(undefined);
+    setLevelFilter(undefined);
+    setRegionFilter(undefined);
+    setMissingErp(false);
+    setPage(1);
+  };
+  const handleExport = async () => {
+    try {
+      const params = buildListParams();
+      delete params.page;
+      delete params.page_size;
+      const response = await exportCustomers(params);
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data]);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "导出客户失败"));
+    }
+  };
+  const activeFilters = [
+    group !== "all" ? { key: "group", label: `分组: ${GROUP_OPTIONS.find((item) => item.value === group)?.label || group}`, clear: () => setGroup("all") } : null,
+    statusFilter ? { key: "status", label: `生命周期: ${STATUS_CONFIG[statusFilter]?.label || statusFilter}`, clear: () => setStatusFilter(undefined) } : null,
+    levelFilter ? { key: "level", label: `等级: ${levelFilter}`, clear: () => setLevelFilter(undefined) } : null,
+    regionFilter ? { key: "region", label: `区域: ${regionFilter}`, clear: () => setRegionFilter(undefined) } : null,
+    missingErp ? { key: "missingErp", label: "待补ERP资料", clear: () => setMissingErp(false) } : null,
+    search ? { key: "search", label: `搜索: ${search}`, clear: () => { setSearch(""); setDebouncedSearch(""); } } : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
 
   return (
     <ErrorBoundary>
-      <CustomerModuleShell title="客户列表" subtitle="搜索客户、查看详情与商业洞察">
-        <div className="customer-table-card" style={{ border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 4, background: "#fff" }}>
-          {/* 搜索筛选栏 */}
-          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-            <Space wrap>
-              <Input
-                placeholder="搜索客户名称、电话..."
-                prefix={<SearchOutlined />}
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                style={{ width: 300 }}
-                allowClear
-              />
+      <CustomerModuleShell title="客户列表" subtitle="客户主数据、跟进状态与开票资料">
+        <div className="customer-ledger">
+          <div className="customer-ledger-command">
+            <div className="customer-ledger-switch">
               <Segmented
                 options={GROUP_OPTIONS.map((g) => ({ label: g.label, value: g.value }))}
                 value={group}
                 onChange={(v) => { setGroup(v as GroupValue); setPage(1); }}
               />
-              <Select
-                allowClear
-                placeholder="状态"
-                style={{ width: 110 }}
-                value={statusFilter}
-                onChange={(v) => { setStatusFilter(v); setPage(1); }}
-                options={Object.entries(STATUS_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))}
-              />
+              <Button
+                type={missingErp ? "primary" : "default"}
+                icon={<FileTextOutlined />}
+                onClick={() => { setMissingErp((v) => !v); setPage(1); }}
+              >
+                待补ERP资料
+              </Button>
+            </div>
+            <Space wrap size={8}>
+              <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>刷新</Button>
+              <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
               <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingCustomer(null); setFormOpen(true); }}>
                 新增客户
               </Button>
             </Space>
+          </div>
+
+          <div className="customer-ledger-filters">
+            <Space wrap size={8}>
+              <Input
+                placeholder="客户名称、编码、联系人、电话、税号"
+                prefix={<SearchOutlined />}
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                style={{ width: 320 }}
+                allowClear
+              />
+              <Select
+                allowClear
+                placeholder="生命周期"
+                style={{ width: 130 }}
+                value={statusFilter}
+                onChange={(v) => { setStatusFilter(v); setPage(1); }}
+                options={Object.entries(STATUS_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))}
+              />
+              <Select
+                allowClear
+                placeholder="客户等级"
+                style={{ width: 110 }}
+                value={levelFilter}
+                onChange={(v) => { setLevelFilter(v); setPage(1); }}
+                options={CUSTOMER_LEVELS.map((value) => ({ value, label: value }))}
+              />
+              <Select
+                allowClear
+                placeholder="区域"
+                style={{ width: 120 }}
+                value={regionFilter}
+                onChange={(v) => { setRegionFilter(v); setPage(1); }}
+                options={CUSTOMER_REGIONS.map((value) => ({ value, label: value }))}
+              />
+              <Button onClick={clearFilters}>重置</Button>
+            </Space>
+          </div>
+
+          <div className="customer-filter-state">
+            <Text type="secondary">筛选状态</Text>
+            {activeFilters.length ? (
+              activeFilters.map((item) => (
+                <Tag key={item.key} closable onClose={item.clear}>{item.label}</Tag>
+              ))
+            ) : (
+              <Text type="secondary">全部客户</Text>
+            )}
+          </div>
+
+          <div className="customer-ledger-metrics">
+            <div className="customer-ledger-metric">
+              <span>当前结果</span>
+              <strong>{total.toLocaleString("zh-CN")}</strong>
+              <em>家</em>
+            </div>
+            <div className="customer-ledger-metric">
+              <span>本页交易额</span>
+              <strong>{formatMoney(summary.pageAmount)}</strong>
+            </div>
+            <div className="customer-ledger-metric">
+              <span>成交/活跃</span>
+              <strong>{summary.active}</strong>
+              <em>家</em>
+            </div>
+            <div className="customer-ledger-metric is-warning">
+              <span>30天未联系</span>
+              <strong>{summary.stale}</strong>
+              <em>家</em>
+            </div>
+            <div className="customer-ledger-metric is-danger">
+              <span>资料待补</span>
+              <strong>{summary.missingErp}</strong>
+              <em>家</em>
+            </div>
           </div>
 
           {/* 批量操作栏 */}
@@ -233,26 +453,52 @@ export default function CustomerListPage() {
             onBatchComplete={fetchData}
           />
 
-          {/* 表格 */}
-          <Table<Customer>
-            rowKey="id"
-            columns={columns}
-            dataSource={data}
-            loading={loading}
-            size="middle"
-            scroll={{ x: "max-content" }}
-            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-            pagination={{
-              current: page, pageSize: 50, total,
-              showSizeChanger: false,
-              showTotal: (t) => `共 ${t} 条`,
-              onChange: (p) => setPage(p),
-            }}
-            onRow={(r) => ({
-              onClick: () => { setSelectedCustomer(r); setDetailOpen(true); },
-              style: { cursor: "pointer" },
-            })}
-          />
+          <div className="customer-table-frame">
+            <div className="customer-table-titlebar">
+              <div>
+                <Text strong>客户主数据台账</Text>
+                <Text type="secondary"> 最近未联系优先，点击行查看客户 360</Text>
+              </div>
+              <Text type="secondary">已选 {selectedRowKeys.length} / 本页 {data.length}</Text>
+            </div>
+
+            {/* 表格 */}
+            <Table<Customer>
+              className="erp-table customer-ledger-table"
+              rowKey="id"
+              columns={columns}
+              dataSource={data}
+              loading={loading}
+              size="small"
+              bordered
+              sticky
+              tableLayout="fixed"
+              scroll={{ x: 1480 }}
+              rowClassName={(record) => [
+                !isErpProfileComplete(record) ? "customer-row-missing-profile" : "",
+                isStaleContact(record.last_contacted_at) ? "customer-row-stale" : "",
+              ].filter(Boolean).join(" ")}
+              rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={activeFilters.length ? "没有符合筛选条件的客户" : "暂无客户"}
+                  />
+                ),
+              }}
+              pagination={{
+                current: page, pageSize: 50, total,
+                showSizeChanger: false,
+                showTotal: (t, range) => `${range[0]}-${range[1]} / ${t}`,
+                onChange: (p) => setPage(p),
+              }}
+              onRow={(r) => ({
+                onClick: () => { setSelectedCustomer(r); setDetailOpen(true); },
+                style: { cursor: "pointer" },
+              })}
+            />
+          </div>
         </div>
 
         {/* 详情面板 */}
