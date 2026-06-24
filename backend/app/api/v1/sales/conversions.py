@@ -15,8 +15,11 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_uow
+from app.application.sales import ConvertQuotationToOrderUseCase
+from app.application.uow import UnitOfWork
 from app.database import get_db
+from app.domain.shared.errors import InvalidStateTransition, NotFoundError
 from app.schemas.common import fail, ok
 from app.schemas.sales import ConversionValidation, ConvertResponse
 from app.services import sales_service as svc
@@ -30,20 +33,30 @@ router = APIRouter(tags=["sales:conversion"])
 @router.post("/quotations/{quote_id}/convert-to-order")
 async def convert_quote_to_order(
     quote_id: int,
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+    user: dict = Depends(get_current_user),
 ):
-    quote = await svc.get_quotation(db, quote_id)
-    if not quote:
+    use_case = ConvertQuotationToOrderUseCase(
+        uow.session,
+        user_id=user["user_id"],
+        allow_legacy_draft=True,
+        final_quotation_status="won",
+    )
+    try:
+        order = await use_case.execute(quote_id)
+    except NotFoundError:
         return fail("报价单不存在", 404)
-    if quote.status == "won":
-        return fail("报价单已转换", 400)
-    order = await svc.convert_quotation_to_order(db, quote)
+    except InvalidStateTransition:
+        return fail("报价单已转换或状态不允许转换", 400)
+
+    await uow.commit()
+
     from app.services.sales_ai_pipeline import validate_quote_to_order
 
     validation = None
     try:
-        ai_result = await validate_quote_to_order(db, quote)
+        quote = await svc.get_quotation(uow.session, quote_id)
+        ai_result = await validate_quote_to_order(uow.session, quote) if quote else None
         if ai_result:
             validation = ConversionValidation(**ai_result)
     except Exception:
@@ -55,7 +68,7 @@ async def convert_quote_to_order(
     await cache_bump_version("reports:predefined:sales")
     return ok(
         ConvertResponse(
-            id=order.id,
+            id=order.id or 0,
             document_no=order.order_no or "",
             msg="报价单已转换为销售订单",
             ai_validation=validation,

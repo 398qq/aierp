@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Dropdown, Modal, Select, Space, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
@@ -150,12 +150,12 @@ export default function InvoiceList() {
           const totalAmount = pageData.reduce((s, r) => s + r.amount, 0);
           const totalTax = pageData.reduce((s, r) => s + (r.tax_amount || 0), 0);
           return (
-            <Table className="erp-table".Summary.Row>
-              <Table className="erp-table".Summary.Cell index={0}>合计</Table.Summary.Cell>
-              <Table className="erp-table".Summary.Cell index={1} colSpan={2} />
-              <Table className="erp-table".Summary.Cell index={3} align="right"><Typography.Text strong>{money(totalAmount)}</Typography.Text></Table.Summary.Cell>
-              <Table className="erp-table".Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalTax)}</Typography.Text></Table.Summary.Cell>
-              <Table className="erp-table".Summary.Cell index={5} colSpan={4} />
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
+              <Table.Summary.Cell index={1} colSpan={2} />
+              <Table.Summary.Cell index={3} align="right"><Typography.Text strong>{money(totalAmount)}</Typography.Text></Table.Summary.Cell>
+              <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalTax)}</Typography.Text></Table.Summary.Cell>
+              <Table.Summary.Cell index={5} colSpan={4} />
             </Table.Summary.Row>
           );
         }}

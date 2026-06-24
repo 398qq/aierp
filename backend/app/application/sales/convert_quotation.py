@@ -21,7 +21,8 @@ from sqlalchemy.orm import selectinload
 
 from app.domain.sales.entities import OrderLine, OrderStatus, SalesOrder
 from app.domain.sales.quotation import Quotation, QuotationStatus
-from app.domain.shared.errors import NotFoundError
+from app.domain.shared.errors import InvalidStateTransition, NotFoundError
+from app.domain.states import assert_can_transition_quotation
 from app.models.sales import (
     Quotation as QuotationModel,
     QuotationItem,
@@ -41,9 +42,18 @@ class ConvertQuotationToOrderUseCase:
     into the quotation when it was sent.
     """
 
-    def __init__(self, session: AsyncSession, user_id: int) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        *,
+        allow_legacy_draft: bool = False,
+        final_quotation_status: str = "converted",
+    ) -> None:
         self._session = session
         self._user_id = user_id
+        self._allow_legacy_draft = allow_legacy_draft
+        self._final_quotation_status = final_quotation_status
 
     async def execute(self, quotation_id: int) -> SalesOrder:
         # 1. Load quotation with items
@@ -69,9 +79,7 @@ class ConvertQuotationToOrderUseCase:
             customer_id=quote_orm.customer_id,
             quotation_no=quote_orm.quotation_no,
             title=quote_orm.title,
-            status=QuotationStatus(quote_orm.status)
-            if quote_orm.status
-            else QuotationStatus.DRAFT,
+            status=_quotation_status(quote_orm.status, quote_orm.id),
             valid_until=quote_orm.valid_until,
             notes=quote_orm.notes,
             lines=[
@@ -82,7 +90,22 @@ class ConvertQuotationToOrderUseCase:
             ],
         )
 
-        # 3. Build domain SalesOrder from quotation lines
+        # 3. Validate conversion state before creating downstream documents.
+        # The canonical domain model uses "converted"; the legacy HTTP route
+        # still exposes the older "won" status, so keep that compatibility here
+        # instead of duplicating conversion rules in route adapters.
+        if self._final_quotation_status == "won":
+            assert_can_transition_quotation(quote_orm.status, "won")
+        elif (
+            self._allow_legacy_draft
+            and domain_quote.status == QuotationStatus.DRAFT
+            and self._final_quotation_status == "converted"
+        ):
+            pass
+        else:
+            domain_quote.convert_to_order()
+
+        # 4. Build domain SalesOrder from quotation lines
         domain_order = SalesOrder(
             customer_id=domain_quote.customer_id,
             quotation_id=domain_quote.id,
@@ -99,7 +122,7 @@ class ConvertQuotationToOrderUseCase:
             ],
         )
 
-        # 4. Persist new order
+        # 5. Persist new order
         order_no = await generate_doc_no(
             self._session,
             "SO",
@@ -115,6 +138,8 @@ class ConvertQuotationToOrderUseCase:
         )
         self._session.add(new_order_orm)
         await self._session.flush()
+        domain_order.id = new_order_orm.id
+        domain_order.order_no = new_order_orm.order_no
 
         for line in domain_order.lines:
             self._session.add(
@@ -128,9 +153,8 @@ class ConvertQuotationToOrderUseCase:
                 )
             )
 
-        # 5. Mark quotation as CONVERTED
-        domain_quote.convert_to_order()  # Validates transition
-        quote_orm.status = domain_quote.status.value
+        # 6. Mark source quotation as converted / won according to the adapter.
+        quote_orm.status = self._final_quotation_status
 
         logger.info(
             "Converted quotation Q#%s to order SO#%s by user#%s (%d lines)",
@@ -159,3 +183,14 @@ def _quote_line_from_orm(item: QuotationItem):
         unit_price=Decimal(str(item.unit_price or 0)),
         cost_price=Decimal(str(item.cost_price)) if item.cost_price else None,
     )
+
+
+def _quotation_status(raw_status: str | None, quotation_id: int | None) -> QuotationStatus:
+    if not raw_status:
+        return QuotationStatus.DRAFT
+    try:
+        return QuotationStatus(raw_status)
+    except ValueError as exc:
+        raise InvalidStateTransition(
+            f"报价单 {quotation_id}: {raw_status} 状态不允许转换为订单"
+        ) from exc
