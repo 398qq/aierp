@@ -257,7 +257,7 @@ class TestSchemeLifecycle:
     """CRUD + status transitions via service layer with test DB."""
 
     @pytest.mark.asyncio
-    async def test_create_scheme(self, db_session):
+    async def test_create_scheme(self, db_session, test_user):
         from app.services.commission_scheme_service import create_scheme
 
         data = {
@@ -277,14 +277,14 @@ class TestSchemeLifecycle:
             ],
             "assignments": [],
         }
-        scheme = await create_scheme(db_session, data, user_id=1)
+        scheme = await create_scheme(db_session, data, user_id=test_user["id"])
         assert scheme.id > 0
         assert scheme.name == "Test Scheme"
         assert scheme.version_no == 1
         assert scheme.status == "draft"
 
     @pytest.mark.asyncio
-    async def test_activate_scheme(self, db_session):
+    async def test_activate_scheme(self, db_session, test_user):
         from app.services.commission_scheme_service import (
             activate_scheme,
             create_scheme,
@@ -306,14 +306,14 @@ class TestSchemeLifecycle:
             ],
             "assignments": [],
         }
-        scheme = await create_scheme(db_session, data, user_id=1)
+        scheme = await create_scheme(db_session, data, user_id=test_user["id"])
         assert scheme.status == "draft"
 
         activated = await activate_scheme(db_session, scheme.id)
         assert activated.status == "active"
 
     @pytest.mark.asyncio
-    async def test_update_bumps_version(self, db_session):
+    async def test_update_bumps_version(self, db_session, test_user):
         from app.services.commission_scheme_service import create_scheme, update_scheme
 
         data = {
@@ -332,17 +332,17 @@ class TestSchemeLifecycle:
             ],
             "assignments": [],
         }
-        scheme = await create_scheme(db_session, data, user_id=1)
+        scheme = await create_scheme(db_session, data, user_id=test_user["id"])
         assert scheme.version_no == 1
 
         updated = await update_scheme(
-            db_session, scheme.id, {"name": "Updated"}, user_id=1
+            db_session, scheme.id, {"name": "Updated"}, user_id=test_user["id"]
         )
         assert updated.version_no == 2
         assert updated.name == "Updated"
 
     @pytest.mark.asyncio
-    async def test_delete_unreferenced_scheme(self, db_session):
+    async def test_delete_unreferenced_scheme(self, db_session, test_user):
         from app.services.commission_scheme_service import (
             create_scheme,
             delete_scheme,
@@ -365,14 +365,14 @@ class TestSchemeLifecycle:
             ],
             "assignments": [],
         }
-        scheme = await create_scheme(db_session, data, user_id=1)
+        scheme = await create_scheme(db_session, data, user_id=test_user["id"])
         await delete_scheme(db_session, scheme.id)
 
         with pytest.raises(Exception, match="not found"):
             await get_scheme(db_session, scheme.id)
 
     @pytest.mark.asyncio
-    async def test_auto_expire(self, db_session):
+    async def test_auto_expire(self, db_session, test_user):
         from app.services.commission_scheme_service import (
             auto_expire_schemes,
             create_scheme,
@@ -395,7 +395,7 @@ class TestSchemeLifecycle:
             ],
             "assignments": [],
         }
-        scheme = await create_scheme(db_session, data, user_id=1)
+        scheme = await create_scheme(db_session, data, user_id=test_user["id"])
         # Manually set active for the test
         scheme.status = "active"
         await db_session.commit()

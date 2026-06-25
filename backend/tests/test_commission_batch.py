@@ -8,7 +8,26 @@ from unittest.mock import patch, AsyncMock
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.commissions import batch_transition
+from app.models.customer import Customer
 from app.models.finance import Commission
+from app.models.sales import SalesOrder
+from app.models.user import User
+
+
+async def _create_commission_source(db_session: AsyncSession, index: int = 1):
+    user = User(username=f"commission-user-{index}", password="test", role="sales")
+    customer = Customer(name=f"Commission Customer {index}")
+    db_session.add_all([user, customer])
+    await db_session.flush()
+    order = SalesOrder(
+        order_no=f"SO-COMM-{index}",
+        customer_id=customer.id,
+        total_amount=1000,
+        status="completed",
+    )
+    db_session.add(order)
+    await db_session.flush()
+    return user, customer, order
 
 
 @pytest_asyncio.fixture
@@ -16,10 +35,12 @@ async def setup_commissions(db_session: AsyncSession):
     """Insert test commissions and return them via db_session fixture."""
     items = []
     for i in range(1, 4):
+        user, customer, order = await _create_commission_source(db_session, i)
         c = Commission(
             commission_no=f"CM-B{i}",
-            sales_order_id=i,
-            sales_user_id=1,
+            sales_order_id=order.id,
+            sales_user_id=user.id,
+            customer_id=customer.id,
             base_amount=1000,
             rate=0.05,
             commission_amount=50,
@@ -34,13 +55,13 @@ async def setup_commissions(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_batch_approve_mixed_success_and_failure(setup_commissions):
     """Mixed: some succeed, some fail. Both reported."""
-    db, _ = setup_commissions
-    user = {"id": 42, "username": "manager"}
+    db, items = setup_commissions
+    user = {"id": items[0].sales_user_id, "username": "manager"}
 
     with patch("app.services.cache_service.cache_bump_version", new_callable=AsyncMock):
         result = await batch_transition(
             payload={
-                "ids": [1, 2, 3, 9999],
+                "ids": [item.id for item in items] + [9999],
                 "to": "approved",
                 "notes": "monthly batch",
             },
@@ -89,10 +110,12 @@ async def test_batch_paid_with_amount(db_session: AsyncSession):
     """Paid batch with shared paid_amount propagates to each row."""
     ids = []
     for i in range(3):
+        user, customer, order = await _create_commission_source(db_session, i)
         c = Commission(
             commission_no=f"CM-P{i}",
-            sales_order_id=i,
-            sales_user_id=1,
+            sales_order_id=order.id,
+            sales_user_id=user.id,
+            customer_id=customer.id,
             base_amount=2000,
             rate=0.05,
             commission_amount=100,

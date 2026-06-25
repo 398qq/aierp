@@ -1,10 +1,17 @@
 import os
+import re
 import sys
+from urllib.parse import urlparse
 
 # Ensure backend/ is on the import path so 'from app ...' works
 _BACKEND = os.path.join(os.path.dirname(__file__), "..")
 if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
+
+os.environ.setdefault(
+    "JWT_SECRET",
+    "aierp-test-jwt-secret-at-least-32-bytes-long",
+)
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
@@ -12,6 +19,7 @@ import sqlalchemy as sa  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
 
 from app.core.security import create_access_token, hash_password  # noqa: E402
 from app.api.deps import get_uow  # noqa: E402
@@ -20,8 +28,68 @@ from app.main import app  # noqa: E402
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "sqlite+aiosqlite:///./test.db",
+    "postgresql+asyncpg://aierp:aierp@localhost:5432/aierp_test",
 )
+TEST_SCHEMA_NAME = os.getenv("TEST_DATABASE_SCHEMA")
+
+
+def _assert_safe_test_database_url(url: str) -> None:
+    """Guard against accidentally dropping a development or production DB."""
+    if "sqlite" in url:
+        return
+    parsed = urlparse(url)
+    db_name = parsed.path.lstrip("/")
+    if db_name.endswith("_test") or db_name.startswith("test_"):
+        return
+    if os.getenv("AIERP_ALLOW_NONTEST_DB_DROP") == "1":
+        return
+    raise RuntimeError(
+        "Refusing to run destructive test setup against non-test database "
+        f"{db_name!r}. Use a database ending in '_test' or set "
+        "AIERP_ALLOW_NONTEST_DB_DROP=1 explicitly."
+    )
+
+
+def _test_schema_name() -> str:
+    if TEST_SCHEMA_NAME:
+        raw_name = TEST_SCHEMA_NAME
+    else:
+        worker = os.getenv("PYTEST_XDIST_WORKER", "solo")
+        raw_name = f"aierp_test_{worker}_{os.getpid()}"
+    schema = re.sub(r"[^a-zA-Z0-9_]", "_", raw_name)
+    if not schema.startswith("aierp_test_"):
+        schema = f"aierp_test_{schema}"
+    return schema[:63]
+
+
+async def _create_postgres_test_schema(schema: str) -> None:
+    setup_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    try:
+        async with setup_engine.begin() as conn:
+            vector_ext = await conn.scalar(
+                sa.text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
+            )
+            if vector_ext is None:
+                raise RuntimeError(
+                    "PostgreSQL test database must have the vector extension. "
+                    "Run: sudo -u postgres psql -d aierp_test "
+                    "-c 'CREATE EXTENSION IF NOT EXISTS vector;'"
+                )
+            await conn.execute(
+                sa.text(f'CREATE SCHEMA IF NOT EXISTS "{schema}" AUTHORIZATION aierp')
+            )
+            await conn.execute(sa.text(f'GRANT ALL ON SCHEMA "{schema}" TO aierp'))
+    finally:
+        await setup_engine.dispose()
+
+
+async def _drop_postgres_test_schema(schema: str) -> None:
+    setup_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    try:
+        async with setup_engine.begin() as conn:
+            await conn.execute(sa.text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+    finally:
+        await setup_engine.dispose()
 
 
 def _patch_vector_columns():
@@ -37,26 +105,44 @@ def _patch_vector_columns():
                 col.type = sa.Text()
 
 
-@pytest.fixture(scope="session")
-def engine():
+@pytest_asyncio.fixture(scope="function")
+async def engine():
+    _assert_safe_test_database_url(TEST_DATABASE_URL)
     ext = {}
+    schema = None
     if "sqlite" in TEST_DATABASE_URL:
         ext["connect_args"] = {"check_same_thread": False}
     else:
-        # PostgreSQL: single connection to avoid "another operation in progress" errors
-        ext["pool_size"] = 1
-        ext["max_overflow"] = 0
-    return create_async_engine(TEST_DATABASE_URL, echo=False, **ext)
+        schema = _test_schema_name()
+        await _create_postgres_test_schema(schema)
+        ext["poolclass"] = NullPool
+        ext["connect_args"] = {
+            "server_settings": {"search_path": f"{schema},public"}
+        }
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False, **ext)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+        if schema:
+            await _drop_postgres_test_schema(schema)
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_tables(engine):
-    _patch_vector_columns()
     async with engine.begin() as conn:
+        if "sqlite" in TEST_DATABASE_URL:
+            _patch_vector_columns()
+            await conn.run_sync(Base.metadata.drop_all)
+        else:
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        if "sqlite" in TEST_DATABASE_URL:
+            await conn.run_sync(Base.metadata.drop_all)
+        else:
+            await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest_asyncio.fixture(scope="function")

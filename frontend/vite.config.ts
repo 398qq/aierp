@@ -33,9 +33,9 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 600,
-    // Stage 13 Day 2: 体积预算 — 警告阈值 (KB, 未压缩)
-    // antd ~700KB 是合理范围; vendor 2MB 是上限; 单文件 600KB warning
+    chunkSizeWarningLimit: 1300,
+    // ERP 操作台依赖 Ant Design 组件面较宽，antd 主 chunk 约 1.1MB 未压缩。
+    // 预算设为 1.3MB：避免正常构建噪音，同时保留异常膨胀预警。
     rollupOptions: {
       output: {
         manualChunks(id: string) {
@@ -45,7 +45,16 @@ export default defineConfig({
           // 大块单独拆分
           if (id.includes("react") || id.includes("scheduler")) return "react-vendor";
           if (id.includes("react-router")) return "router";
-          if (id.includes("antd") || id.includes("@ant-design")) return "antd";
+          if (id.includes("@ant-design/icons")) return "antd-icons";
+          if (id.includes("@ant-design")) return "antd-vendor";
+          if (id.includes("/antd/es/table/") || id.includes("/antd/lib/table/")) {
+            return "antd-table";
+          }
+          if (id.includes("/antd/es/date-picker/") || id.includes("/antd/lib/date-picker/")) {
+            return "antd-date-picker";
+          }
+          if (id.includes("/antd/es/") || id.includes("/antd/lib/")) return "antd";
+          if (id.includes("/rc-") || id.includes("node_modules/rc-")) return "antd-rc";
           if (id.includes("recharts") || id.includes("d3-")) return "charts";
           if (id.includes("axios")) return "http-lib";
           if (id.includes("dayjs")) return "date-lib";

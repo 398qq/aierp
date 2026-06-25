@@ -30,14 +30,17 @@ async def draft_order(use_case_factory):
         wh = Warehouse(name="Main WH")
         customer = Customer(name="Test Co", code="C001")
         product = Product(sku="P001", name="Product A")
+        session.add_all([wh, customer, product])
+        await session.flush()
+
         inventory = Inventory(
-            product_id=1,
-            warehouse_id=1,
+            product_id=product.id,
+            warehouse_id=wh.id,
             quantity=100,
             locked_quantity=0,
             version=0,
         )
-        session.add_all([wh, customer, product, inventory])
+        session.add(inventory)
         await session.flush()
 
         order = SalesOrder(

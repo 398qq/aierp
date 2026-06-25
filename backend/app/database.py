@@ -104,7 +104,7 @@ def date_format(column, pg_fmt: str) -> ColumnElement:
     if pg_fmt == "YYYY-MM":
         return func.substr(date_str, 1, 7)
     if pg_fmt == "YYYYMM":
-        return func.substr(date_str, 1, 4) + func.substr(date_str, 6, 2)
+        return func.substr(date_str, 1, 4).op("||")(func.substr(date_str, 6, 2))
     if pg_fmt == "YYYY":
         return func.substr(date_str, 1, 4)
     return date_str

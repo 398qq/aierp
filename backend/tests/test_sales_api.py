@@ -1046,6 +1046,27 @@ class TestSalesOrders:
 class TestDeliveryNotes:
     """DeliveryNote CRUD."""
 
+    async def _create_order(self, async_client, auth_headers, customer_id, product_name="Test"):
+        resp = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "status": "pending",
+                "total_amount": 200,
+                "items": [
+                    {
+                        "product_name": product_name,
+                        "quantity": 20,
+                        "unit_price": 10,
+                        "total_price": 200,
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        return resp.json()["data"]["id"]
+
     async def test_list_empty(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get("/api/v1/delivery-notes", headers=auth_headers)
         assert resp.status_code == 200
@@ -1054,12 +1075,15 @@ class TestDeliveryNotes:
     async def test_create_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         resp = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1071,12 +1095,18 @@ class TestDeliveryNotes:
     async def test_list_searches_delivery_product_lines(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        target_order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"], "SCT-DELIVERY-SEARCH"
+        )
+        other_order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"], "NOHIT-DELIVERY"
+        )
         target = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": target_order_id,
                 "status": "pending",
                 "items": [{"product_name": "SCT-DELIVERY-SEARCH", "quantity": 20}],
             },
@@ -1086,7 +1116,7 @@ class TestDeliveryNotes:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 2,
+                "sales_order_id": other_order_id,
                 "status": "pending",
                 "items": [{"product_name": "NOHIT-DELIVERY", "quantity": 20}],
             },
@@ -1152,12 +1182,15 @@ class TestDeliveryNotes:
     async def test_get_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         c = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1172,12 +1205,15 @@ class TestDeliveryNotes:
     async def test_update_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         c = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1193,12 +1229,15 @@ class TestDeliveryNotes:
     async def test_delete_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         c = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1213,9 +1252,12 @@ class TestDeliveryNotes:
     async def test_batch_delete_notes(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         payload = {
             "customer_id": test_customer["id"],
-            "sales_order_id": 1,
+            "sales_order_id": order_id,
             "status": "pending",
             "items": [{"product_name": "Test", "quantity": 20}],
         }

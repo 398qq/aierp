@@ -75,6 +75,7 @@ __all__ = [
     "CONTRACT_TRANSITIONS",
     "COMMISSION_TRANSITIONS",
     "CREDIT_NOTE_TRANSITIONS",
+    "assert_can_transition_credit_note",
     "assert_can_transition_invoice",
     "assert_can_transition_payment",
     "assert_can_transition_contract",

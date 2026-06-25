@@ -130,6 +130,7 @@ perf/*.html
 
 # Backups / pre-existing dev artifacts
 DESIGN.md.linear.bak
+backups/
 .codex/
 workflows/
 

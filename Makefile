@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-backup-remote db-backup-cron db-restore db-migrate db-revision lint test security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron docker-build docker-up docker-down docker-logs docker-ps
+.PHONY: dev dev-backend dev-frontend build stop clean db-reset db-backup db-backup-remote db-backup-cron db-restore db-migrate db-revision lint test test-postgres security-check help version bump-patch bump-minor bump-major release prod-start prod-stop prod-restart prod-status prod-logs health-check db-backup-list db-backup-clean db-shell deps-update deps-audit ops-alert ops-alert-cron docker-build docker-up docker-down docker-logs docker-ps
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -72,6 +72,9 @@ test: test-backend test-frontend ## Run all tests
 
 test-backend: ## Run backend tests
 	cd $(BACKEND_DIR) && pytest -v
+
+test-postgres: ## Run backend tests against PostgreSQL test database
+	cd $(BACKEND_DIR) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-postgresql+asyncpg://aierp:aierp@localhost:5432/aierp_test} pytest -v
 
 test-backend-cov: ## Run backend tests with coverage
 	cd $(BACKEND_DIR) && pytest -v --cov=app --cov-report=term-missing --cov-report=html

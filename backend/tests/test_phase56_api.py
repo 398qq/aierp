@@ -132,6 +132,23 @@ class TestPermissions:
 class TestFinanceAccounts:
     """Chart of accounts, journal entries, P&L, bank reconciliation."""
 
+    async def _create_journal_accounts(
+        self, async_client: AsyncClient, admin_headers: dict
+    ) -> tuple[int, int]:
+        debit = await async_client.post(
+            "/api/v1/finance/accounts",
+            headers=admin_headers,
+            json={"code": "6601", "name": "测试费用", "type": "expense"},
+        )
+        credit = await async_client.post(
+            "/api/v1/finance/accounts",
+            headers=admin_headers,
+            json={"code": "1002", "name": "测试银行", "type": "asset"},
+        )
+        assert debit.status_code == 201
+        assert credit.status_code == 201
+        return debit.json()["data"]["id"], credit.json()["data"]["id"]
+
     async def test_list_accounts(self, async_client: AsyncClient, admin_headers: dict):
         resp = await async_client.get("/api/v1/finance/accounts", headers=admin_headers)
         assert resp.status_code == 200
@@ -166,6 +183,9 @@ class TestFinanceAccounts:
     async def test_create_journal_entry_balanced(
         self, async_client: AsyncClient, admin_headers: dict
     ):
+        debit_account_id, credit_account_id = await self._create_journal_accounts(
+            async_client, admin_headers
+        )
         resp = await async_client.post(
             "/api/v1/finance/journal-entries",
             headers=admin_headers,
@@ -173,8 +193,8 @@ class TestFinanceAccounts:
                 "entry_date": "2025-01-15",
                 "description": "采购原料",
                 "lines": [
-                    {"account_id": 1, "debit": 1000, "credit": 0},
-                    {"account_id": 2, "debit": 0, "credit": 1000},
+                    {"account_id": debit_account_id, "debit": 1000, "credit": 0},
+                    {"account_id": credit_account_id, "debit": 0, "credit": 1000},
                 ],
             },
         )
@@ -202,6 +222,9 @@ class TestFinanceAccounts:
     async def test_list_journal_entries(
         self, async_client: AsyncClient, admin_headers: dict
     ):
+        debit_account_id, credit_account_id = await self._create_journal_accounts(
+            async_client, admin_headers
+        )
         # Create an entry first
         await async_client.post(
             "/api/v1/finance/journal-entries",
@@ -210,8 +233,8 @@ class TestFinanceAccounts:
                 "entry_date": "2025-01-10",
                 "description": "Test entry",
                 "lines": [
-                    {"account_id": 1, "debit": 500, "credit": 0},
-                    {"account_id": 2, "debit": 0, "credit": 500},
+                    {"account_id": debit_account_id, "debit": 500, "credit": 0},
+                    {"account_id": credit_account_id, "debit": 0, "credit": 500},
                 ],
             },
         )

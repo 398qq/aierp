@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,9 @@ from app.models.sales import (
     SalesOrder,
     SalesOrderItem,
 )
+
+if TYPE_CHECKING:
+    from app.models.sales import ReturnNote, ReturnNoteItem  # noqa: F401
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 
@@ -281,12 +285,6 @@ async def complete_return_note(db: AsyncSession, return_note_id: int) -> dict | 
         "credit_note_no": cn.credit_note_no,
         "credit_note_amount": cn.amount,
     }
-
-
-async def convert_delivery_to_invoice(
-    db: AsyncSession, note: DeliveryNote
-) -> Invoice | None:
-    return await sales_conversion_service.convert_delivery_to_invoice(db, note)
 
 
 sales_conversion_service = SalesConversionService()

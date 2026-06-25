@@ -573,6 +573,7 @@ async def compute_commission(
         # If no tier matched, use the default rate from the scheme (last tier's rate, or 0)
         rate = Decimal("0.00")
         amount = Decimal("0")
+        amount_before_cap = amount
         tier_desc = "no_match"
     else:
         rate = matched_tier.rate
@@ -597,7 +598,7 @@ async def compute_commission(
         tier_matched=tier_desc,
         scheme_id=scheme.id,
         scheme_snapshot=snapshot,
-        amount_before_cap=amount if "capped" in tier_desc else amount,
+        amount_before_cap=amount_before_cap,
     )
 
 
@@ -761,8 +762,7 @@ async def simulate_scheme(
     user_ids: list[int] | None = None,
 ) -> dict:
     """Run a what-if simulation comparing actual commissions vs scheme."""
-    # Verify scheme exists
-    scheme = await get_scheme(db, scheme_id)
+    await get_scheme(db, scheme_id)
 
     from app.models.finance import Commission
 
@@ -791,7 +791,7 @@ async def simulate_scheme(
         result = await compute_commission(
             db,
             uid,
-            c.base_amount or Decimal("0"),
+            Decimal(str(c.base_amount or "0")),
             None,  # product_category - simplified
             None,  # customer_level - simplified
             c.period or "",
