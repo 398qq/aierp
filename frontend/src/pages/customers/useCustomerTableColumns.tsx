@@ -66,7 +66,7 @@ export function useCustomerTableColumns({
         render: (text: string, r: Customer) => (
           <div>
             <Space size={4}>
-              <Typography.Link onClick={() => navigate(`/customers/${r.id}`)} style={TITLE_STYLE}>
+              <Typography.Link onClick={(e) => { e.stopPropagation(); onOpenDetail(r.id); }} style={TITLE_STYLE}>
                 {text}
               </Typography.Link>
               {r.level && <StatusTag tone={getLevelColor(r.level)}>{r.level}</StatusTag>}
@@ -327,7 +327,7 @@ export function useCustomerTableColumns({
         render: (_: unknown, r: Customer) => (
           <Space size={0}>
             <Button size="small" type="link" onClick={() => onOpenDetail(r.id)}>
-              查看
+              详情
             </Button>
             <Button size="small" type="link" onClick={() => onOpenQuickFollowUp(r)}>
               跟进
