@@ -68,6 +68,7 @@ export const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "华东区域", value: "east_region" },
   { label: "展会线索", value: "expo_leads" },
   { label: "高信用", value: "high_credit" },
+  { label: "公海客户", value: "public_sea" },
   { label: "待补ERP资料", value: "pending_erp" },
 ];
 
@@ -96,21 +97,23 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // Customer group presets
-export type GroupValue = "all" | "new" | "vip_active" | "at_risk" | "dormant";
+export type GroupValue = "all" | "new" | "vip_active" | "at_risk" | "dormant" | "public_sea";
 export const GROUP_OPTIONS: { label: string; value: GroupValue }[] = [
   { label: "全部", value: "all" },
   { label: "新潜客", value: "new" },
   { label: "VIP/活跃", value: "vip_active" },
   { label: "风险客户", value: "at_risk" },
   { label: "沉默客户", value: "dormant" },
+  { label: "公海客户", value: "public_sea" },
 ];
 
-export const GROUP_FILTERS: Record<GroupValue, { status?: string[] }> = {
+export const GROUP_FILTERS: Record<GroupValue, { status?: string[]; owner?: string | null }> = {
   all: {},
   new: { status: ["new_lead"] },
   vip_active: { status: ["vip", "active"] },
   at_risk: { status: ["inactive", "churned"] },
   dormant: { status: ["inactive"] },
+  public_sea: { owner: null },
 };
 
 export const COL_LABEL_MAP: Record<string, string> = {

@@ -56,6 +56,7 @@ async def list_customers(
     is_deleted: str | None = None,
     tag_ids: str | None = None,
     missing_erp: bool = False,
+    owner: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
     sort_by: str = "id",
@@ -148,6 +149,10 @@ async def list_customers(
                 Customer.payment_terms == "",
             )
         )
+    if owner == "null":
+        conditions.append(or_(Customer.owner.is_(None), Customer.owner == ""))
+    elif owner:
+        conditions.append(Customer.owner == owner)
     if tag_ids:
         tag_id_list = [int(t) for t in tag_ids.split(",") if t.isdigit()]
         if tag_id_list:
