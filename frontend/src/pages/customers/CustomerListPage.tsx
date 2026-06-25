@@ -23,6 +23,7 @@ import {
   PlusOutlined,
   SearchOutlined,
   EditOutlined,
+  EyeOutlined,
   EllipsisOutlined,
   PhoneFilled,
   ThunderboltOutlined,
@@ -118,6 +119,7 @@ interface CustomerColumnActions {
   onCreateOpportunity: (customer: Customer) => void;
   onFollowUp: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
+  onViewDetail: (customer: Customer) => void;
 }
 
 function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
@@ -129,9 +131,9 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
       fixed: "left",
       render: (name: string, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong copyable={{ tooltips: false }} style={{ cursor: "pointer" }}>
+          <a onClick={(e) => { e.stopPropagation(); actions.onViewDetail(record); }}>
             {name}
-          </Text>
+          </a>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {record.code || "-"} {record.short_name ? `· ${record.short_name}` : ""}
           </Text>
@@ -259,12 +261,15 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
             placement="bottomRight"
             menu={{
               items: [
+                { key: "detail", icon: <EyeOutlined />, label: "客户详情" },
                 { key: "opportunity", icon: <ThunderboltOutlined />, label: "新增机会" },
                 { key: "follow-up", icon: <PhoneFilled />, label: "新增跟进" },
+                { type: "divider" },
                 { key: "edit", icon: <EditOutlined />, label: "编辑客户" },
               ],
               onClick: ({ key, domEvent }) => {
                 domEvent.stopPropagation();
+                if (key === "detail") actions.onViewDetail(r);
                 if (key === "opportunity") actions.onCreateOpportunity(r);
                 if (key === "follow-up") actions.onFollowUp(r);
                 if (key === "edit") actions.onEdit(r);
@@ -354,6 +359,10 @@ export default function CustomerListPage() {
   }, [fetchData]);
 
   const baseColumns = buildColumns({
+    onViewDetail: (customer) => {
+      setSelectedCustomer(customer);
+      setDetailOpen(true);
+    },
     onCreateOpportunity: (customer) =>
       navigate(`/sales/opportunities/new?customer_id=${customer.id}`),
     onFollowUp: (customer) => {
