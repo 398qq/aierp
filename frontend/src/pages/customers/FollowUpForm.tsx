@@ -103,7 +103,7 @@ export default function FollowUpForm() {
       <Card>
         <Space direction="vertical" style={{ width: "100%", textAlign: "center" }}>
           <p>请先选择客户</p>
-          <Button onClick={() => navigate("/customers")}>返回客户列表</Button>
+          <Button onClick={() => navigate("/customers")}>返回客户</Button>
         </Space>
       </Card>
     );

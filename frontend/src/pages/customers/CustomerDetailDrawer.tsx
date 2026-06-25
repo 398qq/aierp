@@ -7,6 +7,7 @@ import {
   Col,
   Descriptions,
   Divider,
+  Drawer,
   Empty,
   Row,
   Space,
@@ -275,7 +276,6 @@ export default function CustomerDetailDrawer({
               <Row gutter={[8, 8]}>
                 <Col span={8}>
                   <Statistic
-                    size="small"
                     title="订单数"
                     value={stats.order_count}
                     valueStyle={{ fontSize: 18 }}
@@ -283,7 +283,6 @@ export default function CustomerDetailDrawer({
                 </Col>
                 <Col span={8}>
                   <Statistic
-                    size="small"
                     title="总营收"
                     value={stats.total_revenue}
                     precision={0}
@@ -293,7 +292,6 @@ export default function CustomerDetailDrawer({
                 </Col>
                 <Col span={8}>
                   <Statistic
-                    size="small"
                     title="信用占用"
                     value={stats.credit_usage_pct}
                     precision={1}

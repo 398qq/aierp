@@ -1,6 +1,7 @@
 """Finance CRUD service — invoices, payments, contracts, targets."""
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from app.domain.shared.errors import BusinessRuleViolation, NotFoundError
 from app.domain.states import (

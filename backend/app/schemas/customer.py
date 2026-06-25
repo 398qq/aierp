@@ -19,6 +19,26 @@ class CustomerCreate(BaseModel):
     region: str | None = None
     credit_limit: float | None = None
     credit_level: str | None = None
+    # 2026-06-23 schema 扩展：业务必填字段（必须走 API，不再走 SQL 例外）
+    unified_social_credit_code: str | None = Field(None, max_length=32, description="统一社会信用代码 18 位")
+    tax_id: str | None = Field(None, max_length=32, description="纳税人识别号")
+    payment_terms: str | None = Field(None, max_length=64, description="付款条件，如 月结30天/款到发货")
+    payment_method: str | None = Field(None, max_length=64, description="付款方式，如 银行转账/支票/现金")
+    bank_name: str | None = Field(None, max_length=128, description="开户行")
+    bank_account: str | None = Field(None, max_length=64, description="银行账号")
+    invoice_title: str | None = Field(None, max_length=255, description="发票抬头")
+    invoice_address: str | None = Field(None, max_length=255, description="开票地址")
+    invoice_phone: str | None = Field(None, max_length=32, description="开票电话")
+    tax_rate: float | None = Field(None, description="税率 %")
+    owner: str | None = Field(None, max_length=64, description="负责人/销售")
+    default_incoterm: str | None = Field(None, max_length=32, description="默认贸易条款 EXW/FOB/CIF 等")
+    currency: str | None = Field(None, max_length=8, description="默认币种 CNY/USD")
+    website: str | None = Field(None, max_length=255, description="官网")
+    parent_id: int | None = Field(None, description="上级客户 ID（集团关系）")
+    annual_revenue: float | None = Field(None, description="年营收（元）")
+    employee_count: int | None = Field(None, description="员工数")
+    price_tier: str | None = Field(None, max_length=16, description="价格档位 vip_a/vip_b/normal")
+    delivery_address: str | None = Field(None, description="收货地址")
 
 
 class CustomerUpdate(BaseModel):
@@ -37,6 +57,26 @@ class CustomerUpdate(BaseModel):
     region: str | None = None
     credit_limit: float | None = None
     credit_level: str | None = None
+    # 2026-06-23 schema 扩展：业务必填字段（必须走 API，不再走 SQL 例外）
+    unified_social_credit_code: str | None = Field(None, max_length=32)
+    tax_id: str | None = Field(None, max_length=32)
+    payment_terms: str | None = Field(None, max_length=64)
+    payment_method: str | None = Field(None, max_length=64)
+    bank_name: str | None = Field(None, max_length=128)
+    bank_account: str | None = Field(None, max_length=64)
+    invoice_title: str | None = Field(None, max_length=255)
+    invoice_address: str | None = Field(None, max_length=255)
+    invoice_phone: str | None = Field(None, max_length=32)
+    tax_rate: float | None = None
+    owner: str | None = Field(None, max_length=64)
+    default_incoterm: str | None = Field(None, max_length=32)
+    currency: str | None = Field(None, max_length=8)
+    website: str | None = Field(None, max_length=255)
+    parent_id: int | None = None
+    annual_revenue: float | None = None
+    employee_count: int | None = None
+    price_tier: str | None = Field(None, max_length=16)
+    delivery_address: str | None = None
 
 
 class CustomerResponse(BaseModel):
@@ -56,6 +96,26 @@ class CustomerResponse(BaseModel):
     region: str | None
     credit_limit: float | None
     credit_level: str | None
+    # 2026-06-23 schema 扩展
+    unified_social_credit_code: str | None = None
+    tax_id: str | None = None
+    payment_terms: str | None = None
+    payment_method: str | None = None
+    bank_name: str | None = None
+    bank_account: str | None = None
+    invoice_title: str | None = None
+    invoice_address: str | None = None
+    invoice_phone: str | None = None
+    tax_rate: float | None = None
+    owner: str | None = None
+    default_incoterm: str | None = None
+    currency: str | None = None
+    website: str | None = None
+    parent_id: int | None = None
+    annual_revenue: float | None = None
+    employee_count: int | None = None
+    price_tier: str | None = None
+    delivery_address: str | None = None
     last_contacted_at: datetime | None
     created_at: datetime
 

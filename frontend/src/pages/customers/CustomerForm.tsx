@@ -54,8 +54,7 @@ function FormRow({ cols, children }: { cols: number; children: ReactNode }) {
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <Divider
-      orientation="left"
-      orientationMargin={0}
+      titlePlacement="left"
       plain
       style={{ fontSize: 12, color: "#8c8c8c", margin: "8px 0 4px" }}
     >

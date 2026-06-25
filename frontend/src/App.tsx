@@ -55,6 +55,7 @@ const CustomerAIWorkbench = lazy(() => import("./pages/customers/CustomerAIWorkb
 const CustomerInsight = lazy(() => import("./pages/customers/CustomerInsight"));
 const Customer360 = lazy(() => import("./pages/customers/Customer360"));
 const CustomerSegments = lazy(() => import("./pages/customers/CustomerSegments"));
+const CustomerFollowUpsPage = lazy(() => import("./pages/customers/CustomerFollowUpsPage"));
 const ProductList = lazy(() => import("./pages/products/index"));
 const ProductDetail = lazy(() => import("./pages/products/ProductDetail"));
 const SupplierList = lazy(() => import("./pages/suppliers/index"));
@@ -253,6 +254,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <CustomerNew />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/follow-ups"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerFollowUpsPage />
                     </Suspense>
                   }
                 />

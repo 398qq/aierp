@@ -4,10 +4,12 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.datetime_utils import to_utc
 from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer, CustomerFollowUp
 from app.schemas.common import fail, ok
+from app.services.cache_service import cache_bump_version
 
 from .crud import FollowUpCreate, FollowUpUpdate
 
@@ -26,6 +28,10 @@ async def list_followups(
                 select(CustomerFollowUp).where(
                     CustomerFollowUp.customer_id == customer_id,
                     CustomerFollowUp.deleted_at.is_(None),
+                )
+                .order_by(
+                    CustomerFollowUp.planned_at.asc().nulls_last(),
+                    CustomerFollowUp.created_at.desc(),
                 )
             )
         )
@@ -62,7 +68,7 @@ async def create_followup(
         data = body.model_dump()
         for date_field in ("planned_at", "completed_at"):
             if data.get(date_field):
-                data[date_field] = datetime.fromisoformat(data[date_field])
+                data[date_field] = to_utc(datetime.fromisoformat(data[date_field]))
         if data.get("completed_at") and not data.get("status"):
             data["status"] = "completed"
         followup = CustomerFollowUp(customer_id=customer_id, **data)
@@ -80,6 +86,9 @@ async def create_followup(
                 await on_re_engage(db, customer_id)
             await db.flush()
             followup_id = followup.id
+        await cache_bump_version("customers:list")
+        await cache_bump_version("dashboard:overview")
+        await cache_bump_version("dashboard:kpi")
         return ok({"id": followup_id})
     except Exception as e:
         import traceback
@@ -111,12 +120,24 @@ async def update_followup(
         if date_field in data and data.get(date_field) is None:
             del data[date_field]
         elif data.get(date_field):
-            data[date_field] = datetime.fromisoformat(data[date_field])
+            data[date_field] = to_utc(datetime.fromisoformat(data[date_field]))
     if data.get("completed_at") and not data.get("status"):
         data["status"] = "completed"
     for key, val in data.items():
         setattr(followup, key, val)
+    if any(key in data for key in ("content", "result", "completed_at")):
+        customer = await db.scalar(
+            select(Customer).where(
+                Customer.id == customer_id,
+                Customer.deleted_at.is_(None),
+            )
+        )
+        if customer:
+            customer.last_contacted_at = datetime.now(timezone.utc)
     await db.flush()
+    await cache_bump_version("customers:list")
+    await cache_bump_version("dashboard:overview")
+    await cache_bump_version("dashboard:kpi")
     return ok({"id": followup.id})
 
 
@@ -139,4 +160,5 @@ async def delete_followup(
         return fail("Follow-up not found", 404)
     followup.deleted_at = datetime.now(timezone.utc)
     await db.flush()
+    await cache_bump_version("customers:list")
     return ok(msg="deleted")

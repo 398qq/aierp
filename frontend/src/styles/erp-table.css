@@ -248,3 +248,96 @@
     grid-template-columns: repeat(2, minmax(132px, 1fr));
   }
 }
+
+/* ── 客户跟进台账 ── */
+.followup-ledger {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  padding-bottom: 12px;
+}
+
+.followup-ledger-command,
+.followup-ledger-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+}
+
+.followup-ledger-command {
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.followup-ledger-filters {
+  justify-content: flex-start;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.followup-ledger-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fcfcfc;
+}
+
+.followup-ledger-metrics > div {
+  padding: 9px 12px;
+  border-right: 1px solid #f0f0f0;
+}
+
+.followup-ledger-metrics > div:last-child {
+  border-right: 0;
+}
+
+.followup-ledger-metrics span {
+  display: block;
+  color: #595959;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.followup-ledger-metrics strong {
+  color: #1f1f1f;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 26px;
+  font-variant-numeric: tabular-nums;
+}
+
+.followup-ledger-metrics .is-warning strong {
+  color: #ad6800;
+}
+
+.followup-ledger-metrics .is-danger strong {
+  color: #cf1322;
+}
+
+.followup-ledger-table {
+  padding: 0 12px;
+}
+
+.followup-ledger-table .ant-table-tbody > tr.followup-row-overdue > td:first-child {
+  box-shadow: inset 3px 0 0 #ff4d4f;
+}
+
+.followup-ledger-table .ant-table-tbody > tr.followup-row-overdue > td {
+  background-image: linear-gradient(0deg, rgba(255, 77, 79, 0.035), rgba(255, 77, 79, 0.035));
+}
+
+@media (max-width: 960px) {
+  .followup-ledger-command,
+  .followup-ledger-filters {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .followup-ledger-metrics {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+  }
+}

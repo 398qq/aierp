@@ -47,6 +47,7 @@ export type SceneValue =
   | "east_region"
   | "expo_leads"
   | "high_credit"
+  | "public_sea"
   | "pending_erp";
 
 export type SmartTaskKey =
@@ -81,6 +82,7 @@ export const SCENE_FILTERS: Record<
   east_region: { region: "华东" },
   expo_leads: { source: "展会" },
   high_credit: { creditLevel: "A" },
+  public_sea: {},
   pending_erp: {},
 };
 

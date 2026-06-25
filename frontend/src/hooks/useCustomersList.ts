@@ -82,7 +82,7 @@ export function useCustomersList(
         setData(pageData.list || []);
         setTotal(pageData.total || 0);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "加载客户列表失败");
+        setError(e instanceof Error ? e.message : "加载客户失败");
       } finally {
         setLoading(false);
       }

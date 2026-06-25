@@ -94,6 +94,7 @@ export default function MainLayout() {
     "/dashboard/global360",
     "/dashboard/watchtower",
     "/customers",
+    "/customers/follow-ups",
     "/customers/segments",
     "/products",
     "/brands",
@@ -172,7 +173,8 @@ export default function MainLayout() {
       icon: <TeamOutlined />,
       label: "客户管理",
       children: [
-        { key: "/customers", icon: <TeamOutlined />, label: "客户列表" },
+        { key: "/customers", icon: <TeamOutlined />, label: "客户" },
+        { key: "/customers/follow-ups", icon: <FileTextOutlined />, label: "跟进记录" },
         { key: "/customers/segments", icon: <PieChartOutlined />, label: "客户分群" },
         { key: "/customers/intelligence", icon: <HeartOutlined />, label: "AI智能分析" },
       ],

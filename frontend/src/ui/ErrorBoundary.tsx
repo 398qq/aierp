@@ -8,7 +8,7 @@ recovery option.
 Usage in a page component:
   export default function MyPage() {
     return (
-      <ErrorBoundary pageName="客户列表">
+      <ErrorBoundary pageName="客户">
         <MyPageBody />
       </ErrorBoundary>
     );
