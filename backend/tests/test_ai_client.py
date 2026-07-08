@@ -51,7 +51,7 @@ class TestEmbed:
             client, "embed", new=AsyncMock(return_value=[[0.1, 0.2]])
         ) as mock_embed:
             result = await client.embed_single("hello")
-            mock_embed.assert_called_once_with(["hello"])
+            mock_embed.assert_called_once_with(["hello"], embedding_type="db")
             assert result == [0.1, 0.2]
 
 

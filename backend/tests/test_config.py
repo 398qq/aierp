@@ -4,12 +4,14 @@ from app.config import Settings
 
 
 class TestSettings:
-    def test_cors_origins_supports_comma_separated_string(self):
+    def test_cors_origins_stored_as_raw_string(self):
         cfg = Settings(
             APP_ENV="development",
-            CORS_ORIGINS="http://localhost:3002, https://erp.example.com",
+            CORS_ORIGINS="http://localhost:3002,https://erp.example.com",
         )
-        assert cfg.CORS_ORIGINS == ["http://localhost:3002", "https://erp.example.com"]
+        assert isinstance(cfg.CORS_ORIGINS, str)
+        assert "http://localhost:3002" in cfg.CORS_ORIGINS
+        assert "https://erp.example.com" in cfg.CORS_ORIGINS
 
     def test_production_rejects_wildcard_cors(self):
         with pytest.raises(
