@@ -1,12 +1,11 @@
-import json
 
-from pydantic import field_validator, model_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     APP_NAME: str = "AIERP"
-    VERSION: str = "2.1.1"
+    VERSION: str = "2.2.0"
     DEBUG: bool = True
     APP_ENV: str = "development"
 
