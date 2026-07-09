@@ -1,8 +1,0 @@
-Method,Name,Error,Occurrences
-GET,GET /customers,CatchResponseError('GET /customers -> 500'),3
-GET,GET /customers (find id),CatchResponseError('GET /customers (find id) -> 500'),4
-GET,GET /inventory,CatchResponseError('GET /inventory -> 500'),1
-POST,POST /auth/login,"CatchResponseError('login failed: 500 {""code"":-1,""msg"":""sorry, too many clients already"",""data"":null,""request_id"":""req_cca31df6077145c0""}')",1
-POST,POST /auth/login,"CatchResponseError('login failed: 500 {""code"":-1,""msg"":""remaining connection slots are reserved for roles with the SUPERUSER attribute"",""data"":null,""request_i')",10
-GET,GET /products,CatchResponseError('GET /products -> 500'),9
-GET,GET /sales-orders,CatchResponseError('GET /sales-orders -> 500'),7

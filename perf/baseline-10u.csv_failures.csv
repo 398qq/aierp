@@ -1,3 +1,0 @@
-Method,Name,Error,Occurrences
-GET,GET /finance/payments,CatchResponseError('GET /finance/payments -> 404'),7
-GET,GET /finance/invoices,CatchResponseError('GET /finance/invoices -> 404'),7
