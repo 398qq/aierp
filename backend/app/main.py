@@ -18,6 +18,18 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.database import engine, init_db
 from app.services.cache_service import get_redis
 
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    """Split a comma-separated CORS_ORIGINS string into a trimmed list.
+
+    >>> _parse_cors_origins("http://a.com, https://b.com")
+    ['http://a.com', 'https://b.com']
+    >>> _parse_cors_origins("")
+    []
+    """
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
 # Import all models so Base.metadata knows about every table.
 for _model_module in (
     "app.models.account",
@@ -87,7 +99,9 @@ _started_at = time.time()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_parse_cors_origins(
+        str(settings.CORS_ORIGINS)
+    ),  # comma-separated in .env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

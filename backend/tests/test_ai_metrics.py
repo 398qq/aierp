@@ -75,6 +75,7 @@ class TestEmbedMetrics:
         from app.services.ai.client import AIClient
 
         client = AIClient()
+        client.base_url = "https://api.siliconflow.cn/v1"
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {

@@ -21,6 +21,7 @@ class TestEmbed:
         from app.services.ai.client import AIClient
 
         client = AIClient()
+        client.base_url = "https://api.siliconflow.cn/v1"
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "data": [
