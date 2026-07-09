@@ -350,7 +350,10 @@ class AIClient:
         logging.getLogger(__name__).error(f"JSON parse failed, raw text: {text[:2000]}")
         raise ValueError(f"AI returned invalid JSON: {text[:300]}")
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    def _is_minimax_embedding_api(self) -> bool:
+        return "minimax" in self.base_url or "minimaxi" in self.base_url
+
+    async def embed(self, texts: list[str], embedding_type: str = "db") -> list[list[float]]:
         if not texts:
             return []
 
@@ -363,14 +366,33 @@ class AIClient:
             async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
                 for start in range(0, len(safe_texts), EMBEDDING_BATCH_SIZE):
                     batch = safe_texts[start : start + EMBEDDING_BATCH_SIZE]
+                    payload = {"model": settings.AI_EMBEDDING_MODEL, "input": batch}
+                    if self._is_minimax_embedding_api():
+                        payload = {
+                            "model": settings.AI_EMBEDDING_MODEL,
+                            "texts": batch,
+                            "type": embedding_type,
+                        }
                     resp = await client.post(
                         f"{self.base_url}/embeddings",
                         headers=self.headers,
-                        json={"model": settings.AI_EMBEDDING_MODEL, "input": batch},
+                        json=payload,
                     )
                     resp.raise_for_status()
                     data = resp.json()
-                    embeddings.extend(item["embedding"] for item in data["data"])
+                    if self._is_minimax_embedding_api():
+                        base_resp = data.get("base_resp") or {}
+                        if base_resp.get("status_code") not in (0, None):
+                            raise ValueError(
+                                "MiniMax embedding failed: "
+                                f"{base_resp.get('status_msg', 'unknown error')}"
+                            )
+                        vectors = data.get("vectors")
+                        if not vectors:
+                            raise ValueError("MiniMax embedding response missing vectors")
+                        embeddings.extend(vectors)
+                    else:
+                        embeddings.extend(item["embedding"] for item in data["data"])
             return embeddings
         except Exception:
             outcome = "error"
@@ -383,8 +405,8 @@ class AIClient:
                 outcome=outcome,
             )
 
-    async def embed_single(self, text: str) -> list[float]:
-        results = await self.embed([text])
+    async def embed_single(self, text: str, embedding_type: str = "db") -> list[float]:
+        results = await self.embed([text], embedding_type=embedding_type)
         return results[0]
 
 

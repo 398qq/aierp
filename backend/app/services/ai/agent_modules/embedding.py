@@ -180,7 +180,7 @@ class EmbeddingService(BaseAgent):
     @staticmethod
     async def similar_by_text(query: str, db_session, top_k: int = 10) -> list[dict]:
         """Search similar customers by natural-language query."""
-        embedding = await ai_client.embed_single(query)
+        embedding = await ai_client.embed_single(query, embedding_type="query")
         return await EmbeddingService.similar_customers(embedding, db_session, top_k)
 
     @staticmethod
@@ -223,7 +223,7 @@ class EmbeddingService(BaseAgent):
     async def similar_suppliers_by_text(
         query: str, db_session, top_k: int = 10
     ) -> list[dict]:
-        embedding = await ai_client.embed_single(query)
+        embedding = await ai_client.embed_single(query, embedding_type="query")
         return await EmbeddingService.similar_suppliers(embedding, db_session, top_k)
 
     # ---- Batch indexing ----
