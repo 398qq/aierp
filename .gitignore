@@ -131,8 +131,9 @@ docs/current-task.md
 db_schema.txt
 
 # Performance test artifacts
-perf/*.csv
-perf/*.html
+perf/
+loadtest/
+pids/
 
 # Backups / pre-existing dev artifacts
 DESIGN.md.linear.bak
