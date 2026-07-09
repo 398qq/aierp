@@ -8,6 +8,7 @@ import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
 import { antdTheme } from "./design-tokens";
+import AntdOverlayGuard from "./ui/AntdOverlayGuard";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -175,6 +176,7 @@ export default function App() {
         }
       `}</style>
         <AntdApp>
+          <AntdOverlayGuard />
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />

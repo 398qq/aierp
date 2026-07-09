@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   App,
@@ -189,9 +190,12 @@ export default function CustomerDetail() {
     [followUps],
   );
 
-  const load = async () => {
-    setLoading(true);
-    setError(null);
+  const load = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [custResp, contactsResp, followUpsResp, tagsResp] = await Promise.all([
         getCustomer(customerId),
@@ -204,9 +208,15 @@ export default function CustomerDetail() {
       setFollowUps((followUpsResp.data.data as FollowUp[]) || []);
       setCustomerTags((tagsResp.data.data as TagType[]) || []);
     } catch (e: unknown) {
-      setError((e as Error).message || "加载失败");
+      if (silent) {
+        message.error(getApiErrorMessage(e, "刷新客户数据失败"));
+      } else {
+        setError((e as Error).message || "加载失败");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -807,7 +817,7 @@ export default function CustomerDetail() {
             onClose={() => setEditModalOpen(false)}
             onUpdated={() => {
               setEditModalOpen(false);
-              load();
+              load({ silent: true });
             }}
           />
           <ContactFormModal
@@ -821,7 +831,7 @@ export default function CustomerDetail() {
             onSaved={() => {
               setContactModalOpen(false);
               setEditingContact(null);
-              load();
+              load({ silent: true });
             }}
           />
           <FollowUpFormModal
@@ -835,7 +845,7 @@ export default function CustomerDetail() {
             onSaved={() => {
               setFollowupModalOpen(false);
               setEditingFollowUp(null);
-              load();
+              load({ silent: true });
             }}
           />
           <TagManageModal
@@ -1252,6 +1262,7 @@ function FollowUpFormModal({
         message.success("跟进记录新增成功");
       }
       form.resetFields();
+      flushSync(() => setLoading(false));
       onSaved();
     } catch (e: unknown) {
       message.error(getApiErrorMessage(e, "保存失败"));

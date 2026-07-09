@@ -3,6 +3,7 @@
  * 路由: /customers/:customerId/follow-ups
  */
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
@@ -55,6 +56,7 @@ export default function FollowUpList() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleRecord, setRescheduleRecord] = useState<FollowUp | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState<Dayjs | null>(null);
+  const [reschedulePickerOpen, setReschedulePickerOpen] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [updateRecord, setUpdateRecord] = useState<FollowUp | null>(null);
@@ -70,8 +72,11 @@ export default function FollowUpList() {
   const custId = Number(customerId);
 
   // 加载跟进记录
-  const load = async () => {
-    setLoading(true);
+  const load = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent === true;
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const resp = await getFollowUps(custId);
       const result = resp.data;
@@ -84,7 +89,9 @@ export default function FollowUpList() {
         setAllData([]);
       }
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载跟进记录失败")); } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -153,7 +160,13 @@ export default function FollowUpList() {
   const openReschedule = (record: FollowUp) => {
     setRescheduleRecord(record);
     setRescheduleAt(record.planned_at ? dayjs(record.planned_at) : dayjs().add(1, "day").hour(9).minute(0).second(0));
+    setReschedulePickerOpen(false);
     setRescheduleOpen(true);
+  };
+
+  const closeReschedule = () => {
+    flushSync(() => setReschedulePickerOpen(false));
+    setRescheduleOpen(false);
   };
 
   const handleReschedule = async () => {
@@ -161,6 +174,7 @@ export default function FollowUpList() {
       message.warning("请选择新的跟进时间");
       return;
     }
+    flushSync(() => setReschedulePickerOpen(false));
     setRescheduling(true);
     try {
       await updateFollowUp(custId, rescheduleRecord.id, {
@@ -168,10 +182,9 @@ export default function FollowUpList() {
         planned_at: rescheduleAt.format("YYYY-MM-DD HH:mm:ss"),
       });
       message.success("跟进时间已更新");
-      setRescheduleOpen(false);
-      setRescheduleRecord(null);
-      setRescheduleAt(null);
-      load();
+      flushSync(() => setRescheduling(false));
+      closeReschedule();
+      load({ silent: true });
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进时间失败")); } finally {
       setRescheduling(false);
     }
@@ -223,8 +236,9 @@ export default function FollowUpList() {
       }
       await updateFollowUp(custId, updateRecord.id, payload);
       message.success("跟进已更新");
+      flushSync(() => setUpdating(false));
       closeUpdate();
-      load();
+      load({ silent: true });
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进失败")); } finally {
       setUpdating(false);
     }
@@ -362,7 +376,7 @@ export default function FollowUpList() {
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/customers/${custId}`)}>
             返回客户详情
           </Button>
-          <Button icon={<SyncOutlined />} onClick={load} loading={loading}>
+          <Button icon={<SyncOutlined />} onClick={() => load()} loading={loading}>
             刷新
           </Button>
         </Space>
@@ -464,10 +478,13 @@ export default function FollowUpList() {
         cancelText="取消"
         confirmLoading={rescheduling}
         onOk={handleReschedule}
-        onCancel={() => {
-          setRescheduleOpen(false);
-          setRescheduleRecord(null);
-          setRescheduleAt(null);
+        onCancel={closeReschedule}
+        afterOpenChange={(open) => {
+          if (!open) {
+            setRescheduleRecord(null);
+            setRescheduleAt(null);
+            setReschedulePickerOpen(false);
+          }
         }}
       >
         <Space direction="vertical" style={{ width: "100%" }}>
@@ -477,6 +494,9 @@ export default function FollowUpList() {
             format="YYYY-MM-DD HH:mm"
             value={rescheduleAt}
             onChange={setRescheduleAt}
+            open={reschedulePickerOpen}
+            onOpenChange={setReschedulePickerOpen}
+            getPopupContainer={(trigger) => trigger.parentElement || document.body}
             style={{ width: "100%" }}
           />
         </Space>

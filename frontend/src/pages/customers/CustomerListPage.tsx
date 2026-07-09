@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   Button,
   Dropdown,
@@ -120,6 +121,7 @@ interface CustomerColumnActions {
   onFollowUp: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
   onViewDetail: (customer: Customer) => void;
+  onOpenPanel: (customer: Customer) => void;
 }
 
 function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
@@ -131,7 +133,7 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
       fixed: "left",
       render: (name: string, record) => (
         <Space direction="vertical" size={0}>
-          <a onClick={(e) => { e.stopPropagation(); actions.onViewDetail(record); }}>
+          <a onClick={(e) => { e.stopPropagation(); actions.onOpenPanel(record); }}>
             {name}
           </a>
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -360,6 +362,9 @@ export default function CustomerListPage() {
 
   const baseColumns = buildColumns({
     onViewDetail: (customer) => {
+      navigate(`/customers/${customer.id}`);
+    },
+    onOpenPanel: (customer) => {
       setSelectedCustomer(customer);
       setDetailOpen(true);
     },
@@ -435,6 +440,7 @@ export default function CustomerListPage() {
       };
       await createFollowUp(followUpCustomer.id, submitData);
       message.success("跟进记录已新增");
+      flushSync(() => setFollowUpSaving(false));
       closeQuickFollowUp();
       fetchData();
     } catch (e: unknown) {
