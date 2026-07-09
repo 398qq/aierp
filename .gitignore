@@ -123,6 +123,12 @@ backend/reset_admin.py
 GEMINI.md
 AGENTS.local.md
 CLAUDE.local.md
+AGENT_TODO.md
+docs/agent-handoff.md
+docs/current-task.md
+
+# Database schema reference dump
+db_schema.txt
 
 # Performance test artifacts
 perf/*.csv
