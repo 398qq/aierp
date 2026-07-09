@@ -1,14 +1,16 @@
 """Finance CRUD service — invoices, payments, contracts, targets."""
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
-from app.domain.shared.errors import NotFoundError
+from app.domain.shared.errors import BusinessRuleViolation, NotFoundError
 from app.domain.states import (
     assert_can_transition_commission,
     assert_can_transition_contract,
     assert_can_transition_invoice,
     assert_can_transition_payment,
 )
+from app.models.customer import Customer
 from app.models.finance import Commission, Contract, Invoice, PaymentRecord, SalesTarget
 from app.models.sales import SalesOrder
 from app.services.docno import generate_doc_no
@@ -22,6 +24,10 @@ _DATE_FIELDS = {
     "signed_date",
     "expire_date",
 }
+
+CONTRACT_STATUSES = {"draft", "signed", "active", "expired", "terminated", "cancelled"}
+CONTRACT_INITIAL_STATUSES = {"draft", "signed"}
+CONTRACT_LOCKED_EDITABLE_FIELDS = {"status", "file_url", "notes"}
 
 
 def _parse_dates(data: dict) -> dict:
@@ -266,6 +272,85 @@ async def payment_stats(db: AsyncSession) -> dict:
 # ============================================================
 
 
+def _normalize_contract_data(data: dict) -> dict:
+    for field in ("signed_date", "expire_date", "contract_no", "file_url", "notes"):
+        if data.get(field) == "":
+            data[field] = None
+    if data.get("currency"):
+        data["currency"] = str(data["currency"]).upper()
+    return data
+
+
+def _validate_contract_status(status: str | None) -> None:
+    if status and status not in CONTRACT_STATUSES:
+        raise BusinessRuleViolation(f"合同状态无效: {status}")
+
+
+def _validate_contract_invariants(
+    data: dict, *, existing: Contract | None = None
+) -> None:
+    merged = {}
+    if existing is not None:
+        merged = {
+            "status": existing.status,
+            "amount": existing.amount,
+            "currency": existing.currency,
+            "signed_date": existing.signed_date,
+            "expire_date": existing.expire_date,
+        }
+    merged.update(data)
+
+    status = merged.get("status") or "draft"
+    _validate_contract_status(status)
+
+    amount = merged.get("amount")
+    if amount is not None and float(amount) < 0:
+        raise BusinessRuleViolation("合同金额不能为负")
+
+    currency = merged.get("currency")
+    if currency and (len(str(currency)) != 3 or not str(currency).isalpha()):
+        raise BusinessRuleViolation("合同币种必须是 3 位字母代码")
+
+    signed_date = merged.get("signed_date")
+    expire_date = merged.get("expire_date")
+    if signed_date and expire_date and expire_date < signed_date:
+        raise BusinessRuleViolation("合同到期日期不能早于签署日期")
+
+    if status in {"signed", "active"} and not signed_date:
+        raise BusinessRuleViolation("已签署或履行中的合同必须填写签署日期")
+
+    if status == "expired" and not expire_date:
+        raise BusinessRuleViolation("已到期合同必须填写到期日期")
+
+
+async def _assert_contract_no_available(
+    db: AsyncSession, contract_no: str | None, *, exclude_id: int | None = None
+) -> None:
+    if not contract_no:
+        return
+    stmt = select(Contract.id).where(
+        Contract.contract_no == contract_no,
+        Contract.deleted_at.is_(None),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Contract.id != exclude_id)
+    existing_id = await db.scalar(stmt)
+    if existing_id is not None:
+        raise BusinessRuleViolation(f"合同号已存在: {contract_no}")
+
+
+async def _assert_customer_exists(db: AsyncSession, customer_id: int | None) -> None:
+    if customer_id is None:
+        return
+    exists = await db.scalar(
+        select(Customer.id).where(
+            Customer.id == customer_id, Customer.deleted_at.is_(None)
+        )
+    )
+    if exists is None:
+        raise BusinessRuleViolation(f"客户不存在: {customer_id}")
+
+
 async def list_contracts(
     db: AsyncSession,
     *,
@@ -305,8 +390,16 @@ async def get_contract(db: AsyncSession, contract_id: int) -> Contract | None:
 
 
 async def create_contract(db: AsyncSession, data: dict) -> Contract:
+    _normalize_contract_data(data)
     _parse_dates(data)
+    status = data.get("status") or "draft"
+    if status not in CONTRACT_INITIAL_STATUSES:
+        raise BusinessRuleViolation(f"合同初始状态不能为 {status}")
+    data["status"] = status
+    _validate_contract_invariants(data)
     await _apply_sales_order_customer(db, data)
+    await _assert_customer_exists(db, data.get("customer_id"))
+    await _assert_contract_no_available(db, data.get("contract_no"))
     if not data.get("contract_no"):
         data["contract_no"] = await generate_doc_no(db, "CTR", Contract, "contract_no")
     contract = Contract(**data)
@@ -317,10 +410,25 @@ async def create_contract(db: AsyncSession, data: dict) -> Contract:
 
 
 async def update_contract(db: AsyncSession, contract: Contract, data: dict) -> Contract:
+    _normalize_contract_data(data)
     _parse_dates(data)
+    if contract.status != "draft":
+        locked_fields = set(data) - CONTRACT_LOCKED_EDITABLE_FIELDS
+        if locked_fields:
+            raise BusinessRuleViolation(
+                "已签署或履行后的合同只能更新状态、文件和备注",
+                fields=sorted(locked_fields),
+            )
     if "status" in data and data["status"] != contract.status:
         assert_can_transition_contract(contract.status, data["status"])
+    _validate_contract_invariants(data, existing=contract)
     await _apply_sales_order_customer(db, data)
+    if "customer_id" in data:
+        await _assert_customer_exists(db, data.get("customer_id"))
+    if "contract_no" in data and data["contract_no"] != contract.contract_no:
+        await _assert_contract_no_available(
+            db, data.get("contract_no"), exclude_id=contract.id
+        )
     for k, v in data.items():
         if v is not None:
             setattr(contract, k, v)
@@ -330,6 +438,8 @@ async def update_contract(db: AsyncSession, contract: Contract, data: dict) -> C
 
 
 async def delete_contract(db: AsyncSession, contract: Contract) -> None:
+    if contract.status != "draft":
+        raise BusinessRuleViolation("只能删除草稿合同；已签署合同请走取消或终止流程")
     contract.deleted_at = datetime.now(timezone.utc)
     await db.commit()
 
@@ -484,9 +594,40 @@ async def create_commission(db: AsyncSession, data: dict) -> Commission:
             id=data["sales_order_id"],
         )
     data["customer_id"] = so
-    data["commission_amount"] = _compute_commission_amount(
-        data.get("base_amount", 0), data.get("rate", 0)
-    )
+
+    # 013 scheme engine: resolve scheme-based commission if user & base available
+    if data.get("sales_user_id") and data.get("base_amount") is not None:
+        try:
+            from app.services.commission_scheme_service import compute_commission
+
+            result = await compute_commission(
+                db,
+                user_id=data["sales_user_id"],
+                base_amount=Decimal(str(data["base_amount"])),
+                product_category=data.get("product_category"),
+                customer_level=None,
+                period=data.get("period", ""),
+            )
+            if result.scheme_id:  # Scheme resolved
+                data["rate"] = float(result.rate)
+                data["commission_amount"] = float(result.amount)
+                data["commission_scheme_id"] = result.scheme_id
+                data["scheme_snapshot"] = result.scheme_snapshot
+            else:
+                # Fallback to hardcoded calculation
+                data["commission_amount"] = _compute_commission_amount(
+                    data.get("base_amount", 0), data.get("rate", 0)
+                )
+        except Exception:
+            # Fallback if scheme engine fails (e.g. missing migration)
+            data["commission_amount"] = _compute_commission_amount(
+                data.get("base_amount", 0), data.get("rate", 0)
+            )
+    else:
+        data["commission_amount"] = _compute_commission_amount(
+            data.get("base_amount", 0), data.get("rate", 0)
+        )
+
     data.setdefault(
         "commission_no", await generate_doc_no(db, "CM", Commission, "commission_no")
     )

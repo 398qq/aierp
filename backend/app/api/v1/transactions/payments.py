@@ -35,7 +35,7 @@ class PaymentCreate(BaseModel):
     notes: str | None = None
 
 
-@pay_router.get("")
+@pay_router.get("", operation_id="tx_list_payments")
 async def list_payments(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -95,7 +95,7 @@ async def list_payments(
     )
 
 
-@pay_router.post("", status_code=201)
+@pay_router.post("", status_code=201, operation_id="tx_create_payment")
 async def create_payment(
     body: PaymentCreate,
     db: AsyncSession = Depends(get_db),

@@ -30,8 +30,9 @@ from app.api.v1.sales._shared import (
 )
 from app.database import get_db
 from app.models.sales import Quotation
-from app.schemas.common import fail, ok
+from app.schemas.common import fail, ok, APIResponse, PageData
 from app.schemas.sales import (
+    QuotationResponse,
     BatchDeleteRequest,
     QuotationCreate,
     QuotationFromInquiryRequest,
@@ -180,7 +181,7 @@ def _serialize_quotation(quote) -> dict:
     }
 
 
-@router.get("/quotations")
+@router.get("/quotations", response_model=APIResponse[PageData[QuotationResponse]])
 async def list_quotations(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -321,7 +322,7 @@ async def quotation_stats(
     return ok(result)
 
 
-@router.get("/quotations/{quote_id}")
+@router.get("/quotations/{quote_id}", response_model=APIResponse[QuotationResponse])
 async def get_quotation(
     quote_id: int,
     include_ai: bool = Query(False),
@@ -442,7 +443,9 @@ async def get_quotation_pdf(
     )
 
 
-@router.post("/quotations", status_code=201)
+@router.post(
+    "/quotations", status_code=201, response_model=APIResponse[QuotationResponse]
+)
 async def create_quotation(
     body: QuotationCreate,
     db: AsyncSession = Depends(get_db),
@@ -458,7 +461,7 @@ async def create_quotation(
     return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
-@router.put("/quotations/{quote_id}")
+@router.put("/quotations/{quote_id}", response_model=APIResponse[QuotationResponse])
 async def update_quotation(
     quote_id: int,
     body: QuotationUpdate,
@@ -518,7 +521,7 @@ async def send_quotation(
         return fail("报价单不存在", 404)
     quote = await svc.send_quotation(db, quote)
     await _bump_quotation_caches()
-    return ok(quote)
+    return ok(await _reload_quotation_for_serialize(db, quote.id))
 
 
 @router.post("/quotations/from-inquiry", status_code=201)

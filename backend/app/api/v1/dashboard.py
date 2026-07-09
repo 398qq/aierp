@@ -526,7 +526,10 @@ async def sales_lifecycle_metrics(
     cache_key = _dashboard_cache_key("lifecycle", days_back=days_back)
     cached = await cache_get_versioned("dashboard:lifecycle", cache_key)
     if cached:
-        return JSONResponse(content=json.loads(cached))
+        from app.schemas.common import ok
+        return JSONResponse(
+            content=ok(json.loads(cached)),
+        )
 
     from app.models.audit import StatusTransitionLog
 

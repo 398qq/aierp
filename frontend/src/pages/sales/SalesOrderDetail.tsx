@@ -11,7 +11,7 @@ import {
   EyeInvisibleOutlined,
   EyeOutlined,
 } from "@ant-design/icons";
-import { getPayments, getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF } from "../../api";
+import { getPayments, getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF, getApiErrorMessage } from "../../api";
 import type { SalesOrderPDFOptions } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { SalesOrder, SalesOrderItem } from "../../types";
@@ -84,9 +84,7 @@ export default function SalesOrderDetail() {
         const resp = await getSalesOrder(order.id, includeAi);
         setOrder(resp.data.data);
       }
-    } catch {
-      message.error("操作失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); } finally {
       setActionLoading(false);
     }
   };

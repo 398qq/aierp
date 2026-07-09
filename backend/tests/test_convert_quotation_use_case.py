@@ -106,8 +106,12 @@ class TestConvertQuotationToOrderUseCase:
         quotation_id, _, _ = accepted_quotation
         async with factory() as session:
             use_case = ConvertQuotationToOrderUseCase(session, user_id=1)
-            await use_case.execute(quotation_id)
+            result = await use_case.execute(quotation_id)
             await session.commit()
+
+        assert result.id is not None
+        assert result.order_no is not None
+        assert result.order_no.startswith("SO")
 
         async with factory() as verify_session:
             from app.models.sales import SalesOrder as SalesOrderModel
@@ -122,6 +126,30 @@ class TestConvertQuotationToOrderUseCase:
             ).scalar_one()
             assert order.order_no is not None
             assert order.order_no.startswith("SO")
+
+    async def test_legacy_adapter_can_keep_won_status(self, factory, accepted_quotation):
+        quotation_id, _, _ = accepted_quotation
+        async with factory() as session:
+            use_case = ConvertQuotationToOrderUseCase(
+                session,
+                user_id=1,
+                final_quotation_status="won",
+            )
+            result = await use_case.execute(quotation_id)
+            await session.commit()
+
+        assert result.id is not None
+        assert result.order_no is not None
+
+        async with factory() as verify_session:
+            from sqlalchemy import select
+
+            quote = (
+                await verify_session.execute(
+                    select(Quotation).where(Quotation.id == quotation_id)
+                )
+            ).scalar_one()
+            assert quote.status == "won"
 
     async def test_double_convert_raises(self, factory, accepted_quotation):
         quotation_id, _, _ = accepted_quotation

@@ -4,7 +4,7 @@ import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, Modal, Inpu
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined, PieChartOutlined, FileTextOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getSupplier, getSupplierProducts, linkSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation } from "../../api";
+import { getSupplier, getSupplierProducts, linkSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation, getApiErrorMessage } from "../../api";
 import type { Supplier, SupplierProductLink, Product, SupplierScorecard, SupplierDelayPrediction, SupplierAlternatives, SupplierPriceVariance, SupplierNegotiation } from "../../types";
 
 const { Text } = Typography;
@@ -51,7 +51,7 @@ export default function SupplierDetail() {
       ]);
       setSupplier(supRes.data.data as Supplier);
       setLinkedProducts((prodRes.data.data || []) as SupplierProductLink[]);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -65,7 +65,7 @@ export default function SupplierDetail() {
         setMatchResults(matches);
         if (matches.length === 0) message.info("AI 未找到匹配项");
       }
-    } catch { message.error("AI 匹配失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 匹配失败")); }
     finally { setMatching(false); }
   };
 
@@ -79,7 +79,7 @@ export default function SupplierDetail() {
         setMatchModalOpen(false);
         await loadData();
       }
-    } catch { message.error("自动关联失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "自动关联失败")); }
     finally { setMatching(false); }
   };
 
@@ -100,7 +100,7 @@ export default function SupplierDetail() {
       message.success("关联成功");
       setLinkModalOpen(false);
       loadData();
-    } catch { message.error("关联失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "关联失败")); }
     finally { setLinking(false); }
   };
 
@@ -109,7 +109,7 @@ export default function SupplierDetail() {
       await unlinkSupplierProduct(Number(id), productId);
       message.success("已取消关联");
       loadData();
-    } catch { message.error("操作失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const loadScorecard = async () => {
@@ -117,7 +117,7 @@ export default function SupplierDetail() {
     try {
       const resp = await getSupplierScorecard(Number(id));
       if (resp.data.code === 0) setScorecard(resp.data.data as SupplierScorecard);
-    } catch { message.error("供应商评分获取失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "供应商评分获取失败")); }
     finally { setScorecardLoading(false); }
   };
 
@@ -126,7 +126,7 @@ export default function SupplierDetail() {
     try {
       const resp = await predictSupplierDelay(Number(id));
       if (resp.data.code === 0) setDelayPred(resp.data.data as SupplierDelayPrediction);
-    } catch { message.error("延迟预测失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "延迟预测失败")); }
     finally { setDelayLoading(false); }
   };
 
@@ -135,7 +135,7 @@ export default function SupplierDetail() {
     try {
       const resp = await getSupplierAlternatives(Number(id));
       if (resp.data.code === 0) setAlternatives(resp.data.data as SupplierAlternatives);
-    } catch { message.error("替代方案获取失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "替代方案获取失败")); }
     finally { setAltLoading(false); }
   };
 
@@ -144,7 +144,7 @@ export default function SupplierDetail() {
     try {
       const resp = await detectSupplierPriceVariance(Number(id));
       if (resp.data.code === 0) setPriceVariance(resp.data.data as SupplierPriceVariance);
-    } catch { message.error("价格异常检测失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "价格异常检测失败")); }
     finally { setPriceVarLoading(false); }
   };
 
@@ -153,7 +153,7 @@ export default function SupplierDetail() {
     try {
       const resp = await getSupplierNegotiation(Number(id));
       if (resp.data.code === 0) setNegotiation(resp.data.data as SupplierNegotiation);
-    } catch { message.error("谈判建议加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "谈判建议加载失败")); }
     finally { setNegotiationLoading(false); }
   };
 

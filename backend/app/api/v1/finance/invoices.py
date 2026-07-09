@@ -28,8 +28,8 @@ from app.api.v1.sales._serialize import (
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.sales import SalesOrder
-from app.schemas.common import fail, ok
-from app.schemas.finance import InvoiceCreate, InvoiceUpdate
+from app.schemas.common import fail, ok, APIResponse, PageData
+from app.schemas.finance import InvoiceCreate, InvoiceUpdate, InvoiceResponse
 from app.services import finance_service as svc
 from app.services.cache_service import (
     cache_bump_version,
@@ -51,7 +51,7 @@ async def _bump_invoice_caches() -> None:
     await cache_bump_version("dashboard:kpi")
 
 
-@router.get("/invoices")
+@router.get("/invoices", response_model=APIResponse[PageData[InvoiceResponse]])
 async def list_invoices(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -133,7 +133,7 @@ async def list_invoices(
     return ok(result)
 
 
-@router.get("/invoices/{inv_id}")
+@router.get("/invoices/{inv_id}", response_model=APIResponse[InvoiceResponse])
 async def get_invoice(
     inv_id: int,
     db: AsyncSession = Depends(get_db),
@@ -147,7 +147,7 @@ async def get_invoice(
     return ok(serialize_invoice(inv))
 
 
-@router.post("/invoices")
+@router.post("/invoices", response_model=APIResponse[InvoiceResponse])
 async def create_invoice(
     body: InvoiceCreate,
     db: AsyncSession = Depends(get_db),
@@ -160,7 +160,7 @@ async def create_invoice(
     return ok(serialize_invoice(inv))
 
 
-@router.put("/invoices/{inv_id}")
+@router.put("/invoices/{inv_id}", response_model=APIResponse[InvoiceResponse])
 async def update_invoice(
     inv_id: int,
     body: InvoiceUpdate,

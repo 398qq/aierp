@@ -58,13 +58,13 @@ def test_date_format_works_with_both_date_and_timestamp(col):
 
 
 def test_date_format_yyyymm_concatenates():
-    """YYYYMM must concatenate chars 1-4 + 6-2 of the cast text."""
+    """YYYYMM must concatenate chars 1-4 and 6-2 of the cast text."""
     sql = str(
         select(date_format(_T.c.d, "YYYYMM")).compile(dialect=postgresql.dialect())
     )
     # Expect two substr calls concatenated
     assert sql.upper().count("SUBSTR(") == 2
-    assert "+" in sql
+    assert "||" in sql
 
 
 def test_date_format_yyyy_uses_chars_1_to_4():

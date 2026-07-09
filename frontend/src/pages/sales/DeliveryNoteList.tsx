@@ -4,7 +4,7 @@ import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments } from "../../api";
+import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments, getApiErrorMessage } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { DeliveryNote, PaymentRecord } from "../../types";
 import { Link } from "react-router-dom";
@@ -67,9 +67,7 @@ export default function DeliveryNoteList() {
         }
         setPaymentMap(map);
       }
-    } catch {
-      message.error("加载失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); } finally {
       setLoading(false);
     }
   };
@@ -103,9 +101,7 @@ export default function DeliveryNoteList() {
       message.success("已批量删除");
       setSelected([]);
       load();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   return (
@@ -123,7 +119,7 @@ export default function DeliveryNoteList() {
         { title: "发货行数", value: stats.lineCount },
       ]} />
 
-      <Card>
+      <Card className="erp-table">
         <Space style={{ marginBottom: 16 }} wrap>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
           <Input.Search
@@ -247,7 +243,7 @@ export default function DeliveryNoteList() {
                   { type: "divider" as const },
                   { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                     Modal.confirm({ title: "确定删除?", content: `删除发货单 #${record.id}？`, onOk: async () => {
-                      try { await deleteDeliveryNote(record.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                      try { await deleteDeliveryNote(record.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                     }});
                   }},
                 ];

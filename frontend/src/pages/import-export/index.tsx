@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Card, Col, message, Row, Select, Space, Table, Tabs, Typography, Upload } from "antd";
 import { DownloadOutlined, InboxOutlined, UploadOutlined } from "@ant-design/icons";
-import { exportEntity, importEntity } from "../../api";
+import { exportEntity, importEntity, getApiErrorMessage } from "../../api";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -44,9 +44,7 @@ export default function ImportExportPage() {
       a.click();
       URL.revokeObjectURL(url);
       message.success("导出成功");
-    } catch {
-      message.error("导出失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导出失败")); } finally {
       setExporting(false);
     }
   };
@@ -58,9 +56,7 @@ export default function ImportExportPage() {
       const resp = await importEntity(importEntity_, file);
       setImportResult(resp.data.data as { created: number; errors: string[] });
       message.success("导入完成");
-    } catch {
-      message.error("导入失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败")); } finally {
       setImporting(false);
     }
     return false;

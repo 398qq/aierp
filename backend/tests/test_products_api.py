@@ -60,9 +60,8 @@ class TestProductsAPI:
         self, async_client: AsyncClient, auth_headers: dict
     ):
         resp = await async_client.get("/api/v1/products/99999", headers=auth_headers)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["code"] == 404
+        assert resp.status_code == 404
+        assert resp.json()["code"] == 404
 
     async def test_update_product(self, async_client: AsyncClient, auth_headers: dict):
         create_resp = await async_client.post(

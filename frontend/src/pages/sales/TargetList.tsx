@@ -4,7 +4,7 @@ import { Button, Card, Dropdown, Modal, Popconfirm, Progress, Select, Space, Tab
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { AimOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { getTargets, deleteTarget, getTargetStats } from "../../api";
+import { getTargets, deleteTarget, getTargetStats, getApiErrorMessage } from "../../api";
 import type { SalesTarget } from "../../types";
 import { ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
@@ -31,7 +31,7 @@ export default function TargetList() {
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
       setStats(s.data.data);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -121,7 +121,7 @@ export default function TargetList() {
                   { type: "divider" as const },
                   { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                     Modal.confirm({ title: "确定删除?", content: `删除目标 #${r.id}？`, onOk: async () => {
-                      try { await deleteTarget(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                      try { await deleteTarget(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                     }});
                   }},
                 ];

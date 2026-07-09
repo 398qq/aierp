@@ -6,9 +6,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Integer,
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -82,7 +84,9 @@ class SalesTarget(TimestampMixin, Base):
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     target_orders: Mapped[int | None] = mapped_column(nullable=True)
     commission_rate: Mapped[float] = mapped_column(
-        DECIMAL(8, 4), default=0.05, server_default="0.05",
+        DECIMAL(8, 4),
+        default=0.05,
+        server_default="0.05",
         comment="Per-user commission rate (e.g. 0.05 = 5%)",
     )
     period_start: Mapped[datetime.datetime | None] = mapped_column(
@@ -145,6 +149,10 @@ class Commission(TimestampMixin, Base):
         draft → pending_approval → approved → paid
                                   ↘ rejected → (terminal)
                                   ↘ cancelled → (terminal)
+
+    Since 013 scheme engine: ``commission_scheme_id`` + ``scheme_snapshot``
+    record which scheme was used and what the configuration was at calculation
+    time, so future scheme changes don't retroactively alter paid commissions.
     """
 
     __tablename__ = "commissions"
@@ -175,6 +183,14 @@ class Commission(TimestampMixin, Base):
     )
     period: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # 013 scheme integration
+    commission_scheme_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("commission_schemes.id"), nullable=True, default=None
+    )
+    scheme_snapshot: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, default=None
+    )
 
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     sales_user = relationship("User", foreign_keys=[sales_user_id])
@@ -213,3 +229,33 @@ class InvoiceLine(TimestampMixin, Base):
 
     invoice = relationship("Invoice", back_populates="lines")
     product = relationship("Product", foreign_keys=[product_id])
+
+
+class CreditNote(TimestampMixin, Base):
+    """Credit note (冲红发票) — offsets an original Invoice after a return.
+
+    Lifecycle: draft → issued | cancelled.
+    Amount is always negative (credit). Linked to both ReturnNote and the
+    original Invoice for audit trail.
+    """
+
+    __tablename__ = "credit_notes"
+
+    credit_note_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    invoice_id: Mapped[int | None] = mapped_column(
+        ForeignKey("invoices.id"), nullable=True
+    )
+    return_note_id: Mapped[int] = mapped_column(ForeignKey("return_notes.id"))
+    amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    tax_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    customer = relationship("Customer", foreign_keys=[customer_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+    invoice = relationship("Invoice", foreign_keys=[invoice_id])
+    return_note = relationship("ReturnNote", foreign_keys=[return_note_id])

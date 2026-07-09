@@ -15,10 +15,11 @@ from datetime import datetime
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.domain.shared.errors import BusinessRuleViolation, NotFoundError
 from app.domain.states import assert_can_transition_purchase_order
 from app.models.transaction import PurchaseOrder
 from app.schemas.common import ok
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,7 +196,7 @@ async def get_purchase_order(
     )
     po = result.scalar_one_or_none()
     if po is None:
-        raise HTTPException(404, "采购订单不存在")
+        raise NotFoundError("采购订单不存在")
 
     supplier_name = None
     if po.supplier_id:
@@ -246,9 +247,9 @@ async def update_purchase_order(
     )
     po = result.scalar_one_or_none()
     if po is None:
-        raise HTTPException(404, "采购订单不存在")
+        raise NotFoundError("采购订单不存在")
     if po.status != "draft":
-        raise HTTPException(400, "只能编辑草稿状态的采购订单")
+        raise BusinessRuleViolation("只能编辑草稿状态的采购订单")
 
     data = body.model_dump(exclude_none=True)
     items_data = data.pop("items", None)
@@ -288,9 +289,9 @@ async def delete_purchase_order(
     )
     po = result.scalar_one_or_none()
     if po is None:
-        raise HTTPException(404, "采购订单不存在")
+        raise NotFoundError("采购订单不存在")
     if po.status != "draft":
-        raise HTTPException(400, "只能删除草稿状态的采购订单")
+        raise BusinessRuleViolation("只能删除草稿状态的采购订单")
 
     po.deleted_at = datetime.utcnow()
     await db.commit()
@@ -317,9 +318,9 @@ async def receive_purchase_order(
     )
     po = result.scalar_one_or_none()
     if po is None:
-        raise HTTPException(404, "采购订单不存在")
+        raise NotFoundError("采购订单不存在")
     if po.status == "received":
-        raise HTTPException(400, "采购订单已收货")
+        raise BusinessRuleViolation("采购订单已收货")
 
     assert_can_transition_purchase_order(po.status, "received")
 
@@ -380,7 +381,7 @@ async def create_po_from_restock(
         )
     ).scalar_one_or_none()
     if supplier is None:
-        raise HTTPException(404, "供应商不存在")
+        raise NotFoundError("供应商不存在")
 
     # Generate PO number
     po_no = await generate_doc_no(db, "PO", PurchaseOrder, "order_no")

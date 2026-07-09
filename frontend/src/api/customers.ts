@@ -1,21 +1,101 @@
 import client from "./client";
 import type {
-  AlertEvent, AlertRule, APIResponse, Attachment, Brand, BrandComparison, BrandCustomerPenetration, BrandHealth, BrandImport, BrandLifecycle, BrandPortfolio, BrandPriceTrends, BrandProductPerformance, BrandProfile, BrandRecommendation, BrandRisk, BrandSupplierMatrix,
-  ChurnRisk, Contract, Customer, Customer360, CustomerAIRecommendationSummary, CustomerAIStats, CustomerAIWorkQueuePage, CustomerLog, CustomerProductMatch, CustomerRecognition, CustomerStats,
-  DashboardStats, DashboardWidget, DeliveryNote, DeliveryNoteAI, Document, DuplicatePair,
-  FollowUp, FollowUpRecognition, FollowUpReminder, GlobalFollowUp,
-  Global360, GroupStats,
-  Invoice, KpiData, LevelRule, LifecycleAnalysis, LoginData,
+  AlertEvent,
+  AlertRule,
+  APIResponse,
+  Attachment,
+  Brand,
+  BrandComparison,
+  BrandCustomerPenetration,
+  BrandHealth,
+  BrandImport,
+  BrandLifecycle,
+  BrandPortfolio,
+  BrandPriceTrends,
+  BrandProductPerformance,
+  BrandProfile,
+  BrandRecommendation,
+  BrandRisk,
+  BrandSupplierMatrix,
+  ChurnRisk,
+  Contract,
+  Customer,
+  Customer360,
+  CustomerAIRecommendationSummary,
+  CustomerAIStats,
+  CustomerAIWorkQueuePage,
+  CustomerLog,
+  CustomerProductMatch,
+  CustomerRecognition,
+  CustomerStats,
+  DashboardStats,
+  DashboardWidget,
+  DeliveryNote,
+  DeliveryNoteAI,
+  Document,
+  DuplicatePair,
+  FollowUp,
+  FollowUpRecognition,
+  FollowUpReminder,
+  GlobalFollowUp,
+  Global360,
+  GroupStats,
+  Invoice,
+  KpiData,
+  LevelRule,
+  LifecycleAnalysis,
+  LoginData,
   MergeResult,
-  NLPQueryResult, NormalizedSpec,
+  NLPQueryResult,
+  NormalizedSpec,
   InventoryItem,
   NotificationItem,
-  Opportunity, OpportunityAI, OverdueFollowUp,
-  PageData, PaymentRecord, POAutoSuggest, POOptimization, PORiskAssessment, PriceBenchmark, PriceRecommendation, ProcurementPlan, Product, Product360, ProductAssociation, ProductCustomerMatch, ProductProfile, PurchaseOrder,
-  Quotation, QuotationAI, QuotationStats, RFMAnalysis,
-  SalesOrder, SalesOrderAI, SalesTarget, Sample, SimilarBrand, Supplier, Supplier360, SupplierAlternatives, SupplierComparison, SupplierDelayPrediction, SupplierNegotiation, SupplierPriceVariance, SupplierProductLink, SupplierScorecard,
-  Tag, Ticket, TicketClassification, TicketCluster, TicketResolutionPrediction, TicketResponse, TimelineEvent,
-  Visit, VisitEffectiveness, VisitReport, VisitSentiment,
+  Opportunity,
+  OpportunityAI,
+  OverdueFollowUp,
+  PageData,
+  PaymentRecord,
+  POAutoSuggest,
+  POOptimization,
+  PORiskAssessment,
+  PriceBenchmark,
+  PriceRecommendation,
+  ProcurementPlan,
+  Product,
+  Product360,
+  ProductAssociation,
+  ProductCustomerMatch,
+  ProductProfile,
+  PurchaseOrder,
+  Quotation,
+  QuotationAI,
+  QuotationStats,
+  RFMAnalysis,
+  SalesOrder,
+  SalesOrderAI,
+  SalesTarget,
+  Sample,
+  SimilarBrand,
+  Supplier,
+  Supplier360,
+  SupplierAlternatives,
+  SupplierComparison,
+  SupplierDelayPrediction,
+  SupplierNegotiation,
+  SupplierPriceVariance,
+  SupplierProductLink,
+  SupplierScorecard,
+  Tag,
+  Ticket,
+  TicketClassification,
+  TicketCluster,
+  TicketResolutionPrediction,
+  TicketResponse,
+  TimelineEvent,
+  Visit,
+  VisitEffectiveness,
+  VisitReport,
+  VisitSentiment,
   Warehouse,
 } from "../types";
 
@@ -23,8 +103,7 @@ import type {
 export const getCustomers = (params: Record<string, unknown>) =>
   client.get<APIResponse<PageData<Customer>>>("/customers", { params });
 
-export const getCustomer = (id: number) =>
-  client.get<APIResponse<Customer>>(`/customers/${id}`);
+export const getCustomer = (id: number) => client.get<APIResponse<Customer>>(`/customers/${id}`);
 
 export const createCustomer = (data: Record<string, unknown>) =>
   client.post<APIResponse>("/customers", data);
@@ -32,8 +111,7 @@ export const createCustomer = (data: Record<string, unknown>) =>
 export const updateCustomer = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse>(`/customers/${id}`, data);
 
-export const deleteCustomer = (id: number) =>
-  client.delete<APIResponse>(`/customers/${id}`);
+export const deleteCustomer = (id: number) => client.delete<APIResponse>(`/customers/${id}`);
 
 export const getContacts = (customerId: number) =>
   client.get<APIResponse>(`/customers/${customerId}/contacts`);
@@ -47,14 +125,20 @@ export const getFollowUps = (customerId: number) =>
 export const createFollowUp = (customerId: number, data: Record<string, unknown>) =>
   client.post<APIResponse>(`/customers/${customerId}/follow-ups`, data);
 
-export const updateContact = (customerId: number, contactId: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/customers/${customerId}/contacts/${contactId}`, data);
+export const updateContact = (
+  customerId: number,
+  contactId: number,
+  data: Record<string, unknown>,
+) => client.put<APIResponse>(`/customers/${customerId}/contacts/${contactId}`, data);
 
 export const deleteContact = (customerId: number, contactId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/contacts/${contactId}`);
 
-export const updateFollowUp = (customerId: number, followupId: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/customers/${customerId}/follow-ups/${followupId}`, data);
+export const updateFollowUp = (
+  customerId: number,
+  followupId: number,
+  data: Record<string, unknown>,
+) => client.put<APIResponse>(`/customers/${customerId}/follow-ups/${followupId}`, data);
 
 export const deleteFollowUp = (customerId: number, followupId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/follow-ups/${followupId}`);
@@ -65,25 +149,32 @@ export const getTimeline = (customerId: number) =>
 export const getCustomerStats = (customerId: number) =>
   client.get<APIResponse<CustomerStats>>(`/customers/${customerId}/stats`);
 
-export const getDashboardStats = () =>
-  client.get<APIResponse<DashboardStats>>("/customers/stats");
+export const getDashboardStats = () => client.get<APIResponse<DashboardStats>>("/customers/stats");
 
 export const getCustomerAIStats = () =>
   client.get<APIResponse<CustomerAIStats>>("/customers/ai-stats");
 
 export const batchScoreAI = (ids?: number[]) =>
   client.post<APIResponse<{ scored: number; errors: number; total: number }>>(
-    "/customers/batch-score-ai", ids ? { ids } : {}
+    "/customers/batch-score-ai",
+    ids ? { ids } : {},
   );
 
 export const getOverdueFollowUps = () =>
-  client.get<APIResponse<{ total: number; items: OverdueFollowUp[] }>>("/customers/overdue-followups");
+  client.get<APIResponse<{ total: number; items: OverdueFollowUp[] }>>(
+    "/customers/overdue-followups",
+  );
 
 export const getFollowUpReminders = () =>
-  client.get<APIResponse<{ total: number; counts: Record<string, number>; items: FollowUpReminder[] }>>("/customers/follow-up-reminders");
+  client.get<
+    APIResponse<{ total: number; counts: Record<string, number>; items: FollowUpReminder[] }>
+  >("/customers/follow-up-reminders");
 
 export const getGlobalFollowUps = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<GlobalFollowUp> & { counts: Record<string, number> }>>("/customers/follow-ups-global", { params });
+  client.get<APIResponse<PageData<GlobalFollowUp> & { counts: Record<string, number> }>>(
+    "/customers/follow-ups-global",
+    { params },
+  );
 
 export const exportCustomers = (params: Record<string, unknown>) =>
   client.get("/customers/export", { params, responseType: "blob" });
@@ -94,7 +185,9 @@ export const downloadImportTemplate = () =>
 export const importCustomers = (file: File) => {
   const form = new FormData();
   form.append("file", file);
-  return client.post("/customers/import", form, { headers: { "Content-Type": "multipart/form-data" } });
+  return client.post("/customers/import", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 };
 
 export const batchDeleteCustomers = (ids: number[]) =>
@@ -103,22 +196,24 @@ export const batchDeleteCustomers = (ids: number[]) =>
 export const batchTagCustomers = (ids: number[], tag_ids: number[]) =>
   client.post<APIResponse>("/customers/batch-tag", { ids, tag_ids });
 
+export const batchSetOwner = (ids: number[], action: "claim" | "release") =>
+  client.post<APIResponse>("/customers/batch-owner", { ids, action });
 
 // Tags
-export const getTags = () =>
-  client.get<APIResponse<Tag[]>>("/customers/tags");
+export const getTags = () => client.get<APIResponse<Tag[]>>("/customers/tags");
 
 export const createTag = (data: Record<string, unknown>) =>
   client.post<APIResponse<Tag>>("/customers/tags", data);
 
 export const generateDefaultCustomerTags = () =>
-  client.post<APIResponse<{ created: number; existing: number; tags: Tag[] }>>("/customers/tags/defaults");
+  client.post<APIResponse<{ created: number; existing: number; tags: Tag[] }>>(
+    "/customers/tags/defaults",
+  );
 
 export const updateTag = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<Tag>>(`/customers/tags/${id}`, data);
 
-export const deleteTag = (id: number) =>
-  client.delete<APIResponse>(`/customers/tags/${id}`);
+export const deleteTag = (id: number) => client.delete<APIResponse>(`/customers/tags/${id}`);
 
 export const getCustomerTags = (customerId: number) =>
   client.get<APIResponse<Tag[]>>(`/customers/${customerId}/tags`);
@@ -128,7 +223,6 @@ export const linkTag = (customerId: number, tagId: number) =>
 
 export const unlinkTag = (customerId: number, tagId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/tags/${tagId}`);
-
 
 // Attachments (legacy customer-specific)
 export const getAttachments = (customerId: number) =>
@@ -144,7 +238,6 @@ export const uploadAttachment = (customerId: number, file: File, category = "con
 
 export const deleteAttachment = (customerId: number, attachmentId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/attachments/${attachmentId}`);
-
 
 // Documents (Phase 7 — generic entity attachments)
 export const getDocuments = (entityType: string, entityId: number) =>
@@ -163,9 +256,7 @@ export const uploadDocument = (entityType: string, entityId: number, file: File)
 export const downloadDocument = (docId: number) =>
   client.get(`/documents/${docId}/download`, { responseType: "blob" });
 
-export const deleteDocument = (docId: number) =>
-  client.delete<APIResponse>(`/documents/${docId}`);
-
+export const deleteDocument = (docId: number) => client.delete<APIResponse>(`/documents/${docId}`);
 
 // Import/Export (Phase 7)
 export const exportEntity = (entity: string, format: string = "csv") =>
@@ -179,7 +270,6 @@ export const importEntity = (entity: string, file: File) => {
   });
 };
 
-
 // Customer Logs
 export const getCustomerLogs = (customerId: number) =>
   client.get<APIResponse<CustomerLog[]>>(`/customers/${customerId}/logs`);
@@ -187,16 +277,15 @@ export const getCustomerLogs = (customerId: number) =>
 export const getRecentActivity = (limit = 20) =>
   client.get<APIResponse<CustomerLog[]>>(`/customers/recent-activity?limit=${limit}`);
 
-
 // Customer Merge
 export const mergeCustomers = (source_id: number, target_id: number) =>
   client.post<APIResponse<MergeResult>>("/customers/merge", { source_id, target_id });
 
-
 // Duplicate Detection
 export const detectDuplicates = (threshold = 0.9) =>
-  client.get<APIResponse<{ total: number; pairs: DuplicatePair[] }>>("/customers/duplicates", { params: { threshold } });
-
+  client.get<APIResponse<{ total: number; pairs: DuplicatePair[] }>>("/customers/duplicates", {
+    params: { threshold },
+  });
 
 // Group Relationships
 export const linkParent = (customerId: number, parentId: number) =>
@@ -211,7 +300,6 @@ export const getChildren = (customerId: number) =>
 export const getGroupStats = (customerId: number) =>
   client.get<APIResponse<GroupStats>>(`/customers/${customerId}/group-stats`);
 
-
 // Customer Insight — uses zod schema for runtime validation
 import { customerInsightSchema } from "./schemas/customer";
 import { safeGet } from "./schemas";
@@ -222,9 +310,8 @@ export const getCustomerInsight = (id: number) =>
 export const getCustomerQuotationHistory = (customerId: number, status?: string) =>
   client.get<APIResponse<import("../types").CustomerQuotationHistory>>(
     `/customers/${customerId}/quotation-history`,
-    status ? { params: { status } } : undefined
+    status ? { params: { status } } : undefined,
   );
-
 
 // Customer Visits
 export const getCustomerVisits = (customerId: number) =>
@@ -233,8 +320,11 @@ export const getCustomerVisits = (customerId: number) =>
 export const createCustomerVisit = (customerId: number, data: Record<string, unknown>) =>
   client.post<APIResponse>(`/customers/${customerId}/visits`, data);
 
-export const updateCustomerVisit = (customerId: number, visitId: number, data: Record<string, unknown>) =>
-  client.put<APIResponse>(`/customers/${customerId}/visits/${visitId}`, data);
+export const updateCustomerVisit = (
+  customerId: number,
+  visitId: number,
+  data: Record<string, unknown>,
+) => client.put<APIResponse>(`/customers/${customerId}/visits/${visitId}`, data);
 
 export const deleteCustomerVisit = (customerId: number, visitId: number) =>
   client.delete<APIResponse>(`/customers/${customerId}/visits/${visitId}`);
@@ -242,10 +332,8 @@ export const deleteCustomerVisit = (customerId: number, visitId: number) =>
 export const getUpcomingVisits = (days = 14) =>
   client.get<APIResponse<{ list: Visit[]; total: number }>>(`/visits?page_size=50`);
 
-
 // Level Rules
-export const getLevelRules = () =>
-  client.get<APIResponse<LevelRule[]>>("/customers/level-rules");
+export const getLevelRules = () => client.get<APIResponse<LevelRule[]>>("/customers/level-rules");
 
 export const createLevelRule = (data: Record<string, unknown>) =>
   client.post<APIResponse>("/customers/level-rules", data);
@@ -259,39 +347,48 @@ export const deleteLevelRule = (id: number) =>
 export const autoLevel = () =>
   client.post<APIResponse<{ updated: number }>>("/customers/auto-level");
 
-
 // Customer intelligence
 export const getCustomer360 = (customerId: number) =>
-  client.post<APIResponse<import("../types").Customer360>>(`/ai/orchestrate/customer/${customerId}`);
+  client.post<APIResponse<import("../types").Customer360>>(
+    `/ai/orchestrate/customer/${customerId}`,
+  );
 
 export const getCustomerSegments = (nClusters = 5) =>
-  client.get<APIResponse<{ clusters: import("../types").SegmentCluster[]; total: number }>>(`/ai/customer/segments?n_clusters=${nClusters}`);
+  client.get<APIResponse<{ clusters: import("../types").SegmentCluster[]; total: number }>>(
+    `/ai/customer/segments?n_clusters=${nClusters}`,
+  );
 
 export const getSimilarCustomers = (customerId: number, topK = 10) =>
-  client.get<APIResponse<import("../types").SimilarCustomer[]>>(`/ai/customer/${customerId}/similar?top_k=${topK}`);
+  client.get<APIResponse<import("../types").SimilarCustomer[]>>(
+    `/ai/customer/${customerId}/similar?top_k=${topK}`,
+  );
 
 export const searchSimilarCustomers = (q: string, topK = 10) =>
-  client.get<APIResponse<import("../types").SimilarCustomer[]>>(`/ai/customer/similar/search?q=${encodeURIComponent(q)}&top_k=${topK}`);
+  client.get<APIResponse<import("../types").SimilarCustomer[]>>(
+    `/ai/customer/similar/search?q=${encodeURIComponent(q)}&top_k=${topK}`,
+  );
 
-export const generateCustomerWorkQueue = (
-  payload?: { customer_ids?: number[]; replace_open?: boolean; dry_run?: boolean },
-) => client.post<APIResponse<{
-  generated: number;
-  replaced: number;
-  items: Array<{
-    id?: number;
-    customer_id: number;
-    customer_name: string;
-    action_type: string;
-    title: string;
-    priority_score: number;
-    due_at: string | null;
-    status: string;
-  }>;
-}>>(
-  "/ai/customer/work-queue/generate",
-  payload || {},
-);
+export const generateCustomerWorkQueue = (payload?: {
+  customer_ids?: number[];
+  replace_open?: boolean;
+  dry_run?: boolean;
+}) =>
+  client.post<
+    APIResponse<{
+      generated: number;
+      replaced: number;
+      items: Array<{
+        id?: number;
+        customer_id: number;
+        customer_name: string;
+        action_type: string;
+        title: string;
+        priority_score: number;
+        due_at: string | null;
+        status: string;
+      }>;
+    }>
+  >("/ai/customer/work-queue/generate", payload || {});
 
 export const getCustomerWorkQueue = (params: Record<string, unknown>) =>
   client.get<APIResponse<CustomerAIWorkQueuePage>>("/ai/customer/work-queue", { params });
@@ -317,4 +414,3 @@ export const submitCustomerRecommendationFeedback = (
 ) => client.post<APIResponse>(`/ai/customer/recommendation/${recommendationId}/feedback`, data);
 
 // ============================================================
-

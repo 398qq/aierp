@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Table, Button, Space, Tag, message, Card, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
 import { CheckOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getNotifications, markNotificationsRead } from "../../api";
+import { getNotifications, markNotificationsRead, getApiErrorMessage } from "../../api";
 import type { NotificationItem } from "../../types";
 
 const TYPE: Record<string, { color: string; label: string }> = {
@@ -29,7 +29,7 @@ export default function NotificationList() {
       const resp = await getNotifications(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -40,14 +40,14 @@ export default function NotificationList() {
       await markNotificationsRead({ all: true });
       message.success("全部已读");
       load();
-    } catch { message.error("操作失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const handleMarkRead = async (ids: number[]) => {
     try {
       await markNotificationsRead({ ids });
       load();
-    } catch { message.error("操作失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   return (

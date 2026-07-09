@@ -1,9 +1,9 @@
-import { BarChartOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotOutlined, TeamOutlined } from "@ant-design/icons";
+import { BarChartOutlined, FileTextOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotOutlined, TeamOutlined } from "@ant-design/icons";
 import { Button, Segmented, Space, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-type CustomerModuleNavKey = "list" | "stats" | "segments" | "intelligence" | "workbench";
+type CustomerModuleNavKey = "list" | "followups" | "stats" | "segments" | "intelligence" | "workbench";
 
 interface CustomerModuleShellProps {
   title: string;
@@ -13,7 +13,8 @@ interface CustomerModuleShellProps {
 }
 
 const NAV_ITEMS: { key: CustomerModuleNavKey; label: string; path: string; icon: ReactNode }[] = [
-  { key: "list", label: "客户列表", path: "/customers", icon: <TeamOutlined /> },
+  { key: "list", label: "客户", path: "/customers", icon: <TeamOutlined /> },
+  { key: "followups", label: "跟进记录", path: "/customers/follow-ups", icon: <FileTextOutlined /> },
   { key: "stats", label: "客户统计", path: "/customers/stats", icon: <BarChartOutlined /> },
   { key: "segments", label: "客户分群", path: "/customers/segments", icon: <PieChartOutlined /> },
   { key: "intelligence", label: "智能分析", path: "/customers/intelligence", icon: <HeartOutlined /> },
@@ -23,6 +24,7 @@ const NAV_ITEMS: { key: CustomerModuleNavKey; label: string; path: string; icon:
 const PATH_TO_KEY: Array<{ prefix: string; key: CustomerModuleNavKey }> = [
   { prefix: "/customers/workbench", key: "workbench" },
   { prefix: "/customers/intelligence", key: "intelligence" },
+  { prefix: "/customers/follow-ups", key: "followups" },
   { prefix: "/customers/segments", key: "segments" },
   { prefix: "/customers/stats", key: "stats" },
   { prefix: "/customers", key: "list" },
@@ -30,6 +32,7 @@ const PATH_TO_KEY: Array<{ prefix: string; key: CustomerModuleNavKey }> = [
 
 const TITLE_ICON: Record<CustomerModuleNavKey, ReactNode> = {
   list: <TeamOutlined />,
+  followups: <FileTextOutlined />,
   stats: <BarChartOutlined />,
   segments: <PieChartOutlined />,
   intelligence: <HeartOutlined />,

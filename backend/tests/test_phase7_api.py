@@ -24,8 +24,9 @@ class TestDocuments:
             data={"entity_type": "customer", "entity_id": 1},
             files={"file": ("test.txt", b"hello world", "text/plain")},
         )
-        assert resp.status_code == 200
-        assert resp.json()["code"] != 0  # text/plain not in ALLOWED_MIME
+        # text/plain is not in ALLOWED_MIME — should be rejected
+        assert resp.status_code == 400
+        assert resp.json()["code"] == 400
 
     async def test_upload_csv_file(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.post(
@@ -99,8 +100,8 @@ class TestImportExport:
         resp = await async_client.get(
             "/api/v1/export/invalid_entity?format=csv", headers=auth_headers
         )
-        assert resp.status_code == 200
-        assert resp.json()["code"] != 0
+        assert resp.status_code == 400
+        assert resp.json()["code"] == 400
 
     async def test_import_customers_csv(
         self, async_client: AsyncClient, auth_headers: dict
@@ -165,9 +166,12 @@ class TestImportExport:
         assert resp.json()["code"] == 0
 
     async def test_import_contracts_csv(
-        self, async_client: AsyncClient, auth_headers: dict
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
-        csv_data = "title,customer_id,amount,status,signed_date,notes\n采购合同,1,50000,draft,2025-01-01,测试合同"
+        csv_data = (
+            "title,customer_id,amount,status,signed_date,notes\n"
+            f"采购合同,{test_customer['id']},50000,draft,2025-01-01,测试合同"
+        )
         resp = await async_client.post(
             "/api/v1/import/contracts",
             headers=auth_headers,

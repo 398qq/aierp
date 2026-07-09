@@ -9,9 +9,11 @@ export interface Customer {
   website: string | null;
   address: string | null;
   tax_id: string | null;
+  unified_social_credit_code: string | null;
   registration_number: string | null;
   invoice_title: string | null;
   invoice_address: string | null;
+  invoice_phone: string | null;
   bank_name: string | null;
   bank_account: string | null;
   industry: string | null;
@@ -24,6 +26,7 @@ export interface Customer {
   employee_count: number | null;
   credit_limit: number | null;
   credit_level: string | null;
+  tax_rate: number | null;
   payment_terms: string | null;
   payment_method: string | null;
   currency: string;

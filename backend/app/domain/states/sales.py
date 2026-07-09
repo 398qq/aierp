@@ -58,10 +58,12 @@ def assert_can_transition_quotation(current: str, target: str) -> None:
 
 SALES_ORDER_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"confirmed", "cancelled"},
+    "draft": {"confirmed", "cancelled"},  # legacy v1 aggregate — synonym for pending
     "confirmed": {"shipped", "partially_shipped", "cancelled"},
     "partially_shipped": {"shipped", "cancelled"},
     "shipped": {"delivered", "completed"},
     "delivered": {"completed"},
+    "invoiced": {"completed"},  # legacy v1 aggregate — synonym for delivered
     "completed": set(),
     "cancelled": set(),
 }
@@ -95,6 +97,28 @@ def assert_can_transition_delivery(current: str, target: str) -> None:
         raise InvalidStateTransition(
             f"发货单状态转换非法: {current} → {target}",
             entity="DeliveryNote",
+            current=current,
+            target=target,
+            allowed=sorted(allowed),
+        )
+
+
+# ── ReturnNote ─────────────────────────────────────────────────
+
+RETURN_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"approved", "rejected"},
+    "approved": {"completed", "rejected"},
+    "completed": set(),
+    "rejected": set(),
+}
+
+
+def assert_can_transition_return(current: str, target: str) -> None:
+    allowed = RETURN_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise InvalidStateTransition(
+            f"退货单状态转换非法: {current} → {target}",
+            entity="ReturnNote",
             current=current,
             target=target,
             allowed=sorted(allowed),

@@ -5,7 +5,7 @@ import { StatusTag, type StatusTone } from "../../ui";
 import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
-import { getPurchaseOrders, getSuppliers, receivePurchaseOrder, deletePurchaseOrder, batchDeletePurchaseOrders } from "../../api";
+import { getPurchaseOrders, getSuppliers, receivePurchaseOrder, deletePurchaseOrder, batchDeletePurchaseOrders, getApiErrorMessage } from "../../api";
 import type { PurchaseOrder } from "../../types";
 import dayjs from "dayjs";
 import { ErpExportButton, MetricBand, SalesModuleShell, shortDate } from "./salesUi";
@@ -49,7 +49,7 @@ export default function PurchaseOrderList() {
       const r = await getPurchaseOrders(params);
       setData((r.data.data?.list || []) as PurchaseOrder[]);
       setTotal((r.data.data?.total || 0) as number);
-    } catch { message.error("加载采购订单失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载采购订单失败")); }
     finally { setLoading(false); }
   };
 
@@ -83,7 +83,7 @@ export default function PurchaseOrderList() {
       message.success("已批量删除");
       setSelected([]);
       fetch();
-    } catch { message.error("批量删除失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
   };
 
   const handleReceive = async () => {
@@ -94,7 +94,7 @@ export default function PurchaseOrderList() {
       message.success(`PO #${receivePO.order_no || receivePO.id} 已收货，库存已自动入库`);
       setReceiveModalOpen(false);
       fetch();
-    } catch { message.error("收货失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "收货失败")); }
     finally { setReceiving(false); }
   };
 
@@ -104,7 +104,7 @@ export default function PurchaseOrderList() {
       message.success(`PO ${po.order_no || `#${po.id}`} 已删除`);
       setSelected((prev) => prev.filter((id) => id !== po.id));
       fetch();
-    } catch { message.error("删除失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const exportData = useMemo(() => data.map((item) => ({

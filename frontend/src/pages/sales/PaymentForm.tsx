@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
-import { getPayment, createPayment, updatePayment, getSalesOrders, getDeliveryNotes, getInvoices } from "../../api";
+import { getPayment, createPayment, updatePayment, getSalesOrders, getDeliveryNotes, getInvoices, getApiErrorMessage } from "../../api";
 import dayjs from "dayjs";
 import type { DeliveryNote, Invoice, SalesOrder } from "../../types";
 import { CustomerSelect, shortDate } from "./salesUi";
@@ -69,7 +69,7 @@ export default function PaymentForm() {
       if (isEdit) { await updatePayment(Number(id), payload); message.success("回款已更新"); }
       else { await createPayment(payload); message.success("回款已创建"); }
       navigate("/sales/payments");
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setLoading(false); }
   };
 

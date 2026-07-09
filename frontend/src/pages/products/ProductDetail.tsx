@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse, Flex } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
-import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct } from "../../api";
+import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct, getApiErrorMessage } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
 import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch } from "../../types";
 
@@ -118,7 +118,7 @@ export default function ProductDetail() {
     try {
       const resp = await getProductSales(Number(id));
       if (resp.data.code === 0) setSalesDocs(resp.data.data as { quotations: Record<string, unknown>[]; orders: Record<string, unknown>[]; deliveries: Record<string, unknown>[] });
-    } catch { message.error("加载销售数据失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载销售数据失败")); }
     finally { setSalesDocsLoading(false); }
   };
 
@@ -127,7 +127,7 @@ export default function ProductDetail() {
     try {
       const resp = await getPricingRecommend({ product_id: Number(id) });
       if (resp.data.code === 0) setAiPrice(resp.data.data as Record<string, unknown>);
-    } catch { message.error("AI 定价失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 定价失败")); }
     finally { setPricingLoading(false); }
   };
 
@@ -136,7 +136,7 @@ export default function ProductDetail() {
     try {
       const resp = await getProductProfile(Number(id));
       if (resp.data.code === 0) setProfile(resp.data.data as ProductProfile);
-    } catch { message.error("生成产品画像失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成产品画像失败")); }
     finally { setProfileLoading(false); }
   };
 
@@ -153,7 +153,7 @@ export default function ProductDetail() {
           setSpecsObj(newSpecs);
         }
       }
-    } catch { message.error("规格标准化失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "规格标准化失败")); }
     finally { setSpecLoading(false); }
   };
 
@@ -162,7 +162,7 @@ export default function ProductDetail() {
     try {
       const resp = await getProductAssociations(Number(id));
       if (resp.data.code === 0) setAssociations(resp.data.data?.associations || []);
-    } catch { message.error("加载关联产品失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载关联产品失败")); }
     finally { setAssocLoading(false); }
   };
 
@@ -171,7 +171,7 @@ export default function ProductDetail() {
     try {
       const resp = await getProcurementOptimize(Number(id), procurementQty);
       if (resp.data.code === 0) setProcurement(resp.data.data as ProcurementPlan);
-    } catch { message.error("采购优化失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "采购优化失败")); }
     finally { setProcurementLoading(false); }
   };
 
@@ -180,14 +180,13 @@ export default function ProductDetail() {
     try {
       const resp = await getProductLifecycle(Number(id));
       if (resp.data.code === 0) setLifecycle(resp.data.data as LifecycleAnalysis);
-    } catch { message.error("生命周期分析失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生命周期分析失败")); }
     finally { setLifecycleLoading(false); }
   };
 
   const handleEmbed = async () => {
     setEmbedding(true);
-    try { await embedProduct(Number(id)); message.success("Embedding 生成成功"); }
-    catch { message.error("生成失败"); }
+    try { await embedProduct(Number(id)); message.success("Embedding 生成成功"); } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成失败")); }
     finally { setEmbedding(false); }
   };
 
@@ -196,7 +195,7 @@ export default function ProductDetail() {
     try {
       const resp = await recommendCustomersForProduct(Number(id));
       if (resp.data.code === 0) setRecommendCustomers(resp.data.data as ProductCustomerMatch);
-    } catch { message.error("推荐客户加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "推荐客户加载失败")); }
     finally { setRecommendLoading(false); }
   };
 

@@ -1,8 +1,7 @@
 /**
  * useCustomersFilter tests — Stage 3 Day 1.
  *
- * Verifies the extracted filter hook matches the original inline
- * behavior of customers/index.tsx (lines 170-180 of the legacy file).
+ * Verifies the extracted filter hook used by customer list surfaces.
  */
 
 import { act, renderHook } from "@testing-library/react";

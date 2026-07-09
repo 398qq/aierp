@@ -180,7 +180,7 @@ class EmbeddingService(BaseAgent):
     @staticmethod
     async def similar_by_text(query: str, db_session, top_k: int = 10) -> list[dict]:
         """Search similar customers by natural-language query."""
-        embedding = await ai_client.embed_single(query)
+        embedding = await ai_client.embed_single(query, embedding_type="query")
         return await EmbeddingService.similar_customers(embedding, db_session, top_k)
 
     @staticmethod
@@ -223,7 +223,7 @@ class EmbeddingService(BaseAgent):
     async def similar_suppliers_by_text(
         query: str, db_session, top_k: int = 10
     ) -> list[dict]:
-        embedding = await ai_client.embed_single(query)
+        embedding = await ai_client.embed_single(query, embedding_type="query")
         return await EmbeddingService.similar_suppliers(embedding, db_session, top_k)
 
     # ---- Batch indexing ----
@@ -442,9 +442,63 @@ class EmbeddingService(BaseAgent):
         )
         rows = result.all()
         if len(rows) < n_clusters:
+            # Fallback: rule-based clustering by industry + level
+            fb_result = await db_session.execute(
+                select(
+                    Customer.id,
+                    Customer.name,
+                    Customer.industry,
+                    Customer.level,
+                ).where(Customer.deleted_at.is_(None))
+            )
+            fb_rows = fb_result.all()
+            if len(fb_rows) < n_clusters:
+                return {
+                    "clusters": [],
+                    "error": f"Need at least {n_clusters} customers",
+                }
+
+            # Group by industry
+            groups: dict[str, list[dict]] = {}
+            for r in fb_rows:
+                key = (r[2] or "未分类") + " · " + (r[3] or "未分级")
+                groups.setdefault(key, []).append(
+                    {"id": r[0], "name": r[1], "industry": r[2], "level": r[3]}
+                )
+
+            result_clusters = []
+            for label, members in groups.items():
+                _ = [m["id"] for m in members[:5]]
+                industries = set(m["industry"] for m in members if m["industry"])
+                result_clusters.append(
+                    {
+                        "id": len(result_clusters) + 1,
+                        "label": label,
+                        "size": len(members),
+                        "avg_similarity": 0.7,
+                        "common_industry": max(
+                            industries,
+                            key=lambda x: sum(1 for m in members if m["industry"] == x),
+                        )
+                        if industries
+                        else None,
+                        "common_level": max(
+                            set(m["level"] for m in members if m["level"]),
+                            key=lambda x: sum(1 for m in members if m["level"] == x),
+                            default=None,
+                        ),
+                        "sample_names": [m["name"] for m in members[:5]],
+                    }
+                )
+
+            # Limit to requested n_clusters by merging smallest groups
+            result_clusters.sort(key=lambda c: c["size"], reverse=True)
+            result_clusters = result_clusters[:n_clusters]
+
             return {
-                "clusters": [],
-                "error": f"Need at least {n_clusters} customers with embeddings",
+                "clusters": result_clusters,
+                "total": len(fb_rows),
+                "method": "rule-based (no embeddings available)",
             }
 
         embeddings = [list(r[2]) for r in rows]

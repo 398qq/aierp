@@ -1,16 +1,16 @@
-// useProductTableColumns — Antd Table columns definition for the
-// product workbench. Returns a memoized ColumnsType<Product>.
-
 import { useMemo } from "react";
 import { Button, Dropdown, Modal, Progress, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
+  CheckCircleFilled,
+  CloseCircleFilled,
   DeleteOutlined,
   DollarOutlined,
   EditOutlined,
   EllipsisOutlined,
   EyeOutlined,
   SafetyCertificateOutlined,
+  WarningFilled,
 } from "@ant-design/icons";
 import { StatusTag } from "../../ui";
 import type { Product } from "../../types";
@@ -23,6 +23,18 @@ interface Args {
   onOpenQuickSafety: (product: Product) => void;
   onDelete: (id: number) => void;
 }
+
+const MONO: React.CSSProperties = {
+  fontFamily: "ui-monospace, SFMono-Regular, Consolas, Menlo, monospace",
+  fontSize: 13,
+};
+
+const lifecycleTone: Record<string, string> = {
+  active: "success",
+  nrnd: "warning",
+  eol: "danger",
+  obsolete: "neutral",
+};
 
 export function useProductTableColumns({
   onOpenDetail,
@@ -37,42 +49,107 @@ export function useProductTableColumns({
         title: "SKU",
         dataIndex: "sku",
         key: "sku",
-        width: 140,
+        width: 130,
         fixed: "left",
-        render: (v: string | null) => <span className="product-sku">{v || "-"}</span>,
+        render: (v: string | null) => (
+          <span className="product-sku" style={MONO}>
+            {v || "-"}
+          </span>
+        ),
+      },
+      {
+        title: "MPN",
+        dataIndex: "mpn",
+        key: "mpn",
+        width: 140,
+        render: (v: string | null) => (v ? <span style={MONO}>{v}</span> : "-"),
       },
       {
         title: "产品名称",
         dataIndex: "name",
         key: "name",
-        width: 220,
+        width: 200,
         fixed: "left",
         sorter: true,
         render: (text: string, r: Product) => (
-          <button type="button" className="product-name-link" onClick={() => onOpenDetail(r)}>
-            {text}
-          </button>
+          <div>
+            <button type="button" className="product-name-link" onClick={() => onOpenDetail(r)}>
+              {text}
+            </button>
+            {r.lifecycle_status && (
+              <div style={{ fontSize: 11, color: "#8c8c8c", marginTop: 1 }}>
+                <StatusTag tone={lifecycleTone[r.lifecycle_status] || "info"}>
+                  {r.lifecycle_status === "active"
+                    ? "量产"
+                    : r.lifecycle_status === "nrnd"
+                      ? "NRND"
+                      : r.lifecycle_status === "eol"
+                        ? "EOL"
+                        : r.lifecycle_status}
+                </StatusTag>
+              </div>
+            )}
+          </div>
         ),
+      },
+      {
+        title: "品牌",
+        dataIndex: "brand_name",
+        key: "brand_name",
+        width: 110,
+        render: (v: string | null) => v || "-",
       },
       {
         title: "分类",
         dataIndex: "category",
         key: "category",
-        width: 100,
+        width: 80,
         render: (v: string) => (v ? <StatusTag>{v}</StatusTag> : "-"),
       },
       {
         title: "封装",
-        dataIndex: "package_type",
-        key: "package_type",
-        width: 100,
+        key: "package",
+        width: 110,
+        render: (_: unknown, r: Product) => {
+          if (!r.package_type && !r.package_case) return "-";
+          return <span style={{ fontSize: 13 }}>{r.package_case || r.package_type}</span>;
+        },
+      },
+      {
+        title: "合规",
+        key: "compliance",
+        width: 90,
+        render: (_: unknown, r: Product) => (
+          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            {r.rohs_compliant ? (
+              <CheckCircleFilled style={{ color: "#52c41a", fontSize: 14 }} title="RoHS" />
+            ) : (
+              <CloseCircleFilled style={{ color: "#d9d9d9", fontSize: 14 }} title="RoHS" />
+            )}
+            {r.reach_compliant ? (
+              <SafetyCertificateOutlined style={{ color: "#1677ff", fontSize: 14 }} title="REACH" />
+            ) : null}
+            {r.esd_sensitive && (
+              <WarningFilled style={{ color: "#faad14", fontSize: 14 }} title="ESD" />
+            )}
+            {r.msl_level && (
+              <span style={{ fontSize: 11, color: "#595959", fontWeight: 600 }}>{r.msl_level}</span>
+            )}
+          </span>
+        ),
+      },
+      {
+        title: "单位",
+        dataIndex: "unit",
+        key: "unit",
+        width: 60,
         render: (v: string | null) => v || "-",
       },
       {
         title: "规格",
         dataIndex: "specs",
         key: "specs",
-        width: 180,
+        width: 150,
         render: (v: string | null) => {
           if (!v) return "-";
           return (
@@ -86,7 +163,7 @@ export function useProductTableColumns({
               <span
                 style={{
                   display: "block",
-                  maxWidth: 164,
+                  maxWidth: 134,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -99,24 +176,10 @@ export function useProductTableColumns({
         },
       },
       {
-        title: "单位",
-        dataIndex: "unit",
-        key: "unit",
-        width: 80,
-        render: (v: string | null) => v || "-",
-      },
-      {
-        title: "品牌",
-        dataIndex: "brand_name",
-        key: "brand_name",
-        width: 130,
-        render: (v: string | null) => v || "-",
-      },
-      {
         title: "完整度",
         dataIndex: "completion_score",
         key: "completion_score",
-        width: 120,
+        width: 100,
         render: (v: number | null, r: Product) => {
           const score = v ?? 0;
           const missing = r.missing_fields?.length
@@ -138,22 +201,14 @@ export function useProductTableColumns({
         title: "供应商",
         dataIndex: "supplier_count",
         key: "supplier_count",
-        width: 90,
-        align: "right",
-        render: (v: number | null) => v ?? 0,
-      },
-      {
-        title: "分仓",
-        dataIndex: "inventory_location_count",
-        key: "inventory_location_count",
-        width: 80,
+        width: 70,
         align: "right",
         render: (v: number | null) => v ?? 0,
       },
       {
         title: "库存状态",
         key: "stock_state",
-        width: 110,
+        width: 90,
         render: (_: unknown, r: Product) => {
           const state = getStockState(r);
           if (state === "out") return <StatusTag tone="danger">缺货</StatusTag>;
@@ -165,15 +220,14 @@ export function useProductTableColumns({
         title: "库存",
         dataIndex: "quantity",
         key: "quantity",
-        width: 90,
+        width: 70,
         align: "right",
         render: (v: number | null) => <span className="product-number">{v != null ? v : 0}</span>,
       },
       {
         title: "可用",
-        dataIndex: "available",
         key: "available",
-        width: 90,
+        width: 70,
         align: "right",
         render: (_: number | null, r: Product) => (
           <span className={`product-number${getAvailableQty(r) <= 0 ? " is-danger" : ""}`}>
@@ -182,48 +236,40 @@ export function useProductTableColumns({
         ),
       },
       {
-        title: "锁定",
-        dataIndex: "locked_quantity",
-        key: "locked",
+        title: "列表价",
+        dataIndex: "list_price",
+        key: "list_price",
         width: 90,
-        align: "right",
-        render: (v: number | null) => (v != null ? v : 0),
-      },
-      {
-        title: "安全库存",
-        dataIndex: "safety_stock",
-        key: "safety_stock",
-        width: 100,
-        align: "right",
-        render: (v: number | null) => (v != null ? v : "-"),
-      },
-      {
-        title: "单价",
-        dataIndex: "unit_price",
-        key: "unit_price",
-        width: 110,
         align: "right",
         render: (v: number | null) => (
           <span className="product-number">{v != null ? `¥${v.toFixed(2)}` : "-"}</span>
         ),
       },
       {
+        title: "币种",
+        dataIndex: "currency",
+        key: "currency",
+        width: 60,
+        align: "center",
+        render: (v: string) => <span style={MONO}>{v || "CNY"}</span>,
+      },
+      {
         title: "最近销售",
         dataIndex: "last_sale_at",
         key: "last_sale_at",
-        width: 170,
+        width: 140,
         render: (v: string | null) => formatDateTime(v),
       },
       {
         title: "操作",
         key: "actions",
-        width: 92,
+        width: 80,
         align: "center",
         fixed: "right",
         render: (_: unknown, r: Product) => (
           <div
             style={{ display: "flex", justifyContent: "center", gap: 2 }}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <Tooltip title="查看详情">
               <Button
@@ -231,7 +277,6 @@ export function useProductTableColumns({
                 size="small"
                 icon={<EyeOutlined />}
                 onClick={() => onOpenDetail(r)}
-                aria-label={`查看产品 ${r.name}`}
               />
             </Tooltip>
             <Dropdown
@@ -250,7 +295,7 @@ export function useProductTableColumns({
                   if (key === "price") onOpenQuickPrice(r);
                   if (key === "safety") onOpenQuickSafety(r);
                   if (key === "edit") onOpenEdit(r);
-                  if (key === "delete") {
+                  if (key === "delete")
                     Modal.confirm({
                       title: "确认删除产品",
                       content: `确定要删除 ${r.name} 吗？`,
@@ -259,17 +304,10 @@ export function useProductTableColumns({
                       okButtonProps: { danger: true },
                       onOk: () => onDelete(r.id),
                     });
-                  }
                 },
               }}
             >
-              <Button
-                type="text"
-                size="small"
-                icon={<EllipsisOutlined />}
-                aria-label={`操作产品 ${r.name}`}
-                title="更多操作"
-              />
+              <Button type="text" size="small" icon={<EllipsisOutlined />} />
             </Dropdown>
           </div>
         ),

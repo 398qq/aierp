@@ -55,6 +55,8 @@ async def list_customers(
     status: str | None = None,
     is_deleted: str | None = None,
     tag_ids: str | None = None,
+    missing_erp: bool = False,
+    owner: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
     sort_by: str = "id",
@@ -111,8 +113,11 @@ async def list_customers(
             or_(
                 Customer.name.ilike(f"%{_keyword}%"),
                 Customer.code.ilike(f"%{_keyword}%"),
+                Customer.short_name.ilike(f"%{_keyword}%"),
                 Customer.contact_person.ilike(f"%{_keyword}%"),
                 Customer.phone.ilike(f"%{_keyword}%"),
+                Customer.tax_id.ilike(f"%{_keyword}%"),
+                Customer.email.ilike(f"%{_keyword}%"),
             )
         )
     if level:
@@ -135,6 +140,19 @@ async def list_customers(
         conditions.append(Customer.deleted_at.isnot(None))
     elif is_deleted == "false" or is_deleted is None:
         conditions.append(Customer.deleted_at.is_(None))
+    if missing_erp:
+        conditions.append(
+            or_(
+                Customer.tax_id.is_(None),
+                Customer.tax_id == "",
+                Customer.payment_terms.is_(None),
+                Customer.payment_terms == "",
+            )
+        )
+    if owner == "null":
+        conditions.append(or_(Customer.owner.is_(None), Customer.owner == ""))
+    elif owner:
+        conditions.append(Customer.owner == owner)
     if tag_ids:
         tag_id_list = [int(t) for t in tag_ids.split(",") if t.isdigit()]
         if tag_id_list:

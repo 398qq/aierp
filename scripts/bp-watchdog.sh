@@ -135,20 +135,35 @@ telegram_send() {
 diff_bp() {
     local body="$1"
     local diffs=()
+    local tmp_json
+    tmp_json=$(mktemp /tmp/bp_diff_XXXXXX.json)
+    printf '%s\n' "$body" > "$tmp_json"
 
-    # Parse (use json.dumps for proper true/false, not Python True/False)
-    local enforce_admins
-    enforce_admins=$(echo "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('enforce_admins',{}).get('enabled', False)))" 2>/dev/null)
-    local strict
-    strict=$(echo "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('required_status_checks',{}).get('strict', False)))" 2>/dev/null)
-    local approvals
-    approvals=$(echo "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('required_pull_request_reviews',{}).get('required_approving_review_count', 0))" 2>/dev/null)
-    local code_owner
-    code_owner=$(echo "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('required_pull_request_reviews',{}).get('require_code_owner_reviews', False)))" 2>/dev/null)
-    local linear
-    linear=$(echo "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('required_linear_history',{}).get('enabled', False)))" 2>/dev/null)
-    local contexts
-    contexts=$(echo "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(d.get('required_status_checks',{}).get('contexts', [])))" 2>/dev/null)
+    # Single python call reads file once → outputs all values, avoids echo corruption
+    local parsed
+    parsed=$(python3 -c "
+import json
+with open('$tmp_json') as f:
+    d = json.load(f)
+ea = json.dumps(d.get('enforce_admins',{}).get('enabled', False))
+st = json.dumps(d.get('required_status_checks',{}).get('strict', False))
+ap = d.get('required_pull_request_reviews',{}).get('required_approving_review_count', 0)
+co = json.dumps(d.get('required_pull_request_reviews',{}).get('require_code_owner_reviews', False))
+li = json.dumps(d.get('required_linear_history',{}).get('enabled', False))
+ctx = '\n'.join(d.get('required_status_checks',{}).get('contexts', []))
+print(f'{ea}|{st}|{ap}|{co}|{li}')
+print('---CONTEXTS---')
+print(ctx)
+" 2>/dev/null)
+    rm -f "$tmp_json"
+
+    local enforce_admins strict approvals code_owner linear contexts
+    enforce_admins=$(echo "$parsed" | head -1 | cut -d'|' -f1)
+    strict=$(echo "$parsed" | head -1 | cut -d'|' -f2)
+    approvals=$(echo "$parsed" | head -1 | cut -d'|' -f3)
+    code_owner=$(echo "$parsed" | head -1 | cut -d'|' -f4)
+    linear=$(echo "$parsed" | head -1 | cut -d'|' -f5)
+    contexts=$(echo "$parsed" | sed '1,/^---CONTEXTS---$/d')
 
     # Check each
     [[ "$enforce_admins" == "$EXPECTED_ENFORCE_ADMINS" ]] || diffs+=("enforce_admins=$enforce_admins (expected $EXPECTED_ENFORCE_ADMINS)")

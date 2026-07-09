@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.states import assert_can_transition_quotation
+from app.models.finance import CreditNote, Invoice, InvoiceLine
 from app.models.sales import (
     DeliveryNote,
     DeliveryNoteItem,
@@ -14,6 +16,9 @@ from app.models.sales import (
     SalesOrder,
     SalesOrderItem,
 )
+
+if TYPE_CHECKING:
+    from app.models.sales import ReturnNote, ReturnNoteItem  # noqa: F401
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 
@@ -97,9 +102,122 @@ class SalesConversionService(BaseCRUDService):
             )
             db.add(dni)
 
+        # Auto-transition order state: conversion to delivery = commitment
+        if order.status in ("pending", "draft"):
+            order.status = "confirmed"
         await db.commit()
         await db.refresh(note)
         return note
+
+    async def convert_delivery_to_invoice(
+        self, db: AsyncSession, note: DeliveryNote
+    ) -> Invoice | None:
+        """Convert a delivered delivery note into an invoice.
+
+        Guards:
+        - Delivery must be delivered or shipped (not pending/cancelled)
+        - No duplicate invoice for the same delivery note
+        """
+        if note.status not in ("shipped", "delivered"):
+            return None
+
+        existing = await db.execute(
+            select(func.count()).where(
+                Invoice.sales_order_id == note.sales_order_id,
+                Invoice.deleted_at.is_(None),
+            )
+        )
+        if (existing.scalar() or 0) > 0:
+            return None
+
+        invoice_no = await generate_doc_no(db, "INV", Invoice, "invoice_no")
+        order = (
+            await db.get(SalesOrder, note.sales_order_id)
+            if note.sales_order_id
+            else None
+        )
+
+        inv = Invoice(
+            invoice_no=invoice_no,
+            sales_order_id=note.sales_order_id,
+            customer_id=note.customer_id,
+            amount=float(order.total_amount) if order else 0,
+            tax_amount=round(float(order.total_amount) * 0.13, 4) if order else 0,
+            invoice_date=datetime.now(timezone.utc),
+            due_date=datetime.now(timezone.utc)
+            if not (order and order.delivery_date)
+            else order.delivery_date,
+            status="draft",
+        )
+        db.add(inv)
+        await db.flush()
+
+        for dni in note.items:
+            line = InvoiceLine(
+                invoice_id=inv.id,
+                product_id=dni.product_id,
+                product_name=dni.product_name,
+                quantity=dni.quantity,
+                unit_price=getattr(dni, "unit_price", None),
+                total_price=getattr(dni, "total_price", None),
+            )
+            db.add(line)
+
+        await db.commit()
+        await db.refresh(inv)
+        return inv
+
+    async def convert_delivery_to_return(
+        self, db: AsyncSession, note: DeliveryNote, reason: str = ""
+    ) -> "ReturnNote | None":
+        """Convert a delivered delivery note into a return note.
+
+        Guards: delivery must be delivered, no duplicate return.
+        """
+        from app.models.sales import ReturnNote, ReturnNoteItem
+
+        if note.status not in ("shipped", "delivered"):
+            return None
+
+        existing = await db.execute(
+            select(func.count()).where(
+                ReturnNote.delivery_note_id == note.id,
+                ReturnNote.deleted_at.is_(None),
+            )
+        )
+        if (existing.scalar() or 0) > 0:
+            return None
+
+        return_no = await generate_doc_no(db, "RTN", ReturnNote, "return_no")
+        rn = ReturnNote(
+            return_no=return_no,
+            delivery_note_id=note.id,
+            sales_order_id=note.sales_order_id,
+            customer_id=note.customer_id,
+            total_amount=(
+                float(note.sales_order.total_amount) if note.sales_order else 0
+            ),
+            status="approved",
+            reason=reason or "",
+        )
+        db.add(rn)
+        await db.flush()
+
+        for dni in note.items:
+            db.add(
+                ReturnNoteItem(
+                    return_note_id=rn.id,
+                    product_id=dni.product_id,
+                    product_name=dni.product_name,
+                    quantity=dni.quantity,
+                    unit_price=getattr(dni, "unit_price", None),
+                    total_price=getattr(dni, "total_price", None),
+                )
+            )
+
+        await db.commit()
+        await db.refresh(rn)
+        return rn
 
 
 # ── Module-level proxies (back-compat) ────────────────────────────────
@@ -113,6 +231,60 @@ async def convert_order_to_delivery(
     db: AsyncSession, order: SalesOrder
 ) -> DeliveryNote | None:
     return await sales_conversion_service.convert_order_to_delivery(db, order)
+
+
+async def convert_delivery_to_invoice(
+    db: AsyncSession, note: DeliveryNote
+) -> Invoice | None:
+    return await sales_conversion_service.convert_delivery_to_invoice(db, note)
+
+
+async def convert_delivery_to_return(
+    db: AsyncSession, note: DeliveryNote, reason: str = ""
+) -> "ReturnNote | None":
+    return await sales_conversion_service.convert_delivery_to_return(db, note, reason)
+
+
+async def complete_return_note(db: AsyncSession, return_note_id: int) -> dict | None:
+    """Complete a return note: transition to completed + auto-generate credit note.
+
+    Returns dict with {return_status, credit_note_no, credit_note_amount}
+    or None if validation fails.
+    """
+    from app.domain.states import assert_can_transition_return
+    from app.models.sales import ReturnNote
+    from app.services.docno import generate_doc_no
+
+    rn = await db.get(ReturnNote, return_note_id)
+    if not rn or rn.deleted_at:
+        return None
+    if rn.status != "approved":
+        return None
+
+    assert_can_transition_return(rn.status, "completed")
+    rn.status = "completed"
+
+    # Auto-generate credit note
+    cn_no = await generate_doc_no(db, "CN", CreditNote, "credit_note_no")
+    cn = CreditNote(
+        credit_note_no=cn_no,
+        customer_id=rn.customer_id,
+        sales_order_id=rn.sales_order_id,
+        return_note_id=rn.id,
+        amount=-float(rn.total_amount),
+        tax_amount=-round(float(rn.total_amount) * 0.13, 4),
+        status="issued",
+        reason=rn.reason or "退货冲红",
+    )
+    db.add(cn)
+    await db.commit()
+    await db.refresh(cn)
+
+    return {
+        "return_status": rn.status,
+        "credit_note_no": cn.credit_note_no,
+        "credit_note_amount": cn.amount,
+    }
 
 
 sales_conversion_service = SalesConversionService()

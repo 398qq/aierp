@@ -27,8 +27,9 @@ from app.api.v1.sales._serialize import (
 from app.database import get_db
 from app.models.sales import DeliveryNote as DeliveryNoteModel
 from app.models.sales import DeliveryNoteItem
-from app.schemas.common import fail, ok
+from app.schemas.common import APIResponse, PageData, fail, ok
 from app.schemas.sales import (
+    DeliveryNoteResponse,
     BatchDeleteRequest,
     DeliveryNoteCreate,
     DeliveryNoteMarkPaidIn,
@@ -48,7 +49,9 @@ async def _eager_load_for_response(db, note: DeliveryNoteModel) -> DeliveryNoteM
     return note
 
 
-@router.get("/delivery-notes")
+@router.get(
+    "/delivery-notes", response_model=APIResponse[PageData[DeliveryNoteResponse]]
+)
 async def list_delivery_notes(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -138,7 +141,9 @@ async def list_delivery_notes(
     return ok(result)
 
 
-@router.get("/delivery-notes/{note_id}")
+@router.get(
+    "/delivery-notes/{note_id}", response_model=APIResponse[DeliveryNoteResponse]
+)
 async def get_delivery_note(
     note_id: int,
     include_ai: bool = Query(False),
@@ -159,7 +164,9 @@ async def get_delivery_note(
     return ok(serialize_delivery_note(note))
 
 
-@router.post("/delivery-notes", status_code=201)
+@router.post(
+    "/delivery-notes", status_code=201, response_model=APIResponse[DeliveryNoteResponse]
+)
 async def create_delivery_note(
     body: DeliveryNoteCreate,
     db: AsyncSession = Depends(get_db),
@@ -172,7 +179,9 @@ async def create_delivery_note(
     return ok(serialize_delivery_note(note))
 
 
-@router.put("/delivery-notes/{note_id}")
+@router.put(
+    "/delivery-notes/{note_id}", response_model=APIResponse[DeliveryNoteResponse]
+)
 async def update_delivery_note(
     note_id: int,
     body: DeliveryNoteUpdate,

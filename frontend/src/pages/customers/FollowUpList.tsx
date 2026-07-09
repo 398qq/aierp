@@ -2,18 +2,48 @@
  * 客户跟进记录列表页面
  * 路由: /customers/:customerId/follow-ups
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
-import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select } from "antd";
+import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { TablePaginationConfig } from "antd/es/table/interface";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
-import { getFollowUps, deleteFollowUp, updateFollowUp } from "../../api";
+import { getFollowUps, deleteFollowUp, updateFollowUp, getApiErrorMessage } from "../../api";
 import type { FollowUp } from "../../types";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
+
+const { Text } = Typography;
+
+type DueFilter = "all" | "overdue" | "today" | "upcoming" | "closed" | "unscheduled";
+
+const OPEN_STATUSES = new Set(["planned", "in_progress", "", null]);
+const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
+
+function getDueFilter(record: FollowUp): DueFilter {
+  if (record.status && TERMINAL_STATUSES.has(record.status)) return "closed";
+  if (!record.planned_at) return "unscheduled";
+  const planned = dayjs(record.planned_at);
+  const today = dayjs();
+  if (planned.isBefore(today, "day")) return "overdue";
+  if (planned.isSame(today, "day")) return "today";
+  return "upcoming";
+}
+
+function dueLabel(bucket: DueFilter) {
+  const labels: Record<DueFilter, string> = {
+    all: "全部",
+    overdue: "逾期",
+    today: "今日",
+    upcoming: "未来",
+    closed: "已关闭",
+    unscheduled: "未排期",
+  };
+  return labels[bucket];
+}
 
 export default function FollowUpList() {
   const { message } = App.useApp();
@@ -26,6 +56,7 @@ export default function FollowUpList() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleRecord, setRescheduleRecord] = useState<FollowUp | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState<Dayjs | null>(null);
+  const [reschedulePickerOpen, setReschedulePickerOpen] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [updateRecord, setUpdateRecord] = useState<FollowUp | null>(null);
@@ -34,12 +65,18 @@ export default function FollowUpList() {
   const [updateStatus, setUpdateStatus] = useState("in_progress");
   const [updateNextAt, setUpdateNextAt] = useState<Dayjs | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
+  const [dueFilter, setDueFilter] = useState<DueFilter>("all");
 
   const custId = Number(customerId);
 
   // 加载跟进记录
-  const load = async () => {
-    setLoading(true);
+  const load = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent === true;
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const resp = await getFollowUps(custId);
       const result = resp.data;
@@ -51,10 +88,10 @@ export default function FollowUpList() {
       } else {
         setAllData([]);
       }
-    } catch {
-      message.error("加载跟进记录失败");
-    } finally {
-      setLoading(false);
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载跟进记录失败")); } finally {
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -70,15 +107,43 @@ export default function FollowUpList() {
     setPageSize(pagination.pageSize || 10);
   };
 
+  const filteredData = useMemo(() => {
+    return [...allData]
+      .filter((item) => !statusFilter || item.status === statusFilter)
+      .filter((item) => !priorityFilter || item.priority === priorityFilter)
+      .filter((item) => dueFilter === "all" || getDueFilter(item) === dueFilter)
+      .sort((a, b) => {
+        const aBucket = getDueFilter(a);
+        const bBucket = getDueFilter(b);
+        const weight: Record<DueFilter, number> = {
+          overdue: 0,
+          today: 1,
+          upcoming: 2,
+          unscheduled: 3,
+          closed: 4,
+          all: 5,
+        };
+        if (weight[aBucket] !== weight[bBucket]) return weight[aBucket] - weight[bBucket];
+        return dayjs(a.planned_at || a.created_at).valueOf() - dayjs(b.planned_at || b.created_at).valueOf();
+      });
+  }, [allData, statusFilter, priorityFilter, dueFilter]);
+
+  const summary = useMemo(() => {
+    const open = allData.filter((item) => OPEN_STATUSES.has(item.status || "")).length;
+    const overdue = allData.filter((item) => getDueFilter(item) === "overdue").length;
+    const today = allData.filter((item) => getDueFilter(item) === "today").length;
+    const completed = allData.filter((item) => item.status === "completed").length;
+    const high = allData.filter((item) => item.priority === "high").length;
+    return { open, overdue, today, completed, high };
+  }, [allData]);
+
   // 删除跟进记录
   const handleDelete = async (followupId: number) => {
     try {
       await deleteFollowUp(custId, followupId);
       message.success("删除成功");
       load();
-    } catch {
-      message.error("删除失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const handleComplete = async (followupId: number) => {
@@ -89,15 +154,19 @@ export default function FollowUpList() {
       });
       message.success("已完成");
       load();
-    } catch {
-      message.error("操作失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const openReschedule = (record: FollowUp) => {
     setRescheduleRecord(record);
     setRescheduleAt(record.planned_at ? dayjs(record.planned_at) : dayjs().add(1, "day").hour(9).minute(0).second(0));
+    setReschedulePickerOpen(false);
     setRescheduleOpen(true);
+  };
+
+  const closeReschedule = () => {
+    flushSync(() => setReschedulePickerOpen(false));
+    setRescheduleOpen(false);
   };
 
   const handleReschedule = async () => {
@@ -105,6 +174,7 @@ export default function FollowUpList() {
       message.warning("请选择新的跟进时间");
       return;
     }
+    flushSync(() => setReschedulePickerOpen(false));
     setRescheduling(true);
     try {
       await updateFollowUp(custId, rescheduleRecord.id, {
@@ -112,13 +182,10 @@ export default function FollowUpList() {
         planned_at: rescheduleAt.format("YYYY-MM-DD HH:mm:ss"),
       });
       message.success("跟进时间已更新");
-      setRescheduleOpen(false);
-      setRescheduleRecord(null);
-      setRescheduleAt(null);
-      load();
-    } catch {
-      message.error("更新跟进时间失败");
-    } finally {
+      flushSync(() => setRescheduling(false));
+      closeReschedule();
+      load({ silent: true });
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进时间失败")); } finally {
       setRescheduling(false);
     }
   };
@@ -169,11 +236,10 @@ export default function FollowUpList() {
       }
       await updateFollowUp(custId, updateRecord.id, payload);
       message.success("跟进已更新");
+      flushSync(() => setUpdating(false));
       closeUpdate();
-      load();
-    } catch {
-      message.error("更新跟进失败");
-    } finally {
+      load({ silent: true });
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进失败")); } finally {
       setUpdating(false);
     }
   };
@@ -223,7 +289,16 @@ export default function FollowUpList() {
       dataIndex: "planned_at",
       key: "planned_at",
       width: 120,
-      render: (planned_at: string) => planned_at ? planned_at.slice(0, 16) : "-",
+      render: (planned_at: string, record) => {
+        const bucket = getDueFilter(record);
+        const color = bucket === "overdue" ? "red" : bucket === "today" ? "orange" : bucket === "upcoming" ? "blue" : "default";
+        return (
+          <Space direction="vertical" size={0}>
+            <Text>{planned_at ? planned_at.slice(0, 16) : "-"}</Text>
+            <Tag color={color}>{dueLabel(bucket)}</Tag>
+          </Space>
+        );
+      },
     },
     {
       title: "完成时间",
@@ -292,39 +367,101 @@ export default function FollowUpList() {
 
   // 计算当前页数据
   const startIndex = (page - 1) * pageSize;
-  const currentData = allData.slice(startIndex, startIndex + pageSize);
+  const currentData = filteredData.slice(startIndex, startIndex + pageSize);
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/customers/${custId}`)}>
-          返回客户详情
-        </Button>
+    <div className="followup-ledger">
+      <div className="followup-ledger-command">
+        <Space wrap>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/customers/${custId}`)}>
+            返回客户详情
+          </Button>
+          <Button icon={<SyncOutlined />} onClick={() => load()} loading={loading}>
+            刷新
+          </Button>
+        </Space>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           新建跟进
         </Button>
-      </Space>
+      </div>
+
+      <div className="followup-ledger-filters">
+        <Space wrap size={8}>
+          <Select
+            allowClear
+            placeholder="状态"
+            style={{ width: 130 }}
+            value={statusFilter}
+            onChange={(value) => { setStatusFilter(value); setPage(1); }}
+            options={[
+              { value: "planned", label: "计划中" },
+              { value: "in_progress", label: "进行中" },
+              { value: "completed", label: "已完成" },
+              { value: "cancelled", label: "已取消" },
+            ]}
+          />
+          <Select
+            allowClear
+            placeholder="优先级"
+            style={{ width: 120 }}
+            value={priorityFilter}
+            onChange={(value) => { setPriorityFilter(value); setPage(1); }}
+            options={[
+              { value: "high", label: "高" },
+              { value: "medium", label: "中" },
+              { value: "low", label: "低" },
+            ]}
+          />
+          <Select
+            value={dueFilter}
+            style={{ width: 130 }}
+            onChange={(value) => { setDueFilter(value); setPage(1); }}
+            options={[
+              { value: "all", label: "全部到期" },
+              { value: "overdue", label: "逾期" },
+              { value: "today", label: "今日" },
+              { value: "upcoming", label: "未来" },
+              { value: "unscheduled", label: "未排期" },
+              { value: "closed", label: "已关闭" },
+            ]}
+          />
+          <Button onClick={() => { setStatusFilter(undefined); setPriorityFilter(undefined); setDueFilter("all"); setPage(1); }}>重置</Button>
+        </Space>
+      </div>
+
+      <div className="followup-ledger-metrics">
+        <div><span>全部记录</span><strong>{allData.length}</strong></div>
+        <div><span>未关闭</span><strong>{summary.open}</strong></div>
+        <div className="is-danger"><span>逾期</span><strong>{summary.overdue}</strong></div>
+        <div className="is-warning"><span>今日</span><strong>{summary.today}</strong></div>
+        <div><span>高优先级</span><strong>{summary.high}</strong></div>
+        <div><span>已完成</span><strong>{summary.completed}</strong></div>
+      </div>
 
       {loading && <Spin style={{ display: "block", margin: "100px auto" }} />}
 
-      {!loading && allData.length === 0 && (
+      {!loading && filteredData.length === 0 && (
         <Card>
-          <Empty description="暂无跟进记录">
+          <Empty description={allData.length ? "没有符合筛选条件的跟进记录" : "暂无跟进记录"}>
             <Button type="primary" onClick={handleCreate}>新建跟进</Button>
           </Empty>
         </Card>
       )}
 
-      {!loading && allData.length > 0 && (
+      {!loading && filteredData.length > 0 && (
         <Table
+          className="erp-table followup-ledger-table"
           columns={columns}
           dataSource={currentData}
           rowKey="id"
           loading={loading}
+          bordered
+          size="small"
+          rowClassName={(record) => getDueFilter(record) === "overdue" ? "followup-row-overdue" : ""}
           pagination={{
             current: page,
             pageSize: pageSize,
-            total: allData.length,
+            total: filteredData.length,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (t) => `共 ${t} 条`,
@@ -341,10 +478,13 @@ export default function FollowUpList() {
         cancelText="取消"
         confirmLoading={rescheduling}
         onOk={handleReschedule}
-        onCancel={() => {
-          setRescheduleOpen(false);
-          setRescheduleRecord(null);
-          setRescheduleAt(null);
+        onCancel={closeReschedule}
+        afterOpenChange={(open) => {
+          if (!open) {
+            setRescheduleRecord(null);
+            setRescheduleAt(null);
+            setReschedulePickerOpen(false);
+          }
         }}
       >
         <Space direction="vertical" style={{ width: "100%" }}>
@@ -354,6 +494,9 @@ export default function FollowUpList() {
             format="YYYY-MM-DD HH:mm"
             value={rescheduleAt}
             onChange={setRescheduleAt}
+            open={reschedulePickerOpen}
+            onOpenChange={setReschedulePickerOpen}
+            getPopupContainer={(trigger) => trigger.parentElement || document.body}
             style={{ width: "100%" }}
           />
         </Space>

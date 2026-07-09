@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 
 import client from "../../api/client";
+import { getApiErrorMessage } from "../../api";
 
 interface Role {
   id: number; name: string; description: string;
@@ -42,7 +43,7 @@ export default function Roles() {
         actions: (actions as { id: number; action: string; name: string; description: string }[]),
       }));
       setPermGroups(grouped);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -64,13 +65,12 @@ export default function Roles() {
       message.success(editingRole ? "更新成功" : "创建成功");
       setModalOpen(false);
       fetchRoles();
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await client.delete(`/permissions/roles/${id}`); message.success("已删除"); fetchRoles(); }
-    catch { message.error("删除失败"); }
+    try { await client.delete(`/permissions/roles/${id}`); message.success("已删除"); fetchRoles(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const treeData = permGroups.map((g) => ({

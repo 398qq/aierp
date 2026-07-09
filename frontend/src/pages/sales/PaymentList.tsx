@@ -4,7 +4,7 @@ import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typogra
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { getPayments, deletePayment, getPaymentStats } from "../../api";
+import { getPayments, deletePayment, getPaymentStats, getApiErrorMessage } from "../../api";
 import type { PaymentRecord } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
@@ -33,7 +33,7 @@ export default function PaymentList() {
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
       setStats(s.data.data);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -90,7 +90,7 @@ export default function PaymentList() {
         />
       </Space>
 
-      <Table
+      <Table className="erp-table"
         rowKey="id" loading={loading} dataSource={data}
         rowClassName={erpRowClass}
         scroll={{ x: "max-content" }}
@@ -149,7 +149,7 @@ export default function PaymentList() {
                 { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                   Modal.confirm({ title: "确定删除?", content: `删除回款 #${r.id}？`, onOk: async () => {
-                    try { await deletePayment(r.id); message.success("已删除"); load(); } catch { message.error("删除失败"); }
+                    try { await deletePayment(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                   }});
                 }},
               ];

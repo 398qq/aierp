@@ -4,7 +4,8 @@ Routes for the sales order lifecycle:
 - list / get / create / update / delete
 - batch delete
 - PDF generation
-- PDF import (AI-extracted orders)
+- PDF import (
+    AI,-extracted orders)
 
 Cache invalidation also covers ``reports:predefined:sales`` since
 sales order writes change the monthly aggregation.
@@ -24,25 +25,26 @@ from app.api.deps import get_current_user
 from app.api.v1.sales._serialize import (
     attach_customer_and_quotation,
     attach_items,
-    serialize_sales_order,
+    serialize_sales_order
 )
 from app.api.v1.sales._shared import (
     SALES_ORDERS_LIST_CACHE_TTL,
-    _sales_orders_cache_key,
+    _sales_orders_cache_key
 )
 from app.database import get_db
 from app.models.sales import SalesOrderItem
-from app.schemas.common import fail, ok
+from app.schemas.common import fail, ok, APIResponse, PageData
 from app.schemas.sales import (
+    SalesOrderResponse,
     BatchDeleteRequest,
     SalesOrderCreate,
-    SalesOrderUpdate,
+    SalesOrderUpdate
 )
 from app.services import sales_service as svc
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
-    cache_set_versioned,
+    cache_set_versioned
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +62,7 @@ async def _bump_sales_order_caches() -> None:
     await cache_bump_version("reports:predefined:sales")
 
 
-@router.get("/sales-orders")
+@router.get("/sales-orders", response_model=APIResponse[PageData[SalesOrderResponse]])
 async def list_sales_orders(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -74,7 +76,7 @@ async def list_sales_orders(
     sort_by: str = "id",
     sort_order: str = "desc",
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     cache_key = _sales_orders_cache_key(
         page=page,
@@ -83,8 +85,8 @@ async def list_sales_orders(
         status=status,
         q=q,
         sort_by=sort_by,
-        sort_order=sort_order,
-    )
+        sort_order=sort_order
+)
     cached_payload = await cache_get_versioned("sales-orders:list", cache_key)
     if cached_payload is not None:
         result = json.loads(cached_payload)
@@ -106,8 +108,8 @@ async def list_sales_orders(
         status=status,
         q=q,
         sort_by=sort_by,
-        sort_order=sort_order,
-    )
+        sort_order=sort_order
+)
     orders = list(raw["list"])
     # Eager-load customer + quotation + items to avoid N+1 in serializer
     from app.models.customer import Customer
@@ -143,8 +145,8 @@ async def list_sales_orders(
                 await db.execute(
                     select(SalesOrderItem).where(
                         SalesOrderItem.order_id.in_([o.id for o in orders]),
-                        SalesOrderItem.deleted_at.is_(None),
-                    )
+                        SalesOrderItem.deleted_at.is_(None)
+)
                 )
             )
             .scalars()
@@ -181,7 +183,7 @@ async def import_sales_order_pdf(
     ),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         return fail("请上传 PDF 订单文件")
@@ -197,8 +199,8 @@ async def import_sales_order_pdf(
             db,
             content,
             filename=file.filename,
-            customer_id=customer_id,
-        )
+            customer_id=customer_id
+)
         return ok(result, msg="PDF订单导入成功")
     except ValueError as e:
         return fail(str(e), 400)
@@ -221,7 +223,7 @@ async def get_sales_order_pdf(
     contact_phone: str | None = Query(None, max_length=60),
     terms: str | None = Query(None, max_length=2000),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     from app.models.customer import Customer
     from app.models.sales import SalesOrder
@@ -259,24 +261,24 @@ async def get_sales_order_pdf(
             "prepared_by": prepared_by,
             "contact_phone": contact_phone,
             "terms": terms,
-        },
-    )
+        }
+)
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="sales_order_{order.order_no or order_id}.pdf"'
-        },
-    )
+        }
+)
 
 
-@router.get("/sales-orders/{order_id}")
+@router.get("/sales-orders/{order_id}", response_model=APIResponse[SalesOrderResponse])
 async def get_sales_order(
     order_id: int,
     include_ai: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     order = await svc.get_sales_order(db, order_id)
     if not order:
@@ -293,11 +295,11 @@ async def get_sales_order(
     return ok(serialize_sales_order(order))
 
 
-@router.post("/sales-orders", status_code=201)
+@router.post("/sales-orders", status_code=201, response_model=APIResponse[SalesOrderResponse])
 async def create_sales_order(
     body: SalesOrderCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     data = body.model_dump()
     items_data = data.pop("items", [])
@@ -308,12 +310,12 @@ async def create_sales_order(
     return ok(serialize_sales_order(order))
 
 
-@router.put("/sales-orders/{order_id}")
+@router.put("/sales-orders/{order_id}", response_model=APIResponse[SalesOrderResponse])
 async def update_sales_order(
     order_id: int,
     body: SalesOrderUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     order = await svc.get_sales_order(db, order_id)
     if not order:
@@ -329,7 +331,7 @@ async def update_sales_order(
 async def delete_sales_order(
     order_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     order = await svc.get_sales_order(db, order_id)
     if not order:
@@ -343,7 +345,7 @@ async def delete_sales_order(
 async def batch_delete_sales_orders(
     body: BatchDeleteRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(get_current_user)
 ):
     for oid in body.ids:
         order = await svc.get_sales_order(db, oid)

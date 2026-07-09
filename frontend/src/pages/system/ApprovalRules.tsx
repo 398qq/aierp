@@ -4,6 +4,7 @@ import { StatusTag } from "../../ui";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
+import { getApiErrorMessage } from "../../api";
 
 interface ApprovalRule {
   id: number; doc_type: string; min_amount: number;
@@ -29,7 +30,7 @@ export default function ApprovalRules() {
     try {
       const resp = await client.get("/approvals/rules");
       setData(resp.data.data || []);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -50,13 +51,12 @@ export default function ApprovalRules() {
       message.success(editing ? "更新成功" : "创建成功");
       setModalOpen(false);
       fetch();
-    } catch { message.error("保存失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await client.delete(`/approvals/rules/${id}`); message.success("已删除"); fetch(); }
-    catch { message.error("删除失败"); }
+    try { await client.delete(`/approvals/rules/${id}`); message.success("已删除"); fetch(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const columns: ColumnsType<ApprovalRule> = [

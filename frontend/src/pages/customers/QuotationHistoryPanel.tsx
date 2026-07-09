@@ -5,7 +5,7 @@ import { StatusTag } from "../../ui";
 import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
-import { getCustomerQuotationHistory, downloadQuotationPDF } from "../../api";
+import { getCustomerQuotationHistory, downloadQuotationPDF, getApiErrorMessage } from "../../api";
 import type { CustomerQuotationHistory } from "../../types";
 
 interface Props {
@@ -32,9 +32,7 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
     try {
       const res = await getCustomerQuotationHistory(customerId, statusFilter);
       setData(res.data.data);
-    } catch {
-      message.error("加载报价历史失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载报价历史失败")); } finally {
       setLoading(false);
     }
   };

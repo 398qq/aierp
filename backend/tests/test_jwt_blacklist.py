@@ -145,14 +145,14 @@ class TestIsTokenRevoked:
 
 
 class TestRevokeAllUserTokens:
-    async def test_logs_warning_and_returns_zero(self):
-        """Full impl requires token_version column migration."""
+    async def test_logs_warning_and_returns_zero_when_no_db(self):
+        """Without a db session, logs warning and returns 0 (no-op)."""
         with patch.object(security, "logger") as mock_log:
             count = await security.revoke_all_user_tokens(user_id=42)
         assert count == 0
-        # Should log a warning so deploys catch the pending migration
+        # Should log a warning about missing db session
         assert any(
-            "token_version" in str(c.args) for c in mock_log.warning.call_args_list
+            "without db session" in str(c.args) for c in mock_log.warning.call_args_list
         )
 
 

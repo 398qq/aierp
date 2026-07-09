@@ -7,7 +7,7 @@ asyncpg==0.31.0
 psycopg2-binary==2.9.12
 alembic==1.18.4
 pydantic==2.13.4
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
 PyJWT[crypto]>=2.13.0
 bcrypt>=5.0,<6.0
 python-multipart>=0.0.32,<1.0

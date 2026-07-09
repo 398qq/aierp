@@ -3,7 +3,7 @@
 Invoice:       draft → sent → paid | cancelled (terminal)
                sent → overdue → paid
 PaymentRecord: pending → completed | overdue
-Contract:      draft → active → expired | terminated (terminal)
+Contract:      draft → signed → active → expired | terminated (terminal)
 Commission:    draft → pending_approval → approved → paid | rejected | cancelled
 """
 
@@ -56,7 +56,8 @@ def assert_can_transition_payment(current: str, target: str) -> None:
 # ── Contract ─────────────────────────────────────────────────
 
 CONTRACT_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"active", "cancelled"},
+    "draft": {"signed", "cancelled"},
+    "signed": {"active", "cancelled"},
     "active": {"expired", "terminated"},
     "expired": set(),
     "terminated": set(),
@@ -103,6 +104,27 @@ def assert_can_transition_commission(current: str, target: str) -> None:
         raise InvalidStateTransition(
             f"佣金状态转换非法: {current} → {target}",
             entity="Commission",
+            current=current,
+            target=target,
+            allowed=sorted(allowed),
+        )
+
+
+# ── CreditNote ─────────────────────────────────────────────────
+
+CREDIT_NOTE_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"issued", "cancelled"},
+    "issued": set(),
+    "cancelled": set(),
+}
+
+
+def assert_can_transition_credit_note(current: str, target: str) -> None:
+    allowed = CREDIT_NOTE_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise InvalidStateTransition(
+            f"冲红发票状态转换非法: {current} → {target}",
+            entity="CreditNote",
             current=current,
             target=target,
             allowed=sorted(allowed),

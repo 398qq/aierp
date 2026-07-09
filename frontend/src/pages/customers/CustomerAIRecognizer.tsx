@@ -3,7 +3,7 @@ import { Alert, App, Button, Descriptions, Input, Modal, Space, Typography, Uplo
 import type { FormInstance } from "antd/es/form";
 import type { UploadProps } from "antd";
 import { useState } from "react";
-import { recognizeBusinessCard, recognizeCustomer } from "../../api";
+import { recognizeBusinessCard, recognizeCustomer, getApiErrorMessage } from "../../api";
 import type { CustomerRecognition } from "../../types";
 import { generateCustomerShortName } from "./CustomerForm";
 
@@ -85,9 +85,7 @@ export default function CustomerAIRecognizer({ form }: CustomerAIRecognizerProps
         throw new Error(resp.data?.msg || "AI识别失败");
       }
       applyRecognizedCustomer(recognized, rawText);
-    } catch {
-      message.error("AI识别失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI识别失败")); } finally {
       setRecognizing(false);
     }
   };

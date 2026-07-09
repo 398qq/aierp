@@ -26,13 +26,7 @@ import {
   StopOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import {
-  generateCustomerWorkQueue,
-  getCustomerAIRecommendationSummary,
-  getCustomerWorkQueue,
-  submitCustomerRecommendationFeedback,
-  updateCustomerRecommendationStatus,
-} from "../../api";
+import { generateCustomerWorkQueue, getCustomerAIRecommendationSummary, getCustomerWorkQueue, submitCustomerRecommendationFeedback, updateCustomerRecommendationStatus, getApiErrorMessage } from "../../api";
 import type { CustomerAIRecommendationSummary, CustomerAIWorkQueueItem, CustomerAIWorkQueuePage } from "../../types";
 import CustomerModuleShell from "./CustomerModuleShell";
 
@@ -91,9 +85,7 @@ export default function CustomerAIWorkbench() {
         status: nextStatus,
       });
       setQueue(resp.data.data);
-    } catch {
-      message.error("加载AI工作队列失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载AI工作队列失败")); } finally {
       setLoading(false);
     }
   };
@@ -111,9 +103,7 @@ export default function CustomerAIWorkbench() {
       message.success(`生成完成：新增 ${generated} 条，替换 ${replaced} 条`);
       setPage(1);
       fetchQueue(1, status);
-    } catch {
-      message.error("生成队列失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "生成队列失败")); } finally {
       setGenerating(false);
     }
   };
@@ -123,9 +113,7 @@ export default function CustomerAIWorkbench() {
       await updateCustomerRecommendationStatus(item.id, { status: nextStatus });
       message.success("状态已更新");
       fetchQueue(page, status);
-    } catch {
-      message.error("状态更新失败");
-    }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "状态更新失败")); }
   };
 
   const openFeedback = (item: CustomerAIWorkQueueItem) => {
@@ -144,9 +132,7 @@ export default function CustomerAIWorkbench() {
       setFeedbackOpen(false);
       setFeedbackTarget(null);
       fetchQueue(page, status);
-    } catch {
-      message.error("反馈提交失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "反馈提交失败")); } finally {
       setSubmittingFeedback(false);
     }
   };

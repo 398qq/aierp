@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_perm
@@ -336,7 +336,10 @@ def _customer_row(
         "address": c.address,
         "tax_id": c.tax_id,
         "registration_number": c.registration_number,
+        "unified_social_credit_code": c.unified_social_credit_code,
         "invoice_title": c.invoice_title,
+        "invoice_phone": c.invoice_phone,
+        "tax_rate": float(c.tax_rate) if c.tax_rate else None,
         "invoice_address": c.invoice_address,
         "bank_name": c.bank_name,
         "bank_account": c.bank_account,
@@ -680,3 +683,34 @@ async def delete_customer(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     return ok(msg="deleted")
+
+
+@router.post("/batch-owner")
+async def batch_set_owner(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_perm("customers", "write")),
+):
+    """批量认领/释放客户。action: claim | release"""
+    ids: list[int] = body.get("ids", [])
+    action: str = body.get("action", "claim")
+    if not ids:
+        return fail("No customer IDs", 400)
+
+    now = datetime.now(timezone.utc)
+    owner_value = _user.get("username") if action == "claim" else None
+
+    result = await db.execute(
+        update(Customer)
+        .where(Customer.id.in_(ids), Customer.deleted_at.is_(None))
+        .values(owner=owner_value, updated_at=now)
+    )
+    await db.flush()
+    await cache_bump_version("customers:list")
+    return ok(
+        {
+            "updated": result.rowcount or 0,
+            "action": action,
+            "owner": owner_value,
+        }
+    )

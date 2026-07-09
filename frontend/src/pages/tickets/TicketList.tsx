@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, Select, message, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getTickets, deleteTicket } from "../../api";
+import { getTickets, deleteTicket, getApiErrorMessage } from "../../api";
 import type { Ticket } from "../../types";
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
@@ -38,7 +38,7 @@ export default function TicketList() {
       const resp = await getTickets(params);
       setData(resp.data.data.list || []);
       setTotal(resp.data.data.total || 0);
-    } catch { message.error("加载失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
     finally { setLoading(false); }
   };
 
@@ -49,7 +49,7 @@ export default function TicketList() {
       await deleteTicket(id);
       message.success("已删除");
       load();
-    } catch { message.error("删除失败"); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   return (
@@ -72,12 +72,14 @@ export default function TicketList() {
         rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
         columns={[
           { title: "工单号", dataIndex: "ticket_no", width: 140, render: (v: string | null, r: Ticket) => <a onClick={() => navigate(`/tickets/${r.id}`)}>{v || `#${r.id}`}</a> },
-          { title: "标题", dataIndex: "title", ellipsis: true },
-          { title: "状态", dataIndex: "status", width: 90, render: (v: string) => <StatusTag status={v} color={STATUS_MAP[v]?.color} label={STATUS_MAP[v]?.label} /> },
-          { title: "优先级", dataIndex: "priority", width: 70, render: (v: string) => <StatusTag status={v} color={PRIORITY_MAP[v]?.color} label={PRIORITY_MAP[v]?.label} /> },
-          { title: "分类", dataIndex: "category", width: 100, render: (v: string | null) => v || "-" },
-          { title: "处理人", dataIndex: "assigned_to", width: 100, render: (v: string | null) => v || "-" },
-          { title: "创建时间", dataIndex: "created_at", width: 150, render: (v: string | null) => v ? v.slice(0, 19).replace("T", " ") : "-" },
+          { title: "标题", dataIndex: "title", ellipsis: true, width: 200 },
+          { title: "状态", dataIndex: "status", width: 80, render: (v: string) => <StatusTag status={v} color={STATUS_MAP[v]?.color} label={STATUS_MAP[v]?.label} /> },
+          { title: "优先级", dataIndex: "priority", width: 60, render: (v: string) => <StatusTag status={v} color={PRIORITY_MAP[v]?.color} label={PRIORITY_MAP[v]?.label} /> },
+          { title: "分类", dataIndex: "category", width: 80, render: (v: string | null) => v || "-" },
+          { title: "SLA", dataIndex: "sla_deadline", width: 110, render: (v: string | null) => v ? <span style={{ color: new Date(v) < new Date() ? "#ff4d4f" : "#52c41a", fontSize: 12 }}>{v.slice(0, 10)}</span> : "-" },
+          { title: "根因", dataIndex: "root_cause", width: 120, ellipsis: true, render: (v: string | null) => v || "-" },
+          { title: "处理人", dataIndex: "assigned_to", width: 80, render: (v: string | null) => v || "-" },
+          { title: "创建时间", dataIndex: "created_at", width: 130, render: (v: string | null) => v ? v.slice(0, 19).replace("T", " ") : "-" },
           {
             title: "操作", width: 180,
             render: (_: unknown, r: Ticket) => (

@@ -54,6 +54,9 @@ from app.services.sales_service.quotations import (
     update_quotation_status,
 )
 from app.services.sales_service.conversions import (
+    complete_return_note,
+    convert_delivery_to_invoice,
+    convert_delivery_to_return,
     convert_order_to_delivery,
     convert_quotation_to_order,
 )
@@ -110,6 +113,9 @@ __all__ = [
     "mark_delivery_note_paid",
     "convert_quotation_to_order",
     "convert_order_to_delivery",
+    "convert_delivery_to_invoice",
+    "complete_return_note",
+    "convert_delivery_to_return",
     "list_targets",
     "get_target",
     "create_target",

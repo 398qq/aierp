@@ -147,7 +147,7 @@ class TestOpportunities:
         resp = await async_client.get(
             "/api/v1/opportunities/99999", headers=auth_headers
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         assert resp.json()["code"] == 404
 
     async def test_update_opportunity(
@@ -415,9 +415,9 @@ class TestQuotations:
         match = next((q for q in items if q["id"] == quo_id), None)
         assert match is not None, "newly created quotation not in list"
         assert match.get("customer_id") == test_customer["id"]
-        assert match.get("customer_name") == customer_name, (
-            f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
-        )
+        assert (
+            match.get("customer_name") == customer_name
+        ), f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
 
         # Detail endpoint
         detail_resp = await async_client.get(
@@ -784,9 +784,9 @@ class TestSalesOrders:
         match = next((o for o in items if o["id"] == order_id), None)
         assert match is not None, "newly created order not in list"
         assert match.get("customer_id") == test_customer["id"]
-        assert match.get("customer_name") == customer_name, (
-            f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
-        )
+        assert (
+            match.get("customer_name") == customer_name
+        ), f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
 
         # Detail
         detail_resp = await async_client.get(
@@ -1009,8 +1009,7 @@ class TestSalesOrders:
             f"/api/v1/sales-orders/{order_id}/convert-to-delivery",
             headers=auth_headers,
         )
-        assert resp.status_code == 200
-        assert resp.json()["code"] == 409
+        assert resp.status_code == 409
 
     async def test_batch_delete_orders(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
@@ -1047,6 +1046,27 @@ class TestSalesOrders:
 class TestDeliveryNotes:
     """DeliveryNote CRUD."""
 
+    async def _create_order(self, async_client, auth_headers, customer_id, product_name="Test"):
+        resp = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "status": "pending",
+                "total_amount": 200,
+                "items": [
+                    {
+                        "product_name": product_name,
+                        "quantity": 20,
+                        "unit_price": 10,
+                        "total_price": 200,
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        return resp.json()["data"]["id"]
+
     async def test_list_empty(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get("/api/v1/delivery-notes", headers=auth_headers)
         assert resp.status_code == 200
@@ -1055,12 +1075,15 @@ class TestDeliveryNotes:
     async def test_create_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         resp = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1072,12 +1095,18 @@ class TestDeliveryNotes:
     async def test_list_searches_delivery_product_lines(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        target_order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"], "SCT-DELIVERY-SEARCH"
+        )
+        other_order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"], "NOHIT-DELIVERY"
+        )
         target = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": target_order_id,
                 "status": "pending",
                 "items": [{"product_name": "SCT-DELIVERY-SEARCH", "quantity": 20}],
             },
@@ -1087,7 +1116,7 @@ class TestDeliveryNotes:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 2,
+                "sales_order_id": other_order_id,
                 "status": "pending",
                 "items": [{"product_name": "NOHIT-DELIVERY", "quantity": 20}],
             },
@@ -1153,12 +1182,15 @@ class TestDeliveryNotes:
     async def test_get_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         c = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1173,12 +1205,15 @@ class TestDeliveryNotes:
     async def test_update_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         c = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1194,12 +1229,15 @@ class TestDeliveryNotes:
     async def test_delete_delivery_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         c = await async_client.post(
             "/api/v1/delivery-notes",
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "sales_order_id": 1,
+                "sales_order_id": order_id,
                 "status": "pending",
                 "items": [{"product_name": "Test", "quantity": 20}],
             },
@@ -1214,9 +1252,12 @@ class TestDeliveryNotes:
     async def test_batch_delete_notes(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
         payload = {
             "customer_id": test_customer["id"],
-            "sales_order_id": 1,
+            "sales_order_id": order_id,
             "status": "pending",
             "items": [{"product_name": "Test", "quantity": 20}],
         }
@@ -1234,6 +1275,242 @@ class TestDeliveryNotes:
         )
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] == 2
+
+
+class TestConversions:
+    """Integration tests for cross-entity conversion endpoints."""
+
+    async def _create_order(self, async_client, auth_headers, customer_id, **kw):
+        r = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "status": "pending",
+                "total_amount": 50000,
+                "items": [
+                    {"product_name": "ConvTest", "quantity": 5, "unit_price": 10000}
+                ],
+                **kw,
+            },
+        )
+        return r.json()["data"]["id"]
+
+    async def _create_delivery(self, async_client, auth_headers, customer_id, order_id):
+        r = await async_client.post(
+            "/api/v1/delivery-notes",
+            headers=auth_headers,
+            json={
+                "customer_id": customer_id,
+                "sales_order_id": order_id,
+                "status": "pending",
+                "items": [{"product_name": "ConvTest", "quantity": 3}],
+            },
+        )
+        return r.json()["data"]["id"]
+
+    # ── v1 convert-to-delivery ───────────────────────────────────────
+
+    async def test_convert_to_delivery_auto_transitions_order(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """convert-to-delivery should auto-transition order pending→confirmed."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        r = await async_client.post(
+            f"/api/v1/sales-orders/{order_id}/convert-to-delivery", headers=auth_headers
+        )
+        assert r.status_code == 200
+        # Verify order was auto-transitioned
+        order_r = await async_client.get(
+            f"/api/v1/sales-orders/{order_id}", headers=auth_headers
+        )
+        assert order_r.json()["data"]["status"] == "confirmed"
+
+    async def test_convert_to_delivery_twice_fails(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """Second conversion for same order must return 409."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        await async_client.post(
+            f"/api/v1/sales-orders/{order_id}/convert-to-delivery", headers=auth_headers
+        )
+        r2 = await async_client.post(
+            f"/api/v1/sales-orders/{order_id}/convert-to-delivery", headers=auth_headers
+        )
+        assert r2.json()["code"] == 409
+
+    # ── v1 convert-to-invoice ────────────────────────────────────────
+
+    async def test_convert_delivery_to_invoice_success(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """delivered note → invoice should succeed."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        # Transition delivery to delivered first
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-invoice", headers=auth_headers
+        )
+        assert r.status_code == 200
+        assert r.json()["code"] == 0
+        assert r.json()["data"]["document_no"].startswith("INV")
+
+    async def test_convert_delivery_to_invoice_rejects_pending(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """pending note must NOT convert to invoice."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        r = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-invoice", headers=auth_headers
+        )
+        assert r.json()["code"] == 409
+
+    async def test_convert_delivery_to_invoice_duplicate_fails(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """Second invoice conversion for same order must fail."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r1 = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-invoice", headers=auth_headers
+        )
+        assert r1.json()["code"] == 0
+        r2 = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-invoice", headers=auth_headers
+        )
+        assert r2.json()["code"] == 409
+
+    # ── v2 endpoints ─────────────────────────────────────────────────
+
+    async def test_v2_convert_order_to_delivery(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """v2 convert-to-delivery should create DN and transition order."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        r = await async_client.post(
+            f"/api/v1/sales-v2/orders/{order_id}/convert-to-delivery",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["code"] == 0
+        data = r.json()["data"]
+        assert "delivery_no" in data
+
+    async def test_v2_convert_delivery_to_invoice(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """v2 delivery→invoice should succeed for delivered note."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r = await async_client.post(
+            f"/api/v1/sales-v2/delivery-notes/{note_id}/convert-to-invoice",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["code"] == 0
+        assert "invoice_no" in r.json()["data"]
+
+    # ── Return note conversion ──────────────────────────────────────
+
+    async def test_convert_delivery_to_return_success(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """delivered note → return note should succeed."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return?reason=质量问题",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["code"] == 0
+        assert "RTN" in r.json()["data"]["document_no"]
+
+    async def test_convert_delivery_to_return_rejects_pending(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """pending note must NOT convert to return."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        r = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return", headers=auth_headers
+        )
+        assert r.json()["code"] == 409
+
+    async def test_convert_delivery_to_return_duplicate_fails(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """Second return for same delivery must fail."""
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        note_id = await self._create_delivery(
+            async_client, auth_headers, test_customer["id"], order_id
+        )
+        await async_client.put(
+            f"/api/v1/delivery-notes/{note_id}",
+            headers=auth_headers,
+            json={"status": "delivered"},
+        )
+        r1 = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return", headers=auth_headers
+        )
+        assert r1.json()["code"] == 0
+        r2 = await async_client.post(
+            f"/api/v1/delivery-notes/{note_id}/convert-to-return", headers=auth_headers
+        )
+        assert r2.json()["code"] == 409
 
 
 class TestSalesDashboard:

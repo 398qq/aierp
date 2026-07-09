@@ -15,16 +15,16 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
-import type {
-  Customer,
-  DashboardStats,
-  FollowUpReminder,
-  GlobalFollowUp,
-} from "../../types";
+import type { Customer, DashboardStats, FollowUpReminder, GlobalFollowUp } from "../../types";
 
 export const INDUSTRIES = [
-  "汽车电子", "消费电子", "工业控制", "通信设备",
-  "医疗设备", "安防监控", "其他",
+  "汽车电子",
+  "消费电子",
+  "工业控制",
+  "通信设备",
+  "医疗设备",
+  "安防监控",
+  "其他",
 ];
 export const LEVELS = ["A", "B", "C", "D"];
 export const REGIONS = ["华东", "华南", "华北", "华中", "西南", "西北", "东北", "海外"];
@@ -42,16 +42,26 @@ export const TAG_COLOR_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export type SceneValue =
-  | "all" | "key_accounts" | "east_region" | "expo_leads" | "high_credit";
+  | "all"
+  | "key_accounts"
+  | "east_region"
+  | "expo_leads"
+  | "high_credit"
+  | "public_sea"
+  | "pending_erp";
 
 export type SmartTaskKey =
-  | "today" | "overdue" | "high_risk" | "key_stale"
-  | "new_customers" | "ai_suggested" | "all";
+  | "today"
+  | "overdue"
+  | "high_risk"
+  | "key_stale"
+  | "new_customers"
+  | "ai_suggested"
+  | "all";
 
 export type CustomerWorkbenchTab = "customers" | "followups";
 export type CustomerViewMode = "table" | "board";
-export type CrmObjectKey =
-  | "companies" | "people" | "opportunities" | "quotations" | "orders";
+export type CrmObjectKey = "companies" | "people" | "opportunities" | "quotations" | "orders";
 
 export const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "全部客户", value: "all" },
@@ -59,6 +69,8 @@ export const SCENE_OPTIONS: { label: string; value: SceneValue }[] = [
   { label: "华东区域", value: "east_region" },
   { label: "展会线索", value: "expo_leads" },
   { label: "高信用", value: "high_credit" },
+  { label: "公海客户", value: "public_sea" },
+  { label: "待补ERP资料", value: "pending_erp" },
 ];
 
 export const SCENE_FILTERS: Record<
@@ -70,12 +82,12 @@ export const SCENE_FILTERS: Record<
   east_region: { region: "华东" },
   expo_leads: { source: "展会" },
   high_credit: { creditLevel: "A" },
+  public_sea: {},
+  pending_erp: {},
 };
 
 // Customer lifecycle status — mirrors backend state machine
-export const CUSTOMER_STATUSES = [
-  "new_lead", "active", "converted", "vip", "inactive", "churned",
-];
+export const CUSTOMER_STATUSES = ["new_lead", "active", "converted", "vip", "inactive", "churned"];
 
 export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   new_lead: { label: "新潜客", color: "blue" },
@@ -87,21 +99,23 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 // Customer group presets
-export type GroupValue = "all" | "new" | "vip_active" | "at_risk" | "dormant";
+export type GroupValue = "all" | "new" | "vip_active" | "at_risk" | "dormant" | "public_sea";
 export const GROUP_OPTIONS: { label: string; value: GroupValue }[] = [
   { label: "全部", value: "all" },
   { label: "新潜客", value: "new" },
   { label: "VIP/活跃", value: "vip_active" },
   { label: "风险客户", value: "at_risk" },
   { label: "沉默客户", value: "dormant" },
+  { label: "公海客户", value: "public_sea" },
 ];
 
-export const GROUP_FILTERS: Record<GroupValue, { status?: string[] }> = {
+export const GROUP_FILTERS: Record<GroupValue, { status?: string[]; owner?: string | null }> = {
   all: {},
   new: { status: ["new_lead"] },
   vip_active: { status: ["vip", "active"] },
   at_risk: { status: ["inactive", "churned"] },
   dormant: { status: ["inactive"] },
+  public_sea: { owner: null },
 };
 
 export const COL_LABEL_MAP: Record<string, string> = {
@@ -133,13 +147,27 @@ export const COL_LABEL_MAP: Record<string, string> = {
 };
 
 export const DEFAULT_VISIBLE_COL_KEYS = [
-  "code", "name", "status", "level", "region", "credit_level",
-  "payment_terms", "owner", "next_followup",
-  "last_contacted_at", "tags", "actions",
+  "code",
+  "name",
+  "status",
+  "level",
+  "region",
+  "credit_level",
+  "payment_terms",
+  "owner",
+  "next_followup",
+  "last_contacted_at",
+  "tags",
+  "actions",
 ];
 export const PEOPLE_VISIBLE_COL_KEYS = [
-  "name", "contact_person", "phone", "email",
-  "owner", "last_contacted_at", "actions",
+  "name",
+  "contact_person",
+  "phone",
+  "email",
+  "owner",
+  "last_contacted_at",
+  "actions",
 ];
 
 export type ReminderBucket = "all" | FollowUpReminder["due_bucket"];
@@ -172,21 +200,86 @@ export const SMART_TASK_LABELS: Record<SmartTaskKey, string> = {
 };
 
 export const CRM_OBJECTS: Array<{
-  key: CrmObjectKey; label: string; title: string; path: string; icon: ReactNode;
+  key: CrmObjectKey;
+  label: string;
+  title: string;
+  path: string;
+  icon: ReactNode;
 }> = [
-  { key: "companies", label: "Companies", title: "客户公司", path: "/customers", icon: <UserOutlined /> },
-  { key: "people", label: "People", title: "联系人", path: "/customers?view=people", icon: <PhoneOutlined /> },
-  { key: "opportunities", label: "Opportunities", title: "商机", path: "/sales/opportunities", icon: <BulbOutlined /> },
-  { key: "quotations", label: "Quotes", title: "报价", path: "/sales/quotations", icon: <SendOutlined /> },
-  { key: "orders", label: "Orders", title: "订单", path: "/sales/orders", icon: <ShoppingCartOutlined /> },
+  {
+    key: "companies",
+    label: "Companies",
+    title: "客户公司",
+    path: "/customers",
+    icon: <UserOutlined />,
+  },
+  {
+    key: "people",
+    label: "People",
+    title: "联系人",
+    path: "/customers?view=people",
+    icon: <PhoneOutlined />,
+  },
+  {
+    key: "opportunities",
+    label: "Opportunities",
+    title: "商机",
+    path: "/sales/opportunities",
+    icon: <BulbOutlined />,
+  },
+  {
+    key: "quotations",
+    label: "Quotes",
+    title: "报价",
+    path: "/sales/quotations",
+    icon: <SendOutlined />,
+  },
+  {
+    key: "orders",
+    label: "Orders",
+    title: "订单",
+    path: "/sales/orders",
+    icon: <ShoppingCartOutlined />,
+  },
 ];
 
 export const CRM_VIEW_PRESETS = [
-  { key: "all", label: "All companies", description: "全部公司对象", task: "all" as SmartTaskKey, view: "table" as CustomerViewMode },
-  { key: "key", label: "Key accounts", description: "A级客户看板", task: "all" as SmartTaskKey, scene: "key_accounts" as SceneValue, view: "board" as CustomerViewMode },
-  { key: "today", label: "Today follow-ups", description: "今日必须推进", task: "today" as SmartTaskKey, view: "table" as CustomerViewMode },
-  { key: "risk", label: "At risk", description: "逾期或健康度低", task: "high_risk" as SmartTaskKey, view: "board" as CustomerViewMode },
-  { key: "new", label: "New companies", description: "14天内新建", task: "new_customers" as SmartTaskKey, view: "table" as CustomerViewMode },
+  {
+    key: "all",
+    label: "All companies",
+    description: "全部公司对象",
+    task: "all" as SmartTaskKey,
+    view: "table" as CustomerViewMode,
+  },
+  {
+    key: "key",
+    label: "Key accounts",
+    description: "A级客户看板",
+    task: "all" as SmartTaskKey,
+    scene: "key_accounts" as SceneValue,
+    view: "board" as CustomerViewMode,
+  },
+  {
+    key: "today",
+    label: "Today follow-ups",
+    description: "今日必须推进",
+    task: "today" as SmartTaskKey,
+    view: "table" as CustomerViewMode,
+  },
+  {
+    key: "risk",
+    label: "At risk",
+    description: "逾期或健康度低",
+    task: "high_risk" as SmartTaskKey,
+    view: "board" as CustomerViewMode,
+  },
+  {
+    key: "new",
+    label: "New companies",
+    description: "14天内新建",
+    task: "new_customers" as SmartTaskKey,
+    view: "table" as CustomerViewMode,
+  },
 ];
 
 export const DEFAULT_STATS: DashboardStats = {
@@ -250,7 +343,8 @@ export const getReminderDueMeta = (item: FollowUpReminder) => {
 export const getGlobalFollowUpDueMeta = (item: GlobalFollowUp) => {
   if (item.due_bucket === "overdue") return { text: `逾期 ${item.overdue_days} 天`, color: "red" };
   if (item.due_bucket === "today") return { text: "今日待跟进", color: "orange" };
-  if (item.due_bucket === "upcoming") return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
+  if (item.due_bucket === "upcoming")
+    return { text: `${item.days_until ?? "-"} 天后`, color: "blue" };
   if (item.due_bucket === "closed") return { text: "已完成", color: "green" };
   return { text: "未排期", color: "default" };
 };
@@ -262,10 +356,7 @@ export const getDaysSince = (value?: string | null): number | null => {
   return Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
 };
 
-export const getCustomerPriorityScore = (
-  customer: Customer,
-  next?: FollowUpReminder,
-): number => {
+export const getCustomerPriorityScore = (customer: Customer, next?: FollowUpReminder): number => {
   let score = 35;
   if (customer.level === "A") score += 18;
   if (customer.level === "B") score += 10;
@@ -279,10 +370,7 @@ export const getCustomerPriorityScore = (
   return Math.min(100, score);
 };
 
-export const getCustomerSuggestedAction = (
-  customer: Customer,
-  next?: FollowUpReminder,
-): string => {
+export const getCustomerSuggestedAction = (customer: Customer, next?: FollowUpReminder): string => {
   if (next?.due_bucket === "overdue") return "立即补跟进并更新结果";
   if (next?.due_bucket === "today") return "按计划完成今日跟进";
   if (customer.health_score != null && customer.health_score < 60) return "查看风险原因并安排挽回";
@@ -295,10 +383,7 @@ export const getCustomerSuggestedAction = (
   return "补充客户画像并规划下一步";
 };
 
-export const buildFollowUpTalkTrack = (
-  customer: Customer,
-  next?: FollowUpReminder,
-): string[] => {
+export const buildFollowUpTalkTrack = (customer: Customer, next?: FollowUpReminder): string[] => {
   const name = customer.contact_person || "客户";
   const action = getCustomerSuggestedAction(customer, next);
   const lines = [
@@ -310,15 +395,13 @@ export const buildFollowUpTalkTrack = (
     lines[0] = `${name}您好，之前计划的跟进已逾期，我先补充确认一下当前项目状态和需要我们处理的事项。`;
   }
   if (customer.health_score != null && customer.health_score < 60) {
-    lines[1] = "近期客户健康度偏低，我想重点确认是否存在交付、价格、响应或备货方面的问题，我们这边及时调整。";
+    lines[1] =
+      "近期客户健康度偏低，我想重点确认是否存在交付、价格、响应或备货方面的问题，我们这边及时调整。";
   }
   return lines;
 };
 
-export const buildFollowUpPlanContent = (
-  customer: Customer,
-  next?: FollowUpReminder,
-): string => {
+export const buildFollowUpPlanContent = (customer: Customer, next?: FollowUpReminder): string => {
   const talkTrack = buildFollowUpTalkTrack(customer, next);
   return [
     `AI建议动作：${getCustomerSuggestedAction(customer, next)}`,

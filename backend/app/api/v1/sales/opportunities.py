@@ -23,8 +23,9 @@ from app.api.v1.sales._shared import (
     _opportunities_cache_key,
 )
 from app.database import get_db
-from app.schemas.common import fail, ok
+from app.schemas.common import fail, ok, APIResponse, PageData
 from app.schemas.sales import (
+    OpportunityResponse,
     BatchDeleteRequest,
     OpportunityBatchUpdate,
     OpportunityCreate,
@@ -49,7 +50,7 @@ async def _bump_opportunity_caches() -> None:
     await cache_bump_version("dashboard:kpi")
 
 
-@router.get("/opportunities")
+@router.get("/opportunities", response_model=APIResponse[PageData[OpportunityResponse]])
 async def list_opportunities(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -108,16 +109,24 @@ async def list_opportunities(
 
         ai_map = await enrich_opportunity_list(db, result["list"])
         result["ai"] = ai_map
+
+    serialized = {
+        "list": [
+            OpportunityResponse.model_validate(o, from_attributes=True).model_dump(mode="json")
+            for o in result["list"]
+        ],
+        **{k: v for k, v in result.items() if k != "list"},
+    }
     await cache_set_versioned(
         "opportunities:list",
         cache_key,
-        json.dumps(result, default=str),
+        json.dumps(serialized),
         OPPORTUNITIES_LIST_CACHE_TTL,
     )
-    return ok(result)
+    return ok(serialized)
 
 
-@router.get("/opportunities/{opp_id}")
+@router.get("/opportunities/{opp_id}", response_model=APIResponse[OpportunityResponse])
 async def get_opportunity(
     opp_id: int,
     include_ai: bool = Query(False),
@@ -131,15 +140,20 @@ async def get_opportunity(
         from app.services.sales_ai_service import enrich_opportunity
 
         ai_data = await enrich_opportunity(db, opp)
-        from app.schemas.sales import OpportunityResponse
 
-        result = OpportunityResponse.model_validate(opp).model_dump()
+        result = OpportunityResponse.model_validate(
+            opp, from_attributes=True
+        ).model_dump()
         result["ai"] = ai_data
         return ok(result)
-    return ok(opp)
+    return ok(
+        OpportunityResponse.model_validate(opp, from_attributes=True).model_dump()
+    )
 
 
-@router.post("/opportunities", status_code=201)
+@router.post(
+    "/opportunities", status_code=201, response_model=APIResponse[OpportunityResponse]
+)
 async def create_opportunity(
     body: OpportunityCreate,
     db: AsyncSession = Depends(get_db),
@@ -150,10 +164,12 @@ async def create_opportunity(
 
     after_opportunity_save(opp.id)
     await _bump_opportunity_caches()
-    return ok(opp)
+    return ok(
+        OpportunityResponse.model_validate(opp, from_attributes=True).model_dump()
+    )
 
 
-@router.put("/opportunities/{opp_id}")
+@router.put("/opportunities/{opp_id}", response_model=APIResponse[OpportunityResponse])
 async def update_opportunity(
     opp_id: int,
     body: OpportunityUpdate,
@@ -168,7 +184,9 @@ async def update_opportunity(
 
     after_opportunity_save(opp.id)
     await _bump_opportunity_caches()
-    return ok(opp)
+    return ok(
+        OpportunityResponse.model_validate(opp, from_attributes=True).model_dump()
+    )
 
 
 @router.delete("/opportunities/{opp_id}")

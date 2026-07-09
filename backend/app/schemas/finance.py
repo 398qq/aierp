@@ -1,6 +1,8 @@
 """Finance schemas — Pydantic v2 models for payments, invoices, targets, contracts, notifications."""
 
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -105,11 +107,13 @@ class ContractCreate(BaseModel):
     customer_id: int
     sales_order_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
-    amount: float = 0
-    currency: str = "CNY"
+    amount: float = Field(default=0, ge=0)
+    currency: str = Field(default="CNY", min_length=3, max_length=3)
     signed_date: str | None = None
     expire_date: str | None = None
-    status: str = "draft"
+    status: Literal[
+        "draft", "signed", "active", "expired", "terminated", "cancelled"
+    ] = "draft"
     file_url: str | None = None
     notes: str | None = None
 
@@ -119,11 +123,14 @@ class ContractUpdate(BaseModel):
     customer_id: int | None = None
     sales_order_id: int | None = None
     title: str | None = Field(None, min_length=1, max_length=255)
-    amount: float | None = None
-    currency: str | None = None
+    amount: float | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
     signed_date: str | None = None
     expire_date: str | None = None
-    status: str | None = None
+    status: (
+        Literal["draft", "signed", "active", "expired", "terminated", "cancelled"]
+        | None
+    ) = None
     file_url: str | None = None
     notes: str | None = None
 

@@ -232,6 +232,54 @@ class DeliveryNoteItem(TimestampMixin, Base):
     product = relationship("Product", back_populates="delivery_note_items")
 
 
+class ReturnNote(TimestampMixin, Base):
+    """Sales return — refund flow from a delivered DeliveryNote.
+
+    Lifecycle: pending → approved → completed | rejected.
+    On completion: inventory restock + optional credit note.
+    """
+
+    __tablename__ = "return_notes"
+
+    return_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    delivery_note_id: Mapped[int] = mapped_column(ForeignKey("delivery_notes.id"))
+    sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    total_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    delivery_note = relationship("DeliveryNote", foreign_keys=[delivery_note_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+    customer = relationship("Customer", foreign_keys=[customer_id])
+    items = relationship(
+        "ReturnNoteItem",
+        back_populates="return_note",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+
+class ReturnNoteItem(TimestampMixin, Base):
+    """Single line in a return note."""
+
+    __tablename__ = "return_note_items"
+
+    return_note_id: Mapped[int] = mapped_column(ForeignKey("return_notes.id"))
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id"), nullable=True
+    )
+    product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    quantity: Mapped[int] = mapped_column(default=1)
+    unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    return_note = relationship("ReturnNote", back_populates="items")
+    product = relationship("Product", foreign_keys=[product_id])
+
+
 class Inquiry(TimestampMixin, Base):
     """Incoming customer inquiry — underived leads that may convert to opportunities."""
 

@@ -45,6 +45,22 @@ async def get_current_user(
     user_id = int(payload["sub"])
     request.state.user_id = user_id
     request.state.token_jti = jti
+
+    # Check token_version — if the user's token_version has been bumped,
+    # all their previous tokens are invalid (revoke_all_user_tokens).
+    jwt_version = payload.get("token_version", 0)
+    from app.models.user import User
+
+    user_row = await db.execute(
+        select(User.token_version).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    db_version = user_row.scalar()
+    if db_version is not None and jwt_version < db_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked (all sessions)",
+        )
+
     result = await db.execute(
         select(Role.name)
         .join(user_roles_table, user_roles_table.c.role_id == Role.id)

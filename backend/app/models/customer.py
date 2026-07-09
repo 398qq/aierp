@@ -63,7 +63,17 @@ class Customer(TimestampMixin, Base):
     )  # 纳税人识别号
     registration_number: Mapped[str | None] = mapped_column(
         String(50), nullable=True
-    )  # 统一社会信用代码
+    )  # 统一社会信用代码 (旧字段)
+    # 2026-06-23 schema 扩展：统一社会信用代码 (新字段，DB 列名 unified_social_credit_code)
+    unified_social_credit_code: Mapped[str | None] = mapped_column(
+        "unified_social_credit_code",
+        String(50),
+        nullable=True,
+    )  # 18 位统一社会信用代码
+    invoice_phone: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )  # 开票电话
+    tax_rate: Mapped[float | None] = mapped_column(nullable=True)  # 税率 %
     invoice_title: Mapped[str | None] = mapped_column(
         String(255), nullable=True
     )  # 发票抬头

@@ -189,7 +189,9 @@ async def login(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已停用")
 
-    token = create_access_token(user.id, user.username)
+    token = create_access_token(
+        user.id, user.username, token_version=user.token_version or 0
+    )
     response = JSONResponse(
         content=ok({"token": token, "username": user.username, "role": user.role})
     )
@@ -242,6 +244,26 @@ async def logout(
 
     response = JSONResponse(content=ok({"revoked": revoked}))
     # Clear the cookie too
+    response.delete_cookie(TOKEN_COOKIE_NAME)
+    return response
+
+
+@router.post("/logout-all")
+async def logout_all(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Revoke ALL active sessions for the current user by bumping token_version.
+
+    All JWTs issued before this call become invalid immediately.
+    """
+    from app.core.security import revoke_all_user_tokens
+
+    user_id = current_user["user_id"]
+    new_version = await revoke_all_user_tokens(user_id, db=db)
+    response = JSONResponse(
+        content=ok({"token_version": new_version}, msg="已注销所有设备")
+    )
     response.delete_cookie(TOKEN_COOKIE_NAME)
     return response
 

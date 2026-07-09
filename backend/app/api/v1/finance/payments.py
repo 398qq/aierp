@@ -23,8 +23,8 @@ from app.api.v1.finance._shared import (
     _payments_cache_key,
 )
 from app.database import get_db
-from app.schemas.common import fail, ok
-from app.schemas.finance import PaymentRecordCreate, PaymentRecordUpdate
+from app.schemas.common import fail, ok, APIResponse, PageData
+from app.schemas.finance import PaymentRecordCreate, PaymentRecordUpdate, PaymentRecordResponse, PaymentStats
 from app.services import finance_service as svc
 from app.services.cache_service import (
     cache_bump_version,
@@ -78,7 +78,7 @@ async def _bump_payment_caches() -> None:
     await cache_bump_version("dashboard:kpi")
 
 
-@router.get("/payments")
+@router.get("/payments", response_model=APIResponse[PageData[PaymentRecordResponse]])
 async def list_payments(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -148,7 +148,7 @@ async def list_payments(
     return ok(serialized)
 
 
-@router.get("/payments/stats")
+@router.get("/payments/stats", response_model=APIResponse[PaymentStats])
 async def get_payment_stats(
     response: JSONResponse,
     db: AsyncSession = Depends(get_db),
@@ -171,7 +171,7 @@ async def get_payment_stats(
     return ok(result)
 
 
-@router.get("/payments/{pay_id}")
+@router.get("/payments/{pay_id}", response_model=APIResponse[PaymentRecordResponse])
 async def get_payment(
     pay_id: int,
     db: AsyncSession = Depends(get_db),
@@ -186,7 +186,7 @@ async def get_payment(
     )
 
 
-@router.post("/payments")
+@router.post("/payments", response_model=APIResponse[PaymentRecordResponse])
 async def create_payment(
     body: PaymentRecordCreate,
     db: AsyncSession = Depends(get_db),
@@ -200,7 +200,7 @@ async def create_payment(
     )
 
 
-@router.put("/payments/{pay_id}")
+@router.put("/payments/{pay_id}", response_model=APIResponse[PaymentRecordResponse])
 async def update_payment(
     pay_id: int,
     body: PaymentRecordUpdate,

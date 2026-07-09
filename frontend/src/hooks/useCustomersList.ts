@@ -6,8 +6,7 @@
  * - 1 debounced effect that refetches when any filter / sort changes
  * - 1 manual `refetch()` for explicit re-load (after create/update/delete)
  *
- * Pulled out of customers/index.tsx lines 459-500 to enable
- * single-responsibility testing and reuse across the workbench / search.
+ * Shared list-fetch behaviour for customer workbench/search surfaces.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -55,8 +54,7 @@ export function useCustomersList(
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      // Reset to page 1 whenever filter changes (not when page itself changes)
-      // — this matches the legacy behavior on lines 502-509 of customers/index.tsx.
+      // Reset to page 1 whenever filter changes, not when page itself changes.
       setPage(1);
 
       setLoading(true);
@@ -84,7 +82,7 @@ export function useCustomersList(
         setData(pageData.list || []);
         setTotal(pageData.total || 0);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "加载客户列表失败");
+        setError(e instanceof Error ? e.message : "加载客户失败");
       } finally {
         setLoading(false);
       }

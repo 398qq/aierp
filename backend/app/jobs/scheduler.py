@@ -483,6 +483,59 @@ async def _cleanup_old_notifications():
         logger.error(f"scheduler: cleanup_old_notifications failed: {e}")
 
 
+async def _auto_expire_schemes():
+    """Daily: expire schemes past effective_to + warn 7 days before expiry."""
+    try:
+        from datetime import date, timedelta
+        from app.services.commission_scheme_service import auto_expire_schemes
+        from app.models.commission_scheme import CommissionScheme
+        from app.services.notification_service import create_notification
+
+        async with async_session() as db:
+            # 1. Auto-expire
+            expired = await auto_expire_schemes(db)
+            if expired:
+                logger.info(f"scheduler: auto-expired {expired} commission schemes")
+
+            # 2. Notify 7 days before expiry
+            warning_date = date.today() + timedelta(days=7)
+            about_to_expire = (
+                (
+                    await db.execute(
+                        select(CommissionScheme).where(
+                            CommissionScheme.deleted_at.is_(None),
+                            CommissionScheme.status == "active",
+                            CommissionScheme.effective_to.isnot(None),
+                            CommissionScheme.effective_to == warning_date,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for scheme in about_to_expire:
+                await create_notification(
+                    db,
+                    user_id=1,  # Notify admin
+                    type="scheme_expiry_warning",
+                    title=f"提成方案「{scheme.name}」即将到期",
+                    content=(
+                        f"方案 {scheme.name} 将于 {scheme.effective_to} 到期。"
+                        f"请及时准备新方案，避免影响销售员佣金计算。"
+                    ),
+                    related_id=scheme.id,
+                )
+                logger.info(
+                    "scheduler: expiry warning for scheme %s (id=%s, expires %s)",
+                    scheme.name,
+                    scheme.id,
+                    scheme.effective_to,
+                )
+            await db.commit()
+    except Exception as e:
+        logger.error(f"scheduler: auto_expire_schemes failed: {e}")
+
+
 async def _run_customer_status_job():
     """Daily customer lifecycle status transitions (cron 02:00).
 
@@ -582,8 +635,16 @@ def start():
         id="customer_status",
         misfire_grace_time=3600,
     )
+    scheduler.add_job(
+        _auto_expire_schemes,
+        "cron",
+        hour=2,
+        minute=5,  # 5 min after customer_status to spread load
+        id="auto_expire_schemes",
+        misfire_grace_time=3600,
+    )
     scheduler.start()
-    logger.info("Scheduler started with 10 jobs")
+    logger.info("Scheduler started with 11 jobs")
 
 
 def shutdown():

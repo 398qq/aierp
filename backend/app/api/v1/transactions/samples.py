@@ -27,10 +27,12 @@ class SampleCreate(BaseModel):
     quantity: int = 1
     unit: str | None = None
     apply_date: str | None = None
-    ship_date: str | None = None
-    receive_date: str | None = None
-    status: str = "requested"
-    tracking_number: str | None = None
+    shipped_date: str | None = None
+    received_date: str | None = None
+    status: str = "pending"
+    tracking_no: str | None = None
+    approved_by: int | None = None
+    sample_result: str | None = None
     notes: str | None = None
 
 
@@ -75,11 +77,13 @@ async def list_samples(
                     "product_id": s.product_id,
                     "quantity": s.quantity,
                     "unit": s.unit,
-                    "apply_date": str(s.apply_date) if s.apply_date else None,
-                    "ship_date": str(s.ship_date) if s.ship_date else None,
-                    "receive_date": str(s.receive_date) if s.receive_date else None,
                     "status": s.status,
-                    "tracking_number": s.tracking_number,
+                    "tracking_no": s.tracking_no,
+                    "approved_by": s.approved_by,
+                    "sample_result": s.sample_result,
+                    "apply_date": str(s.apply_date) if s.apply_date else None,
+                    "shipped_date": str(s.shipped_date) if s.shipped_date else None,
+                    "received_date": str(s.received_date) if s.received_date else None,
                     "notes": s.notes,
                     "created_at": str(s.created_at),
                 }
@@ -99,7 +103,7 @@ async def create_sample(
     _user: dict = Depends(get_current_user),
 ):
     data = body.model_dump()
-    for date_field in ("apply_date", "ship_date", "receive_date"):
+    for date_field in ("apply_date", "shipped_date", "received_date"):
         if data.get(date_field):
             data[date_field] = datetime.fromisoformat(data[date_field])
     sample = Sample(**data)

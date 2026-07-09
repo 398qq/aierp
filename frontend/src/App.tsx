@@ -8,10 +8,16 @@ import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
 import { antdTheme } from "./design-tokens";
+import AntdOverlayGuard from "./ui/AntdOverlayGuard";
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
   state = { hasError: false, error: null as Error | null };
-  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
   render() {
     if (this.state.hasError) {
       return (
@@ -19,7 +25,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
           status="error"
           title="页面加载异常"
           subTitle={this.state.error?.message || "未知错误"}
-          extra={<Button type="primary" onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}>刷新页面</Button>}
+          extra={
+            <Button
+              type="primary"
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+            >
+              刷新页面
+            </Button>
+          }
         />
       );
     }
@@ -33,11 +49,14 @@ const CustomerList = lazy(() => import("./pages/customers/CustomerListPage"));
 const CustomerDetail = lazy(() => import("./pages/customers/CustomerDetail"));
 const CustomerNew = lazy(() => import("./pages/customers/CustomerNew"));
 const CustomerDashboard = lazy(() => import("./pages/customers/CustomerDashboard"));
-const CustomerIntelligenceDashboard = lazy(() => import("./pages/customers/CustomerIntelligenceDashboard"));
+const CustomerIntelligenceDashboard = lazy(
+  () => import("./pages/customers/CustomerIntelligenceDashboard"),
+);
 const CustomerAIWorkbench = lazy(() => import("./pages/customers/CustomerAIWorkbench"));
 const CustomerInsight = lazy(() => import("./pages/customers/CustomerInsight"));
 const Customer360 = lazy(() => import("./pages/customers/Customer360"));
 const CustomerSegments = lazy(() => import("./pages/customers/CustomerSegments"));
+const CustomerFollowUpsPage = lazy(() => import("./pages/customers/CustomerFollowUpsPage"));
 const ProductList = lazy(() => import("./pages/products/index"));
 const ProductDetail = lazy(() => import("./pages/products/ProductDetail"));
 const SupplierList = lazy(() => import("./pages/suppliers/index"));
@@ -109,6 +128,7 @@ const JournalEntryList = lazy(() => import("./pages/finance/JournalEntryList"));
 const JournalEntryForm = lazy(() => import("./pages/finance/JournalEntryForm"));
 const ProfitLoss = lazy(() => import("./pages/finance/ProfitLoss"));
 const CommissionList = lazy(() => import("./pages/finance/CommissionList"));
+const CommissionSchemeList = lazy(() => import("./pages/finance/CommissionSchemeList"));
 const AuditLogViewer = lazy(() => import("./pages/system/AuditLogViewer"));
 const ReportAP = lazy(() => import("./pages/reports/ReportAP"));
 const ImportExport = lazy(() => import("./pages/import-export/index"));
@@ -127,14 +147,16 @@ export default function App() {
   const init = useAuthStore((s) => s.init);
   const loading = useAuthStore((s) => s.loading);
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => {
+    init();
+  }, []);
 
   if (loading) return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
 
   return (
     <ErrorBoundary>
-    <ConfigProvider locale={zhCN} theme={antdTheme}>
-      <style>{`
+      <ConfigProvider locale={zhCN} theme={antdTheme}>
+        <style>{`
         :root {
           --color-primary: ${antdTheme.token.colorPrimary};
           --color-success: ${antdTheme.token.colorSuccess};
@@ -153,120 +175,809 @@ export default function App() {
           --radius-tag: ${antdTheme.token.borderRadiusXS}px;
         }
       `}</style>
-      <AntdApp>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/inquiry" element={<Suspense fallback={<PageLoader />}><InquiryPortal /></Suspense>} />
-            <Route
-              element={
-                <ProtectedRoute>
-                  <MainLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-              <Route path="/dashboard/watchtower" element={<Suspense fallback={<PageLoader />}><WatchtowerDashboard /></Suspense>} />
-              <Route path="/dashboard/global360" element={<Suspense fallback={<PageLoader />}><Global360 /></Suspense>} />
-              <Route path="/customers" element={<Suspense fallback={<PageLoader />}><CustomerList /></Suspense>} />
-              <Route path="/customers/stats" element={<Suspense fallback={<PageLoader />}><CustomerDashboard /></Suspense>} />
-              <Route path="/customers/intelligence" element={<Suspense fallback={<PageLoader />}><CustomerIntelligenceDashboard /></Suspense>} />
-              <Route path="/customers/workbench" element={<Suspense fallback={<PageLoader />}><CustomerAIWorkbench /></Suspense>} />
-              <Route path="/customers/new" element={<Suspense fallback={<PageLoader />}><CustomerNew /></Suspense>} />
-              <Route path="/customers/:id" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
-              <Route path="/customers/:id/insight" element={<Suspense fallback={<PageLoader />}><CustomerInsight /></Suspense>} />
-              <Route path="/customers/:id/360" element={<Suspense fallback={<PageLoader />}><Customer360 /></Suspense>} />
-              <Route path="/customers/:customerId/follow-ups" element={<Suspense fallback={<PageLoader />}><FollowUpList /></Suspense>} />
-              <Route path="/customers/:customerId/follow-ups/new" element={<Suspense fallback={<PageLoader />}><FollowUpForm /></Suspense>} />
-              <Route path="/customers/:customerId/follow-ups/:followupId/edit" element={<Suspense fallback={<PageLoader />}><FollowUpForm /></Suspense>} />
-              <Route path="/customers/segments" element={<Suspense fallback={<PageLoader />}><CustomerSegments /></Suspense>} />
-              <Route path="/products" element={<Suspense fallback={<PageLoader />}><ProductList /></Suspense>} />
-              <Route path="/products/:id" element={<Suspense fallback={<PageLoader />}><ProductDetail /></Suspense>} />
-              <Route path="/products/:id/360" element={<Suspense fallback={<PageLoader />}><Product360 /></Suspense>} />
-              <Route path="/products/price-import" element={<Suspense fallback={<PageLoader />}><PriceImport /></Suspense>} />
-              <Route path="/products/inventory" element={<Suspense fallback={<PageLoader />}><InventoryManage /></Suspense>} />
-              <Route path="/suppliers" element={<Suspense fallback={<PageLoader />}><SupplierList /></Suspense>} />
-              <Route path="/suppliers/stats" element={<Suspense fallback={<PageLoader />}><SupplierDashboard /></Suspense>} />
-              <Route path="/suppliers/:id" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
-              <Route path="/suppliers/:id/360" element={<Suspense fallback={<PageLoader />}><Supplier360 /></Suspense>} />
-              <Route path="/suppliers/compare" element={<Suspense fallback={<PageLoader />}><SupplierCompare /></Suspense>} />
-              <Route path="/brands" element={<Suspense fallback={<PageLoader />}><BrandList /></Suspense>} />
-              <Route path="/brands/stats" element={<Suspense fallback={<PageLoader />}><BrandDashboard /></Suspense>} />
-              <Route path="/brands/:id" element={<Suspense fallback={<PageLoader />}><BrandDetail /></Suspense>} />
-              <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryList /></Suspense>} />
-              <Route path="/warehouse" element={<Suspense fallback={<PageLoader />}><WarehouseIndex /></Suspense>} />
-              <Route path="/warehouse/warehouses" element={<Suspense fallback={<PageLoader />}><WarehouseList /></Suspense>} />
-              <Route path="/warehouse/inventory-ledger" element={<Suspense fallback={<PageLoader />}><InventoryLedger /></Suspense>} />
-              <Route path="/warehouse/inventory-batches" element={<Suspense fallback={<PageLoader />}><InventoryBatches /></Suspense>} />
-              <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-              <Route path="/system/users" element={<Suspense fallback={<PageLoader />}><UserList /></Suspense>} />
-              <Route path="/system/roles" element={<Suspense fallback={<PageLoader />}><RolesPage /></Suspense>} />
-              <Route path="/system/approvals" element={<Suspense fallback={<PageLoader />}><ApprovalList /></Suspense>} />
-              <Route path="/system/approval-rules" element={<Suspense fallback={<PageLoader />}><ApprovalRules /></Suspense>} />
-              <Route path="/system/audit-logs" element={<Suspense fallback={<PageLoader />}><AuditLogList /></Suspense>} />
-              <Route path="/procurement/dashboard" element={<Suspense fallback={<PageLoader />}><ProcurementDashboard /></Suspense>} />
-              <Route path="/reports/sales" element={<Suspense fallback={<PageLoader />}><ReportSales /></Suspense>} />
-              <Route path="/reports/ar" element={<Suspense fallback={<PageLoader />}><ReportAR /></Suspense>} />
-              <Route path="/reports/inventory" element={<Suspense fallback={<PageLoader />}><ReportInventory /></Suspense>} />
-              <Route path="/reports/procurement" element={<Suspense fallback={<PageLoader />}><ReportProcurement /></Suspense>} />
-              <Route path="/reports/ap" element={<Suspense fallback={<PageLoader />}><ReportAP /></Suspense>} />
-              <Route path="/data/import-export" element={<Suspense fallback={<PageLoader />}><ImportExport /></Suspense>} />
-              <Route path="/finance/accounts" element={<Suspense fallback={<PageLoader />}><AccountList /></Suspense>} />
-              <Route path="/finance/journal-entries" element={<Suspense fallback={<PageLoader />}><JournalEntryList /></Suspense>} />
-              <Route path="/finance/journal-entries/new" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
-              <Route path="/finance/journal-entries/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
-              <Route path="/finance/pnl" element={<Suspense fallback={<PageLoader />}><ProfitLoss /></Suspense>} />
-              <Route path="/finance/commissions" element={<Suspense fallback={<PageLoader />}><CommissionList /></Suspense>} />
-              <Route path="/system/audit" element={<Suspense fallback={<PageLoader />}><AuditLogViewer /></Suspense>} />
-              <Route path="/ai/chat" element={<Suspense fallback={<PageLoader />}><AIChat /></Suspense>} />
-              <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><NotificationList /></Suspense>} />
-              <Route path="/sales" element={<Navigate to="/sales/dashboard" replace />} />
-              <Route path="/sales/opportunities" element={<Suspense fallback={<PageLoader />}><OpportunityList /></Suspense>} />
-              <Route path="/sales/opportunities/new" element={<Suspense fallback={<PageLoader />}><OpportunityForm /></Suspense>} />
-              <Route path="/sales/opportunities/:id" element={<Suspense fallback={<PageLoader />}><OpportunityDetail /></Suspense>} />
-              <Route path="/sales/opportunities/:id/edit" element={<Suspense fallback={<PageLoader />}><OpportunityForm /></Suspense>} />
-              <Route path="/sales/quotations" element={<Suspense fallback={<PageLoader />}><QuotationList /></Suspense>} />
-              <Route path="/sales/quotations/new" element={<Suspense fallback={<PageLoader />}><QuotationForm /></Suspense>} />
-              <Route path="/sales/quotations/:id" element={<Suspense fallback={<PageLoader />}><QuotationDetail /></Suspense>} />
-              <Route path="/sales/quotations/:id/edit" element={<Suspense fallback={<PageLoader />}><QuotationForm /></Suspense>} />
-              <Route path="/sales/orders" element={<Suspense fallback={<PageLoader />}><SalesOrderList /></Suspense>} />
-              <Route path="/sales/orders/new" element={<Suspense fallback={<PageLoader />}><SalesOrderForm /></Suspense>} />
-              <Route path="/sales/orders/:id" element={<Suspense fallback={<PageLoader />}><SalesOrderDetail /></Suspense>} />
-              <Route path="/sales/orders/:id/edit" element={<Suspense fallback={<PageLoader />}><SalesOrderForm /></Suspense>} />
-              <Route path="/sales/delivery-notes" element={<Suspense fallback={<PageLoader />}><DeliveryNoteList /></Suspense>} />
-              <Route path="/sales/delivery-notes/new" element={<Suspense fallback={<PageLoader />}><DeliveryNoteForm /></Suspense>} />
-              <Route path="/sales/delivery-notes/:id" element={<Suspense fallback={<PageLoader />}><DeliveryNoteDetail /></Suspense>} />
-              <Route path="/sales/delivery-notes/:id/edit" element={<Suspense fallback={<PageLoader />}><DeliveryNoteForm /></Suspense>} />
-              <Route path="/sales/invoices" element={<Suspense fallback={<PageLoader />}><InvoiceList /></Suspense>} />
-              <Route path="/sales/invoices/new" element={<Suspense fallback={<PageLoader />}><InvoiceForm /></Suspense>} />
-              <Route path="/sales/invoices/:id" element={<Suspense fallback={<PageLoader />}><InvoiceDetail /></Suspense>} />
-              <Route path="/sales/invoices/:id/edit" element={<Suspense fallback={<PageLoader />}><InvoiceForm /></Suspense>} />
-              <Route path="/sales/payments" element={<Suspense fallback={<PageLoader />}><PaymentList /></Suspense>} />
-              <Route path="/sales/payments/new" element={<Suspense fallback={<PageLoader />}><PaymentForm /></Suspense>} />
-              <Route path="/sales/payments/:id/edit" element={<Suspense fallback={<PageLoader />}><PaymentForm /></Suspense>} />
-              <Route path="/sales/purchase-orders" element={<Suspense fallback={<PageLoader />}><PurchaseOrderList /></Suspense>} />
-              <Route path="/sales/purchase-orders/new" element={<Suspense fallback={<PageLoader />}><PurchaseOrderForm /></Suspense>} />
-              <Route path="/sales/purchase-orders/:id/edit" element={<Suspense fallback={<PageLoader />}><PurchaseOrderForm /></Suspense>} />
-              <Route path="/sales/purchase-orders/:id" element={<Suspense fallback={<PageLoader />}><PurchaseOrderDetail /></Suspense>} />
-              <Route path="/sales/contracts" element={<Suspense fallback={<PageLoader />}><ContractList /></Suspense>} />
-              <Route path="/sales/contracts/new" element={<Suspense fallback={<PageLoader />}><ContractForm /></Suspense>} />
-              <Route path="/sales/contracts/:id" element={<Suspense fallback={<PageLoader />}><ContractDetail /></Suspense>} />
-              <Route path="/sales/contracts/:id/edit" element={<Suspense fallback={<PageLoader />}><ContractForm /></Suspense>} />
-              <Route path="/sales/targets" element={<Suspense fallback={<PageLoader />}><TargetList /></Suspense>} />
-              <Route path="/sales/targets/new" element={<Suspense fallback={<PageLoader />}><TargetForm /></Suspense>} />
-              <Route path="/sales/targets/:id/edit" element={<Suspense fallback={<PageLoader />}><TargetForm /></Suspense>} />
-              <Route path="/sales/inquiry" element={<Suspense fallback={<PageLoader />}><InquiryAutoReply /></Suspense>} />
-              <Route path="/sales/dashboard" element={<Suspense fallback={<PageLoader />}><SalesDashboard /></Suspense>} />
-              <Route path="/tickets" element={<Suspense fallback={<PageLoader />}><TicketList /></Suspense>} />
-              <Route path="/tickets/new" element={<Suspense fallback={<PageLoader />}><TicketForm /></Suspense>} />
-              <Route path="/tickets/:id" element={<Suspense fallback={<PageLoader />}><TicketDetail /></Suspense>} />
-              <Route path="/tickets/:id/edit" element={<Suspense fallback={<PageLoader />}><TicketForm /></Suspense>} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </AntdApp>
-    </ConfigProvider>
+        <AntdApp>
+          <AntdOverlayGuard />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/inquiry"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <InquiryPortal />
+                  </Suspense>
+                }
+              />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route
+                  path="/"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Dashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/dashboard/watchtower"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <WatchtowerDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/dashboard/global360"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Global360 />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/stats"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/intelligence"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerIntelligenceDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/workbench"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerAIWorkbench />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerNew />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/follow-ups"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerFollowUpsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/:id/insight"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerInsight />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/:id/360"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Customer360 />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/:customerId/follow-ups"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <FollowUpList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/:customerId/follow-ups/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <FollowUpForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/:customerId/follow-ups/:followupId/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <FollowUpForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/segments"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CustomerSegments />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/products"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProductList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/products/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProductDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/products/:id/360"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Product360 />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/products/price-import"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PriceImport />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/products/inventory"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InventoryManage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/suppliers"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/suppliers/stats"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/suppliers/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/suppliers/:id/360"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Supplier360 />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/suppliers/compare"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierCompare />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/brands"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BrandList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/brands/stats"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BrandDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/brands/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BrandDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InventoryList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/warehouse"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <WarehouseIndex />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/warehouse/warehouses"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <WarehouseList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/warehouse/inventory-ledger"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InventoryLedger />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/warehouse/inventory-batches"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InventoryBatches />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Settings />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/users"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <UserList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/roles"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <RolesPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/approvals"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ApprovalList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/approval-rules"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ApprovalRules />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/audit-logs"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AuditLogList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/procurement/dashboard"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProcurementDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reports/sales"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReportSales />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reports/ar"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReportAR />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reports/inventory"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReportInventory />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reports/procurement"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReportProcurement />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reports/ap"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReportAP />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/data/import-export"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ImportExport />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/accounts"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AccountList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/journal-entries"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <JournalEntryList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/journal-entries/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <JournalEntryForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/journal-entries/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <JournalEntryForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/pnl"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProfitLoss />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/commissions"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CommissionList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/finance/commission-schemes"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <CommissionSchemeList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/audit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AuditLogViewer />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/ai/chat"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AIChat />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/notifications"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <NotificationList />
+                    </Suspense>
+                  }
+                />
+                <Route path="/sales" element={<Navigate to="/sales/dashboard" replace />} />
+                <Route
+                  path="/sales/opportunities"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OpportunityList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/opportunities/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OpportunityForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/opportunities/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OpportunityDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/opportunities/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OpportunityForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/quotations"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <QuotationList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/quotations/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <QuotationForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/quotations/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <QuotationDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/quotations/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <QuotationForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/orders"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SalesOrderList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/orders/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SalesOrderForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/orders/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SalesOrderDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/orders/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SalesOrderForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/delivery-notes"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <DeliveryNoteList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/delivery-notes/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <DeliveryNoteForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/delivery-notes/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <DeliveryNoteDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/delivery-notes/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <DeliveryNoteForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/invoices"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InvoiceList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/invoices/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InvoiceForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/invoices/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InvoiceDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/invoices/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InvoiceForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/payments"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PaymentList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/payments/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PaymentForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/payments/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PaymentForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/purchase-orders"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PurchaseOrderList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/purchase-orders/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PurchaseOrderForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/purchase-orders/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PurchaseOrderForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/purchase-orders/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PurchaseOrderDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/contracts"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ContractList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/contracts/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ContractForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/contracts/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ContractDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/contracts/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ContractForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/targets"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TargetList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/targets/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TargetForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/targets/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TargetForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/inquiry"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InquiryAutoReply />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/sales/dashboard"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SalesDashboard />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/tickets"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TicketList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/tickets/new"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TicketForm />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/tickets/:id"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TicketDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/tickets/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <TicketForm />
+                    </Suspense>
+                  }
+                />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AntdApp>
+      </ConfigProvider>
     </ErrorBoundary>
   );
 }

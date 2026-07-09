@@ -5,8 +5,11 @@ import uuid
 import bcrypt
 import jwt
 from jwt import InvalidTokenError as JWTError
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -83,22 +86,34 @@ async def is_token_revoked(jti: str) -> bool:
         return False
 
 
-async def revoke_all_user_tokens(user_id: int) -> int:
-    """Revoke all currently-active tokens for a user (e.g. on password change).
+async def revoke_all_user_tokens(user_id: int, db: AsyncSession | None = None) -> int:
+    """Bump ``token_version`` for a user — invalidates all their JWTs.
 
-    Implementation note: with stateless JWTs, the only practical way is
-    to bump a `token_version` counter in the user record and include
-    it in the JWT, checking on every request. We don't have that field
-    yet, so this function records the current timestamp as the
-    user's "must-reissue-after" cut-off.
-
-    For now, this is a placeholder that just logs. Full implementation
-    requires a `users.token_version` column migration.
+    Requires a DB session.  Returns the new version number.
+    If no session is provided, logs a warning and returns 0 (no-op).
     """
-    logger.warning(
-        "revoke_all_user_tokens called for user_id=%s but full impl pending token_version migration",
-        user_id,
+    if db is None:
+        logger.warning(
+            "revoke_all_user_tokens(user_id=%s) called without db session — no-op",
+            user_id,
+        )
+        return 0
+
+    result = await db.execute(
+        update(User)
+        .where(User.id == user_id, User.deleted_at.is_(None))
+        .values(token_version=User.token_version + 1)
     )
+    await db.commit()
+    affected = result.rowcount or 0
+    if affected:
+        # Fetch the new version so the caller knows it
+        row = await db.execute(select(User.token_version).where(User.id == user_id))
+        new_version = row.scalar() or 0
+        logger.info(
+            "revoke_all_user_tokens user_id=%s → token_version=%s", user_id, new_version
+        )
+        return new_version
     return 0
 
 
@@ -160,11 +175,12 @@ async def verify_password(plain: str, hashed: str) -> bool:
     return await loop.run_in_executor(None, _verify_password_sync, plain, hashed)
 
 
-def create_access_token(user_id: int, username: str) -> str:
+def create_access_token(user_id: int, username: str, token_version: int = 0) -> str:
     """Create a new JWT access token.
 
-    The token includes a unique `jti` (JWT ID) that can be used for
-    session revocation via `revoke_token()`.
+    The token includes a unique `jti` (JWT ID) for individual revocation
+    and a `token_version` that can be bumped to revoke *all* tokens for
+    a user (e.g. on password change).
     """
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
@@ -173,6 +189,7 @@ def create_access_token(user_id: int, username: str) -> str:
         {
             "sub": str(user_id),
             "username": username,
+            "token_version": token_version,
             "iat": now,
             "exp": expire,
             "jti": jti,

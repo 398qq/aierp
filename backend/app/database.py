@@ -104,7 +104,7 @@ def date_format(column, pg_fmt: str) -> ColumnElement:
     if pg_fmt == "YYYY-MM":
         return func.substr(date_str, 1, 7)
     if pg_fmt == "YYYYMM":
-        return func.substr(date_str, 1, 4) + func.substr(date_str, 6, 2)
+        return func.substr(date_str, 1, 4).op("||")(func.substr(date_str, 6, 2))
     if pg_fmt == "YYYY":
         return func.substr(date_str, 1, 4)
     return date_str
@@ -122,6 +122,7 @@ async def init_db():
     await _ensure_customer_status_machine(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
+    await _seed_commission_scheme_rbac(engine)
 
 
 async def _ensure_customer_status_machine(eng) -> None:
@@ -346,6 +347,33 @@ async def _seed_rbac(eng):
                 except Exception:
                     pass
         await conn.commit()
+
+
+async def _seed_commission_scheme_rbac(eng):
+    """Seed commission_scheme RBAC permissions (014-rbac-commission-scheme.sql)."""
+    import logging
+    import pathlib
+
+    _log = logging.getLogger("app.db.migration")
+    if eng.dialect.name != "postgresql":
+        return
+    sql_path = (
+        pathlib.Path(__file__).resolve().parent
+        / "migrations"
+        / "014-rbac-commission-scheme.sql"
+    )
+    if not sql_path.exists():
+        return
+    sql = sql_path.read_text()
+    async with eng.begin() as conn:
+        for stmt in sql.split(";"):
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            try:
+                await conn.exec_driver_sql(stmt + ";")
+            except Exception:
+                pass
 
 
 async def _seed_phase6(eng):

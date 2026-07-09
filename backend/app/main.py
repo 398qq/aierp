@@ -18,6 +18,18 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.database import engine, init_db
 from app.services.cache_service import get_redis
 
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    """Split a comma-separated CORS_ORIGINS string into a trimmed list.
+
+    >>> _parse_cors_origins("http://a.com, https://b.com")
+    ['http://a.com', 'https://b.com']
+    >>> _parse_cors_origins("")
+    []
+    """
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
 # Import all models so Base.metadata knows about every table.
 for _model_module in (
     "app.models.account",
@@ -31,6 +43,7 @@ for _model_module in (
     "app.models.transaction",
     "app.models.user",
     "app.models.audit",
+    "app.models.commission_scheme",
 ):
     import_module(_model_module)
 
@@ -66,7 +79,18 @@ async def lifespan(app: FastAPI):
         shutdown()
 
 
-app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.VERSION,
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    description="AIERP — AI-powered ERP platform for small/medium electronics trading companies.\n\n"
+    "Covers the full sales pipeline: opportunity → quotation → order → delivery → invoice → payment, "
+    "plus procurement, inventory, customer/supplier management, and AI-driven intelligence features.",
+    contact={"name": "AIERP Team"},
+)
 _started_at = time.time()
 
 # Stage 9 Day 1: prometheus_client default collectors (process_*, python_gc_*,
@@ -75,7 +99,9 @@ _started_at = time.time()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_parse_cors_origins(
+        str(settings.CORS_ORIGINS)
+    ),  # comma-separated in .env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

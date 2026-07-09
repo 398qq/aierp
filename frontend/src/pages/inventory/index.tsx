@@ -1,11 +1,40 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, message, Card, Row, Col, Statistic, List, Typography, Progress, InputNumber, Modal, Input, Space, Button, Select } from "antd";
-import { StatusTag } from "../../ui";
-import { WarningOutlined, FallOutlined, RiseOutlined, SwapOutlined, ReloadOutlined, BarChartOutlined, ShoppingCartOutlined, DownloadOutlined } from "@ant-design/icons";
+import {
+  Table,
+  message,
+  Typography,
+  Progress,
+  InputNumber,
+  Modal,
+  Input,
+  Space,
+  Button,
+  Select,
+} from "antd";
+import {
+  WarningOutlined,
+  FallOutlined,
+  RiseOutlined,
+  SwapOutlined,
+  ReloadOutlined,
+  BarChartOutlined,
+  ShoppingCartOutlined,
+  DownloadOutlined,
+} from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getInventory, getInventoryOverview, adjustInventory, getDemandForecast, createPOFromRestock, getSuppliers, batchAdjustInventory } from "../../api";
+import {
+  getInventory,
+  getInventoryOverview,
+  adjustInventory,
+  getDemandForecast,
+  createPOFromRestock,
+  getSuppliers,
+  batchAdjustInventory,
+  getApiErrorMessage,
+} from "../../api";
 import type { InventoryItem } from "../../types";
+import "./neo-brutalist.css";
 
 const { Text } = Typography;
 
@@ -24,7 +53,9 @@ export default function InventoryList() {
   const [forecastLoading, setForecastLoading] = useState(false);
   const [restockModalOpen, setRestockModalOpen] = useState(false);
   const [restockSupplierId, setRestockSupplierId] = useState<number | null>(null);
-  const [restockItems, setRestockItems] = useState<{ product_id: number; quantity: number; sku?: string; name?: string }[]>([]);
+  const [restockItems, setRestockItems] = useState<
+    { product_id: number; quantity: number; sku?: string; name?: string }[]
+  >([]);
   const [restocking, setRestocking] = useState(false);
   const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
   const navigate = useNavigate();
@@ -39,14 +70,16 @@ export default function InventoryList() {
       setData(invResp.data.data.list as InventoryItem[]);
       setTotal(invResp.data.data.total as number);
       if (ovResp.data.code === 0) setOverview(ovResp.data.data as Record<string, unknown>);
-    } catch {
-      message.error("加载库存失败");
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载库存失败"));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetch(); }, [page]);
+  useEffect(() => {
+    fetch();
+  }, [page]);
 
   useEffect(() => {
     setForecastLoading(true);
@@ -69,8 +102,11 @@ export default function InventoryList() {
       message.success("库存调整成功");
       setAdjustModalOpen(false);
       fetch();
-    } catch { message.error("调整失败"); }
-    finally { setAdjusting(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "调整失败"));
+    } finally {
+      setAdjusting(false);
+    }
   };
 
   const openAdjust = (item: InventoryItem) => {
@@ -83,21 +119,23 @@ export default function InventoryList() {
   const openRestockModal = async () => {
     const list = restockList as Record<string, unknown>[] | undefined;
     if (!list?.length) return;
-    // Pre-fill from restock suggestions
-    setRestockItems(list.map((s) => ({
-      product_id: s.product_id as number,
-      quantity: s.suggested_order as number,
-      sku: s.sku as string,
-      name: s.name as string,
-    })));
+    setRestockItems(
+      list.map((s) => ({
+        product_id: s.product_id as number,
+        quantity: s.suggested_order as number,
+        sku: s.sku as string,
+        name: s.name as string,
+      })),
+    );
     setRestockSupplierId(null);
     setRestockModalOpen(true);
-    // Load suppliers if needed
     if (suppliers.length === 0) {
       try {
         const r = await getSuppliers({ page: 1, page_size: 100 });
         setSuppliers((r.data.data?.list || []) as { id: number; name: string }[]);
-      } catch { message.error("加载供应商列表失败"); }
+      } catch (e: unknown) {
+        message.error(getApiErrorMessage(e, "加载供应商列表失败"));
+      }
     }
   };
 
@@ -113,8 +151,11 @@ export default function InventoryList() {
       await createPOFromRestock(payload);
       message.success("采购订单已生成，请前往采购模块查看");
       setRestockModalOpen(false);
-    } catch { message.error("生成采购订单失败"); }
-    finally { setRestocking(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "生成采购订单失败"));
+    } finally {
+      setRestocking(false);
+    }
   };
 
   // --- Batch operations ---
@@ -142,19 +183,25 @@ export default function InventoryList() {
       setBatchModalOpen(false);
       setSelectedRowKeys([]);
       fetch();
-    } catch { message.error("批量调整失败"); }
-    finally { setBatching(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量调整失败"));
+    } finally {
+      setBatching(false);
+    }
   };
 
   const handleBatchExport = () => {
-    const rows = selectedRowKeys.length > 0
-      ? data.filter((r) => selectedRowKeys.includes(r.id))
-      : data;
+    const rows =
+      selectedRowKeys.length > 0 ? data.filter((r) => selectedRowKeys.includes(r.id)) : data;
     const header = "仓库,产品,SKU,分类,品牌,在库,已锁,可用,安全库存\n";
-    const csv = header + rows.map((r) => {
-      const avail = (r.quantity || 0) - (r.locked_quantity || 0);
-      return `${r.warehouse_name || `#${r.warehouse_id}`},${r.product_name || ""},${r.sku || ""},${r.category || ""},${r.brand_name || ""},${r.quantity},${r.locked_quantity || 0},${avail},${r.safety_stock}`;
-    }).join("\n");
+    const csv =
+      header +
+      rows
+        .map((r) => {
+          const avail = (r.quantity || 0) - (r.locked_quantity || 0);
+          return `${r.warehouse_name || `#${r.warehouse_id}`},${r.product_name || ""},${r.sku || ""},${r.category || ""},${r.brand_name || ""},${r.quantity},${r.locked_quantity || 0},${avail},${r.safety_stock}`;
+        })
+        .join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -165,40 +212,144 @@ export default function InventoryList() {
     message.success(`已导出 ${rows.length} 条`);
   };
 
+  const tagTone = (tone: string): string => {
+    switch (tone) {
+      case "success":
+        return "nb-tag--success";
+      case "danger":
+        return "nb-tag--danger";
+      case "warning":
+        return "nb-tag--warning";
+      case "info":
+        return "nb-tag--info";
+      default:
+        return "nb-tag--neutral";
+    }
+  };
+
   const columns: ColumnsType<InventoryItem> = [
     {
-      title: "仓库", dataIndex: "warehouse_name", key: "wh", width: 100,
-      render: (v, r) => <a>{String(v || `#${r.warehouse_id}`)}</a>,
+      title: "仓库",
+      dataIndex: "warehouse_name",
+      key: "wh",
+      width: 100,
+      render: (v, r) => (
+        <a
+          style={{
+            fontWeight: 700,
+            color: "var(--nb-text)",
+            textDecoration: "underline",
+            textDecorationThickness: 2,
+            textUnderlineOffset: 3,
+          }}
+        >
+          {String(v || `#${r.warehouse_id}`)}
+        </a>
+      ),
     },
     {
-      title: "产品", dataIndex: "product_name", key: "prod", width: 180,
-      render: (v, r) => <a onClick={() => navigate(`/products/${r.product_id}`)}>{String(v || `#${r.product_id}`)}</a>,
+      title: "产品",
+      dataIndex: "product_name",
+      key: "prod",
+      width: 180,
+      render: (v, r) => (
+        <a
+          onClick={() => navigate(`/products/${r.product_id}`)}
+          style={{
+            fontWeight: 700,
+            color: "var(--nb-text)",
+            textDecoration: "underline",
+            textDecorationThickness: 2,
+            textUnderlineOffset: 3,
+          }}
+        >
+          {String(v || `#${r.product_id}`)}
+        </a>
+      ),
     },
-    { title: "SKU", dataIndex: "sku", key: "sku", width: 100 },
-    { title: "分类", dataIndex: "category", key: "cat", width: 60, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
+    {
+      title: "SKU",
+      dataIndex: "sku",
+      key: "sku",
+      width: 100,
+      render: (v: string) =>
+        v ? (
+          <span style={{ fontFamily: "var(--nb-font-mono)", fontSize: "0.8rem", fontWeight: 700 }}>
+            {v}
+          </span>
+        ) : null,
+    },
+    {
+      title: "分类",
+      dataIndex: "category",
+      key: "cat",
+      width: 60,
+      render: (v) => (v ? <span className={`nb-tag ${tagTone("neutral")}`}>{v}</span> : null),
+    },
     { title: "品牌", dataIndex: "brand_name", key: "brand", width: 80 },
-    { title: "在库", dataIndex: "quantity", key: "qty", width: 60 },
     {
-      title: "已锁", dataIndex: "locked_quantity", key: "locked", width: 50,
-      render: (v: number) => v > 0 ? <StatusTag tone="warning">{v}</StatusTag> : <Text type="secondary">0</Text>,
+      title: "在库",
+      dataIndex: "quantity",
+      key: "qty",
+      width: 60,
+      render: (v: number) => (
+        <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900, fontSize: "0.9rem" }}>
+          {v}
+        </span>
+      ),
     },
     {
-      title: "可用", key: "available", width: 60,
+      title: "已锁",
+      dataIndex: "locked_quantity",
+      key: "locked",
+      width: 50,
+      render: (v: number) =>
+        v > 0 ? (
+          <span className="nb-tag nb-tag--warning">{v}</span>
+        ) : (
+          <Text type="secondary">0</Text>
+        ),
+    },
+    {
+      title: "可用",
+      key: "available",
+      width: 60,
       render: (_: unknown, r: InventoryItem) => {
         const avail = (r.quantity || 0) - (r.locked_quantity || 0);
-        return <Text strong style={{ color: avail <= 0 ? "#ff4d4f" : "#52c41a" }}>{avail}</Text>;
+        return (
+          <span
+            style={{
+              fontFamily: "var(--nb-font-mono)",
+              fontWeight: 900,
+              color: avail <= 0 ? "var(--nb-red)" : "var(--nb-green)",
+              fontSize: "0.9rem",
+            }}
+          >
+            {avail}
+          </span>
+        );
       },
     },
-    { title: "安全库存", dataIndex: "safety_stock", key: "safe", width: 70 },
     {
-      title: "库存水位", key: "level", width: 120,
+      title: "安全库存",
+      dataIndex: "safety_stock",
+      key: "safe",
+      width: 70,
+      render: (v: number) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v}</span>,
+    },
+    {
+      title: "库存水位",
+      key: "level",
+      width: 120,
       render: (_: unknown, r) => {
         const avail = (r.quantity || 0) - (r.locked_quantity || 0);
         const safe = r.safety_stock || 1;
         const pct = Math.min(100, Math.round((avail / Math.max(safe, 1)) * 100));
         return (
           <Progress
-            percent={pct} size="small"
+            className="nb-progress"
+            percent={pct}
+            size="small"
             status={avail <= safe ? "exception" : "success"}
             format={() => `${avail}/${safe}`}
           />
@@ -206,20 +357,31 @@ export default function InventoryList() {
       },
     },
     {
-      title: "状态", key: "status", width: 60,
+      title: "状态",
+      key: "status",
+      width: 60,
       render: (_: unknown, r) => {
         const avail = (r.quantity || 0) - (r.locked_quantity || 0);
         const safe = r.safety_stock || 0;
-        if (r.quantity === 0) return <StatusTag tone="danger">缺货</StatusTag>;
-        if (avail <= 0) return <StatusTag tone="warning">已锁</StatusTag>;
-        if (avail <= safe) return <StatusTag tone="warning">低库存</StatusTag>;
-        return <StatusTag tone="success">正常</StatusTag>;
+        if (r.quantity === 0) return <span className="nb-tag nb-tag--danger">缺货</span>;
+        if (avail <= 0) return <span className="nb-tag nb-tag--warning">已锁</span>;
+        if (avail <= safe) return <span className="nb-tag nb-tag--warning">低库存</span>;
+        return <span className="nb-tag nb-tag--success">正常</span>;
       },
     },
     {
-      title: "操作", key: "action", width: 80,
+      title: "操作",
+      key: "action",
+      width: 80,
       render: (_: unknown, r) => (
-        <Button size="small" icon={<SwapOutlined />} onClick={() => openAdjust(r)}>调整</Button>
+        <Button
+          size="small"
+          className="nb-btn nb-btn--small"
+          icon={<SwapOutlined />}
+          onClick={() => openAdjust(r)}
+        >
+          调整
+        </Button>
       ),
     },
   ];
@@ -228,128 +390,145 @@ export default function InventoryList() {
   const deadStockList = overview?.dead_stock as Record<string, unknown>[] | undefined;
 
   return (
-    <div>
-      {/* Intelligence Overview */}
+    <div className="nb-page">
+      {/* ===== HEADER ===== */}
+      <header className="nb-header">
+        <h1 className="nb-header-title">库存管理</h1>
+        <p className="nb-header-subtitle">INVENTORY CONTROL</p>
+        <div className="nb-header-underline" />
+        <div className="nb-header-actions">
+          <button
+            className="nb-btn nb-btn--primary"
+            onClick={() => setBatchModalOpen(true)}
+            disabled={selectedRowKeys.length === 0}
+          >
+            <SwapOutlined /> 批量调整
+            {selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ""}
+          </button>
+          <button className="nb-btn nb-btn--info" onClick={handleBatchExport}>
+            <DownloadOutlined /> 导出{" "}
+            {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : "全部"}
+          </button>
+          <button className="nb-btn" onClick={() => fetch()}>
+            <ReloadOutlined /> 刷新
+          </button>
+        </div>
+      </header>
+
+      {/* ===== KPI BAND ===== */}
       {overview && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic title="总库存" value={Number(overview.total_quantity)} />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small" style={{ borderColor: (overview.low_stock_items as number) > 0 ? "#ff4d4f" : undefined }}>
-              <Statistic
-                title={<span><WarningOutlined /> 低库存项</span>}
-                value={Number(overview.low_stock_items)}
-                valueStyle={{ color: (overview.low_stock_items as number) > 0 ? "#ff4d4f" : undefined }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title={<span><FallOutlined /> 呆滞品</span>}
-                value={Number(overview.dead_stock_items)}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title={<span><RiseOutlined /> 建议补货</span>}
-                value={restockList?.length || 0}
-              />
-            </Card>
-          </Col>
-        </Row>
+        <div className="nb-kpi-grid">
+          <div className="nb-kpi-card nb-kpi-card--default">
+            <p className="nb-kpi-label">📦 TOTAL QTY</p>
+            <p className="nb-kpi-value">{String(overview.total_quantity)}</p>
+          </div>
+          <div
+            className={`nb-kpi-card ${(overview.low_stock_items as number) > 0 ? "nb-kpi-card--alert" : "nb-kpi-card--default"}`}
+          >
+            <p className="nb-kpi-label">
+              <WarningOutlined /> LOW STOCK
+            </p>
+            <p className="nb-kpi-value">{String(overview.low_stock_items)}</p>
+          </div>
+          <div className="nb-kpi-card nb-kpi-card--alert">
+            <p className="nb-kpi-label">
+              <FallOutlined /> DEAD STOCK
+            </p>
+            <p className="nb-kpi-value">{String(overview.dead_stock_items)}</p>
+          </div>
+          <div className="nb-kpi-card nb-kpi-card--info">
+            <p className="nb-kpi-label">
+              <RiseOutlined /> RESTOCK
+            </p>
+            <p className="nb-kpi-value">{String(restockList?.length || 0)}</p>
+          </div>
+        </div>
       )}
 
-      {/* Restock Suggestions */}
+      {/* ===== RESTOCK SUGGESTIONS ===== */}
       {restockList && restockList.length > 0 && (
-        <Card
-          title={<span><RiseOutlined /> 补货建议</span>}
-          extra={<Button type="primary" size="small" icon={<ShoppingCartOutlined />} onClick={openRestockModal}>一键补货</Button>}
-          size="small"
-          style={{ marginBottom: 16, borderColor: "#faad14" }}
-        >
-          <List
-            size="small"
-            dataSource={restockList}
-            renderItem={(s) => (
-              <List.Item>
-                <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                  <span>
-                    <a onClick={() => navigate(`/products/${s.product_id}`)}>
-                      {String(s.sku || "")} {String(s.name || "")}
-                    </a>
-                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
-                  </span>
-                  <Space>
-                    <Text type="secondary">月均消耗: {String(s.monthly_rate)}</Text>
-                    <Text>库存: {String(s.current_qty)}</Text>
-                    <StatusTag tone="info">建议补: {String(s.suggested_order)}</StatusTag>
-                    <StatusTag tone={s.urgency === "紧急" ? "danger" : s.urgency === "建议" ? "warning" : "neutral"}>
-                      {String(s.urgency)}
-                    </StatusTag>
-                  </Space>
-                </Space>
-              </List.Item>
-            )}
-          />
-        </Card>
+        <div className="nb-card nb-card--info" style={{ marginBottom: 24 }}>
+          <div className="nb-card-header">
+            <h3>
+              <RiseOutlined /> 补货建议
+            </h3>
+            <button className="nb-btn nb-btn--primary nb-btn--small" onClick={openRestockModal}>
+              <ShoppingCartOutlined /> 一键补货
+            </button>
+          </div>
+          {restockList.map((s, i) => (
+            <div key={i} className="nb-list-item">
+              <div className="nb-list-item-meta">
+                <a onClick={() => navigate(`/products/${s.product_id}`)}>
+                  {String(s.sku || "")} {String(s.name || "")}
+                </a>
+                <span className="nb-tag nb-tag--neutral">{String(s.category || "")}</span>
+              </div>
+              <div className="nb-list-item-actions">
+                <Text type="secondary">月均: {String(s.monthly_rate)}</Text>
+                <Text>库存: {String(s.current_qty)}</Text>
+                <span className="nb-tag nb-tag--info">补 {String(s.suggested_order)}</span>
+                <span
+                  className={`nb-tag ${s.urgency === "紧急" ? "nb-tag--danger" : s.urgency === "建议" ? "nb-tag--warning" : "nb-tag--neutral"}`}
+                >
+                  {String(s.urgency)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* Dead Stock */}
+      {/* ===== DEAD STOCK ===== */}
       {deadStockList && deadStockList.length > 0 && (
-        <Card
-          title={<span><FallOutlined /> 呆滞库存（180天+ 未动）</span>}
-          size="small"
-          style={{ marginBottom: 16, borderColor: "#ff4d4f" }}
-        >
-          <List
-            size="small"
-            dataSource={deadStockList}
-            renderItem={(s) => (
-              <List.Item>
-                <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                  <span>
-                    <a onClick={() => navigate(`/products/${s.product_id}`)}>
-                      {String(s.sku || "")} {String(s.name || "")}
-                    </a>
-                    <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
-                  </span>
-                  <Space>
-                    <Text>库存: {String(s.quantity)} (仓库 #{String(s.warehouse_id)})</Text>
-                    <Text type="danger">{String(s.suggestion)}</Text>
-                  </Space>
-                </Space>
-              </List.Item>
-            )}
-          />
-        </Card>
+        <div className="nb-card nb-card--alert" style={{ marginBottom: 24 }}>
+          <div className="nb-card-header">
+            <h3>
+              <FallOutlined /> 呆滞库存（180天+ 未动）
+            </h3>
+          </div>
+          {deadStockList.map((s, i) => (
+            <div key={i} className="nb-list-item">
+              <div className="nb-list-item-meta">
+                <a onClick={() => navigate(`/products/${s.product_id}`)}>
+                  {String(s.sku || "")} {String(s.name || "")}
+                </a>
+                <span className="nb-tag nb-tag--neutral">{String(s.category || "")}</span>
+              </div>
+              <div className="nb-list-item-actions">
+                <Text>
+                  库存: {String(s.quantity)} (仓库 #{String(s.warehouse_id)})
+                </Text>
+                <span className="nb-tag nb-tag--danger">{String(s.suggestion)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* Inventory Table */}
-      <Card
-        title="库存列表"
-        extra={
+      {/* ===== INVENTORY TABLE ===== */}
+      <div className="nb-card nb-table-card" style={{ marginBottom: 24 }}>
+        <div className="nb-card-header">
+          <h3>库存列表</h3>
           <Space>
             {selectedRowKeys.length > 0 && (
               <>
-                <Button size="small" icon={<SwapOutlined />} onClick={() => setBatchModalOpen(true)}>
-                  批量调整 ({selectedRowKeys.length})
-                </Button>
-                <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>
-                  导出 ({selectedRowKeys.length})
-                </Button>
+                <button className="nb-btn nb-btn--small" onClick={() => setBatchModalOpen(true)}>
+                  <SwapOutlined /> 批量调整 ({selectedRowKeys.length})
+                </button>
+                <button className="nb-btn nb-btn--small" onClick={handleBatchExport}>
+                  <DownloadOutlined /> 导出 ({selectedRowKeys.length})
+                </button>
               </>
             )}
-            <Button size="small" icon={<DownloadOutlined />} onClick={handleBatchExport}>全部导出</Button>
-            <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+            <button className="nb-btn nb-btn--small" onClick={handleBatchExport}>
+              <DownloadOutlined /> 全部导出
+            </button>
+            <button className="nb-btn nb-btn--small" onClick={() => fetch()}>
+              <ReloadOutlined /> 刷新
+            </button>
           </Space>
-        }
-      >
+        </div>
         <Table
           rowKey="id"
           columns={columns}
@@ -361,15 +540,113 @@ export default function InventoryList() {
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
           pagination={{
-            current: page, total, pageSize: 20,
+            current: page,
+            total,
+            pageSize: 20,
             showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => setPage(p),
           }}
         />
-      </Card>
+      </div>
 
-      {/* Adjust Modal */}
+      {/* ===== DEMAND FORECAST ===== */}
+      <div className="nb-card nb-forecast-card" style={{ background: "var(--nb-white)" }}>
+        <div className="nb-card-header">
+          <h3>
+            <BarChartOutlined /> AI 需求预测（前20）
+          </h3>
+        </div>
+        {forecastLoading ? (
+          <div className="nb-empty">LOADING...</div>
+        ) : forecastData.length > 0 ? (
+          <Table
+            size="small"
+            dataSource={forecastData as Record<string, unknown>[]}
+            rowKey="product_id"
+            pagination={false}
+            columns={[
+              {
+                title: "SKU",
+                dataIndex: "sku",
+                width: 100,
+                ellipsis: true,
+                render: (v: string) => (
+                  <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 700 }}>{v}</span>
+                ),
+              },
+              { title: "产品名", dataIndex: "name", ellipsis: true },
+              {
+                title: "月预测需求",
+                dataIndex: "monthly_forecast",
+                width: 110,
+                render: (v: number) =>
+                  v != null ? (
+                    <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900 }}>
+                      {v.toFixed(0)}
+                    </span>
+                  ) : (
+                    "-"
+                  ),
+              },
+              {
+                title: "趋势",
+                dataIndex: "trend",
+                width: 80,
+                render: (t: string) => {
+                  const tone =
+                    t === "上升"
+                      ? "nb-tag--success"
+                      : t === "下降" || t === "衰退"
+                        ? "nb-tag--danger"
+                        : t === "新增长"
+                          ? "nb-tag--info"
+                          : "nb-tag--neutral";
+                  return <span className={`nb-tag ${tone}`}>{t}</span>;
+                },
+              },
+              {
+                title: "安全库存",
+                dataIndex: "suggested_safety_stock",
+                width: 90,
+                render: (v: number, r: Record<string, unknown>) => {
+                  const current = Number(r.current_safety_stock) || 0;
+                  const suggested = Number(v) || 0;
+                  const gap = suggested - current;
+                  const tone =
+                    gap > 10 ? "nb-tag--danger" : gap > 0 ? "nb-tag--warning" : "nb-tag--success";
+                  return (
+                    <span className={`nb-tag ${tone}`}>
+                      {suggested}
+                      {gap > 0 ? ` (+${gap})` : ""}
+                    </span>
+                  );
+                },
+              },
+              {
+                title: "置信度",
+                dataIndex: "confidence",
+                width: 70,
+                render: (c: string) => {
+                  const tone =
+                    c === "高"
+                      ? "nb-tag--success"
+                      : c === "中"
+                        ? "nb-tag--warning"
+                        : "nb-tag--danger";
+                  return <span className={`nb-tag ${tone}`}>{c}</span>;
+                },
+              },
+              { title: "交货期(天)", dataIndex: "lead_time_days", width: 80 },
+            ]}
+          />
+        ) : (
+          <div className="nb-empty">暂无预测数据（需有销售历史记录）</div>
+        )}
+      </div>
+
+      {/* ===== ADJUST MODAL ===== */}
       <Modal
+        className="nb-modal"
         title="库存调整"
         open={adjustModalOpen}
         onCancel={() => setAdjustModalOpen(false)}
@@ -378,7 +655,7 @@ export default function InventoryList() {
         okText="确认调整"
       >
         {adjustProduct && (
-          <>
+          <div className="nb-input">
             <p>
               <Text strong>产品: </Text>
               {adjustProduct.product_name} ({adjustProduct.sku})
@@ -389,9 +666,12 @@ export default function InventoryList() {
             </p>
             <p>
               <Text strong>在库: </Text>
-              <StatusTag>{adjustProduct.quantity}</StatusTag>
+              <span className="nb-tag nb-tag--neutral">{adjustProduct.quantity}</span>
               <Text type="secondary"> | 已锁: {adjustProduct.locked_quantity || 0}</Text>
-              <Text type="secondary"> | 可用: {(adjustProduct.quantity || 0) - (adjustProduct.locked_quantity || 0)}</Text>
+              <Text type="secondary">
+                {" "}
+                | 可用: {(adjustProduct.quantity || 0) - (adjustProduct.locked_quantity || 0)}
+              </Text>
               <Text type="secondary"> | 安全库存: {adjustProduct.safety_stock}</Text>
             </p>
             <Space direction="vertical" style={{ width: "100%" }}>
@@ -413,12 +693,13 @@ export default function InventoryList() {
                 />
               </div>
             </Space>
-          </>
+          </div>
         )}
       </Modal>
 
-      {/* Restock Modal */}
+      {/* ===== RESTOCK MODAL ===== */}
       <Modal
+        className="nb-modal"
         title="一键补货 — 生成采购订单"
         open={restockModalOpen}
         onCancel={() => setRestockModalOpen(false)}
@@ -427,50 +708,55 @@ export default function InventoryList() {
         okText="生成采购订单"
         width={640}
       >
-        <div style={{ marginBottom: 16 }}>
-          <Text strong>选择供应商: </Text>
-          <Select
-            showSearch
-            optionFilterProp="label"
-            placeholder="搜索并选择供应商"
-            value={restockSupplierId}
-            onChange={(v) => setRestockSupplierId(v)}
-            style={{ width: "100%", marginTop: 8 }}
-            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-          />
-        </div>
-        <div>
-          <Text strong>补货清单:</Text>
-          <Table
-            size="small"
-            style={{ marginTop: 8 }}
-            dataSource={restockItems.map((item, idx) => ({ ...item, key: idx }))}
-            rowKey="key"
-            pagination={false}
-            columns={[
-              { title: "SKU", dataIndex: "sku", width: 100 },
-              { title: "产品", dataIndex: "name", ellipsis: true },
-              {
-                title: "补货数量", dataIndex: "quantity", width: 100,
-                render: (_: unknown, r: Record<string, unknown>, idx: number) => (
-                  <InputNumber
-                    min={1}
-                    value={r.quantity as number}
-                    onChange={(v) => {
-                      const next = [...restockItems];
-                      next[idx] = { ...next[idx], quantity: v || 1 };
-                      setRestockItems(next);
-                    }}
-                  />
-                ),
-              },
-            ]}
-          />
+        <div className="nb-input">
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>选择供应商: </Text>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="搜索并选择供应商"
+              value={restockSupplierId}
+              onChange={(v) => setRestockSupplierId(v)}
+              style={{ width: "100%", marginTop: 8 }}
+              options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+            />
+          </div>
+          <div>
+            <Text strong>补货清单:</Text>
+            <Table
+              size="small"
+              style={{ marginTop: 8 }}
+              dataSource={restockItems.map((item, idx) => ({ ...item, key: idx }))}
+              rowKey="key"
+              pagination={false}
+              columns={[
+                { title: "SKU", dataIndex: "sku", width: 100 },
+                { title: "产品", dataIndex: "name", ellipsis: true },
+                {
+                  title: "补货数量",
+                  dataIndex: "quantity",
+                  width: 100,
+                  render: (_: unknown, r: Record<string, unknown>, idx: number) => (
+                    <InputNumber
+                      min={1}
+                      value={r.quantity as number}
+                      onChange={(v) => {
+                        const next = [...restockItems];
+                        next[idx] = { ...next[idx], quantity: v || 1 };
+                        setRestockItems(next);
+                      }}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </div>
         </div>
       </Modal>
 
-      {/* Batch Adjust Modal */}
+      {/* ===== BATCH ADJUST MODAL ===== */}
       <Modal
+        className="nb-modal"
         title={`批量调整库存 (${selectedRowKeys.length} 项)`}
         open={batchModalOpen}
         onCancel={() => setBatchModalOpen(false)}
@@ -478,76 +764,28 @@ export default function InventoryList() {
         confirmLoading={batching}
         okText="确认调整"
       >
-        <Space direction="vertical" style={{ width: "100%" }}>
-          <div>
-            <Text>调整数量（正数入库，负数出库）:</Text>
-            <InputNumber
-              value={batchAdjustQty}
-              onChange={(v) => setBatchAdjustQty(v || 0)}
-              style={{ width: "100%", marginTop: 4 }}
-            />
-          </div>
-          <div>
-            <Text>原因:</Text>
-            <Input
-              value={batchReason}
-              onChange={(e) => setBatchReason(e.target.value)}
-              placeholder="批量调整/盘点差异等"
-              style={{ marginTop: 4 }}
-            />
-          </div>
-        </Space>
+        <div className="nb-input">
+          <Space direction="vertical" style={{ width: "100%" }}>
+            <div>
+              <Text>调整数量（正数入库，负数出库）:</Text>
+              <InputNumber
+                value={batchAdjustQty}
+                onChange={(v) => setBatchAdjustQty(v || 0)}
+                style={{ width: "100%", marginTop: 4 }}
+              />
+            </div>
+            <div>
+              <Text>原因:</Text>
+              <Input
+                value={batchReason}
+                onChange={(e) => setBatchReason(e.target.value)}
+                placeholder="批量调整/盘点差异等"
+                style={{ marginTop: 4 }}
+              />
+            </div>
+          </Space>
+        </div>
       </Modal>
-
-      {/* Demand Forecast Section */}
-      <Card
-        title={<><BarChartOutlined /> AI 需求预测（前20）</>}
-        style={{ marginTop: 24 }}
-        loading={forecastLoading}
-      >
-        {forecastData.length > 0 ? (
-          <Table
-            size="small"
-            dataSource={forecastData as Record<string, unknown>[]}
-            rowKey="product_id"
-            pagination={false}
-            columns={[
-              { title: "SKU", dataIndex: "sku", width: 100, ellipsis: true },
-              { title: "产品名", dataIndex: "name", ellipsis: true },
-              {
-                title: "月预测需求", dataIndex: "monthly_forecast", width: 110,
-                render: (v: number) => v != null ? v.toFixed(0) : "-",
-              },
-              {
-                title: "趋势", dataIndex: "trend", width: 80,
-                render: (t: string) => {
-                  const color = t === "上升" ? "green" : t === "下降" || t === "衰退" ? "red" : t === "新增长" ? "blue" : "default";
-                  return <StatusTag tone={color}>{t}</StatusTag>;
-                },
-              },
-              {
-                title: "安全库存", dataIndex: "suggested_safety_stock", width: 90,
-                render: (v: number, r: Record<string, unknown>) => {
-                  const current = Number(r.current_safety_stock) || 0;
-                  const suggested = Number(v) || 0;
-                  const gap = suggested - current;
-                  const color = gap > 10 ? "red" : gap > 0 ? "orange" : "green";
-                  return <StatusTag tone={color}>{suggested}{gap > 0 ? ` (+${gap})` : ""}</StatusTag>;
-                },
-              },
-              {
-                title: "置信度", dataIndex: "confidence", width: 70,
-                render: (c: string) => <StatusTag tone={c === "高" ? "success" : c === "中" ? "warning" : "danger"}>{c}</StatusTag>,
-              },
-              { title: "交货期(天)", dataIndex: "lead_time_days", width: 80 },
-            ]}
-          />
-        ) : (
-          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 24 }}>
-            暂无预测数据（需有销售历史记录）
-          </Text>
-        )}
-      </Card>
     </div>
   );
 }

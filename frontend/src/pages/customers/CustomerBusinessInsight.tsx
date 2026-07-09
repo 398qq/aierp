@@ -37,7 +37,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getCustomerStats, getCustomerQuotationHistory } from "@/api";
+import { getCustomerStats, getCustomerQuotationHistory, getApiErrorMessage } from "@/api";
 import type { CustomerQuotationHistory } from "@/types";
 
 const { Text, Title } = Typography;
@@ -146,9 +146,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
         status: quotation.status,
         created_at: quotation.created_at || "",
       })));
-    } catch {
-      message.error("加载商业洞察失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载商业洞察失败")); } finally {
       setLoading(false);
     }
   }, [customerId]);

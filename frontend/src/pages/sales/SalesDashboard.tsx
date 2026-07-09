@@ -67,27 +67,24 @@ export default function SalesDashboard() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      try {
-        const [o, t, a, opp, quote, order] = await Promise.all([
-          getSalesDashboardOverview(),
-          getSalesDashboardTrends(8),
-          getSalesDashboardAlerts(),
-          getOpportunities({ page: 1, page_size: 6, status: "active" }),
-          getQuotations({ page: 1, page_size: 6, status: "draft" }),
-          getSalesOrders({ page: 1, page_size: 6, status: "pending" }),
-        ]);
-        setOverview(o.data.data);
-        setTrends(t.data.data);
-        setAlerts(a.data.data);
-        setOpportunities(opp.data.data.list || []);
-        setQuotations(quote.data.data.list || []);
-        setOrders(order.data.data.list || []);
-        setLoadedAt(Date.now());
-      } catch {
-        setError("销售工作台加载失败");
-      } finally {
-        setLoading(false);
+      const failed: string[] = [];
+      const results = await Promise.allSettled([
+        getSalesDashboardOverview().then(r => { setOverview(r.data.data); return "overview"; }),
+        getSalesDashboardTrends(8).then(r => { setTrends(r.data.data); return "trends"; }),
+        getSalesDashboardAlerts().then(r => { setAlerts(r.data.data); return "alerts"; }),
+        getOpportunities({ page: 1, page_size: 6, status: "active" })
+          .then(r => { setOpportunities(r.data.data.list || []); return "opp"; }),
+        getQuotations({ page: 1, page_size: 6, status: "draft" })
+          .then(r => { setQuotations(r.data.data.list || []); return "quote"; }),
+        getSalesOrders({ page: 1, page_size: 6, status: "pending" })
+          .then(r => { setOrders(r.data.data.list || []); return "order"; }),
+      ]);
+      for (const r of results) {
+        if (r.status === "rejected") failed.push(r.reason?.message || String(r.reason).slice(0, 60));
       }
+      if (failed.length > 0) setError(`工作台加载失败: ${failed.join("; ")}`);
+      setLoadedAt(Date.now());
+      setLoading(false);
     })();
   }, []);
 

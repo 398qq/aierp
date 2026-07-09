@@ -26,6 +26,7 @@ import {
   transitionCommission,
   batchTransitionCommissions,
 } from "@/api/finance";
+import { getApiErrorMessage } from "@/api";
 import { numericStyle } from "@/design-tokens";
 import type { Commission, CommissionStatus } from "@/types";
 
@@ -79,9 +80,7 @@ function CommissionList() {
       });
       setData(resp.data.data?.list ?? []);
       setTotal(resp.data.data?.total ?? 0);
-    } catch {
-      message.error("加载佣金记录失败");
-    } finally {
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载佣金记录失败")); } finally {
       setLoading(false);
     }
   };

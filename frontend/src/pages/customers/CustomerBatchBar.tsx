@@ -6,24 +6,21 @@
  */
 
 import React, { useCallback, useState } from "react";
-import {
-  Button,
-  message,
-  Modal,
-  Select,
-  Space,
-  Tag,
-} from "antd";
+import { Button, message, Modal, Select, Space, Tag } from "antd";
 import {
   DeleteOutlined,
   ExportOutlined,
+  PushpinOutlined,
   TagsOutlined,
+  UserSwitchOutlined,
 } from "@ant-design/icons";
 import {
   batchDeleteCustomers,
+  batchSetOwner,
   batchTagCustomers,
   exportCustomers,
   getTags,
+  getApiErrorMessage,
 } from "@/api";
 
 // ── 类型 ──
@@ -65,8 +62,8 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
           message.success(`已删除 ${selectedCount} 个客户`);
           onBatchComplete();
           onClear();
-        } catch {
-          message.error("批量删除失败");
+        } catch (e: unknown) {
+          message.error(getApiErrorMessage(e, "批量删除失败"));
         } finally {
           setDeleting(false);
         }
@@ -87,8 +84,8 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
       a.click();
       URL.revokeObjectURL(url);
       message.success(`已导出 ${selectedCount} 个客户`);
-    } catch {
-      message.error("导出失败");
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "导出失败"));
     } finally {
       setExporting(false);
     }
@@ -98,13 +95,17 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
   const handleBatchTag = useCallback(async () => {
     try {
       const res = await getTags();
-      const tags = (res.data?.data || res.data) as Array<{ id: number; name: string; color?: string }> | { list: Array<{ id: number; name: string }> };
-      const tagList = Array.isArray(tags) ? tags : (tags as { list: Array<{ id: number; name: string }> }).list || [];
+      const tags = (res.data?.data || res.data) as
+        | Array<{ id: number; name: string; color?: string }>
+        | { list: Array<{ id: number; name: string }> };
+      const tagList = Array.isArray(tags)
+        ? tags
+        : (tags as { list: Array<{ id: number; name: string }> }).list || [];
       setTagOptions(tagList.map((t) => ({ value: t.id, label: t.name })));
       setSelectedTagIds([]);
       setTagModalOpen(true);
-    } catch {
-      message.error("加载标签失败");
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载标签失败"));
     }
   }, [selectedCount]);
 
@@ -121,8 +122,8 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
       setSelectedTagIds([]);
       onBatchComplete();
       onClear();
-    } catch {
-      message.error("批量打标签失败");
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量打标签失败"));
     } finally {
       setTagging(false);
     }
@@ -133,15 +134,15 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
   return (
     <>
       <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "8px 16px",
-        background: "#e6f4ff",
-        border: "1px solid #91caff",
-        borderRadius: 6,
-        margin: "0 16px 8px",
-      }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "8px 16px",
+          background: "#e6f4ff",
+          border: "1px solid #91caff",
+          borderRadius: 6,
+          margin: "0 16px 8px",
+        }}
       >
         <Tag color="blue" style={{ marginRight: 12 }}>
           已选 {selectedCount} 项
@@ -157,6 +158,38 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
             onClick={handleBatchExport}
           >
             导出
+          </Button>
+          <Button
+            size="small"
+            icon={<PushpinOutlined />}
+            onClick={async () => {
+              try {
+                await batchSetOwner(selectedIds, "claim");
+                message.success(`已认领 ${selectedCount} 个客户`);
+                onBatchComplete();
+                onClear();
+              } catch (e: unknown) {
+                message.error(getApiErrorMessage(e, "认领失败"));
+              }
+            }}
+          >
+            认领
+          </Button>
+          <Button
+            size="small"
+            icon={<UserSwitchOutlined />}
+            onClick={async () => {
+              try {
+                await batchSetOwner(selectedIds, "release");
+                message.success(`已释放 ${selectedCount} 个客户到公海`);
+                onBatchComplete();
+                onClear();
+              } catch (e: unknown) {
+                message.error(getApiErrorMessage(e, "释放失败"));
+              }
+            }}
+          >
+            释放
           </Button>
           <Button
             size="small"
