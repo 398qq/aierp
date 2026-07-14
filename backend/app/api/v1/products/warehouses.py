@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models.product import Inventory, Product, Warehouse
 from app.schemas.common import fail, ok
 from app.services.cache_service import cache_get_versioned, cache_set_versioned
+from app.services.inventory_service import get_inventory_overview
 
 warehouses_router = APIRouter(prefix="/warehouses", tags=["warehouses"])
 inventory_router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -261,7 +262,7 @@ async def inventory_overview(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Inventory KPI snapshot. Cached 60s (changes on every stock txn)."""
-    cache_key = "overview"
+    cache_key = "overview:v2"
     cached_payload = await cache_get_versioned("inventory:overview", cache_key)
     if cached_payload is not None:
         response.headers["X-Cache"] = "HIT"
@@ -270,21 +271,28 @@ async def inventory_overview(
 
     total_value_q = select(
         func.coalesce(func.sum(Inventory.quantity * Inventory.unit_price), 0)
-    ).where(Warehouse.deleted_at.is_(None))
+    ).where(Inventory.deleted_at.is_(None))
     total_value = (await db.execute(total_value_q)).scalar() or 0
 
     low_stock_q = select(func.count()).where(
+        Inventory.deleted_at.is_(None),
         Inventory.quantity <= Inventory.safety_stock
     )
     low_stock_count = (await db.execute(low_stock_q)).scalar() or 0
 
-    out_of_stock_q = select(func.count()).where(Inventory.quantity <= 0)
+    out_of_stock_q = select(func.count()).where(
+        Inventory.deleted_at.is_(None), Inventory.quantity <= 0
+    )
     out_of_stock_count = (await db.execute(out_of_stock_q)).scalar() or 0
 
-    product_count_q = select(func.count(func.distinct(Inventory.product_id)))
+    product_count_q = select(func.count(func.distinct(Inventory.product_id))).where(
+        Inventory.deleted_at.is_(None)
+    )
     product_count = (await db.execute(product_count_q)).scalar() or 0
 
+    operational_overview = await get_inventory_overview(db)
     payload = {
+        **operational_overview,
         "total_value": float(total_value),
         "low_stock_count": low_stock_count,
         "out_of_stock_count": out_of_stock_count,

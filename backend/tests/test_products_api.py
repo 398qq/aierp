@@ -16,6 +16,25 @@ class TestProductsAPI:
         assert data["data"]["page"] == 1
         assert data["data"]["page_size"] == 20
 
+    async def test_inventory_overview_contract(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        resp = await async_client.get("/api/v1/inventory/overview", headers=auth_headers)
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        for key in [
+            "total_quantity",
+            "low_stock_items",
+            "dead_stock_items",
+            "dead_stock",
+            "restock_suggestions",
+            "total_value",
+            "low_stock_count",
+            "out_of_stock_count",
+            "product_count",
+        ]:
+            assert key in payload
+
     async def test_create_product(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.post(
             "/api/v1/products",

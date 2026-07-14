@@ -420,21 +420,21 @@ export default function InventoryList() {
         <div className="nb-kpi-grid">
           <div className="nb-kpi-card nb-kpi-card--default">
             <p className="nb-kpi-label">📦 TOTAL QTY</p>
-            <p className="nb-kpi-value">{String(overview.total_quantity)}</p>
+            <p className="nb-kpi-value">{String(overview.total_quantity ?? 0)}</p>
           </div>
           <div
-            className={`nb-kpi-card ${(overview.low_stock_items as number) > 0 ? "nb-kpi-card--alert" : "nb-kpi-card--default"}`}
+            className={`nb-kpi-card ${Number(overview.low_stock_items ?? 0) > 0 ? "nb-kpi-card--alert" : "nb-kpi-card--default"}`}
           >
             <p className="nb-kpi-label">
               <WarningOutlined /> LOW STOCK
             </p>
-            <p className="nb-kpi-value">{String(overview.low_stock_items)}</p>
+            <p className="nb-kpi-value">{String(overview.low_stock_items ?? 0)}</p>
           </div>
           <div className="nb-kpi-card nb-kpi-card--alert">
             <p className="nb-kpi-label">
               <FallOutlined /> DEAD STOCK
             </p>
-            <p className="nb-kpi-value">{String(overview.dead_stock_items)}</p>
+            <p className="nb-kpi-value">{String(overview.dead_stock_items ?? 0)}</p>
           </div>
           <div className="nb-kpi-card nb-kpi-card--info">
             <p className="nb-kpi-label">
