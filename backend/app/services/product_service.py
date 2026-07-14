@@ -467,6 +467,7 @@ class ProductService(BaseCRUDService):
                 | (supplier_subq.c.supplier_count.is_(None))
             )
 
+        order_col: Any
         if sort == "name_asc":
             order_col = Product.name.asc()
         elif sort == "name_desc":

@@ -523,7 +523,7 @@ async def sales_lifecycle_metrics(
     Cached: 5 min (DASHBOARD_LIFECYCLE_CACHE_TTL). Bust on OrderConfirmed
     / OrderCancelled / OrderCompleted via cache_bump_version (Stage 8 Day 3).
     """
-    cache_key = _dashboard_cache_key("lifecycle", days_back=days_back)
+    cache_key = _dashboard_cache_key(scope="lifecycle", days_back=days_back)
     cached = await cache_get_versioned("dashboard:lifecycle", cache_key)
     if cached:
         from app.schemas.common import ok
@@ -606,7 +606,7 @@ async def sales_lifecycle_metrics(
                 StatusTransitionLog.transitioned_at >= cutoff,
             )
         )
-    ).scalar() or 0
+    ) or 0
     stage_conversion_pct = (
         round(completed_orders / pending_orders * 100, 1)
         if pending_orders > 0

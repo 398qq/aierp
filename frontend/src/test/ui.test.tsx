@@ -7,6 +7,7 @@ for representative inputs.
 
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import {
   EmptyState,
   ErrorBoundary,
@@ -14,6 +15,7 @@ import {
   PageHeader,
   SearchBar,
   StatusTag,
+  ModuleShell,
 } from "../ui";
 
 describe("StatusTag", () => {
@@ -114,6 +116,30 @@ describe("PageHeader", () => {
       />,
     );
     expect(screen.getByText("新建订单")).toBeInTheDocument();
+  });
+});
+
+describe("ModuleShell", () => {
+  it("renders shared heading, navigation, actions and content", () => {
+    render(
+      <MemoryRouter>
+        <ModuleShell
+          title="采购与供应链"
+          subtitle="采购订单、供应商与收货"
+          eyebrow="运营工作区"
+          activeKey="orders"
+          navItems={[{ key: "orders", label: "采购订单", path: "/sales/purchase-orders" }]}
+          actions={<button>新建采购单</button>}
+        >
+          <div>台账内容</div>
+        </ModuleShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("采购与供应链")).toBeInTheDocument();
+    expect(screen.getByText("采购订单")).toBeInTheDocument();
+    expect(screen.getByText("新建采购单")).toBeInTheDocument();
+    expect(screen.getByText("台账内容")).toBeInTheDocument();
   });
 });
 

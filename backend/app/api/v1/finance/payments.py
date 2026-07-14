@@ -9,6 +9,7 @@ Cache invalidation also covers ``reports:predefined:ar`` and
 
 import json
 import logging
+from collections.abc import Mapping
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["finance:payment"])
 
 
-def _serialize_payment(pay, invoice_map: dict[int, str]) -> dict:
+def _serialize_payment(pay, invoice_map: Mapping[int, str | None]) -> dict:
     return {
         "id": pay.id,
         "sales_order_id": pay.sales_order_id,

@@ -1,0 +1,121 @@
+.erp-app-shell {
+  min-height: 100vh;
+  background: #f4f7fb;
+}
+
+.erp-app-sider {
+  position: sticky !important;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  background: #10233f !important;
+  box-shadow: 2px 0 10px rgba(15, 35, 63, 0.12);
+}
+
+.erp-app-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.erp-app-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 7px;
+  color: #fff;
+  background: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.erp-app-brand-name { color: #fff !important; font-size: 17px; letter-spacing: .08em; }
+.erp-app-menu { padding: 8px 6px 70px; background: #10233f !important; }
+.erp-app-menu .ant-menu-item,
+.erp-app-menu .ant-menu-submenu-title { margin-block: 2px; border-radius: 6px; }
+.erp-app-menu .ant-menu-item-selected { background: #2563eb !important; }
+
+.erp-app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 460px) minmax(220px, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: 56px;
+  padding: 0 20px !important;
+  border-bottom: 1px solid #dbe3ef;
+  background: rgba(255, 255, 255, .96) !important;
+  backdrop-filter: blur(8px);
+}
+
+.erp-app-header-context,
+.erp-app-header-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.erp-app-header-context { gap: 8px; }
+.erp-app-header-actions { justify-content: flex-end; gap: 4px; }
+.erp-global-search .ant-input-affix-wrapper { border-radius: 7px 0 0 7px; }
+.erp-global-search .ant-input-search-button { border-radius: 0 7px 7px 0 !important; }
+
+.erp-app-content {
+  min-width: 0;
+  min-height: calc(100vh - 56px);
+  padding: 16px 20px 28px;
+  background: #f4f7fb;
+}
+
+.erp-mobile-menu-drawer .ant-drawer-body { padding: 8px; }
+.erp-mobile-logout { margin-top: 16px; }
+.erp-mobile-bottom-nav { display: none; }
+
+@media (max-width: 1023px) {
+  .erp-app-header { grid-template-columns: minmax(160px, 1fr) minmax(220px, 360px) auto; padding-inline: 14px !important; }
+  .erp-app-content { padding: 12px 14px 24px; }
+}
+
+@media (max-width: 767px) {
+  .erp-app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: 52px;
+    padding: 0 8px !important;
+  }
+  .erp-global-search { display: none; }
+  .erp-app-header-actions .ant-btn[aria-label="帮助"],
+  .erp-app-header-actions .ant-avatar { display: none; }
+  .erp-app-content {
+    min-height: calc(100vh - 52px);
+    padding: 10px 8px 76px;
+  }
+  .erp-mobile-bottom-nav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    min-height: 58px;
+    padding: 4px 4px max(4px, env(safe-area-inset-bottom));
+    border-top: 1px solid #dbe3ef;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 -4px 14px rgba(15, 35, 63, .08);
+  }
+  .erp-mobile-bottom-nav .ant-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    height: 50px;
+    padding: 4px 2px;
+    color: #475569;
+    font-size: 11px;
+  }
+  .erp-mobile-bottom-nav .anticon { font-size: 18px; }
+}

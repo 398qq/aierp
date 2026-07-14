@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +39,12 @@ def _today() -> date:
     return _now().date()
 
 
+def _snapshot_value(item: object, key: str) -> Any:
+    if isinstance(item, dict):
+        return item.get(key)
+    return getattr(item, key)
+
+
 def _take_snapshot(
     scheme: CommissionScheme,
     tiers: list | None = None,
@@ -58,45 +65,25 @@ def _take_snapshot(
         "is_default": scheme.is_default,
         "tiers": [
             {
-                "tier_no": t.tier_no if hasattr(t, "tier_no") else t["tier_no"],
-                "metric_type": t.metric_type
-                if hasattr(t, "metric_type")
-                else t["metric_type"],
-                "low_amount": str(t.low_amount)
-                if hasattr(t, "low_amount")
-                else str(t["low_amount"]),
-                "high_amount": str(t.high_amount)
-                if hasattr(t, "high_amount") and t.high_amount
-                else (
-                    str(t["high_amount"])
-                    if isinstance(t, dict) and t.get("high_amount")
-                    else None
-                ),
-                "rate": str(t.rate) if hasattr(t, "rate") else str(t["rate"]),
-                "cap_amount": str(t.cap_amount)
-                if hasattr(t, "cap_amount")
-                else str(t["cap_amount"]),
-                "floor_amount": str(t.floor_amount)
-                if hasattr(t, "floor_amount")
-                else str(t["floor_amount"]),
-                "product_category": t.product_category
-                if hasattr(t, "product_category")
-                else t.get("product_category"),
-                "customer_level": t.customer_level
-                if hasattr(t, "customer_level")
-                else t.get("customer_level"),
+                "tier_no": _snapshot_value(t, "tier_no"),
+                "metric_type": _snapshot_value(t, "metric_type"),
+                "low_amount": str(_snapshot_value(t, "low_amount")),
+                "high_amount": str(high_amount)
+                if (high_amount := _snapshot_value(t, "high_amount"))
+                else None,
+                "rate": str(_snapshot_value(t, "rate")),
+                "cap_amount": str(_snapshot_value(t, "cap_amount")),
+                "floor_amount": str(_snapshot_value(t, "floor_amount")),
+                "product_category": _snapshot_value(t, "product_category"),
+                "customer_level": _snapshot_value(t, "customer_level"),
             }
             for t in (tiers if tiers is not None else (scheme.tiers or []))
             if not (hasattr(t, "deleted_at") and t.deleted_at)
         ],
         "assignments": [
             {
-                "assignee_type": a.assignee_type
-                if hasattr(a, "assignee_type")
-                else a["assignee_type"],
-                "assignee_id": a.assignee_id
-                if hasattr(a, "assignee_id")
-                else a["assignee_id"],
+                "assignee_type": _snapshot_value(a, "assignee_type"),
+                "assignee_id": _snapshot_value(a, "assignee_id"),
             }
             for a in (
                 assignments if assignments is not None else (scheme.assignments or [])

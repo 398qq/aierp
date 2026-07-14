@@ -209,6 +209,33 @@ class TestSecurity:
 
 class TestSalesAIService:
     @pytest.mark.unit
+    async def test_order_detail_ai_timeout_returns_safe_fallback(self, monkeypatch):
+        from datetime import date
+        from app.services import sales_ai_service
+
+        class SlowAIClient:
+            async def chat_structured(self, *_args, **_kwargs):
+                await asyncio.sleep(1)
+
+        order = MagicMock(
+            total_amount=13800,
+            status="confirmed",
+            order_date=date(2026, 6, 17),
+            delivery_date=date(2026, 6, 17),
+            notes="",
+            items=[MagicMock()],
+        )
+        monkeypatch.setattr(sales_ai_service, "SALES_AI_TIMEOUT_SECONDS", 0.01)
+        with patch("app.services.ai.client.ai_client", SlowAIClient()):
+            result = await sales_ai_service.enrich_sales_order(MagicMock(), order)
+
+        assert result is not None
+        assert result["fallback"] is True
+        assert result["delivery_risk"] in {"medium", "high"}
+        assert result["health_score"] < 80
+        assert result["flags"]
+
+    @pytest.mark.unit
     async def test_order_list_ai_timeout_falls_back_fast(self, monkeypatch):
         from app.services import sales_ai_service
 

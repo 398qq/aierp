@@ -203,6 +203,7 @@ export interface SalesOrderAI {
   payment_risk: string;
   health_score: number;
   flags: string[];
+  fallback?: boolean;
 }
 
 export interface DeliveryNoteAI {

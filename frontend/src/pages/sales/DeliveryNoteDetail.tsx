@@ -233,14 +233,7 @@ export default function DeliveryNoteDetail() {
         ]}
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 320px",
-          gap: 12,
-          alignItems: "start",
-        }}
-      >
+      <div className="erp-detail-two-column">
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Card title="发货信息" extra={<SalesStatusTag value={note.status} />} size="small">
             <Descriptions column={2} size="small">

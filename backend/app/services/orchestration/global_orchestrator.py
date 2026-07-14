@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import json
 import logging
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -396,7 +397,7 @@ async def orchestrate_global_360(db: AsyncSession) -> dict:
     if score < 60:
         baseline_summary += "⚠️ 整体健康度低于 60，建议优先处理应收账款与库存预警。"
 
-    heuristic_insights = {
+    heuristic_insights: dict[str, Any] = {
         "enterprise_health_score": score,
         "executive_summary": baseline_summary,
         "top_opportunities": [],

@@ -1,4 +1,5 @@
-import { Card, Descriptions, Drawer, Empty, Progress, Space, Table, Tabs, Typography } from "antd";
+import { EditOutlined } from "@ant-design/icons";
+import { Button, Card, Descriptions, Drawer, Empty, Progress, Space, Table, Tabs, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import type { InventoryItem, Product } from "../../types";
 import { formatDateTime, getAvailableQty, getStockState, ProductSalesData } from "./constants";
@@ -12,6 +13,7 @@ interface Props {
   inventories: InventoryItem[];
   sales: ProductSalesData | null;
   onClose: () => void;
+  onEdit: (product: Product) => void;
 }
 
 const money = (value?: number | null) => (value != null ? `¥${Number(value).toFixed(2)}` : "-");
@@ -25,6 +27,7 @@ export default function ProductDetailDrawer({
   inventories,
   sales,
   onClose,
+  onEdit,
 }: Props) {
   const stockState = product ? getStockState(product) : "in";
   const salesColumns = [
@@ -74,6 +77,13 @@ export default function ProductDetailDrawer({
       size="large"
       open={open}
       onClose={onClose}
+      extra={
+        product ? (
+          <Button type="primary" icon={<EditOutlined />} onClick={() => onEdit(product)}>
+            编辑产品
+          </Button>
+        ) : null
+      }
       className="product-detail-drawer"
     >
       {loading ? (

@@ -99,6 +99,15 @@ frontend/Dockerfile
 backend/Dockerfile
 nginx\.conf
 
+# Production deployment inputs must be versioned. Keep similarly named local
+# files ignored while allowing the Docker build and reverse-proxy configs.
+!frontend/Dockerfile
+!frontend/nginx.conf
+
+# Playwright runtime artifacts
+frontend/test-results/
+frontend/playwright-report/
+
 # Workflow artifacts
 .ao-output/
 agency-agents-zh/

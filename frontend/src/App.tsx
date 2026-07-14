@@ -53,8 +53,6 @@ const CustomerIntelligenceDashboard = lazy(
   () => import("./pages/customers/CustomerIntelligenceDashboard"),
 );
 const CustomerAIWorkbench = lazy(() => import("./pages/customers/CustomerAIWorkbench"));
-const CustomerInsight = lazy(() => import("./pages/customers/CustomerInsight"));
-const Customer360 = lazy(() => import("./pages/customers/Customer360"));
 const CustomerSegments = lazy(() => import("./pages/customers/CustomerSegments"));
 const CustomerFollowUpsPage = lazy(() => import("./pages/customers/CustomerFollowUpsPage"));
 const ProductList = lazy(() => import("./pages/products/index"));
@@ -112,7 +110,6 @@ const WarehouseIndex = lazy(() => import("./pages/warehouse/index"));
 const TicketList = lazy(() => import("./pages/tickets/TicketList"));
 const TicketForm = lazy(() => import("./pages/tickets/TicketForm"));
 const TicketDetail = lazy(() => import("./pages/tickets/TicketDetail"));
-const FollowUpList = lazy(() => import("./pages/customers/FollowUpList"));
 const FollowUpForm = lazy(() => import("./pages/customers/FollowUpForm"));
 const ApprovalList = lazy(() => import("./pages/system/ApprovalList"));
 const ApprovalRules = lazy(() => import("./pages/system/ApprovalRules"));
@@ -169,7 +166,7 @@ export default function App() {
           --color-border: ${antdTheme.token.colorBorder};
           --color-canvas: ${antdTheme.token.colorBgContainer};
           --color-bg-layout: ${antdTheme.token.colorBgLayout};
-          --color-primary-bg: #eef2ff;
+          --color-primary-bg: #eff6ff;
           --radius-card: ${antdTheme.token.borderRadius}px;
           --radius-input: ${antdTheme.token.borderRadiusSM}px;
           --radius-tag: ${antdTheme.token.borderRadiusXS}px;
@@ -277,27 +274,15 @@ export default function App() {
                 />
                 <Route
                   path="/customers/:id/insight"
-                  element={
-                    <Suspense fallback={<PageLoader />}>
-                      <CustomerInsight />
-                    </Suspense>
-                  }
+                  element={<Navigate to="../?tab=ai" relative="path" replace />}
                 />
                 <Route
                   path="/customers/:id/360"
-                  element={
-                    <Suspense fallback={<PageLoader />}>
-                      <Customer360 />
-                    </Suspense>
-                  }
+                  element={<Navigate to="../?tab=profile" relative="path" replace />}
                 />
                 <Route
                   path="/customers/:customerId/follow-ups"
-                  element={
-                    <Suspense fallback={<PageLoader />}>
-                      <FollowUpList />
-                    </Suspense>
-                  }
+                  element={<Navigate to="../?tab=followups" relative="path" replace />}
                 />
                 <Route
                   path="/customers/:customerId/follow-ups/new"

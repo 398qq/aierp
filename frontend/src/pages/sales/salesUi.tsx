@@ -95,8 +95,7 @@ export function SalesModuleShell({
     <div className="sales-erp-shell">
       <style>{`
         .sales-erp-shell {
-          max-width: 1480px;
-          margin: 0 auto;
+          width: 100%;
           padding: 0 0 12px;
         }
         .sales-erp-header {
@@ -108,7 +107,7 @@ export function SalesModuleShell({
           padding: 10px 12px;
           background: var(--color-canvas, #fff);
           border: 1px solid var(--color-border, #e5e7eb);
-          border-radius: 6px;
+          border-radius: 8px;
         }
         .sales-erp-title {
           margin: 0;
@@ -279,6 +278,18 @@ export function SalesModuleShell({
           }
           .sales-erp-metrics {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .sales-list-toolbar {
+            width: 100%;
+          }
+          .sales-list-toolbar > .ant-space-item {
+            max-width: 100%;
+          }
+          .sales-list-toolbar .sales-customer-filter {
+            width: 100% !important;
+          }
+          .sales-list-toolbar .ant-select {
+            width: 100% !important;
           }
         }
       `}</style>

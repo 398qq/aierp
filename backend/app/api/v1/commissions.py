@@ -59,9 +59,10 @@ async def create_commission(
     user: dict = Depends(get_current_user),
 ):
     obj = await svc.create_commission(db, payload)
+    result = svc._commission_to_dict(obj)
     await db.commit()
     await cache_bump_version("commissions")
-    return ok(svc._commission_to_dict(obj))
+    return ok(result)
 
 
 @router.patch("/{commission_id}")
@@ -75,9 +76,10 @@ async def update_commission(
     if not obj:
         return fail("commission not found", 404)
     await svc.update_commission(db, obj, payload)
+    result = svc._commission_to_dict(obj)
     await db.commit()
     await cache_bump_version("commissions")
-    return ok(svc._commission_to_dict(obj))
+    return ok(result)
 
 
 @router.delete("/{commission_id}")
@@ -127,6 +129,7 @@ async def transition(
         data["approved_by"] = user.get("user_id") or user.get("id")
     # paid_at + paid_amount now set by finance_service.update_commission (Stage 10 Day 1)
     await svc.update_commission(db, obj, data)
+    result = svc._commission_to_dict(obj)
     await db.commit()
     await cache_bump_version("commissions")
     # Stage 10 Day 2: fire-and-forget notification hook
@@ -142,7 +145,7 @@ async def transition(
         )
     except Exception:
         pass  # never fail the transition
-    return ok(svc._commission_to_dict(obj))
+    return ok(result)
 
 
 # ── Stage 10 Day 1: RESTful state-machine shortcuts ──────────
@@ -241,6 +244,7 @@ async def batch_transition(
             # signature with `payload: dict` default). Stage 11 Day 2: direct call.
             from app.services.finance_service import get_commission, update_commission
             from app.domain.states.finance import assert_can_transition_commission
+
             obj = await get_commission(db, cid)
             if not obj:
                 failed.append({"id": cid, "error": "commission not found"})
@@ -248,7 +252,9 @@ async def batch_transition(
             try:
                 assert_can_transition_commission(obj.status, to)
             except Exception:  # noqa: BLE001
-                failed.append({"id": cid, "error": f"invalid transition: {obj.status} → {to}"})
+                failed.append(
+                    {"id": cid, "error": f"invalid transition: {obj.status} → {to}"}
+                )
                 continue
             previous_status = obj.status
             data = {
@@ -272,10 +278,15 @@ async def batch_transition(
             succeeded.append({"id": cid, "from": previous_status, "to": to})
             # Fire-and-forget notification (Stage 10 Day 2)
             try:
-                from app.services.commission_notifier import on_commission_status_changed
+                from app.services.commission_notifier import (
+                    on_commission_status_changed,
+                )
+
                 await on_commission_status_changed(
-                    db=db, commission=obj,
-                    previous_status=previous_status, new_status=to,
+                    db=db,
+                    commission=obj,
+                    previous_status=previous_status,
+                    new_status=to,
                     actor=user.get("username", "system"),
                 )
             except Exception:  # noqa: BLE001
@@ -286,19 +297,23 @@ async def batch_transition(
     # Bump cache once at the end (not per-id)
     try:
         from app.services.cache_service import cache_bump_version
+
         await cache_bump_version("commissions")
     except Exception as exc:  # noqa: BLE001
         # never fail the batch
         import logging
+
         logging.getLogger(__name__).debug("cache_bump_version failed: %s", exc)
 
-    return ok({
-        "ok": True,
-        "succeeded": succeeded,
-        "failed": failed,
-        "summary": {
-            "total": len(ids),
-            "succeeded": len(succeeded),
-            "failed": len(failed),
-        },
-    })
+    return ok(
+        {
+            "ok": True,
+            "succeeded": succeeded,
+            "failed": failed,
+            "summary": {
+                "total": len(ids),
+                "succeeded": len(succeeded),
+                "failed": len(failed),
+            },
+        }
+    )

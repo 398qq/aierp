@@ -13,6 +13,7 @@ avoid blocking the event loop.
 import logging
 from collections import defaultdict
 import asyncio
+from typing import Any
 
 from sqlalchemy import select
 
@@ -466,21 +467,23 @@ class EmbeddingService(BaseAgent):
                     {"id": r[0], "name": r[1], "industry": r[2], "level": r[3]}
                 )
 
-            result_clusters = []
+            fallback_clusters: list[dict[str, Any]] = []
             for label, members in groups.items():
                 _ = [m["id"] for m in members[:5]]
-                industries = set(m["industry"] for m in members if m["industry"])
-                result_clusters.append(
+                fallback_industries = {
+                    m["industry"] for m in members if m["industry"]
+                }
+                fallback_clusters.append(
                     {
-                        "id": len(result_clusters) + 1,
+                        "id": len(fallback_clusters) + 1,
                         "label": label,
                         "size": len(members),
                         "avg_similarity": 0.7,
                         "common_industry": max(
-                            industries,
+                            fallback_industries,
                             key=lambda x: sum(1 for m in members if m["industry"] == x),
                         )
-                        if industries
+                        if fallback_industries
                         else None,
                         "common_level": max(
                             set(m["level"] for m in members if m["level"]),
@@ -492,11 +495,11 @@ class EmbeddingService(BaseAgent):
                 )
 
             # Limit to requested n_clusters by merging smallest groups
-            result_clusters.sort(key=lambda c: c["size"], reverse=True)
-            result_clusters = result_clusters[:n_clusters]
+            fallback_clusters.sort(key=lambda c: int(c["size"]), reverse=True)
+            fallback_clusters = fallback_clusters[:n_clusters]
 
             return {
-                "clusters": result_clusters,
+                "clusters": fallback_clusters,
                 "total": len(fb_rows),
                 "method": "rule-based (no embeddings available)",
             }
@@ -504,7 +507,7 @@ class EmbeddingService(BaseAgent):
         embeddings = [list(r[2]) for r in rows]
         labels, centroids = await asyncio.to_thread(_run_kmeans, embeddings, n_clusters)
 
-        clusters: dict[int, list[dict]] = defaultdict(list)
+        clusters: dict[int, list[dict[str, Any]]] = defaultdict(list)
         for i, r in enumerate(rows):
             clusters[labels[i]].append(
                 {
@@ -518,7 +521,7 @@ class EmbeddingService(BaseAgent):
         # Map member id → its embedding index
         id_to_idx = {r[0]: i for i, r in enumerate(rows)}
 
-        result_clusters: list[dict] = []
+        result_clusters: list[dict[str, Any]] = []
         for j, members in clusters.items():
             centroid = centroids[j]
             dim = len(centroid)
@@ -537,8 +540,8 @@ class EmbeddingService(BaseAgent):
             )
             sample_names = [m["name"] for m in sorted_members[:5]]
 
-            industries = [m["industry"] for m in members]
-            levels = [m["level"] for m in members]
+            industries = [str(m["industry"]) for m in members if m["industry"]]
+            levels = [str(m["level"]) for m in members if m["level"]]
             common_industry = (
                 max(set(industries), key=lambda x: industries.count(x))
                 if industries

@@ -15,8 +15,9 @@ export default function Login() {
       await login(values.username, values.password);
       message.success("登录成功");
       navigate("/");
-    } catch (error: any) {
-      message.error(error?.response?.data?.msg || error?.message || "用户名或密码错误");
+    } catch (error: unknown) {
+      const loginError = error as { response?: { data?: { msg?: string } }; message?: string };
+      message.error(loginError.response?.data?.msg || loginError.message || "用户名或密码错误");
     } finally {
       setLoading(false);
     }
@@ -25,13 +26,11 @@ export default function Login() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&display=swap');
-
         .login-root {
           display: grid;
           grid-template-columns: 420px 1fr;
           height: 100vh;
-          font-family: 'Inter', -apple-system, sans-serif;
+          font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
           background: #FFFFFF;
         }
 
@@ -57,7 +56,7 @@ export default function Login() {
 
         /* ── Brand panel ── */
         .login-brand {
-          background: #0F0F0F;
+          background: #10233f;
           color: #FFFFFF;
           padding: 52px 48px;
           display: flex;
@@ -74,7 +73,7 @@ export default function Login() {
         .login-logo-mark {
           width: 38px;
           height: 38px;
-          background: #FFFFFF;
+          background: #2563eb;
           border-radius: 6px;
           display: flex;
           align-items: center;
@@ -83,7 +82,7 @@ export default function Login() {
         }
 
         .login-logo-name {
-          font-family: 'Playfair Display', serif;
+          font-family: inherit;
           font-size: 20px;
           font-weight: 600;
           letter-spacing: -0.02em;
@@ -109,9 +108,9 @@ export default function Login() {
         }
 
         .login-brand-headline {
-          font-family: 'Playfair Display', serif;
-          font-size: 44px;
-          font-weight: 400;
+          font-family: inherit;
+          font-size: 40px;
+          font-weight: 700;
           line-height: 1.12;
           color: #FFFFFF;
           margin-bottom: 28px;
@@ -120,14 +119,14 @@ export default function Login() {
 
         .login-brand-headline em {
           font-style: italic;
-          color: rgba(255,255,255,0.42);
+          color: #93c5fd;
         }
 
         .login-brand-sub {
           font-size: 13px;
           font-weight: 300;
           line-height: 1.85;
-          color: rgba(255,255,255,0.36);
+          color: rgba(255,255,255,0.68);
           max-width: 268px;
         }
 
@@ -179,7 +178,7 @@ export default function Login() {
           width: 26px;
           height: 26px;
           border-radius: 50%;
-          background: #0F0F0F;
+          background: #2563eb;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -220,12 +219,12 @@ export default function Login() {
           font-size: 15px !important;
           font-weight: 300 !important;
           color: #0F0F0F !important;
-          font-family: 'Inter', sans-serif !important;
+          font-family: inherit !important;
         }
 
         .login-form .ant-input-affix-wrapper:focus,
         .login-form .ant-input-affix-wrapper-focused {
-          border-bottom-color: #0F0F0F !important;
+          border-bottom-color: #2563eb !important;
           border-bottom-width: 1.5px !important;
           box-shadow: none !important;
         }
@@ -233,7 +232,7 @@ export default function Login() {
         .login-form .ant-input {
           font-size: 15px;
           font-weight: 300;
-          color: #0F0F0F;
+          color: #172033;
           background: transparent;
         }
 
@@ -253,10 +252,10 @@ export default function Login() {
         .login-submit {
           width: 100%;
           height: 50px;
-          background: #0F0F0F;
+          background: #2563eb;
           border: none;
           border-radius: 2px;
-          font-family: 'Inter', sans-serif;
+          font-family: inherit;
           font-size: 12px;
           font-weight: 400;
           letter-spacing: 0.1em;
@@ -273,7 +272,7 @@ export default function Login() {
         }
 
         .login-submit:hover:not(:disabled) {
-          background: #242424;
+          background: #1d4ed8;
         }
 
         .login-submit:active:not(:disabled) {
@@ -316,10 +315,10 @@ export default function Login() {
           <div className="login-logo-row">
             <div className="login-logo-mark">
               <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="2" width="8" height="8" rx="1.5" fill="#0F0F0F"/>
-                <rect x="12" y="2" width="8" height="8" rx="1.5" fill="#0F0F0F" opacity="0.35"/>
-                <rect x="2" y="12" width="8" height="8" rx="1.5" fill="#0F0F0F" opacity="0.35"/>
-                <rect x="12" y="12" width="8" height="8" rx="1.5" fill="#0F0F0F" opacity="0.15"/>
+                <rect x="2" y="2" width="8" height="8" rx="1.5" fill="#FFFFFF"/>
+                <rect x="12" y="2" width="8" height="8" rx="1.5" fill="#FFFFFF" opacity="0.72"/>
+                <rect x="2" y="12" width="8" height="8" rx="1.5" fill="#FFFFFF" opacity="0.72"/>
+                <rect x="12" y="12" width="8" height="8" rx="1.5" fill="#FFFFFF" opacity="0.42"/>
               </svg>
             </div>
             <div>
@@ -348,7 +347,7 @@ export default function Login() {
         {/* ── Right form panel ── */}
         <div className="login-form-panel">
           <div className="login-form-wrap">
-            <div className="login-form-heading">Sign in to your account</div>
+              <div className="login-form-heading">登录 AIERP 运营平台</div>
 
             <div className="login-rule">
               <div className="login-rule-dot-accent"/>
@@ -392,7 +391,7 @@ export default function Login() {
                   disabled={loading}
                 >
                   {loading && <span className="login-loading-bar"/>}
-                  {loading ? "Signing in…" : "Sign in"}
+                  {loading ? "正在登录…" : "登录"}
                 </button>
               </Form.Item>
             </Form>

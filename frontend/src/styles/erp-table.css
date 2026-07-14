@@ -120,8 +120,11 @@
 .customer-ledger {
   display: grid;
   gap: 10px;
-  border: 1px solid #d9d9d9;
+  overflow: hidden;
+  border: 1px solid var(--customer-line, #dbe3ef);
+  border-radius: 10px;
   background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
 }
 
 .customer-ledger-command,
@@ -137,7 +140,7 @@
 
 .customer-ledger-command {
   border-bottom: 1px solid #f0f0f0;
-  background: #fafafa;
+  background: #f8fafc;
 }
 
 .customer-ledger-switch {
@@ -247,6 +250,29 @@
   .customer-ledger-metrics {
     grid-template-columns: repeat(2, minmax(132px, 1fr));
   }
+
+  .customer-ledger-switch,
+  .customer-ledger-switch .ant-segmented {
+    width: 100%;
+  }
+
+  .customer-ledger-switch .ant-segmented {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .customer-ledger { border-radius: 8px; }
+  .customer-ledger-command,
+  .customer-ledger-filters,
+  .customer-filter-state { padding-inline: 10px; }
+  .customer-ledger-filters .ant-space,
+  .customer-ledger-filters .ant-input-affix-wrapper,
+  .customer-ledger-filters .ant-select { width: 100% !important; }
+  .customer-ledger-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .customer-ledger-metric { padding: 8px 10px; }
+  .customer-ledger-metric strong { font-size: 18px; }
+  .customer-table-frame { padding: 0 10px 10px; }
 }
 
 /* ── 客户跟进台账 ── */

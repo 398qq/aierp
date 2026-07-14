@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 from app.domain.shared.errors import BusinessRuleViolation, NotFoundError
 from app.domain.states import (
@@ -289,7 +290,7 @@ def _validate_contract_status(status: str | None) -> None:
 def _validate_contract_invariants(
     data: dict, *, existing: Contract | None = None
 ) -> None:
-    merged = {}
+    merged: dict[str, Any] = {}
     if existing is not None:
         merged = {
             "status": existing.status,
@@ -656,6 +657,7 @@ async def update_commission(
             comm.base_amount or 0, comm.rate or 0
         )
     await db.flush()
+    await db.refresh(comm)
     return comm
 
 

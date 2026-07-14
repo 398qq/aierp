@@ -1479,6 +1479,10 @@ export default function ProductList() {
         inventories={detailInventories}
         sales={detailSales}
         onClose={() => setDetailOpen(false)}
+        onEdit={(product) => {
+          setDetailOpen(false);
+          openEdit(product);
+        }}
       />
 
       <Modal

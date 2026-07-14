@@ -1,9 +1,11 @@
-import { BarChartOutlined, FileTextOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotOutlined, TeamOutlined } from "@ant-design/icons";
-import { Button, Segmented, Space, Typography } from "antd";
+import { AppstoreOutlined, BarChartOutlined, DownOutlined, FileTextOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotOutlined, TeamOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Segmented, Space, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/store/auth";
+import "./customer-module.css";
 
-type CustomerModuleNavKey = "list" | "followups" | "stats" | "segments" | "intelligence" | "workbench";
+type CustomerModuleNavKey = "home" | "list" | "followups" | "analytics";
 
 interface CustomerModuleShellProps {
   title: string;
@@ -13,31 +15,33 @@ interface CustomerModuleShellProps {
 }
 
 const NAV_ITEMS: { key: CustomerModuleNavKey; label: string; path: string; icon: ReactNode }[] = [
-  { key: "list", label: "客户", path: "/customers", icon: <TeamOutlined /> },
-  { key: "followups", label: "跟进记录", path: "/customers/follow-ups", icon: <FileTextOutlined /> },
-  { key: "stats", label: "客户统计", path: "/customers/stats", icon: <BarChartOutlined /> },
-  { key: "segments", label: "客户分群", path: "/customers/segments", icon: <PieChartOutlined /> },
-  { key: "intelligence", label: "智能分析", path: "/customers/intelligence", icon: <HeartOutlined /> },
-  { key: "workbench", label: "AI工作队列", path: "/customers/workbench", icon: <RobotOutlined /> },
+  { key: "home", label: "工作台", path: "/customers/stats", icon: <AppstoreOutlined /> },
+  { key: "list", label: "客户台账", path: "/customers", icon: <TeamOutlined /> },
+  { key: "followups", label: "跟进任务", path: "/customers/follow-ups", icon: <FileTextOutlined /> },
+  { key: "analytics", label: "分析中心", path: "/customers/intelligence", icon: <BarChartOutlined /> },
 ];
 
 const PATH_TO_KEY: Array<{ prefix: string; key: CustomerModuleNavKey }> = [
-  { prefix: "/customers/workbench", key: "workbench" },
-  { prefix: "/customers/intelligence", key: "intelligence" },
+  { prefix: "/customers/workbench", key: "analytics" },
+  { prefix: "/customers/intelligence", key: "analytics" },
+  { prefix: "/customers/segments", key: "analytics" },
   { prefix: "/customers/follow-ups", key: "followups" },
-  { prefix: "/customers/segments", key: "segments" },
-  { prefix: "/customers/stats", key: "stats" },
+  { prefix: "/customers/stats", key: "home" },
   { prefix: "/customers", key: "list" },
 ];
 
 const TITLE_ICON: Record<CustomerModuleNavKey, ReactNode> = {
+  home: <AppstoreOutlined />,
   list: <TeamOutlined />,
   followups: <FileTextOutlined />,
-  stats: <BarChartOutlined />,
-  segments: <PieChartOutlined />,
-  intelligence: <HeartOutlined />,
-  workbench: <RobotOutlined />,
+  analytics: <BarChartOutlined />,
 };
+
+const ANALYTICS_ITEMS = [
+  { key: "/customers/intelligence", label: "智能分析", icon: <HeartOutlined /> },
+  { key: "/customers/segments", label: "客户分群", icon: <PieChartOutlined /> },
+  { key: "/customers/workbench", label: "AI 工作队列", icon: <RobotOutlined /> },
+];
 
 function resolveNavKey(pathname: string): CustomerModuleNavKey {
   for (const item of PATH_TO_KEY) {
@@ -51,9 +55,17 @@ function resolveNavKey(pathname: string): CustomerModuleNavKey {
 export default function CustomerModuleShell({ title, subtitle, extra, children }: CustomerModuleShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const roles = useAuthStore((state) => state.roles);
   const selectedKey = resolveNavKey(location.pathname);
   const selectedNavItem = NAV_ITEMS.find((item) => item.key === selectedKey) || NAV_ITEMS[0];
   const isCreatePage = location.pathname === "/customers/new";
+  const roleLabel = roles.some((role) => /admin/i.test(role))
+    ? "管理员视图"
+    : roles.some((role) => /finance/i.test(role))
+      ? "财务视图"
+      : roles.some((role) => /manager|supervisor/i.test(role))
+        ? "主管视图"
+        : "业务视图";
 
   return (
     <div className="customer-module-shell">
@@ -63,7 +75,7 @@ export default function CustomerModuleShell({ title, subtitle, extra, children }
           <div className="customer-module-title-wrap">
             <span className="customer-module-title-icon">{TITLE_ICON[selectedKey]}</span>
             <div>
-              <span className="customer-module-eyebrow">客户管理 / {selectedNavItem.label}</span>
+              <span className="customer-module-eyebrow">客户管理 · {roleLabel} / {selectedNavItem.label}</span>
               <Typography.Title level={4} style={{ margin: 0, lineHeight: 1.25 }}>
                 {title}
               </Typography.Title>
@@ -75,12 +87,6 @@ export default function CustomerModuleShell({ title, subtitle, extra, children }
           <div className="customer-module-actions">
             <Space wrap size={8}>
               {extra}
-              {selectedKey !== "intelligence" && (
-                <Button icon={<HeartOutlined />} onClick={() => navigate("/customers/intelligence")}>智能分析</Button>
-              )}
-              {selectedKey !== "workbench" && (
-                <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>AI工作队列</Button>
-              )}
               {!isCreatePage && (
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/customers/new")}>新建客户</Button>
               )}
@@ -104,6 +110,16 @@ export default function CustomerModuleShell({ title, subtitle, extra, children }
               if (next) navigate(next.path);
             }}
           />
+          {selectedKey === "analytics" && (
+            <Dropdown
+              menu={{ items: ANALYTICS_ITEMS, selectedKeys: [location.pathname], onClick: ({ key }) => navigate(key) }}
+            >
+              <Button className="customer-analysis-menu">
+                {ANALYTICS_ITEMS.find((item) => location.pathname.startsWith(item.key))?.label || "分析工具"}
+                <DownOutlined />
+              </Button>
+            </Dropdown>
+          )}
         </div>
       </div>
       {children}

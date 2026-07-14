@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
 
 type APIErrorPayload = {
   code?: number;
@@ -10,8 +10,9 @@ type APIErrorPayload = {
 
 type APIError = Error & {
   code?: string;
-  config?: {
+  config?: InternalAxiosRequestConfig & {
     url?: string;
+    _retryCount?: number;
   };
   response?: {
     status?: number;
@@ -23,6 +24,41 @@ type APIError = Error & {
 
 const AUTH_PROBE_PATH = "/auth/me";
 const LOGIN_PATH = "/login";
+const RETRYABLE_METHODS = new Set(["get", "head", "options"]);
+const RETRYABLE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
+const MAX_RETRIES = 2;
+const MAX_RETRY_DELAY_MS = 5000;
+
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `req_${crypto.randomUUID()}`;
+  }
+  return `req_${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+function retryDelayMs(error: APIError, retryCount: number): number {
+  const retryAfter = error.response?.headers?.["retry-after"];
+  if (retryAfter !== undefined) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1000, MAX_RETRY_DELAY_MS);
+    }
+    const dateDelay = Date.parse(retryAfter) - Date.now();
+    if (Number.isFinite(dateDelay) && dateDelay >= 0) {
+      return Math.min(dateDelay, MAX_RETRY_DELAY_MS);
+    }
+  }
+  const exponentialDelay = 250 * 2 ** retryCount;
+  return Math.min(exponentialDelay + Math.random() * 100, MAX_RETRY_DELAY_MS);
+}
+
+function shouldRetry(error: APIError): boolean {
+  const config = error.config;
+  if (!config || !RETRYABLE_METHODS.has((config.method || "get").toLowerCase())) return false;
+  if ((config._retryCount || 0) >= MAX_RETRIES || error.code === "ERR_CANCELED") return false;
+  const status = error.response?.status;
+  return status === undefined || RETRYABLE_STATUSES.has(status);
+}
 
 function getRequestPath(url?: string) {
   if (!url) return "";
@@ -78,6 +114,10 @@ const client = axios.create({
 });
 
 client.interceptors.request.use((config) => {
+  config.headers = AxiosHeaders.from(config.headers);
+  if (!config.headers.has("X-Request-ID")) {
+    config.headers.set("X-Request-ID", createRequestId());
+  }
   if (typeof FormData !== "undefined" && config.data instanceof FormData) {
     if (config.headers && "Content-Type" in config.headers) {
       delete (config.headers as Record<string, unknown>)["Content-Type"];
@@ -94,7 +134,15 @@ client.interceptors.request.use((config) => {
 
 client.interceptors.response.use(
   (resp) => resp,
-  (error: APIError) => {
+  async (error: APIError) => {
+    if (shouldRetry(error) && error.config) {
+      const retryCount = error.config._retryCount || 0;
+      error.config._retryCount = retryCount + 1;
+      const delay = retryDelayMs(error, retryCount);
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+      return client.request(error.config);
+    }
+
     const status = error.response?.status;
     const payload = (error.response?.data ?? {}) as APIErrorPayload;
     const requestId = payload.request_id || error.response?.headers?.["x-request-id"];

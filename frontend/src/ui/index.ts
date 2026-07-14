@@ -43,3 +43,6 @@ export { ErrorBoundary } from "./ErrorBoundary";
 export { FlexBox } from "./FlexBox";
 
 export { useColumnResize } from "./useColumnResize";
+
+export { ModuleShell } from "./ModuleShell";
+export type { ModuleShellProps, ModuleNavItem } from "./ModuleShell";

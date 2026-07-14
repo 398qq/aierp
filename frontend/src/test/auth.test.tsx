@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { useAuthStore } from "../store/auth";
 
 // Mock the API module
@@ -14,7 +14,7 @@ describe("useAuthStore", () => {
   beforeEach(() => {
     localStorage.clear();
     // Reset store state between tests
-    useAuthStore.setState({ username: null, loading: true });
+    useAuthStore.setState({ username: null, roles: [], loading: true });
     vi.clearAllMocks();
   });
 
@@ -25,7 +25,7 @@ describe("useAuthStore", () => {
   describe("init", () => {
     it("sets username from current session when API succeeds", async () => {
       vi.mocked(getMe).mockResolvedValue({
-        data: { data: { username: "testuser" } },
+        data: { data: { username: "testuser", roles: ["sales_manager"] } },
       } as any);
 
       await act(async () => {
@@ -35,6 +35,7 @@ describe("useAuthStore", () => {
       const state = useAuthStore.getState();
       expect(state.loading).toBe(false);
       expect(state.username).toBe("testuser");
+      expect(state.roles).toEqual(["sales_manager"]);
       expect(getMe).toHaveBeenCalledTimes(1);
     });
 
@@ -48,6 +49,7 @@ describe("useAuthStore", () => {
       const state = useAuthStore.getState();
       expect(state.loading).toBe(false);
       expect(state.username).toBeNull();
+      expect(state.roles).toEqual([]);
     });
 
     it("handles missing username in API response gracefully", async () => {

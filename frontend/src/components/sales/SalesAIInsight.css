@@ -1,0 +1,123 @@
+.sales-ai-insight {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sales-ai-insight .ant-card-body,
+.sales-ai-insight .ant-progress,
+.sales-ai-insight .ant-progress-body {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sales-ai-insight-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sales-ai-insight-tag-section {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.sales-ai-insight-tag-label {
+  padding-top: 3px;
+  white-space: nowrap;
+}
+
+.sales-ai-insight-text-section {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.sales-ai-insight-section-label {
+  white-space: nowrap;
+}
+
+.sales-ai-insight-text-value {
+  min-width: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.sales-ai-insight-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.sales-ai-insight-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+}
+
+.sales-ai-insight-metrics--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sales-ai-insight-metric {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.sales-ai-insight-metric-label {
+  white-space: nowrap;
+}
+
+.sales-ai-insight-metric .ant-tag {
+  width: fit-content;
+  margin: 0;
+}
+
+.sales-ai-insight-tags .ant-tag {
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  padding-block: 2px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 575px) {
+  .sales-ai-insight-metrics {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .sales-ai-insight-tag-section {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .sales-ai-insight-metric {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .sales-ai-insight-text-section {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

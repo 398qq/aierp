@@ -56,7 +56,7 @@ async def _transition(
         )
         .values(status=target, updated_at=datetime.now(timezone.utc))
     )
-    if result.rowcount == 0:
+    if getattr(result, "rowcount", 0) == 0:
         logger.warning(
             "Customer #%d: concurrent modification detected, %s → %s skipped",
             customer_id,

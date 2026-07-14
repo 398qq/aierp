@@ -13,7 +13,7 @@ from app.models.sales import DeliveryNote, Opportunity, Quotation, SalesOrder
 from app.services.cache_service import cache_get_versioned, cache_set_versioned
 
 logger = logging.getLogger(__name__)
-SALES_AI_TIMEOUT_SECONDS = 8
+SALES_AI_TIMEOUT_SECONDS = 12
 
 # Cache TTL for AI enrichment results (30 min — AI model + prompt version stable)
 AI_ENRICHMENT_CACHE_TTL = 1800
@@ -158,13 +158,53 @@ async def enrich_sales_order(db: AsyncSession, order: SalesOrder) -> dict | None
         "health_score": "integer: 0-100",
         "flags": ["string"],
     }
-    return await _call_ai(
+    result = await _call_ai(
         [
             {"role": "system", "content": "你是B2B电子元器件订单管理专家。"},
             {"role": "user", "content": sales_order_enrich_prompt(ctx)},
         ],
         schema,
     )
+    return result or _sales_order_fallback(order)
+
+
+def _sales_order_fallback(order: SalesOrder) -> dict:
+    """Bounded rule-based insight when the external AI is slow or unavailable."""
+    flags: list[str] = []
+    score = 80
+
+    order_date = str(order.order_date)[:10] if order.order_date else ""
+    delivery_date = str(order.delivery_date)[:10] if order.delivery_date else ""
+    if order_date and delivery_date and delivery_date <= order_date:
+        delivery_risk = "high"
+        score -= 20
+        flags.append("下单与交货日期过近，请确认库存和物流安排")
+    elif not delivery_date:
+        delivery_risk = "medium"
+        score -= 10
+        flags.append("尚未设置交付日期")
+    else:
+        delivery_risk = "low"
+
+    notes = (order.notes or "").strip()
+    if not notes:
+        payment_risk = "medium"
+        score -= 10
+        flags.append("缺少付款条件、收货地址等订单备注")
+    else:
+        payment_risk = "low"
+
+    item_count = len(order.items or [])
+    if item_count <= 1:
+        flags.append("订单品项较少，请确认是否为试单或单一料号集中采购")
+
+    return {
+        "delivery_risk": delivery_risk,
+        "payment_risk": payment_risk,
+        "health_score": max(0, score),
+        "flags": flags,
+        "fallback": True,
+    }
 
 
 async def enrich_delivery_note(db: AsyncSession, note: DeliveryNote) -> dict | None:

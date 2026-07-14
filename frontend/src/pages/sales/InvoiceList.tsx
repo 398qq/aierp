@@ -70,12 +70,12 @@ export default function InvoiceList() {
           { title: "已开票", value: metrics.issuedCount, suffix: "项" },
         ]}
       />
-      <Space style={{ marginBottom: 16 }}>
+      <Space wrap className="sales-list-toolbar" style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/invoices/new")}>新增发票</Button>
         <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
           { value: "draft", label: "草稿" }, { value: "issued", label: "已开票" }, { value: "paid", label: "已付款" },
         ]} />
-        <div style={{ width: 280 }}>
+        <div className="sales-customer-filter" style={{ width: 280 }}>
           <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
         </div>
         <ErpExportButton

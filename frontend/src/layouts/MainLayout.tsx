@@ -3,18 +3,21 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Layout,
   Menu,
+  Breadcrumb,
   Button,
   Typography,
-  theme,
   Badge,
   Drawer,
   Input,
+  Avatar,
+  Tooltip,
   Card,
   Tag,
   Spin,
   Space,
   List,
 } from "antd";
+import type { MenuProps } from "antd";
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -40,10 +43,18 @@ import {
   IssuesCloseOutlined,
   HeartOutlined,
   TrophyOutlined,
+  MenuOutlined,
+  SearchOutlined,
+  QuestionCircleOutlined,
+  FullscreenOutlined,
+  UserOutlined,
+  HomeOutlined,
+  MoreOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/auth";
 import { getUnreadCount, naturalLanguageQuery } from "../api";
 import type { NLPQueryResult } from "../types";
+import "../styles/app-shell.css";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -58,6 +69,22 @@ function useIsMobile() {
   return m;
 }
 
+type MenuEntry = { key: string; label: string };
+
+function flattenMenuItems(items: MenuProps["items"]): MenuEntry[] {
+  const result: MenuEntry[] = [];
+  for (const item of items || []) {
+    if (!item || typeof item !== "object" || !("key" in item)) continue;
+    if ("label" in item && typeof item.key === "string" && item.key.startsWith("/") && typeof item.label === "string") {
+      result.push({ key: item.key, label: item.label });
+    }
+    if ("children" in item && Array.isArray(item.children)) {
+      result.push(...flattenMenuItems(item.children as MenuProps["items"]));
+    }
+  }
+  return result;
+}
+
 export default function MainLayout() {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(isMobile);
@@ -65,13 +92,15 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const logout = useAuthStore((s) => s.logout);
-  const { token } = theme.useToken();
+  const username = useAuthStore((s) => s.username);
+  const roles = useAuthStore((s) => s.roles);
 
   // NLP query drawer state
   const [nlpDrawerOpen, setNlpDrawerOpen] = useState(false);
   const [nlpQuery, setNlpQuery] = useState("");
   const [nlpLoading, setNlpLoading] = useState(false);
   const [nlpResult, setNlpResult] = useState<NLPQueryResult | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNlpSubmit = async () => {
     if (!nlpQuery.trim()) return;
@@ -89,60 +118,6 @@ export default function MainLayout() {
     }
   };
 
-  const menuKeys = [
-    "/",
-    "/dashboard/global360",
-    "/dashboard/watchtower",
-    "/customers",
-    "/customers/follow-ups",
-    "/customers/segments",
-    "/products",
-    "/brands",
-    "/suppliers/stats",
-    "/suppliers",
-    "/suppliers/compare",
-    "/inventory",
-    "/warehouse",
-    "/warehouse/warehouses",
-    "/warehouse/inventory-ledger",
-    "/warehouse/inventory-batches",
-    "/ai/chat",
-    "/settings",
-    "/system/users",
-    "/system/roles",
-    "/system/approvals",
-    "/system/approval-rules",
-    "/system/audit-logs",
-    "/procurement/dashboard",
-    "/reports/sales",
-    "/reports/ar",
-    "/reports/inventory",
-    "/reports/procurement",
-    "/reports/ap",
-    "/finance/accounts",
-    "/finance/journal-entries",
-    "/finance/pnl",
-    "/finance/commissions",
-    "/sales/dashboard",
-    "/sales/opportunities",
-    "/sales/quotations",
-    "/sales/orders",
-    "/sales/delivery-notes",
-    "/sales/invoices",
-    "/sales/payments",
-    "/sales/purchase-orders",
-    "/sales/purchase-orders/new",
-    "/sales/contracts",
-    "/sales/targets",
-    "/sales/inquiry",
-    "/tickets",
-    "/data/import-export",
-  ];
-  const selectedKey =
-    menuKeys
-      .filter((k) => location.pathname === k || location.pathname.startsWith(k + "/"))
-      .sort((a, b) => b.length - a.length)[0] || location.pathname;
-
   useEffect(() => {
     const fetchUnread = async () => {
       try {
@@ -157,11 +132,11 @@ export default function MainLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  const menuItems = [
+  const menuItems: MenuProps["items"] = [
     {
-      key: "_grp_dashboard",
+      key: "_domain_overview",
       icon: <DashboardOutlined />,
-      label: "仪表板",
+      label: "经营总览",
       children: [
         { key: "/", icon: <DashboardOutlined />, label: "经营总览" },
         { key: "/dashboard/global360", icon: <PieChartOutlined />, label: "全局360" },
@@ -169,56 +144,13 @@ export default function MainLayout() {
       ],
     },
     {
-      key: "_grp_customers",
-      icon: <TeamOutlined />,
-      label: "客户管理",
-      children: [
-        { key: "/customers", icon: <TeamOutlined />, label: "客户" },
-        { key: "/customers/follow-ups", icon: <FileTextOutlined />, label: "跟进记录" },
-        { key: "/customers/segments", icon: <PieChartOutlined />, label: "客户分群" },
-        { key: "/customers/intelligence", icon: <HeartOutlined />, label: "AI智能分析" },
-      ],
-    },
-    {
-      key: "_grp_products",
-      icon: <ShopOutlined />,
-      label: "产品管理",
-      children: [
-        { key: "/products", icon: <ShopOutlined />, label: "产品列表" },
-        { key: "/products/price-import", icon: <UploadOutlined />, label: "价格数据导入" },
-        { key: "/brands", icon: <TagOutlined />, label: "品牌管理" },
-        {
-          key: "_grp_suppliers",
-          icon: <TeamOutlined />,
-          label: "供应商",
-          children: [
-            { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
-            { key: "/suppliers", icon: <TeamOutlined />, label: "供应商列表" },
-            { key: "/suppliers/compare", icon: <SwapOutlined />, label: "供应商对比" },
-          ],
-        },
-        {
-          key: "_grp_warehouse",
-          icon: <StockOutlined />,
-          label: "仓库管理",
-          children: [
-            { key: "/warehouse/warehouses", icon: <ShopOutlined />, label: "仓库列表" },
-            { key: "/warehouse/inventory-ledger", icon: <FileTextOutlined />, label: "库存台账" },
-            {
-              key: "/warehouse/inventory-batches",
-              icon: <FileTextOutlined />,
-              label: "批次管理与COGS",
-            },
-          ],
-        },
-        { key: "/inventory", icon: <StockOutlined />, label: "库存管理" },
-      ],
-    },
-    {
-      key: "/sales",
+      key: "_domain_sales",
       icon: <ThunderboltOutlined />,
-      label: "销售管理",
+      label: "客户与销售",
       children: [
+        { key: "/customers/stats", icon: <DashboardOutlined />, label: "客户工作台" },
+        { key: "/customers", icon: <TeamOutlined />, label: "客户台账" },
+        { key: "/customers/follow-ups", icon: <FileTextOutlined />, label: "跟进任务" },
         { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "销售工作台" },
         { key: "/sales/opportunities", icon: <ThunderboltOutlined />, label: "商机管理" },
         { key: "/sales/quotations", icon: <FileTextOutlined />, label: "报价管理" },
@@ -226,66 +158,109 @@ export default function MainLayout() {
         { key: "/sales/delivery-notes", icon: <CarOutlined />, label: "发货管理" },
         { key: "/sales/invoices", icon: <FileDoneOutlined />, label: "发票管理" },
         { key: "/sales/payments", icon: <DollarOutlined />, label: "回款管理" },
-        { key: "/sales/purchase-orders", icon: <ShoppingCartOutlined />, label: "采购订单" },
         { key: "/sales/contracts", icon: <ProfileOutlined />, label: "合同管理" },
         { key: "/sales/targets", icon: <AimOutlined />, label: "销售目标" },
-        { key: "/sales/inquiry", icon: <RobotOutlined />, label: "询价自动回复" },
+        { key: "/sales/inquiry", icon: <RobotOutlined />, label: "询价回复" },
       ],
     },
-    { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
-    { key: "/tickets", icon: <IssuesCloseOutlined />, label: "工单管理" },
     {
-      key: "_grp_procurement",
+      key: "_domain_procurement",
       icon: <ShoppingCartOutlined />,
-      label: "采购智能",
+      label: "采购与供应链",
       children: [
-        { key: "/procurement/dashboard", icon: <DashboardOutlined />, label: "采购仪表板" },
+        { key: "/procurement/dashboard", icon: <DashboardOutlined />, label: "采购工作台" },
+        { key: "/sales/purchase-orders", icon: <ShoppingCartOutlined />, label: "采购订单" },
+        { key: "/suppliers/stats", icon: <DashboardOutlined />, label: "供应商总览" },
+        { key: "/suppliers", icon: <TeamOutlined />, label: "供应商台账" },
+        { key: "/suppliers/compare", icon: <SwapOutlined />, label: "供应商对比" },
       ],
     },
     {
-      key: "_grp_reports",
-      icon: <PieChartOutlined />,
-      label: "报表分析",
+      key: "_domain_inventory",
+      icon: <StockOutlined />,
+      label: "产品与库存",
       children: [
-        { key: "/reports/sales", icon: <PieChartOutlined />, label: "销售报表" },
-        { key: "/reports/ar", icon: <DollarOutlined />, label: "应收账款" },
-        { key: "/reports/inventory", icon: <StockOutlined />, label: "库存报表" },
-        { key: "/reports/procurement", icon: <ShoppingCartOutlined />, label: "采购报表" },
+        { key: "/products", icon: <ShopOutlined />, label: "产品台账" },
+        { key: "/products/price-import", icon: <UploadOutlined />, label: "价格导入" },
+        { key: "/brands", icon: <TagOutlined />, label: "品牌管理" },
+        { key: "/inventory", icon: <StockOutlined />, label: "库存总览" },
+        { key: "/warehouse/warehouses", icon: <ShopOutlined />, label: "仓库管理" },
+        { key: "/warehouse/inventory-ledger", icon: <FileTextOutlined />, label: "库存台账" },
+        { key: "/warehouse/inventory-batches", icon: <FileTextOutlined />, label: "批次与 COGS" },
       ],
     },
     {
-      key: "_grp_finance",
+      key: "_domain_finance",
       icon: <DollarOutlined />,
       label: "财务管理",
       children: [
         { key: "/finance/accounts", icon: <FileTextOutlined />, label: "会计科目" },
         { key: "/finance/journal-entries", icon: <ProfileOutlined />, label: "记账凭证" },
         { key: "/finance/pnl", icon: <PieChartOutlined />, label: "损益表" },
+        { key: "/reports/ar", icon: <DollarOutlined />, label: "应收账款" },
+        { key: "/reports/ap", icon: <DollarOutlined />, label: "应付账款" },
         { key: "/finance/commissions", icon: <TrophyOutlined />, label: "佣金管理" },
         { key: "/finance/commission-schemes", icon: <SettingOutlined />, label: "提成方案" },
-        { key: "/reports/ap", icon: <DollarOutlined />, label: "应付账款" },
       ],
     },
     {
-      key: "_grp_data",
-      icon: <UploadOutlined />,
-      label: "数据管理",
-      children: [{ key: "/data/import-export", icon: <SwapOutlined />, label: "批量导入导出" }],
+      key: "_domain_analytics",
+      icon: <PieChartOutlined />,
+      label: "报表与分析",
+      children: [
+        { key: "/reports/sales", icon: <PieChartOutlined />, label: "销售报表" },
+        { key: "/reports/inventory", icon: <StockOutlined />, label: "库存报表" },
+        { key: "/reports/procurement", icon: <ShoppingCartOutlined />, label: "采购报表" },
+        { key: "/customers/intelligence", icon: <HeartOutlined />, label: "客户分析" },
+      ],
     },
     {
-      key: "_grp_system",
+      key: "_domain_collaboration",
+      icon: <IssuesCloseOutlined />,
+      label: "协作与审批",
+      children: [
+        { key: "/system/approvals", icon: <FileDoneOutlined />, label: "审批管理" },
+        { key: "/system/approval-rules", icon: <ProfileOutlined />, label: "审批规则" },
+        { key: "/tickets", icon: <IssuesCloseOutlined />, label: "工单管理" },
+        { key: "/notifications", icon: <BellOutlined />, label: "通知中心" },
+        { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 助手" },
+      ],
+    },
+    {
+      key: "_domain_system",
       icon: <SettingOutlined />,
-      label: "系统管理",
+      label: "系统治理",
       children: [
         { key: "/system/users", icon: <TeamOutlined />, label: "用户管理" },
         { key: "/system/roles", icon: <TeamOutlined />, label: "角色权限" },
-        { key: "/system/approvals", icon: <FileDoneOutlined />, label: "审批管理" },
-        { key: "/system/approval-rules", icon: <ProfileOutlined />, label: "审批规则" },
         { key: "/system/audit-logs", icon: <FileTextOutlined />, label: "审计日志" },
+        { key: "/data/import-export", icon: <SwapOutlined />, label: "导入与导出" },
+        { key: "/settings", icon: <SettingOutlined />, label: "系统设置" },
       ],
     },
-    { key: "/settings", icon: <SettingOutlined />, label: "设置" },
   ];
+  const searchableRoutes = flattenMenuItems(menuItems);
+  const selectedKey =
+    searchableRoutes
+      .map((item) => item.key)
+      .filter((key) => location.pathname === key || location.pathname.startsWith(`${key}/`))
+      .sort((a, b) => b.length - a.length)[0] || location.pathname;
+  const currentRoute = searchableRoutes.find((item) => item.key === selectedKey);
+  const roleLabel = roles[0] || "业务用户";
+
+  const navigateFromMenu = (key: string) => {
+    navigate(key);
+    setMobileMenuOpen(false);
+  };
+
+  const handleGlobalSearch = (value: string) => {
+    const query = value.trim().toLowerCase();
+    if (!query) return;
+    const matched = searchableRoutes.find((item) =>
+      item.label.toLowerCase().includes(query) || item.key.toLowerCase().includes(query),
+    );
+    if (matched) navigate(matched.key);
+  };
 
   const handleLogout = () => {
     logout();
@@ -293,40 +268,58 @@ export default function MainLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Sider
+    <Layout className="erp-app-shell">
+      {!isMobile && <Sider
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
         theme="dark"
         breakpoint="lg"
-        collapsedWidth={isMobile ? 0 : 80}
-        style={isMobile ? { position: "fixed", zIndex: 100, height: "100vh" } : undefined}
+        width={224}
+        collapsedWidth={64}
+        className="erp-app-sider"
       >
-        <div style={{ padding: 16, textAlign: "center" }}>
-          <Text strong style={{ color: token.colorWhite, fontSize: collapsed ? 14 : 18 }}>
-            {collapsed ? "AI" : "AIERP"}
-          </Text>
+        <div className="erp-app-brand">
+          <span className="erp-app-brand-mark">AI</span>
+          {!collapsed && <Text strong className="erp-app-brand-name">AIERP</Text>}
         </div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => navigateFromMenu(key)}
+          className="erp-app-menu"
         />
-      </Sider>
+      </Sider>}
       <Layout>
-        <Header
-          style={{
-            background: token.colorBgContainer,
-            padding: "0 24px",
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
+        <Header className="erp-app-header">
+          <div className="erp-app-header-context">
+            {isMobile && <Button type="text" icon={<MenuOutlined />} onClick={() => setMobileMenuOpen(true)} aria-label="打开菜单" />}
+            <Breadcrumb
+              items={[
+                { title: <HomeOutlined />, onClick: () => navigate("/") },
+                ...(currentRoute ? [{ title: currentRoute.label }] : []),
+              ]}
+            />
+          </div>
+          <Input.Search
+            className="erp-global-search"
+            prefix={<SearchOutlined />}
+            placeholder="搜索菜单或功能"
+            allowClear
+            onSearch={handleGlobalSearch}
+          />
+          <div className="erp-app-header-actions">
+            <Tooltip title="AI 助手">
+              <Button type="text" icon={<RobotOutlined />} onClick={() => setNlpDrawerOpen(true)} aria-label="AI 助手" />
+            </Tooltip>
+            <Tooltip title="帮助与设置">
+              <Button type="text" icon={<QuestionCircleOutlined />} onClick={() => navigate("/settings")} aria-label="帮助与设置" />
+            </Tooltip>
+            {!isMobile && <Tooltip title="全屏">
+              <Button type="text" icon={<FullscreenOutlined />} onClick={() => document.documentElement.requestFullscreen?.()} aria-label="全屏" />
+            </Tooltip>}
           <Badge count={unreadCount} size="small">
             <Button
               type="text"
@@ -334,42 +327,32 @@ export default function MainLayout() {
               onClick={() => navigate("/notifications")}
             />
           </Badge>
-          <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>
-            退出
-          </Button>
+          <Tooltip title={`${username || "用户"} · ${roleLabel}`}>
+            <Avatar size={30} icon={<UserOutlined />} />
+          </Tooltip>
+          {!isMobile && <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>退出</Button>}
+          </div>
         </Header>
-        <Content
-          style={{
-            margin: isMobile ? 8 : 24,
-            padding: isMobile ? 12 : 24,
-            background: token.colorBgContainer,
-            borderRadius: 8,
-            minHeight: 280,
-          }}
-        >
+        <Content className="erp-app-content">
           <Outlet />
         </Content>
       </Layout>
-      {/* Floating AI Q&A Button */}
-      <Button
-        type="primary"
-        shape="circle"
-        size="large"
-        icon={<RobotOutlined />}
-        onClick={() => setNlpDrawerOpen(true)}
-        style={{
-          position: "fixed",
-          bottom: 24,
-          right: 24,
-          zIndex: 1000,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-        }}
-      />
+      <Drawer title="全部功能" placement="left" open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} width="86%" className="erp-mobile-menu-drawer">
+        <Menu mode="inline" selectedKeys={[selectedKey]} items={menuItems} onClick={({ key }) => navigateFromMenu(key)} />
+        <Button danger block icon={<LogoutOutlined />} onClick={handleLogout} className="erp-mobile-logout">退出登录</Button>
+      </Drawer>
+      {isMobile && <nav className="erp-mobile-bottom-nav" aria-label="移动端主导航">
+        <Button type="text" icon={<HomeOutlined />} onClick={() => navigate("/")}>总览</Button>
+        <Button type="text" icon={<TeamOutlined />} onClick={() => navigate("/customers")}>客户</Button>
+        <Button type="text" icon={<ShoppingCartOutlined />} onClick={() => navigate("/sales/orders")}>订单</Button>
+        <Button type="text" icon={<BellOutlined />} onClick={() => navigate("/notifications")}>通知</Button>
+        <Button type="text" icon={<MoreOutlined />} onClick={() => setMobileMenuOpen(true)}>更多</Button>
+      </nav>}
       <Drawer
         title="AI 问答"
         open={nlpDrawerOpen}
         onClose={() => setNlpDrawerOpen(false)}
-        width={480}
+        width={isMobile ? "100%" : 480}
       >
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
           <Space.Compact style={{ width: "100%" }}>
@@ -449,7 +432,7 @@ export default function MainLayout() {
                   <List
                     size="small"
                     dataSource={nlpResult.actions}
-                    renderItem={(action, idx) => (
+                    renderItem={(action) => (
                       <List.Item>
                         <Typography.Text strong>{action.action}</Typography.Text>{" "}
                         <Tag color="orange">{action.urgency}</Tag>

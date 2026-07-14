@@ -192,6 +192,7 @@ class CustomerCreate(BaseModel):
     email: str | None = None
     website: str | None = None
     address: str | None = None
+    unified_social_credit_code: str | None = None
     tax_id: str | None = None
     registration_number: str | None = None
     invoice_title: str | None = None
@@ -227,6 +228,7 @@ class CustomerUpdate(BaseModel):
     email: str | None = None
     website: str | None = None
     address: str | None = None
+    unified_social_credit_code: str | None = None
     tax_id: str | None = None
     registration_number: str | None = None
     invoice_title: str | None = None

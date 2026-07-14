@@ -20,13 +20,13 @@ import {
   Tabs,
   Tag,
   Typography,
+  Grid,
 } from "antd";
 import {
   EditOutlined,
   MailOutlined,
   PhoneOutlined,
   PlusOutlined,
-  ExportOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +35,7 @@ import type { CustomerLog, CustomerQuotationHistory } from "@/types";
 import { StatusTag } from "@/ui";
 import { CustomerAIPanel } from "./CustomerAIPanel";
 import { CustomerBusinessInsight } from "./CustomerBusinessInsight";
+import { CREDIT_COLORS, STATUS_CONFIG } from "./constants";
 
 const { Text, Title } = Typography;
 
@@ -72,19 +73,6 @@ interface Customer360Data {
 }
 
 // ── 常量 ──
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  new_lead: { label: "新潜客", color: "blue" },
-  active: { label: "活跃", color: "green" },
-  converted: { label: "已成交", color: "cyan" },
-  vip: { label: "VIP", color: "gold" },
-  inactive: { label: "不活跃", color: "orange" },
-  churned: { label: "流失", color: "red" },
-};
-
-const CREDIT_COLORS: Record<string, string> = {
-  A: "green", B: "blue", C: "orange", D: "red",
-};
 
 function relativeTime(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
@@ -134,23 +122,35 @@ export const CustomerDetailPanel: React.FC<DetailPanelProps> = ({
   onEdit,
 }) => {
   const navigate = useNavigate();
+  const screens = Grid.useBreakpoint();
+  const [activeTab, setActiveTab] = useState("basic");
   const [loading360, setLoading360] = useState(false);
+  const [loaded360, setLoaded360] = useState(false);
   const [data360, setData360] = useState<Customer360Data | null>(null);
   const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [contacts, setContacts] = useState<Array<{ id: number; name: string; phone?: string; email?: string; role?: string }>>([]);
   const [tags, setTags] = useState<Array<{ id: number; name: string; color?: string }>>([]);
 
-  // ── 并行加载 ──
-  const loadAll = useCallback(async () => {
+  const loadBasic = useCallback(async () => {
     if (!customerId || !open) return;
+    try {
+      const response = await getContacts(customerId);
+      const payload = (response.data as { data?: Array<typeof contacts[0]> })?.data;
+      setContacts(payload || []);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载联系人失败"));
+    }
+  }, [customerId, open]);
+
+  const load360 = useCallback(async () => {
+    if (!customerId || !open || loaded360) return;
     setLoading360(true);
     try {
-      const [res360, resQuotes, resLogs, resContacts, resTags] = await Promise.allSettled([
+      const [res360, resQuotes, resLogs, resTags] = await Promise.allSettled([
         getCustomer360(customerId),
         getCustomerQuotationHistory(customerId),
         getCustomerLogs(customerId),
-        getContacts(customerId),
         getCustomerTags(customerId),
       ]);
 
@@ -166,22 +166,27 @@ export const CustomerDetailPanel: React.FC<DetailPanelProps> = ({
         const payload = resLogs.value.data.data as CustomerLog[] | undefined;
         setLogs((payload || []).slice(0, 20));
       }
-      if (resContacts.status === "fulfilled") {
-        const payload = (resContacts.value.data as { data?: Array<typeof contacts[0]> })?.data;
-        setContacts(payload || []);
-      }
       if (resTags.status === "fulfilled") {
         const payload = (resTags.value.data as { data?: Array<typeof tags[0]> })?.data;
         setTags(payload || []);
       }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户详情失败")); } finally {
+      setLoaded360(true);
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载客户 360 失败")); } finally {
       setLoading360(false);
     }
-  }, [customerId, open]);
+  }, [customerId, loaded360, open]);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    if (open) {
+      setActiveTab("basic");
+      setLoaded360(false);
+      loadBasic();
+    }
+  }, [loadBasic, open]);
+
+  useEffect(() => {
+    if (activeTab === "360") load360();
+  }, [activeTab, load360]);
 
   const statusVal = (customer.status as string) || "new_lead";
   const statusCfg = STATUS_CONFIG[statusVal] || { label: statusVal, color: "default" };
@@ -373,10 +378,13 @@ export const CustomerDetailPanel: React.FC<DetailPanelProps> = ({
       }
       open={open}
       onClose={onClose}
-      width={640}
+      width={screens.xl ? 720 : screens.md ? 620 : "100%"}
+      className="customer-detail-drawer"
     >
       <Tabs
-        defaultActiveKey="basic"
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        destroyOnHidden
         items={[
           { key: "basic", label: "基本信息", children: tabBasic },
           { key: "360", label: "360 视图", children: tab360 },

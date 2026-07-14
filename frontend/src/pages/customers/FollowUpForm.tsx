@@ -12,6 +12,7 @@ import { createFollowUp, updateFollowUp, getFollowUps, getApiErrorMessage } from
 import type { FollowUp } from "../../types";
 import { FOLLOW_UP_METHOD_OPTIONS, FOLLOW_UP_PRIORITY_OPTIONS, FOLLOW_UP_STATUS_OPTIONS } from "./customerUi";
 import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
+import CustomerModuleShell from "./CustomerModuleShell";
 
 const { TextArea } = Input;
 
@@ -58,7 +59,7 @@ export default function FollowUpForm() {
           setInitialLoading(false);
         });
     }
-  }, [isEdit, custId, followupIdNum, form]);
+  }, [isEdit, custId, followupIdNum, form, message]);
 
   // 提交表单
   const onFinish = async (values: Record<string, unknown>) => {
@@ -114,14 +115,14 @@ export default function FollowUpForm() {
   }
 
   return (
-    <div>
+    <CustomerModuleShell title={isEdit ? "编辑跟进" : "新增跟进"} subtitle="记录客户互动结果与下一步计划">
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
           返回列表
         </Button>
       </Space>
 
-      <Card
+      <Card className="customer-surface customer-form-card"
         title={isEdit ? "编辑跟进记录" : "新建跟进记录"}
         extra={!isEdit && (
           <FollowUpAIRecognizer
@@ -176,7 +177,7 @@ export default function FollowUpForm() {
             <Input placeholder="请输入负责人" />
           </Form.Item>
 
-          <Form.Item>
+          <Form.Item className="customer-form-actions">
             <Space>
               <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
                 保存
@@ -186,6 +187,6 @@ export default function FollowUpForm() {
           </Form.Item>
         </Form>
       </Card>
-    </div>
+    </CustomerModuleShell>
   );
 }

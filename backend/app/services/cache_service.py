@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import time
+from typing import Any
 
 from app.config import settings
 from app.core.observability.metrics import (
@@ -100,14 +101,12 @@ def l1_stats() -> dict:
     }
 
 
-_redis = None
+_redis: Any = None
 
 try:
-    import redis.asyncio as aioredis
-    from redis.asyncio import Redis
+    import redis.asyncio as aioredis_module
 except ImportError:
-    aioredis = None
-    Redis = None
+    aioredis_module = None  # type: ignore[assignment]
 
 
 async def get_redis():
@@ -121,7 +120,9 @@ async def get_redis():
             _redis = None
 
     try:
-        _redis = aioredis.from_url(
+        if aioredis_module is None:
+            return None
+        _redis = aioredis_module.from_url(
             settings.REDIS_URL,
             socket_connect_timeout=3,
             socket_timeout=3,

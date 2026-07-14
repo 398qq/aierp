@@ -105,7 +105,7 @@ async def revoke_all_user_tokens(user_id: int, db: AsyncSession | None = None) -
         .values(token_version=User.token_version + 1)
     )
     await db.commit()
-    affected = result.rowcount or 0
+    affected = getattr(result, "rowcount", 0) or 0
     if affected:
         # Fetch the new version so the caller knows it
         row = await db.execute(select(User.token_version).where(User.id == user_id))
@@ -120,19 +120,6 @@ async def revoke_all_user_tokens(user_id: int, db: AsyncSession | None = None) -
 # ────────────────────────────────────────────────────────────────────────
 # Token creation & decoding
 # ────────────────────────────────────────────────────────────────────────
-
-
-def _truncate_bcrypt_secret(password: str) -> bytes:
-    if isinstance(password, str):
-        raw = password.encode("utf-8")
-    else:
-        raw = password
-    if len(raw) <= _BCRYPT_MAX_BYTES:
-        return raw
-    truncated = raw[:_BCRYPT_MAX_BYTES]
-    while truncated and (truncated[-1] & 0xC0) == 0x80:
-        truncated = truncated[:-1]
-    return truncated
 
 
 def hash_password(password: str) -> str:

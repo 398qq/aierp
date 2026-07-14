@@ -43,7 +43,7 @@
 
 .dashboard-query-label {
   flex: 0 0 auto;
-  color: #533afd;
+  color: #2563eb;
   font-size: 13px;
   font-weight: 600;
 }
@@ -53,8 +53,8 @@
 }
 
 .dashboard-query-bar .ant-btn:hover {
-  color: #533afd !important;
-  background: #eeecff !important;
+  color: #2563eb !important;
+  background: #dbeafe !important;
 }
 
 .dashboard-kpi-grid {
@@ -74,7 +74,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #533afd;
+  background: #2563eb;
   content: "";
 }
 
@@ -98,8 +98,8 @@
   width: 30px;
   height: 30px;
   border-radius: 7px;
-  color: #533afd;
-  background: #eeecff;
+  color: #2563eb;
+  background: #dbeafe;
   font-size: 15px;
 }
 
@@ -294,8 +294,8 @@
   gap: 10px;
   padding: 12px;
   border-radius: 8px;
-  color: #533afd;
-  background: #eeecff;
+  color: #2563eb;
+  background: #dbeafe;
 }
 
 .dashboard-next-action > div {
@@ -380,7 +380,7 @@
   height: 34px;
   border-radius: 8px;
   color: #fff;
-  background: #533afd;
+  background: #2563eb;
 }
 
 .dashboard-health-summary {

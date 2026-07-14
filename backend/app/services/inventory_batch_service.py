@@ -19,9 +19,9 @@ import logging
 from dataclasses import dataclass
 from datetime import date as date_type, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.inventory.batch import (
@@ -71,8 +71,11 @@ class BatchAllocationResult:
     @property
     def total_cost(self) -> Decimal:
         return sum(
-            Decimal(str(a.quantity)) * Decimal(str(a.unit_cost))
-            for a in self.allocations
+            (
+                Decimal(str(a.quantity)) * Decimal(str(a.unit_cost))
+                for a in self.allocations
+            ),
+            start=Decimal("0"),
         )
 
     @property
@@ -235,12 +238,14 @@ class InventoryBatchService:
                 warehouse_id=b.warehouse_id,
                 batch_no=b.batch_no,
                 quantity=b.quantity,
-                received_date=b.received_date.date()
+                received_date=cast(datetime, b.received_date).date()
                 if b.received_date
                 else date_type.today(),
                 unit_cost=float(b.unit_cost),
                 status=BatchStatus(b.status) if b.status else BatchStatus.AVAILABLE,
-                expiry_date=b.expiry_date.date() if b.expiry_date else None,
+                expiry_date=cast(datetime, b.expiry_date).date()
+                if b.expiry_date
+                else None,
                 supplier_id=b.supplier_id,
             )
             for b in orm_batches
@@ -400,7 +405,9 @@ class InventoryBatchService:
         from app.models.product import Product
         from app.models.product import Supplier
 
-        conditions = [InventoryBatchORM.deleted_at.is_(None)]
+        conditions: list[ColumnElement[bool]] = [
+            InventoryBatchORM.deleted_at.is_(None)
+        ]
         if product_id:
             conditions.append(InventoryBatchORM.product_id == product_id)
         if warehouse_id:
@@ -467,7 +474,7 @@ class InventoryBatchService:
         """
         from app.models.sales import SalesOrder, SalesOrderItem
 
-        conditions = [
+        conditions: list[ColumnElement[bool]] = [
             SalesOrderItem.deleted_at.is_(None),
             SalesOrder.deleted_at.is_(None),
             SalesOrderItem.cost_amount.isnot(None),

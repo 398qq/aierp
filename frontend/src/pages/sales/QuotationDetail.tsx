@@ -342,7 +342,7 @@ export default function QuotationDetail() {
         </Form>
       </Modal>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 12, alignItems: "start" }}>
+      <div className="erp-detail-two-column">
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Card
             title="报价信息"

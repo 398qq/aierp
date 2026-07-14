@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import {
   AlertOutlined,
@@ -29,6 +29,7 @@ import {
 import { getCustomerAIStats, getDashboardStats, getFollowUpReminders } from "../../api";
 import type { CustomerAIStats, DashboardStats, FollowUpReminder } from "../../types";
 import CustomerModuleShell from "./CustomerModuleShell";
+import { useAuthStore } from "@/store/auth";
 
 const COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#eb2f96", "#722ed1", "#13c2c2", "#f5222d", "#faad14", "#2f54eb"];
 const { Text } = Typography;
@@ -51,6 +52,7 @@ function getLevelCount(stats: DashboardStats, level: string) {
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
+  const roles = useAuthStore((state) => state.roles);
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [aiStats, setAiStats] = useState<CustomerAIStats | null>(null);
   const [reminders, setReminders] = useState<FollowUpReminder[]>([]);
@@ -137,10 +139,15 @@ export default function CustomerDashboard() {
       .slice(0, 5),
     [reminders],
   );
+  const dashboardContext = roles.some((role) => /finance/i.test(role))
+    ? { title: "客户财务工作台", subtitle: "信用结构、客户价值与资料风险" }
+    : roles.some((role) => /manager|supervisor|admin/i.test(role))
+      ? { title: "客户经营工作台", subtitle: "团队客户盘面、跟进风险与重点行动" }
+      : { title: "我的客户工作台", subtitle: "个人待跟进、重点客户与下一步行动" };
 
   if (loading) {
     return (
-      <CustomerModuleShell title="客户经营驾驶舱" subtitle="客户盘面、跟进风险与智能行动">
+      <CustomerModuleShell title={dashboardContext.title} subtitle={dashboardContext.subtitle}>
         <Spin style={{ display: "block", marginTop: 100 }} />
       </CustomerModuleShell>
     );
@@ -148,7 +155,7 @@ export default function CustomerDashboard() {
 
   if (!stats.total) {
     return (
-      <CustomerModuleShell title="客户经营驾驶舱" subtitle="客户盘面、跟进风险与智能行动">
+      <CustomerModuleShell title={dashboardContext.title} subtitle={dashboardContext.subtitle}>
         <Empty description="暂无客户数据" />
       </CustomerModuleShell>
     );
@@ -156,8 +163,8 @@ export default function CustomerDashboard() {
 
   return (
     <CustomerModuleShell
-      title="客户经营驾驶舱"
-      subtitle="客户盘面、跟进风险与智能行动"
+      title={dashboardContext.title}
+      subtitle={dashboardContext.subtitle}
       extra={(
         <Space>
           <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>AI工作队列</Button>

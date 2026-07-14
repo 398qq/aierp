@@ -98,6 +98,15 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   churned: { label: "流失", color: "red" },
 };
 
+export const CREDIT_COLORS: Record<string, string> = {
+  AAA: "green",
+  AA: "cyan",
+  A: "blue",
+  B: "orange",
+  C: "red",
+  D: "red",
+};
+
 // Customer group presets
 export type GroupValue = "all" | "new" | "vip_active" | "at_risk" | "dormant" | "public_sea";
 export const GROUP_OPTIONS: { label: string; value: GroupValue }[] = [

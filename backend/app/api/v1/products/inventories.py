@@ -1,6 +1,7 @@
 """Inventory management API."""
 
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -95,7 +96,7 @@ async def list_inventories(
     keyword: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> Any:
     query = (
         select(Inventory, Product, Warehouse)
         .join(Product, Inventory.product_id == Product.id)
@@ -136,7 +137,7 @@ async def get_inventory(
     inventory_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> Any:
     result = await db.execute(
         select(Inventory, Product, Warehouse)
         .join(Product, Inventory.product_id == Product.id)
@@ -155,7 +156,7 @@ async def create_inventory(
     data: InventoryCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> Any:
     existing = await db.execute(
         select(Inventory).where(
             Inventory.product_id == data.product_id,
@@ -188,7 +189,7 @@ async def update_inventory(
     data: InventoryUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> Any:
     inventory = await db.get(Inventory, inventory_id)
     if not inventory or inventory.deleted_at is not None:
         return fail("Inventory not found", 404)
@@ -211,7 +212,7 @@ async def delete_inventory(
     inventory_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> Any:
     inventory = await db.get(Inventory, inventory_id)
     if not inventory or inventory.deleted_at is not None:
         return fail("Inventory not found", 404)

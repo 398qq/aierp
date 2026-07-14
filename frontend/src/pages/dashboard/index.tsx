@@ -71,7 +71,7 @@ import { StatusTag } from "../../ui";
 import "./dashboard.css";
 
 const { Paragraph, Text, Title } = Typography;
-const CHART_COLORS = ["#533afd", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const CHART_COLORS = ["#2563eb", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#64748b"];
 const EMPTY_STATS: DashboardStats = {
   total: 0,
   by_industry: [],
@@ -304,7 +304,7 @@ export default function Dashboard() {
           key: "visits",
           label: (
             <span>
-              近期拜访 <Badge count={upcomingVisits.length} size="small" color="#533afd" />
+              近期拜访 <Badge count={upcomingVisits.length} size="small" color="#2563eb" />
             </span>
           ),
           children: upcomingVisits.length ? (
@@ -436,7 +436,7 @@ export default function Dashboard() {
           </div>
           <div className="dashboard-pulse-items">
             {[
-              { label: "客户总数", value: stats.total, color: "#533afd" },
+              { label: "客户总数", value: stats.total, color: "#2563eb" },
               { label: "逾期跟进", value: overdue.length, color: overdue.length ? "#ef4444" : "#10b981" },
               { label: "未来14天拜访", value: upcomingVisits.length, color: "#3b82f6" },
               { label: "近期客户动态", value: recentActivity.length, color: "#f59e0b" },
@@ -561,7 +561,7 @@ export default function Dashboard() {
                       <XAxis dataKey="month" axisLine={false} tickLine={false} />
                       <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
                       <Tooltip cursor={{ fill: "#f6f5ff" }} />
-                      <Bar dataKey="count" name="新增客户" fill="#533afd" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                      <Bar dataKey="count" name="新增客户" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={42} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (

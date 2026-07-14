@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   App,
   Tabs,
@@ -98,6 +98,7 @@ import CustomerFormFields from "./CustomerForm";
 import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
 import VendAsSupplierModal from "./VendAsSupplierModal";
 import QuotationHistoryPanel from "./QuotationHistoryPanel";
+import CustomerModuleShell from "./CustomerModuleShell";
 import dayjs from "dayjs";
 import type {
   Attachment,
@@ -159,6 +160,7 @@ export default function CustomerDetail() {
   const { message } = App.useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -288,7 +290,7 @@ export default function CustomerDetail() {
   };
 
   return (
-    <div>
+    <CustomerModuleShell title={customer?.name || "客户详情"} subtitle="客户档案、业务往来与跟进记录">
       {loading && <Spin style={{ display: "block", margin: "100px auto" }} />}
       {error && <Alert type="error" message={error} />}
       {!loading && !error && !customer && <Empty description="未找到客户" />}
@@ -597,7 +599,14 @@ export default function CustomerDetail() {
           </Card>
 
           <Tabs
-            defaultActiveKey="overview"
+            activeKey={searchParams.get("tab") || "overview"}
+            onChange={(tab) => {
+              const next = new URLSearchParams(searchParams);
+              if (tab === "overview") next.delete("tab");
+              else next.set("tab", tab);
+              setSearchParams(next, { replace: true });
+            }}
+            destroyOnHidden
             items={[
               {
                 key: "overview",
@@ -918,7 +927,7 @@ export default function CustomerDetail() {
           />
         </>
       )}
-    </div>
+    </CustomerModuleShell>
   );
 }
 

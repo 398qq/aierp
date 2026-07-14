@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, Form, Input, Button, Typography, Spin, message, Result, Row, Col, Flex } from "antd";
+import { Card, Form, Input, Button, Typography, Spin, message, Result, Row, Col } from "antd";
 import { SendOutlined, CheckCircleOutlined, RobotOutlined, PhoneOutlined, MailOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 import type { APIResponse } from "../../types";
@@ -40,7 +40,7 @@ function StockBadge({ status }: { status: string }) {
     low_stock: { color: "orange", text: "库存不足" },
     out_of_stock: { color: "red", text: "缺货" },
   };
-  const { color = "default", text } = map[status] || { color: "default", text: status };
+  const { text } = map[status] || { color: "default", text: status };
   return (
     <span style={{
       display: "inline-block",
@@ -98,8 +98,9 @@ export default function InquiryPortal() {
       } else {
         setError(resp.data.msg || "提交失败，请稍后重试");
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.msg || err?.message || "网络错误，请稍后重试");
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { msg?: string } }; message?: string };
+      setError(error.response?.data?.msg || error.message || "网络错误，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ export default function InquiryPortal() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      background: "linear-gradient(135deg, #10233f 0%, #1e3a5f 58%, #2563eb 100%)",
       padding: "40px 16px",
     }}>
       {/* Container */}
@@ -125,7 +126,7 @@ export default function InquiryPortal() {
             padding: "16px 32px",
             boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
           }}>
-            <RobotOutlined style={{ fontSize: 32, color: "#667eea" }} />
+            <RobotOutlined style={{ fontSize: 32, color: "#2563eb" }} />
             <div style={{ textAlign: "left" }}>
               <Title level={4} style={{ margin: 0, color: "#222" }}>TTDIY 电子元器件</Title>
               <Text type="secondary" style={{ fontSize: 13 }}>官方询价通道 · AI 智能响应</Text>
@@ -170,7 +171,7 @@ export default function InquiryPortal() {
               </Form.Item>
 
               <Row gutter={16}>
-                <Col span={12}>
+                <Col xs={24} md={12}>
                   <Form.Item
                     name="contact_name"
                     label={<Text strong>您的姓名</Text>}
@@ -179,7 +180,7 @@ export default function InquiryPortal() {
                     <Input placeholder="张三" size="large" />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} md={12}>
                   <Form.Item
                     name="contact_info"
                     label={<Text strong>联系方式</Text>}
@@ -212,7 +213,7 @@ export default function InquiryPortal() {
                     fontSize: 16,
                     fontWeight: 600,
                     borderRadius: 8,
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    background: "#2563eb",
                     border: "none",
                   }}
                 >
@@ -278,12 +279,12 @@ export default function InquiryPortal() {
             <Card
               title={
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <RobotOutlined style={{ color: "#667eea" }} />
+                  <RobotOutlined style={{ color: "#2563eb" }} />
                   <span>AI 回复</span>
                 </span>
               }
               style={{ marginBottom: 16 }}
-              styles={{ body: { background: "#f8f6ff" } }}
+              styles={{ body: { background: "#eff6ff" } }}
             >
               <Paragraph style={{ fontSize: 15, marginBottom: 0, whiteSpace: "pre-wrap", lineHeight: 1.8 }}>
                 {result.reply_text}
@@ -306,6 +307,8 @@ export default function InquiryPortal() {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
                     }}
                   >
                     <div>

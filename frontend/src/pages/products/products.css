@@ -41,7 +41,7 @@
 
 .product-health-title > .anticon {
   margin-top: 4px;
-  color: #533afd;
+  color: #2563eb;
 }
 
 .product-health-title > div {
@@ -79,12 +79,12 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #533afd;
+  background: #2563eb;
   content: "";
 }
 
 .product-health-metric:hover {
-  border-color: #c9c3ff;
+  border-color: #bfdbfe;
   box-shadow: 0 5px 16px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
 }
@@ -109,8 +109,8 @@
   width: 30px;
   height: 30px;
   border-radius: 7px;
-  color: #533afd;
-  background: #eeecff;
+  color: #2563eb;
+  background: #dbeafe;
 }
 
 .product-health-icon.is-warning {
@@ -218,7 +218,7 @@
 
 .product-task-button.is-active {
   background: #f3f1ff;
-  box-shadow: inset 3px 0 #533afd;
+  box-shadow: inset 3px 0 #2563eb;
 }
 
 .product-task-main {
@@ -418,7 +418,7 @@
   gap: 12px;
   margin-bottom: 12px;
   padding: 10px 12px;
-  border: 1px solid #c9c3ff;
+  border: 1px solid #bfdbfe;
   border-radius: 8px;
   background: #f3f1ff;
 }
@@ -502,7 +502,7 @@
 }
 
 .product-name-link:hover {
-  color: #533afd;
+  color: #2563eb;
   text-decoration: underline;
 }
 

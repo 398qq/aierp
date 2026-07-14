@@ -31,45 +31,28 @@ export function PageHeader({
   actions,
 }: PageHeaderProps) {
   return (
-    <div style={rootStyle}>
-      <div style={leftStyle}>
+    <div className="erp-page-header">
+      <div className="erp-page-header-main">
         {onBack && (
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={onBack}
-            style={backButtonStyle}
+            className="erp-page-header-back"
           >
             {backLabel}
           </Button>
         )}
         <div>
-          <div style={titleStyle}>{title}</div>
-          {description && <div style={descStyle}>{description}</div>}
+          <div className="erp-page-header-title">{title}</div>
+          {description && <div className="erp-page-header-description">{description}</div>}
         </div>
       </div>
       {actions && (
-        <Space style={actionsStyle} size="small" wrap>
+        <Space className="erp-page-header-actions" size="small" wrap>
           {actions}
         </Space>
       )}
     </div>
   );
 }
-
-const rootStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: 16,
-  gap: 16,
-} as const;
-const leftStyle = { display: "flex", gap: 12, alignItems: "center" } as const;
-const backButtonStyle = { marginRight: 4, paddingLeft: 4 } as const;
-const titleStyle = { fontSize: 20, fontWeight: 600, color: "var(--ant-color-text)" } as const;
-const descStyle = {
-  color: "var(--ant-color-text-secondary)",
-  fontSize: 13,
-  marginTop: 4,
-} as const;
-const actionsStyle = { flex: "0 0 auto" } as const;

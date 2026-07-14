@@ -11,9 +11,9 @@ hold session state. This keeps service methods easy to compose and test.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.datetime_utils import days_since, safe_float, to_utc
@@ -116,9 +116,10 @@ class CustomerStatsService(BaseCRUDService):
         self, db: AsyncSession, customer_id: int
     ) -> dict[str, Any] | None:
         """Aggregate order / payment / credit / health / RFM for one customer."""
-        customer = await self.get(db, customer_id)
-        if customer is None:
+        customer_obj = await self.get(db, customer_id)
+        if customer_obj is None:
             return None
+        customer = cast(Customer, customer_obj)
 
         now = datetime.now(timezone.utc)
         created_at = to_utc(customer.created_at) or now
@@ -210,9 +211,10 @@ class CustomerStatsService(BaseCRUDService):
         self, db: AsyncSession, customer_id: int
     ) -> list[dict[str, Any]] | None:
         """Build a unified timeline of contact / follow-up / order events."""
-        customer = await self.get(db, customer_id)
-        if customer is None:
+        customer_obj = await self.get(db, customer_id)
+        if customer_obj is None:
             return None
+        customer = cast(Customer, customer_obj)
 
         followups = (
             (
@@ -491,7 +493,7 @@ class CustomerStatsService(BaseCRUDService):
                 .group_by(SalesOrder.customer_id)
             )
         ).all()
-        order_map = {
+        order_map: dict[int, dict[str, Any]] = {
             int(row[0]): {
                 "count": int(row[1] or 0),
                 "amount": safe_float(row[2]),
@@ -793,7 +795,7 @@ class CustomerStatsService(BaseCRUDService):
         now = datetime.now(timezone.utc)
         today = now.date()
 
-        conditions = [
+        conditions: list[ColumnElement[bool]] = [
             CustomerFollowUp.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
         ]

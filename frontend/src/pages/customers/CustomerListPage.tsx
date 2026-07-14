@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   Button,
+  Card,
   Dropdown,
   Empty,
   Form,
@@ -15,10 +16,12 @@ import {
   Segmented,
   Select,
   Space,
+  Spin,
   Table,
   Tag,
-  Tooltip,
   Typography,
+  Grid,
+  Pagination,
 } from "antd";
 import {
   PlusOutlined,
@@ -33,7 +36,7 @@ import {
   FileTextOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { createFollowUp, exportCustomers, getCustomers, getApiErrorMessage } from "@/api";
 import type { Customer } from "@/types";
@@ -43,18 +46,9 @@ import { CustomerDetailPanel } from "./CustomerDetailPanel";
 import { CustomerFormDrawer } from "./CustomerFormDrawer";
 import { CustomerBatchBar } from "./CustomerBatchBar";
 import CustomerQuickFollowUpDrawer from "./CustomerQuickFollowUpDrawer";
-import { GROUP_OPTIONS, GROUP_FILTERS, STATUS_CONFIG, type GroupValue } from "./constants";
+import { CREDIT_COLORS, GROUP_OPTIONS, GROUP_FILTERS, STATUS_CONFIG, type GroupValue } from "./constants";
 
 const { Text } = Typography;
-
-const CREDIT_COLORS: Record<string, string> = {
-  AAA: "green",
-  AA: "cyan",
-  A: "blue",
-  B: "orange",
-  C: "red",
-  D: "red",
-};
 
 const LEVEL_COLORS: Record<string, string> = {
   A: "red",
@@ -129,7 +123,7 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
     {
       title: "客户",
       dataIndex: "name",
-      width: 250,
+      width: 235,
       fixed: "left",
       render: (name: string, record) => (
         <Space direction="vertical" size={0}>
@@ -137,32 +131,24 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
             {name}
           </a>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {record.code || "-"} {record.short_name ? `· ${record.short_name}` : ""}
+            {record.code || "-"} · {record.owner || "未分配"}
           </Text>
         </Space>
       ),
     },
     {
-      title: "负责人",
-      dataIndex: "owner",
-      width: 110,
-      render: (v: string | null) => v || <Text type="secondary">未分配</Text>,
-    },
-    {
-      title: "生命周期",
+      title: "状态/等级",
       dataIndex: "status",
-      width: 110,
-      render: (s: string) => {
+      width: 125,
+      render: (s: string, record) => {
         const c = STATUS_CONFIG[s] || { label: s || "-", color: "default" };
-        return <StatusTag tone={c.color as "green" | "blue" | "gold"}>{c.label}</StatusTag>;
+        return (
+          <Space size={4} wrap>
+            <StatusTag tone={c.color as "green" | "blue" | "gold"}>{c.label}</StatusTag>
+            {record.level && <Tag color={LEVEL_COLORS[record.level] || "default"}>{record.level}</Tag>}
+          </Space>
+        );
       },
-    },
-    {
-      title: "等级",
-      dataIndex: "level",
-      width: 80,
-      render: (level: string | null) =>
-        level ? <Tag color={LEVEL_COLORS[level] || "default"}>{level}</Tag> : "-",
     },
     {
       title: "行业/区域",
@@ -218,26 +204,6 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
       ),
     },
     {
-      title: "开票资料",
-      dataIndex: "tax_id",
-      width: 120,
-      render: (_: string | null, record) => {
-        const complete = isErpProfileComplete(record);
-        const tax = complete ? TAX_STATUS.complete : TAX_STATUS.missing;
-        return (
-          <Tooltip
-            title={
-              complete
-                ? "税号、抬头、地址、账期已维护"
-                : "税号/统一社会信用代码、发票抬头、发票地址或账期缺失"
-            }
-          >
-            <Tag color={tax.color}>{tax.label}</Tag>
-          </Tooltip>
-        );
-      },
-    },
-    {
       title: "最近联系",
       dataIndex: "last_contacted_at",
       width: 125,
@@ -253,27 +219,27 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
     {
       title: "操作",
       key: "actions",
-      width: 56,
-      align: "center",
+      width: 178,
       fixed: "right",
       render: (_: unknown, r) => (
-        <div onClick={(event) => event.stopPropagation()}>
+        <Space size={4} onClick={(event) => event.stopPropagation()}>
+          <Button size="small" type="link" icon={<PhoneFilled />} onClick={() => actions.onFollowUp(r)}>
+            跟进
+          </Button>
+          <Button size="small" type="link" icon={<ThunderboltOutlined />} onClick={() => actions.onCreateOpportunity(r)}>
+            机会
+          </Button>
           <Dropdown
             trigger={["click"]}
             placement="bottomRight"
             menu={{
               items: [
                 { key: "detail", icon: <EyeOutlined />, label: "客户详情" },
-                { key: "opportunity", icon: <ThunderboltOutlined />, label: "新增机会" },
-                { key: "follow-up", icon: <PhoneFilled />, label: "新增跟进" },
-                { type: "divider" },
                 { key: "edit", icon: <EditOutlined />, label: "编辑客户" },
               ],
               onClick: ({ key, domEvent }) => {
                 domEvent.stopPropagation();
                 if (key === "detail") actions.onViewDetail(r);
-                if (key === "opportunity") actions.onCreateOpportunity(r);
-                if (key === "follow-up") actions.onFollowUp(r);
                 if (key === "edit") actions.onEdit(r);
               },
             }}
@@ -286,7 +252,7 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
               title="更多操作"
             />
           </Dropdown>
-        </div>
+        </Space>
       ),
     },
   ];
@@ -294,11 +260,18 @@ function buildColumns(actions: CustomerColumnActions): ColumnsType<Customer> {
 
 export default function CustomerListPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
+  const [pageSize, setPageSize] = useState(() => {
+    const size = Number(searchParams.get("page_size"));
+    return [20, 50, 100].includes(size) ? size : 50;
+  });
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -308,16 +281,29 @@ export default function CustomerListPage() {
   const [followUpSaving, setFollowUpSaving] = useState(false);
   const [followUpForm] = Form.useForm();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [group, setGroup] = useState<GroupValue>("all");
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const [levelFilter, setLevelFilter] = useState<string | undefined>();
-  const [regionFilter, setRegionFilter] = useState<string | undefined>();
-  const [missingErp, setMissingErp] = useState(false);
+  const [group, setGroup] = useState<GroupValue>(() => (searchParams.get("group") as GroupValue) || "all");
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(() => searchParams.get("status") || undefined);
+  const [levelFilter, setLevelFilter] = useState<string | undefined>(() => searchParams.get("level") || undefined);
+  const [regionFilter, setRegionFilter] = useState<string | undefined>(() => searchParams.get("region") || undefined);
+  const [missingErp, setMissingErp] = useState(() => searchParams.get("missing_erp") === "1");
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (page > 1) next.set("page", String(page));
+    if (pageSize !== 50) next.set("page_size", String(pageSize));
+    if (search) next.set("q", search);
+    if (group !== "all") next.set("group", group);
+    if (statusFilter) next.set("status", statusFilter);
+    if (levelFilter) next.set("level", levelFilter);
+    if (regionFilter) next.set("region", regionFilter);
+    if (missingErp) next.set("missing_erp", "1");
+    setSearchParams(next, { replace: true });
+  }, [group, levelFilter, missingErp, page, pageSize, regionFilter, search, setSearchParams, statusFilter]);
 
   const buildListParams = useCallback(() => {
     const params: Record<string, unknown> = {
       page,
-      page_size: 50,
+      page_size: pageSize,
       q: debouncedSearch || undefined,
       sort_by: "last_contacted_at",
       sort_order: "asc",
@@ -332,7 +318,16 @@ export default function CustomerListPage() {
     if (regionFilter) params.region = regionFilter;
     if (missingErp) params.missing_erp = true;
     return params;
-  }, [page, debouncedSearch, group, statusFilter, levelFilter, regionFilter, missingErp]);
+  }, [page, pageSize, debouncedSearch, group, statusFilter, levelFilter, regionFilter, missingErp]);
+
+  const handlePaginationChange = (nextPage: number, nextPageSize: number) => {
+    if (nextPageSize !== pageSize) {
+      setPageSize(nextPageSize);
+      setPage(1);
+      return;
+    }
+    setPage(nextPage);
+  };
 
   // 搜索防抖 300ms
   useEffect(() => {
@@ -597,7 +592,7 @@ export default function CustomerListPage() {
             )}
           </div>
 
-          <div className="customer-ledger-metrics">
+          <div className="customer-ledger-metrics" aria-label="客户结果摘要">
             <div className="customer-ledger-metric">
               <span>当前结果</span>
               <strong>{total.toLocaleString("zh-CN")}</strong>
@@ -608,17 +603,17 @@ export default function CustomerListPage() {
               <strong>{formatMoney(summary.pageAmount)}</strong>
             </div>
             <div className="customer-ledger-metric">
-              <span>成交/活跃</span>
+              <span>本页成交/活跃</span>
               <strong>{summary.active}</strong>
               <em>家</em>
             </div>
             <div className="customer-ledger-metric is-warning">
-              <span>30天未联系</span>
+              <span>本页30天未联系</span>
               <strong>{summary.stale}</strong>
               <em>家</em>
             </div>
             <div className="customer-ledger-metric is-danger">
-              <span>资料待补</span>
+              <span>本页资料待补</span>
               <strong>{summary.missingErp}</strong>
               <em>家</em>
             </div>
@@ -643,8 +638,62 @@ export default function CustomerListPage() {
               </Text>
             </div>
 
-            {/* 表格 */}
-            <Table<Customer>
+            {isMobile ? (
+              <div className="customer-mobile-list" aria-label="客户卡片列表">
+                {loading ? <Spin /> : data.length === 0 ? (
+                  <Empty description={activeFilters.length ? "没有符合筛选条件的客户" : "暂无客户"} />
+                ) : data.map((record) => {
+                  const status = STATUS_CONFIG[record.status || ""] || { label: record.status || "-", color: "default" };
+                  return (
+                    <Card key={record.id} size="small" className="customer-mobile-card" onClick={() => { setSelectedCustomer(record); setDetailOpen(true); }}>
+                      <div className="customer-mobile-card-head">
+                        <div>
+                          <Text strong>{record.name}</Text>
+                          <div><Text type="secondary">{record.code || "-"} · {record.owner || "未分配"}</Text></div>
+                        </div>
+                        <StatusTag tone={status.color as "green" | "blue" | "gold"}>{status.label}</StatusTag>
+                      </div>
+                      <div className="customer-mobile-card-meta">
+                        {record.level && <Tag color={LEVEL_COLORS[record.level] || "default"}>等级 {record.level}</Tag>}
+                        <span>{record.industry || "未设行业"} / {record.region || "未设区域"}</span>
+                        <span>最近联系：{relativeTime(record.last_contacted_at)}</span>
+                        {!isErpProfileComplete(record) && <Tag color={TAX_STATUS.missing.color}>{TAX_STATUS.missing.label}</Tag>}
+                      </div>
+                      <div className="customer-mobile-card-actions" onClick={(event) => event.stopPropagation()}>
+                        <Button
+                          icon={<PhoneFilled />}
+                          onClick={() => {
+                            setFollowUpCustomer(record);
+                            followUpForm.resetFields();
+                            followUpForm.setFieldsValue({
+                              method: "phone",
+                              status: "planned",
+                              priority: "medium",
+                              assigned_to: record.owner || undefined,
+                            });
+                          }}
+                        >
+                          跟进
+                        </Button>
+                        <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => navigate(`/sales/opportunities/new?customer_id=${record.id}`)}>新增机会</Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+                {total > 0 && (
+                  <Pagination
+                    current={page}
+                    pageSize={pageSize}
+                    total={total}
+                    showSizeChanger
+                    pageSizeOptions={[20, 50, 100]}
+                    showTotal={(t, range) => `${range[0]}-${range[1]} / ${t}`}
+                    onChange={handlePaginationChange}
+                    size="small"
+                  />
+                )}
+              </div>
+            ) : <Table<Customer>
               className="erp-table customer-ledger-table"
               rowKey="id"
               columns={columns}
@@ -654,7 +703,7 @@ export default function CustomerListPage() {
               bordered
               sticky
               tableLayout="fixed"
-              scroll={{ x: 1480 }}
+              scroll={{ x: 1300 }}
               rowClassName={(record) =>
                 [
                   !isErpProfileComplete(record) ? "customer-row-missing-profile" : "",
@@ -674,11 +723,12 @@ export default function CustomerListPage() {
               }}
               pagination={{
                 current: page,
-                pageSize: 50,
+                pageSize,
                 total,
-                showSizeChanger: false,
+                showSizeChanger: true,
+                pageSizeOptions: [20, 50, 100],
                 showTotal: (t, range) => `${range[0]}-${range[1]} / ${t}`,
-                onChange: (p) => setPage(p),
+                onChange: handlePaginationChange,
               }}
               onRow={(r) => ({
                 onClick: () => {
@@ -687,7 +737,7 @@ export default function CustomerListPage() {
                 },
                 style: { cursor: "pointer" },
               })}
-            />
+            />}
           </div>
         </div>
 

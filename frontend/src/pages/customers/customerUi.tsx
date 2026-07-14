@@ -1,5 +1,6 @@
 import { Tag } from "antd";
 import { StatusTag } from "../../ui";
+import { STATUS_CONFIG } from "./constants";
 
 export const FOLLOW_UP_METHOD_OPTIONS = [
   { value: "phone", label: "电话拜访" },
@@ -45,14 +46,7 @@ export const FOLLOW_UP_PRIORITY_META: Record<string, { label: string; color: str
   low: { label: "低", color: "default" },
 };
 
-export const CUSTOMER_STATUS_META: Record<string, { label: string; color: string }> = {
-  new_lead: { label: "新潜客", color: "blue" },
-  active: { label: "活跃", color: "processing" },
-  converted: { label: "已成交", color: "green" },
-  vip: { label: "VIP", color: "purple" },
-  inactive: { label: "不活跃", color: "warning" },
-  churned: { label: "流失", color: "error" },
-};
+export const CUSTOMER_STATUS_META = STATUS_CONFIG;
 
 export const CUSTOMER_STATUS_OPTIONS = Object.entries(CUSTOMER_STATUS_META).map(([value, meta]) => ({
   value,
