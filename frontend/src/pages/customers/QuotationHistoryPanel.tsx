@@ -109,7 +109,7 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
             size="small"
             icon={<DownloadOutlined />}
             onClick={() => {
-              downloadQuotationPDF(record.id, `${record.quotation_no}.pdf`).catch(() =>
+              downloadQuotationPDF(record.id, `QUOTATION_${record.quotation_no || record.id}.pdf`).catch(() =>
                 message.error("下载失败")
               );
             }}

@@ -353,7 +353,7 @@ export default function QuotationList() {
                 const items: MenuProps["items"] = [
                   { key: "view", icon: <FileDoneOutlined />, label: "查看详情", onClick: () => navigate(`/sales/quotations/${record.id}`) },
                   ...(record.status === "draft" ? [{ key: "send", icon: <SendOutlined />, label: "标记发送", onClick: () => handleSend(record) }] : []),
-                  { key: "pdf", icon: <DownloadOutlined />, label: "智能 PDF", onClick: () => downloadQuotationPDF(record.id, `quotation_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败")) },
+                  { key: "pdf", icon: <DownloadOutlined />, label: "智能 PDF", onClick: () => downloadQuotationPDF(record.id, `QUOTATION_${record.quotation_no || record.id}.pdf`).catch(() => message.error("下载失败")) },
                   { key: "copy", icon: <CopyOutlined />, label: "复制", onClick: () => handleDuplicate(record) },
                   ...(record.status !== "won" ? [{ key: "convert", icon: <ShoppingCartOutlined />, label: "转订单", onClick: () => {
                     Modal.confirm({ title: "转为销售订单?", content: `将报价 ${record.quotation_no || `#${record.id}`} 转为销售订单`, onOk: () => handleConvert(record) });

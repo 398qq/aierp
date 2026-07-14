@@ -1336,20 +1336,22 @@ class TestConversions:
         )
         assert order_r.json()["data"]["status"] == "confirmed"
 
-    async def test_convert_to_delivery_twice_fails(
+    async def test_convert_to_delivery_twice_returns_existing_note(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
-        """Second conversion for same order must return 409."""
+        """Repeated conversion is idempotent and returns the original note."""
         order_id = await self._create_order(
             async_client, auth_headers, test_customer["id"]
         )
-        await async_client.post(
+        first = await async_client.post(
             f"/api/v1/sales-orders/{order_id}/convert-to-delivery", headers=auth_headers
         )
-        r2 = await async_client.post(
+        second = await async_client.post(
             f"/api/v1/sales-orders/{order_id}/convert-to-delivery", headers=auth_headers
         )
-        assert r2.json()["code"] == 409
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["data"]["id"] == first.json()["data"]["id"]
 
     # ── v1 convert-to-invoice ────────────────────────────────────────
 

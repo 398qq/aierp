@@ -438,7 +438,7 @@ async def get_quotation_pdf(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="quotation_{quote.quotation_no or quote_id}.pdf"'
+            "Content-Disposition": f'attachment; filename="QUOTATION_{quote.quotation_no or quote_id}.pdf"'
         },
     )
 

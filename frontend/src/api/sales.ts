@@ -193,7 +193,7 @@ export const downloadQuotationPDF = async (
   const url = window.URL.createObjectURL(new Blob([resp.data]));
   const link = document.createElement("a");
   link.href = url;
-  link.setAttribute("download", filename || `quotation_${id}.pdf`);
+  link.setAttribute("download", filename || `QUOTATION_${id}.pdf`);
   document.body.appendChild(link);
   link.click();
   link.remove();

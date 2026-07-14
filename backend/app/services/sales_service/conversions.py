@@ -75,14 +75,14 @@ class SalesConversionService(BaseCRUDService):
         if order.status in ("completed", "cancelled"):
             return None
         existing = await db.execute(
-            select(func.count()).where(
+            select(DeliveryNote).where(
                 DeliveryNote.sales_order_id == order.id,
                 DeliveryNote.deleted_at.is_(None),
             )
         )
-        existing_count = existing.scalar() or 0
-        if existing_count > 0:
-            return None
+        existing_note = existing.scalar_one_or_none()
+        if existing_note is not None:
+            return existing_note
         delivery_no = await generate_doc_no(db, "DN", DeliveryNote, "delivery_no")
         note = DeliveryNote(
             delivery_no=delivery_no,

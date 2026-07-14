@@ -100,7 +100,7 @@ export default function QuotationDetail() {
     setPdfDownloading(true);
     try {
       const values = await pdfForm.validateFields();
-      await downloadQuotationPDF(quote.id, `quotation_${quote.quotation_no || quote.id}.pdf`, values);
+      await downloadQuotationPDF(quote.id, `QUOTATION_${quote.quotation_no || quote.id}.pdf`, values);
       setPdfOpen(false);
     } catch (err: any) {
       if (err?.errorFields) return;
