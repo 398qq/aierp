@@ -209,7 +209,7 @@ export default function ProductDetail() {
     <div>
       <Space style={{ marginBottom: 16 }} wrap>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/products")}>返回列表</Button>
-        <Button icon={<EditOutlined />} onClick={() => navigate(`/products/${id}/edit`)}>编辑</Button>
+        <Button icon={<EditOutlined />} onClick={() => navigate(`/products?edit=${id}`)}>编辑</Button>
         <Button icon={<ThunderboltOutlined />} loading={embedding} onClick={handleEmbed}>生成 Embedding</Button>
         <Button icon={<ProfileOutlined />} loading={profileLoading} onClick={handleGetProfile}>AI 产品画像</Button>
         <Button icon={<OrderedListOutlined />} loading={specLoading} onClick={handleNormalizeSpecs}>标准化规格</Button>

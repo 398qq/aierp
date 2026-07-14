@@ -47,6 +47,10 @@ class POCreate(BaseModel):
     items: list[POItemCreate] | None = None
 
 
+class POBatchDelete(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=100)
+
+
 @po_router.get("")
 async def list_purchase_orders(
     page: int = Query(1, ge=1),
@@ -128,6 +132,32 @@ async def list_purchase_orders(
             "page_size": page_size,
         }
     )
+
+
+@po_router.post("/batch-delete")
+async def batch_delete_purchase_orders(
+    body: POBatchDelete,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    orders = (
+        await db.execute(
+            select(PurchaseOrder).where(
+                PurchaseOrder.id.in_(body.ids), PurchaseOrder.deleted_at.is_(None)
+            )
+        )
+    ).scalars().all()
+    non_draft = [po.order_no or f"#{po.id}" for po in orders if po.status != "draft"]
+    if non_draft:
+        raise BusinessRuleViolation(
+            f"只能删除草稿状态的采购订单: {', '.join(non_draft)}"
+        )
+
+    deleted_at = datetime.utcnow()
+    for po in orders:
+        po.deleted_at = deleted_at
+    await db.commit()
+    return ok({"deleted": len(orders), "ids": [po.id for po in orders]})
 
 
 @po_router.post("", status_code=201)

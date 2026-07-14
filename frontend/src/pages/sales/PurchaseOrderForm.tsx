@@ -55,10 +55,10 @@ export default function PurchaseOrderForm() {
   useEffect(() => {
     // Load reference data first, then PO data if editing
     Promise.all([
-      getSuppliers({ page: 1, page_size: 200 }).then((r) =>
+      getSuppliers({ page: 1, page_size: 100 }).then((r) =>
         setSuppliers((r.data.data?.list || []) as { id: number; name: string }[])
       ).catch(() => message.error("加载供应商列表失败")),
-      getProducts({ page: 1, page_size: 200 }).then((r) =>
+      getProducts({ page: 1, page_size: 100 }).then((r) =>
         setProducts((r.data.data?.list || []) as { id: number; name: string; sku?: string }[])
       ).catch(() => message.error("加载产品列表失败")),
     ]).then(() => {
@@ -68,6 +68,20 @@ export default function PurchaseOrderForm() {
           .then((r) => {
             const po = r.data.data as unknown as Record<string, unknown>;
             const items = (po.items as Record<string, unknown>[]) || [];
+            setProducts((current) => {
+              const knownIds = new Set(current.map((product) => product.id));
+              const referenced = items.flatMap((item) => {
+                const productId = Number(item.product_id);
+                if (knownIds.has(productId)) return [];
+                knownIds.add(productId);
+                return [{
+                  id: productId,
+                  name: String(item.product_name || `产品 #${productId}`),
+                  sku: item.product_sku ? String(item.product_sku) : undefined,
+                }];
+              });
+              return [...current, ...referenced];
+            });
             form.setFieldsValue({
               supplier_id: po.supplier_id,
               expected_date: po.expected_date ? dayjs(po.expected_date as string) : undefined,
@@ -264,7 +278,7 @@ export default function PurchaseOrderForm() {
                                 showSearch
                                 placeholder="搜索产品"
                                 optionFilterProp="label"
-                                options={products.map((p) => ({ value: p.id, label: `${p.sku || ""} ${p.name}` }))}
+                                options={products.map((p) => ({ value: p.id, label: p.name }))}
                                 notFoundContent={products.length === 0 ? "加载中..." : "无匹配产品"}
                               />
                             </Form.Item>

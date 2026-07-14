@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Button,
   Card,
@@ -73,6 +74,7 @@ import ProductDetailDrawer from "./ProductDetailDrawer";
 import "./products.css";
 
 export default function ProductList() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -414,6 +416,26 @@ export default function ProductList() {
     setModalOpen(true);
   };
 
+  const closeEditor = () => {
+    setModalOpen(false);
+    if (searchParams.has("edit")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("edit");
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  useEffect(() => {
+    const editId = Number(searchParams.get("edit"));
+    if (!editId || (modalOpen && editing?.id === editId)) return;
+    getProduct(editId)
+      .then((response) => openEdit(response.data.data))
+      .catch((error: unknown) => {
+        message.error(getApiErrorMessage(error, "加载产品失败"));
+        closeEditor();
+      });
+  }, [searchParams]);
+
   const handleSave = async (values: Record<string, unknown>) => {
     try {
       if (editing) {
@@ -423,7 +445,7 @@ export default function ProductList() {
         await createProduct(values);
         message.success("已创建");
       }
-      setModalOpen(false);
+      closeEditor();
       await Promise.all([fetch(), loadStats()]);
     } catch {
       message.error(editing ? "更新失败" : "创建失败");
@@ -1287,7 +1309,7 @@ export default function ProductList() {
       <Modal
         title={editing ? "编辑产品" : "新建产品"}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={closeEditor}
         onOk={() => form.submit()}
         width={640}
       >

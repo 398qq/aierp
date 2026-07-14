@@ -187,7 +187,11 @@ export default function PurchaseOrderDetail() {
               columns={[
                 { title: "#", width: 50, render: (_: unknown, __: unknown, i: number) => i + 1 },
                 { title: "产品", dataIndex: "product_name", ellipsis: true,
-                  render: (v: string | undefined, r: POItem) => v || `${r.product_sku || ""} #${r.product_id}` },
+                  render: (v: string | undefined, r: POItem) => (
+                    <Typography.Link onClick={() => navigate(`/products/${r.product_id}`)}>
+                      {v || "未命名产品"}
+                    </Typography.Link>
+                  ) },
                 { title: "数量", dataIndex: "quantity", width: 80, align: "right" as const },
                 { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number) => `¥${v?.toFixed(2) ?? "0.00"}` },
                 { title: "小计", dataIndex: "amount", width: 120, align: "right" as const, render: (v: number) => <Typography.Text strong>{`¥${v?.toFixed(2) ?? "0.00"}`}</Typography.Text> },
