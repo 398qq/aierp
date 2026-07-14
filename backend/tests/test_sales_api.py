@@ -634,6 +634,14 @@ class TestQuotations:
         assert status.status_code == 200
         assert status.json()["data"]["status"] == "sent"
 
+        lost = await async_client.put(
+            f"/api/v1/quotations/{quote['id']}/status",
+            headers=auth_headers,
+            json={"status": "lost"},
+        )
+        assert lost.status_code == 200
+        assert lost.json()["data"]["status"] == "lost"
+
         duplicate = await async_client.post(
             f"/api/v1/quotations/{quote['id']}/duplicate",
             headers=auth_headers,

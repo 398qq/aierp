@@ -207,7 +207,7 @@ export default function QuotationDetail() {
               发送报价
             </Button>
           )}
-          {quote.status !== "won" && (
+          {["draft", "sent", "accepted"].includes(quote.status) && (
             <Popconfirm title="确认转为销售订单?" onConfirm={() => runAction(async () => {
               await convertQuotationToOrder(quote.id);
               navigate("/sales/orders");
@@ -215,7 +215,7 @@ export default function QuotationDetail() {
               <Button type="primary" icon={<ShoppingCartOutlined />} loading={actionLoading}>转为订单</Button>
             </Popconfirm>
           )}
-          {quote.status !== "lost" && quote.status !== "won" && (
+          {quote.status === "sent" && (
             <Button
               danger
               loading={actionLoading}

@@ -89,6 +89,9 @@ class TestQuotationStateMachine:
     def test_sent_to_won(self):
         assert_ok("sent", "won", assert_can_transition_quotation)
 
+    def test_sent_to_lost(self):
+        assert_ok("sent", "lost", assert_can_transition_quotation)
+
     def test_accepted_to_won(self):
         assert_ok("accepted", "won", assert_can_transition_quotation)
 
@@ -98,6 +101,10 @@ class TestQuotationStateMachine:
 
     def test_rejected_is_terminal(self):
         assert_blocked("rejected", "sent", assert_can_transition_quotation)
+
+    def test_lost_is_terminal(self):
+        assert_blocked("lost", "sent", assert_can_transition_quotation)
+        assert_blocked("lost", "won", assert_can_transition_quotation)
 
     def test_draft_cannot_jump_to_accepted(self):
         assert_blocked("draft", "accepted", assert_can_transition_quotation)

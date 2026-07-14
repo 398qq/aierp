@@ -1,7 +1,7 @@
 """Sales domain state machines.
 
 Opportunity: active → won | lost
-Quotation:   draft → sent → accepted | rejected | expired → converted → won
+Quotation:   draft → sent → accepted | rejected | expired | lost → won
 SalesOrder:  pending → confirmed → shipped → delivered → completed | cancelled
 Delivery:    pending → shipped → delivered | cancelled
 Customer:    new_lead → active → converted → vip | inactive → churned
@@ -34,10 +34,11 @@ def assert_can_transition_opportunity(current: str, target: str) -> None:
 
 QUOTATION_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"sent", "rejected", "won"},
-    "sent": {"accepted", "rejected", "expired", "won"},
+    "sent": {"accepted", "rejected", "expired", "lost", "won"},
     "accepted": {"won"},
     "rejected": set(),
     "expired": set(),
+    "lost": set(),
     "won": set(),
 }
 
