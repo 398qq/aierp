@@ -2,7 +2,7 @@
 export interface Product {
   id: number; sku: string | null; name: string;
   // 基础标识
-  mpn: string | null; barcode: string | null;
+  mpn: string | null; datecode?: string | null; barcode: string | null;
   hs_code: string | null; origin_country: string | null;
   // 归属
   brand_id: number | null; brand_name: string | null;

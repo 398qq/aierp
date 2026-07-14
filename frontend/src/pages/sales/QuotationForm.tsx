@@ -19,19 +19,14 @@ type QuoteItemForm = {
   untaxed_cost?: number;
   taxed_cost?: number;
   sales_profit?: number;
+  datecode?: string | null;
+  lead_time?: string;
   notes?: string;
 };
 
 const toNumber = (value: unknown) => Number(value || 0);
 const COST_TAX_RATE = 0.13;
 const formatPercent = (value: number) => `${value.toFixed(2)}%`;
-const DEFAULT_QUOTATION_NOTES = [
-  "1、以上报价为含税13%，如增加或改变加工工艺、零件、辅料，则须重新核价，并以确认的新单价为准；",
-  "2、报价批量含运包费用，供方负责送货到需方指定地点",
-  "3、产品付款方式：以合同为准",
-  "4、报价有效期：3天",
-].join("\n");
-
 const STATUS_OPTIONS = [
   { value: "draft", label: "草稿" },
   { value: "sent", label: "已发送" },
@@ -111,8 +106,8 @@ export default function QuotationForm() {
       const unitPrice = toNumber(item?.unit_price);
       const totalPrice = quantity * unitPrice;
       const costPrice = toNumber(item?.cost_price);
-      const untaxedCost = quantity * costPrice;
-      const taxedCost = untaxedCost * (1 + COST_TAX_RATE);
+      const taxedCost = quantity * costPrice;
+      const untaxedCost = taxedCost / (1 + COST_TAX_RATE);
       const salesProfit = totalPrice - taxedCost;
       if (
         item?.total_price !== totalPrice
@@ -136,7 +131,8 @@ export default function QuotationForm() {
   };
 
   const onFinish = async (values: Record<string, unknown>) => {
-    const items = ((values.items || []) as QuoteItemForm[]).filter((item) => item.product_id || item.product_name);
+    const items = ((values.items || []) as QuoteItemForm[])
+      .filter((item) => item.product_id || item.product_name);
     if (!items.length) {
       message.warning("至少添加一条产品报价行");
       return;
@@ -184,7 +180,7 @@ export default function QuotationForm() {
           syncLineTotals();
         }}
         requiredMark={false}
-        initialValues={{ status: "draft", items: [{}], valid_until: dayjs().add(3, "day"), notes: DEFAULT_QUOTATION_NOTES }}
+        initialValues={{ status: "draft", items: [{}], valid_until: dayjs().add(3, "day"), notes: "" }}
       >
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -269,7 +265,7 @@ export default function QuotationForm() {
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
                 <Typography.Text type="secondary">
-                  明细行自动计算含税销售额、未税成本、进项税、含税成本、销售毛利与毛利率。
+                  明细行按含税成本单价自动计算未税成本、进项税、含税成本、销售毛利与毛利率。
                 </Typography.Text>
                 <Typography.Text strong>明细合计：{money(summary.amount)}</Typography.Text>
               </div>
@@ -338,6 +334,7 @@ export default function QuotationForm() {
                                     items[field.name] = {
                                       ...current,
                                       product_name: product.name,
+                                      datecode: current.datecode ?? product.datecode ?? null,
                                       unit_price: current.unit_price ?? product.unit_price ?? 0,
                                       quantity: current.quantity || 1,
                                     };
@@ -377,11 +374,29 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "未税成本单价",
+                          title: "含税成本单价",
                           width: 130,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "cost_price"]} style={{ marginBottom: 0 }}>
                               <InputNumber min={0} precision={4} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "生产日期（DATECODE）",
+                          width: 150,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "datecode"]} style={{ marginBottom: 0 }}>
+                              <Input maxLength={100} placeholder="引用产品 DATECODE" />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "交期",
+                          width: 140,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "lead_time"]} style={{ marginBottom: 0 }}>
+                              <Input maxLength={100} placeholder="现货 / 7天 / 2–3周" />
                             </Form.Item>
                           ),
                         },

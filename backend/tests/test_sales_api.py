@@ -291,6 +291,8 @@ class TestQuotations:
                         "quantity": 10,
                         "unit_price": 5,
                         "cost_price": 3,
+                        "datecode": "2026W18",
+                        "lead_time": "现货",
                     }
                 ],
             },
@@ -301,9 +303,11 @@ class TestQuotations:
         assert resp.json()["data"]["total_amount"] == 50
         item = resp.json()["data"]["items"][0]
         assert item["cost_price"] == 3
-        assert item["untaxed_cost"] == 30
-        assert round(item["taxed_cost"], 2) == 33.90
-        assert round(item["sales_profit"], 2) == 16.10
+        assert round(item["untaxed_cost"], 2) == 26.55
+        assert round(item["taxed_cost"], 2) == 30.00
+        assert round(item["sales_profit"], 2) == 20.00
+        assert item["datecode"] == "2026W18"
+        assert item["lead_time"] == "现货"
 
     async def test_list_searches_quotation_product_lines(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict

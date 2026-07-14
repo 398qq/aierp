@@ -81,6 +81,8 @@ class QuotationItemCreate(BaseModel):
     untaxed_cost: float | None = None
     taxed_cost: float | None = None
     sales_profit: float | None = None
+    datecode: str | None = Field(None, max_length=100)
+    lead_time: str | None = Field(None, max_length=100)
     notes: str | None = None
 
 
@@ -97,6 +99,8 @@ class QuotationItemUpdate(BaseModel):
     untaxed_cost: float | None = None
     taxed_cost: float | None = None
     sales_profit: float | None = None
+    datecode: str | None = Field(None, max_length=100)
+    lead_time: str | None = Field(None, max_length=100)
     notes: str | None = None
 
 
@@ -115,6 +119,8 @@ class QuotationItemResponse(BaseModel):
     untaxed_cost: float | None = None
     taxed_cost: float | None = None
     sales_profit: float | None = None
+    datecode: str | None = None
+    lead_time: str | None = None
     notes: str | None = None
     model_config = {"from_attributes": True}
 

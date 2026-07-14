@@ -23,6 +23,7 @@ class TestProductsAPI:
             json={
                 "name": "Test Resistor 10K",
                 "sku": "RES-10K-001",
+                "datecode": "2026W18",
                 "category": "Resistors",
                 "package_type": "0805",
                 "unit": "pcs",
@@ -32,6 +33,7 @@ class TestProductsAPI:
         data = resp.json()
         assert data["code"] == 0
         assert data["data"]["name"] == "Test Resistor 10K"
+        assert data["data"]["datecode"] == "2026W18"
         assert data["data"]["id"] > 0
 
     async def test_get_product(self, async_client: AsyncClient, auth_headers: dict):

@@ -94,6 +94,7 @@ class Product(TimestampMixin, Base):
     mpn: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )  # Manufacturer Part Number
+    datecode: Mapped[str | None] = mapped_column(String(100), nullable=True)
     barcode: Mapped[str | None] = mapped_column(String(50), nullable=True)  # UPC / EAN
     hs_code: Mapped[str | None] = mapped_column(
         String(20), nullable=True

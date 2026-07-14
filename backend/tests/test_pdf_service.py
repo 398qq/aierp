@@ -31,6 +31,8 @@ def test_generate_quotation_pdf_with_smart_sections():
                 quantity=10,
                 unit_price=25,
                 total_price=250,
+                datecode="2026W18",
+                lead_time="现货",
             )
         ],
     )

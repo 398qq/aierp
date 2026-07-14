@@ -46,8 +46,8 @@ def _normalize_quotation_items(
         total_price = item.get("total_price")
         line_total = float(total_price) if total_price is not None else qty * unit_price
         cost_price = float(item.get("cost_price") or 0)
-        untaxed_cost = qty * cost_price
-        taxed_cost = untaxed_cost * (1 + QUOTE_COST_TAX_RATE)
+        taxed_cost = qty * cost_price
+        untaxed_cost = taxed_cost / (1 + QUOTE_COST_TAX_RATE)
         sales_profit = line_total - taxed_cost
         item["quantity"] = qty
         item["unit_price"] = unit_price

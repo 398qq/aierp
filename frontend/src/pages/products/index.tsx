@@ -1305,6 +1305,13 @@ export default function ProductList() {
             </Col>
           </Row>
           <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="datecode" label="DATECODE">
+                <Input maxLength={100} placeholder="如 2026W18 / 26+" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
             <Col span={8}>
               <Form.Item name="category" label="分类">
                 <Input />

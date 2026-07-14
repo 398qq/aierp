@@ -138,6 +138,7 @@ def product_row(
         "sku": p.sku,
         "name": p.name,
         "mpn": p.mpn,
+        "datecode": p.datecode,
         "barcode": p.barcode,
         "hs_code": p.hs_code,
         "origin_country": p.origin_country,

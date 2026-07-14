@@ -105,6 +105,8 @@ def _serialize_quotation_item(it) -> dict:
         "untaxed_cost": _money(it.untaxed_cost),
         "taxed_cost": _money(it.taxed_cost),
         "sales_profit": float(it.sales_profit) if it.sales_profit is not None else None,
+        "datecode": it.datecode,
+        "lead_time": it.lead_time,
         "notes": it.notes,
     }
 

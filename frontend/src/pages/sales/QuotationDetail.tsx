@@ -404,10 +404,12 @@ export default function QuotationDetail() {
                   ),
                 },
                 { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+                { title: "生产日期（DATECODE）", dataIndex: "datecode", width: 150, render: (value: string | null) => value || "-" },
+                { title: "交期", dataIndex: "lead_time", width: 120, render: (value: string | null) => value || "-" },
                 { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
                 { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (value: number | null) => value != null ? <Typography.Text strong>{money(value)}</Typography.Text> : "-" },
                 ...(showCostColumns ? [
-                  { title: "成本", dataIndex: "cost_price", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
+                  { title: "含税成本单价", dataIndex: "cost_price", width: 130, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
                   { title: "未税成本", dataIndex: "untaxed_cost", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
                   { title: "含税成本", dataIndex: "taxed_cost", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
                   {

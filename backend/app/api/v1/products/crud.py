@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/products", tags=["products"])
 
 # Cache key version — bump to invalidate all entries after schema change
-PRODUCTS_LIST_CACHE_VERSION = "v2"
+PRODUCTS_LIST_CACHE_VERSION = "v3"
 
 
 # --- Schemas ---
@@ -37,6 +37,7 @@ class ProductCreate(BaseModel):
     sku: str | None = None
     name: str = Field(min_length=1, max_length=255)
     mpn: str | None = None
+    datecode: str | None = Field(None, max_length=100)
     barcode: str | None = None
     hs_code: str | None = None
     origin_country: str | None = None
@@ -88,6 +89,7 @@ class ProductUpdate(BaseModel):
     sku: str | None = None
     name: str | None = Field(None, min_length=1, max_length=255)
     mpn: str | None = None
+    datecode: str | None = Field(None, max_length=100)
     barcode: str | None = None
     hs_code: str | None = None
     origin_country: str | None = None
@@ -148,7 +150,14 @@ async def create_product(
     after_product_save(product.id)
     await cache_bump_version("products:list")
     await cache_bump_version("dashboard:kpi")
-    return ok({"id": product.id, "name": product.name})
+    return ok(
+        {
+            "id": product.id,
+            "name": product.name,
+            "sku": product.sku,
+            "datecode": product.datecode,
+        }
+    )
 
 
 @router.put("/{product_id}")

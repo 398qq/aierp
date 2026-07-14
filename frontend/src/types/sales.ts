@@ -35,6 +35,8 @@ export interface QuotationItem {
   untaxed_cost: number | null;
   taxed_cost: number | null;
   sales_profit: number | null;
+  datecode: string | null;
+  lead_time: string | null;
   notes: string | null;
 }
 

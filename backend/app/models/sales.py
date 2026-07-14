@@ -110,6 +110,8 @@ class QuotationItem(TimestampMixin, Base):
     untaxed_cost: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     taxed_cost: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     sales_profit: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    datecode: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    lead_time: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     quotation = relationship("Quotation", back_populates="items")

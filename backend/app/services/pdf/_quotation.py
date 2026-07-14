@@ -425,6 +425,8 @@ def generate_quotation_pdf(
                 [
                     "序号",
                     "产品 / 型号",
+                    "生产日期（DATECODE）",
+                    "交期",
                     "数量",
                     "含税单价",
                     "销售额",
@@ -434,22 +436,26 @@ def generate_quotation_pdf(
                 ]
             ]
             col_widths = [
+                content_width * 0.05,
+                content_width * 0.19,
+                content_width * 0.09,
+                content_width * 0.09,
                 content_width * 0.06,
-                content_width * 0.23,
-                content_width * 0.08,
-                content_width * 0.12,
-                content_width * 0.13,
-                content_width * 0.12,
-                content_width * 0.12,
-                content_width * 0.14,
+                content_width * 0.10,
+                content_width * 0.11,
+                content_width * 0.10,
+                content_width * 0.10,
+                content_width * 0.11,
             ]
-            hint_col = 7
-            amount_cols = (3, 6)
+            hint_col = 9
+            amount_cols = (4, 8)
         elif internal:
             table_data = [
                 [
                     "序号",
                     "产品 / 型号",
+                    "生产日期（DATECODE）",
+                    "交期",
                     "数量",
                     "含税单价",
                     "销售额",
@@ -458,41 +464,47 @@ def generate_quotation_pdf(
                 ]
             ]
             col_widths = [
-                content_width * 0.06,
-                content_width * 0.32,
-                content_width * 0.08,
-                content_width * 0.13,
-                content_width * 0.14,
-                content_width * 0.13,
-                content_width * 0.14,
+                content_width * 0.05,
+                content_width * 0.25,
+                content_width * 0.10,
+                content_width * 0.10,
+                content_width * 0.07,
+                content_width * 0.11,
+                content_width * 0.12,
+                content_width * 0.10,
+                content_width * 0.10,
             ]
             hint_col = None
-            amount_cols = (3, 6)
+            amount_cols = (4, 8)
         elif opts["show_line_hints"]:
             table_data = [
-                ["序号", "产品 / 型号", "数量", "含税单价", "销售额", "智能提示"]
+                ["序号", "产品 / 型号", "生产日期（DATECODE）", "交期", "数量", "含税单价", "销售额", "智能提示"]
             ]
             col_widths = [
-                content_width * 0.07,
-                content_width * 0.36,
+                content_width * 0.06,
+                content_width * 0.26,
                 content_width * 0.10,
-                content_width * 0.14,
-                content_width * 0.16,
-                content_width * 0.17,
+                content_width * 0.10,
+                content_width * 0.08,
+                content_width * 0.12,
+                content_width * 0.13,
+                content_width * 0.15,
             ]
-            hint_col = 5
-            amount_cols = (3, 4)
+            hint_col = 7
+            amount_cols = (4, 6)
         else:
-            table_data = [["序号", "产品 / 型号", "数量", "含税单价", "销售额"]]
+            table_data = [["序号", "产品 / 型号", "生产日期（DATECODE）", "交期", "数量", "含税单价", "销售额"]]
             col_widths = [
-                content_width * 0.07,
-                content_width * 0.48,
-                content_width * 0.11,
-                content_width * 0.16,
-                content_width * 0.18,
+                content_width * 0.06,
+                content_width * 0.34,
+                content_width * 0.12,
+                content_width * 0.12,
+                content_width * 0.09,
+                content_width * 0.13,
+                content_width * 0.14,
             ]
             hint_col = None
-            amount_cols = (3, 4)
+            amount_cols = (4, 6)
 
         for index, item in enumerate(items, start=1):
             product_name = item.product_name or "-"
@@ -504,6 +516,8 @@ def generate_quotation_pdf(
             row = [
                 str(index),
                 Paragraph(str(product_name), cell_style),
+                Paragraph(str(getattr(item, "datecode", None) or "-"), cell_style),
+                Paragraph(str(getattr(item, "lead_time", None) or "-"), cell_style),
                 str(quantity),
                 money(unit_price) if unit_price else "-",
                 money(total_price) if total_price else "-",

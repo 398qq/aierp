@@ -174,6 +174,8 @@ def _serialize_quotation(quote) -> dict:
                 "sales_profit": float(it.sales_profit)
                 if it.sales_profit is not None
                 else None,
+                "datecode": it.datecode,
+                "lead_time": it.lead_time,
                 "notes": it.notes,
             }
             for it in (quote.items or [])

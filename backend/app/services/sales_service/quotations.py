@@ -270,6 +270,8 @@ class QuotationService(BaseCRUDService):
                     untaxed_cost=item.untaxed_cost,
                     taxed_cost=item.taxed_cost,
                     sales_profit=item.sales_profit,
+                    datecode=item.datecode,
+                    lead_time=item.lead_time,
                     notes=item.notes,
                 )
             )
