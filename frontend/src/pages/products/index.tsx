@@ -144,26 +144,26 @@ export default function ProductList() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const allColKeys = [
     "sku",
+    "name",
+    "mpn",
     "status",
     "product_type",
-    "name",
+    "brand_name",
     "owner",
     "category",
-    "package_type",
-    "specs",
+    "package",
+    "compliance",
     "unit",
-    "brand_name",
+    "specs",
     "completion_score",
     "supplier_count",
-    "inventory_location_count",
     "stock_state",
     "quantity",
     "available",
-    "locked",
-    "safety_stock",
-    "unit_price",
+    "list_price",
     "minimum_sale_price",
     "weighted_avg_cost",
+    "currency",
     "last_sale_at",
     "actions",
   ];
@@ -1274,7 +1274,7 @@ export default function ProductList() {
                   />
                 ),
               }}
-              scroll={{ x: 1850 }}
+              scroll={{ x: "max-content" }}
               pagination={
                 aiSearchMode
                   ? false

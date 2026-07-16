@@ -65,31 +65,6 @@ export function useProductTableColumns({
         ),
       },
       {
-        title: "MPN",
-        dataIndex: "mpn",
-        key: "mpn",
-        width: 140,
-        render: (v: string | null) => (v ? <span style={MONO}>{v}</span> : "-"),
-      },
-      {
-        title: "产品状态",
-        dataIndex: "status",
-        key: "status",
-        width: 90,
-        render: (value: string | undefined) => (
-          <StatusTag tone={value === "active" ? "success" : value === "frozen" ? "warning" : "danger"}>
-            {value === "active" ? "已启用" : value === "frozen" ? "已冻结" : value === "inactive" ? "已停用" : "草稿"}
-          </StatusTag>
-        ),
-      },
-      {
-        title: "产品类型",
-        dataIndex: "product_type",
-        key: "product_type",
-        width: 90,
-        render: (value: string | undefined) => productTypeLabel[value || ""] || value || "成品",
-      },
-      {
         title: "产品名称",
         dataIndex: "name",
         key: "name",
@@ -116,6 +91,31 @@ export function useProductTableColumns({
             )}
           </div>
         ),
+      },
+      {
+        title: "MPN",
+        dataIndex: "mpn",
+        key: "mpn",
+        width: 140,
+        render: (v: string | null) => (v ? <span style={MONO}>{v}</span> : "-"),
+      },
+      {
+        title: "产品状态",
+        dataIndex: "status",
+        key: "status",
+        width: 90,
+        render: (value: string | undefined) => (
+          <StatusTag tone={value === "active" ? "success" : value === "frozen" ? "warning" : "danger"}>
+            {value === "active" ? "已启用" : value === "frozen" ? "已冻结" : value === "inactive" ? "已停用" : "草稿"}
+          </StatusTag>
+        ),
+      },
+      {
+        title: "产品类型",
+        dataIndex: "product_type",
+        key: "product_type",
+        width: 90,
+        render: (value: string | undefined) => productTypeLabel[value || ""] || value || "成品",
       },
       {
         title: "品牌",

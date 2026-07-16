@@ -431,9 +431,6 @@
 }
 
 .product-table-header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -461,9 +458,7 @@
 }
 
 .product-table-panel .ant-table-thead > tr > th {
-  position: sticky;
-  top: 50px;
-  z-index: 1;
+  top: auto;
   color: #475569;
   font-size: 12px;
   font-weight: 600;
