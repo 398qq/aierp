@@ -11,6 +11,14 @@ const { Text, Title } = Typography;
 
 const getBrandDisplayName = (brand: Brand) => brand.name || brand.short_name || brand.name_cn || "";
 
+const getProductIdentityLabel = (sku: unknown, name: unknown) => {
+  const normalizedSku = String(sku || "").trim();
+  const normalizedName = String(name || "").trim();
+  if (!normalizedSku) return normalizedName || "未命名产品";
+  if (!normalizedName || normalizedSku.toLowerCase() === normalizedName.toLowerCase()) return normalizedSku;
+  return `${normalizedSku} · ${normalizedName}`;
+};
+
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -477,7 +485,7 @@ export default function ProductDetail() {
                 <Space style={{ width: "100%", justifyContent: "space-between" }}>
                   <span>
                     <a onClick={() => navigate(`/products/${s.id}`)}>
-                      {String(s.sku || "")} {String(s.name || "")}
+                      {getProductIdentityLabel(s.sku, s.name)}
                     </a>
                     <StatusTag style={{ marginLeft: 8 }}>{String(s.category || "")}</StatusTag>
                     {s.brand_name ? <StatusTag tone="info">{String(s.brand_name)}</StatusTag> : null}
