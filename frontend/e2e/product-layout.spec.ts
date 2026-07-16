@@ -55,3 +55,30 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
   expect(layout.tableOverflow).toBeGreaterThan(0);
   expect(layout.viewportOverflow).toBeLessThanOrEqual(2);
 });
+
+test("product name opens the standalone product detail page", async ({ page }) => {
+  const login = await page.request.post("/api/v1/auth/login", {
+    data: { username: "admin", password: "admin123" },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+
+  await page.goto("/products", { waitUntil: "domcontentloaded" });
+  const productName = page.locator(".product-table-panel .product-name-link").first();
+  await expect(productName).toBeVisible();
+  await productName.click();
+
+  await expect(page).toHaveURL(/\/products\/\d+$/);
+  await expect(page.getByRole("button", { name: "返回列表" })).toBeVisible();
+  await expect(page.getByText("生产日期", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "编辑" }).click();
+  await expect(page).toHaveURL(/\/products\/\d+\/edit$/);
+  await expect(page.getByRole("heading", { name: "编辑产品主数据" })).toBeVisible();
+  await expect(page.locator(".ant-modal")).toHaveCount(0);
+  await expect(page.getByLabel("生产日期")).toBeVisible();
+
+  const specNameFields = page.getByLabel("参数名称");
+  const specCount = await specNameFields.count();
+  await page.getByRole("button", { name: "添加规格字段" }).click();
+  await expect(specNameFields).toHaveCount(specCount + 1);
+});

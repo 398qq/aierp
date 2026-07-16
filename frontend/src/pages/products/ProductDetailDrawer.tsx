@@ -1,4 +1,4 @@
-import { EditOutlined } from "@ant-design/icons";
+import { EditOutlined, ProfileOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Descriptions, Drawer, Empty, Progress, Space, Table, Tabs, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import type { InventoryItem, Product } from "../../types";
@@ -14,12 +14,29 @@ interface Props {
   sales: ProductSalesData | null;
   onClose: () => void;
   onEdit: (product: Product) => void;
+  onOpenFullDetail: (product: Product) => void;
 }
 
 const money = (value?: number | null) => (value != null ? `¥${Number(value).toFixed(2)}` : "-");
 const statusLabel: Record<string, string> = { draft: "草稿", active: "已启用", frozen: "已冻结", inactive: "已停用" };
 const documentRowKey = (row: Record<string, unknown>) =>
   String(row.id || row.order_no || row.quotation_no || row.delivery_no || row.created_at);
+
+const getSpecificationEntries = (specs?: string | null): Array<[string, string]> => {
+  if (!specs?.trim()) return [];
+  try {
+    const parsed = JSON.parse(specs) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return Object.entries(parsed as Record<string, unknown>).map(([name, value]) => [
+        name,
+        String(value ?? "-"),
+      ]);
+    }
+  } catch {
+    // Keep legacy free-text specifications readable.
+  }
+  return [["规格描述", specs]];
+};
 
 export default function ProductDetailDrawer({
   open,
@@ -29,8 +46,10 @@ export default function ProductDetailDrawer({
   sales,
   onClose,
   onEdit,
+  onOpenFullDetail,
 }: Props) {
   const stockState = product ? getStockState(product) : "in";
+  const specificationEntries = getSpecificationEntries(product?.specs);
   const salesColumns = [
     {
       title: "单据编号",
@@ -80,9 +99,14 @@ export default function ProductDetailDrawer({
       onClose={onClose}
       extra={
         product ? (
-          <Button type="primary" icon={<EditOutlined />} onClick={() => onEdit(product)}>
-            编辑产品
-          </Button>
+          <Space size={8}>
+            <Button icon={<ProfileOutlined />} onClick={() => onOpenFullDetail(product)}>
+              完整详情
+            </Button>
+            <Button type="primary" icon={<EditOutlined />} onClick={() => onEdit(product)}>
+              编辑产品
+            </Button>
+          </Space>
         ) : null
       }
       className="product-detail-drawer"
@@ -175,6 +199,7 @@ export default function ProductDetailDrawer({
               <Descriptions.Item label="负责人">{product.owner || "-"}</Descriptions.Item>
               <Descriptions.Item label="默认仓库">{product.default_warehouse_id ?? "-"}</Descriptions.Item>
               <Descriptions.Item label="MPN">{product.mpn || "-"}</Descriptions.Item>
+              <Descriptions.Item label="生产日期">{product.datecode || "-"}</Descriptions.Item>
               <Descriptions.Item label="条码">{product.barcode || "-"}</Descriptions.Item>
               <Descriptions.Item label="品牌">{product.brand_name || "-"}</Descriptions.Item>
               <Descriptions.Item label="分类">{product.category || "-"}</Descriptions.Item>
@@ -186,7 +211,16 @@ export default function ProductDetailDrawer({
                 {[product.batch_control ? "批次" : null, product.serial_control ? "序列号" : null, product.shelf_life_control ? "保质期" : null].filter(Boolean).join("、") || "未启用特殊控制"}
               </Descriptions.Item>
               <Descriptions.Item label="规格" span={3}>
-                {product.specs || "-"}
+                {specificationEntries.length ? (
+                  <div className="product-spec-summary">
+                    {specificationEntries.map(([name, value]) => (
+                      <span key={name}>
+                        <Text type="secondary">{name}：</Text>
+                        <Text>{value}</Text>
+                      </span>
+                    ))}
+                  </div>
+                ) : "-"}
               </Descriptions.Item>
               <Descriptions.Item label="备注" span={3}>
                 {product.notes || "-"}

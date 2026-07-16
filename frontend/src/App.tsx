@@ -58,6 +58,7 @@ const CustomerFollowUpsPage = lazy(() => import("./pages/customers/CustomerFollo
 const FollowUpList = lazy(() => import("./pages/customers/FollowUpList"));
 const ProductList = lazy(() => import("./pages/products/index"));
 const ProductDetail = lazy(() => import("./pages/products/ProductDetail"));
+const ProductEdit = lazy(() => import("./pages/products/ProductEdit"));
 const SupplierList = lazy(() => import("./pages/suppliers/index"));
 const SupplierDashboard = lazy(() => import("./pages/suppliers/SupplierDashboard"));
 const SupplierDetail = lazy(() => import("./pages/suppliers/SupplierDetail"));
@@ -326,6 +327,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <ProductDetail />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/products/:id/edit"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProductEdit />
                     </Suspense>
                   }
                 />

@@ -209,7 +209,7 @@ export default function ProductDetail() {
     <div>
       <Space style={{ marginBottom: 16 }} wrap>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/products")}>返回列表</Button>
-        <Button icon={<EditOutlined />} onClick={() => navigate(`/products?edit=${id}`)}>编辑</Button>
+        <Button icon={<EditOutlined />} onClick={() => navigate(`/products/${id}/edit`)}>编辑</Button>
         <Button icon={<ThunderboltOutlined />} loading={embedding} onClick={handleEmbed}>生成 Embedding</Button>
         <Button icon={<ProfileOutlined />} loading={profileLoading} onClick={handleGetProfile}>AI 产品画像</Button>
         <Button icon={<OrderedListOutlined />} loading={specLoading} onClick={handleNormalizeSpecs}>标准化规格</Button>
@@ -240,6 +240,7 @@ export default function ProductDetail() {
             <Descriptions.Item label="产品类型">{product.product_type || "成品"}</Descriptions.Item>
             <Descriptions.Item label="负责人">{product.owner || "-"}</Descriptions.Item>
             <Descriptions.Item label="默认仓库">{product.default_warehouse_id ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="生产日期">{product.datecode || "-"}</Descriptions.Item>
             <Descriptions.Item label="库存控制">
               {[product.batch_control ? "批次" : null, product.serial_control ? "序列号" : null, product.shelf_life_control ? "保质期" : null].filter(Boolean).join("、") || "未启用特殊控制"}
             </Descriptions.Item>

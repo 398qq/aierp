@@ -18,6 +18,7 @@ import { formatDateTime, getAvailableQty, getStockState } from "./constants";
 
 interface Args {
   onOpenDetail: (product: Product) => void;
+  onOpenFullDetail: (product: Product) => void;
   onOpenEdit: (product: Product) => void;
   onOpenQuickPrice: (product: Product) => void;
   onOpenQuickSafety: (product: Product) => void;
@@ -45,6 +46,7 @@ const productTypeLabel: Record<string, string> = {
 
 export function useProductTableColumns({
   onOpenDetail,
+  onOpenFullDetail,
   onOpenEdit,
   onOpenQuickPrice,
   onOpenQuickSafety,
@@ -73,7 +75,7 @@ export function useProductTableColumns({
         sorter: true,
         render: (text: string, r: Product) => (
           <div>
-            <button type="button" className="product-name-link" onClick={() => onOpenDetail(r)}>
+            <button type="button" className="product-name-link" onClick={() => onOpenFullDetail(r)}>
               {text}
             </button>
             {r.lifecycle_status && (
@@ -371,6 +373,6 @@ export function useProductTableColumns({
         ),
       },
     ],
-    [onOpenDetail, onOpenEdit, onOpenQuickPrice, onOpenQuickSafety, onDelete],
+    [onOpenDetail, onOpenFullDetail, onOpenEdit, onOpenQuickPrice, onOpenQuickSafety, onDelete],
   );
 }

@@ -239,6 +239,7 @@ async def recommend_customers_for_product(
         (
             await db.execute(
                 select(func.distinct(SalesOrder.customer_id))
+                .select_from(SalesOrderItem)
                 .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
                 .where(
                     SalesOrderItem.product_id == product_id,
@@ -252,28 +253,7 @@ async def recommend_customers_for_product(
         or []
     )
 
-    # Customers who bought from the same brand or category but not this product
-    if Product.brand_id.__class__.__name__ == "InstrumentedAttribute":
-        pass  # We know it's a Column, skip reflection
-
-    # Find customers who bought same brand
-    brand_customers = (
-        await db.execute(
-            select(func.distinct(SalesOrder.customer_id))
-            .select_from(SalesOrderItem)
-            .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
-            .join(Product, SalesOrderItem.product_id == Product.id)
-            .where(
-                Product.brand_id
-                == prod[0],  # Use the brand association from the product
-                SalesOrder.deleted_at.is_(None),
-                SalesOrderItem.deleted_at.is_(None),
-                Product.deleted_at.is_(None),
-            )
-        )
-    ).scalars().all() or []
-
-    # Actually need to find the brand_id first
+    # Customers who bought from the same brand or category but not this product.
     brand_id_row = (
         await db.execute(select(Product.brand_id).where(Product.id == product_id))
     ).scalar_one_or_none()
@@ -334,6 +314,7 @@ async def recommend_customers_for_product(
                         "total_revenue"
                     ),
                 )
+                .select_from(Customer)
                 .outerjoin(SalesOrder, Customer.id == SalesOrder.customer_id)
                 .where(
                     Customer.id.in_(target_ids),

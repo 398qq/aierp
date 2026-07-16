@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Button,
   Card,
@@ -76,6 +76,7 @@ import "./products.css";
 
 export default function ProductList() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -810,6 +811,7 @@ export default function ProductList() {
 
   const columns: ColumnsType<Product> = useProductTableColumns({
     onOpenDetail: openDetail,
+    onOpenFullDetail: (product) => navigate(`/products/${product.id}`),
     onOpenEdit: openEdit,
     onOpenQuickPrice: (r) => openQuickAction(r, "price"),
     onOpenQuickSafety: (r) => openQuickAction(r, "safety"),
@@ -1380,8 +1382,8 @@ export default function ProductList() {
           </Row>
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="datecode" label="DATECODE">
-                <Input maxLength={100} placeholder="如 2026W18 / 26+" />
+              <Form.Item name="datecode" label="生产日期">
+                <Input maxLength={100} placeholder="如 2026-07-16 / 2026W18" />
               </Form.Item>
             </Col>
           </Row>
@@ -1587,7 +1589,11 @@ export default function ProductList() {
         onClose={() => setDetailOpen(false)}
         onEdit={(product) => {
           setDetailOpen(false);
-          openEdit(product);
+          navigate(`/products/${product.id}/edit`);
+        }}
+        onOpenFullDetail={(product) => {
+          setDetailOpen(false);
+          navigate(`/products/${product.id}`);
         }}
       />
 
