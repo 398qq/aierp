@@ -13,6 +13,15 @@ export default function InvoiceForm() {
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const isEdit = !!id;
+  const amount = Form.useWatch("amount", form);
+
+  useEffect(() => {
+    const numericAmount = Number(amount);
+    form.setFieldValue(
+      "tax_amount",
+      Number.isFinite(numericAmount) ? Math.round(numericAmount * 13) / 100 : 0,
+    );
+  }, [amount, form]);
 
   useEffect(() => {
     getSalesOrders({ page: 1, page_size: 100 }).then((r) => setOrders(r.data.data.list || []));
@@ -83,7 +92,9 @@ export default function InvoiceForm() {
         </Form.Item>
         <Form.Item name="invoice_no" label="发票号"><Input placeholder="留空自动生成" /></Form.Item>
         <Form.Item name="amount" label="金额" rules={[{ required: true, message: "请输入金额" }]}><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
-        <Form.Item name="tax_amount" label="税额"><InputNumber style={{ width: "100%" }} prefix="¥" /></Form.Item>
+        <Form.Item name="tax_amount" label="税额（自动按 13% 计算）">
+          <InputNumber style={{ width: "100%" }} prefix="¥" precision={2} readOnly />
+        </Form.Item>
         <Form.Item name="invoice_type" label="发票类型">
           <Select options={[{ value: "普通发票", label: "普通发票" }, { value: "增值税专用发票", label: "增值税专用发票" }]} />
         </Form.Item>

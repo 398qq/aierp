@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timezone
 
 from app.domain.states import assert_can_transition_sales_order
+from app.domain.shared.errors import BusinessRuleViolation
+from app.models.product import Product
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
@@ -119,6 +121,26 @@ class SalesOrderService(BaseCRUDService):
         if not data.get("order_date"):
             data["order_date"] = datetime.now(timezone.utc)
         normalized_items, total = _normalize_sales_order_items(items_data)
+        product_ids = {
+            item.get("product_id")
+            for item in normalized_items
+            if item.get("product_id")
+        }
+        if product_ids:
+            blocked = list(
+                (
+                    await db.scalars(
+                        select(Product).where(
+                            Product.id.in_(product_ids),
+                            Product.status.in_({"frozen", "inactive"}),
+                        )
+                    )
+                ).all()
+            )
+            if blocked:
+                raise BusinessRuleViolation(
+                    f"产品已冻结或停用，不能下单: {', '.join(item.sku or item.name for item in blocked)}"
+                )
         if normalized_items:
             data["total_amount"] = total
         order = SalesOrder(**{k: v for k, v in data.items() if k != "items"})
@@ -147,6 +169,26 @@ class SalesOrderService(BaseCRUDService):
                 setattr(order, k, v)
         if items_data is not None:
             normalized_items, total = _normalize_sales_order_items(items_data)
+            product_ids = {
+                item.get("product_id")
+                for item in normalized_items
+                if item.get("product_id")
+            }
+            if product_ids:
+                blocked = list(
+                    (
+                        await db.scalars(
+                            select(Product).where(
+                                Product.id.in_(product_ids),
+                                Product.status.in_({"frozen", "inactive"}),
+                            )
+                        )
+                    ).all()
+                )
+                if blocked:
+                    raise BusinessRuleViolation(
+                        f"产品已冻结或停用，不能下单: {', '.join(item.sku or item.name for item in blocked)}"
+                    )
             order.items.clear()
             order.total_amount = total
             await db.flush()

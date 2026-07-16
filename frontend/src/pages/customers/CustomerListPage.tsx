@@ -1,6 +1,6 @@
 /**
  * CustomerListPage — 新版客户管理列表页
- * 排序: last_contacted_at ASC (最早互动在前)
+ * 排序: 业务行动优先级（逾期、今日、高价值、长期未联系、其他）
  */
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -34,18 +34,20 @@ import {
   ReloadOutlined,
   ExportOutlined,
   FileTextOutlined,
+  MergeCellsOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { createFollowUp, exportCustomers, getCustomers, getApiErrorMessage } from "@/api";
-import type { Customer } from "@/types";
+import { createFollowUp, detectDuplicates, exportCustomers, getCustomers, getApiErrorMessage, mergeCustomers } from "@/api";
+import type { Customer, DuplicatePair } from "@/types";
 import { ErrorBoundary, StatusTag, useColumnResize } from "@/ui";
 import CustomerModuleShell from "./CustomerModuleShell";
 import { CustomerDetailPanel } from "./CustomerDetailPanel";
 import { CustomerFormDrawer } from "./CustomerFormDrawer";
 import { CustomerBatchBar } from "./CustomerBatchBar";
 import CustomerQuickFollowUpDrawer from "./CustomerQuickFollowUpDrawer";
+import { CustomerDuplicateListModal, CustomerMergeModal } from "./CustomerDuplicateModals";
 import { CREDIT_COLORS, GROUP_OPTIONS, GROUP_FILTERS, STATUS_CONFIG, type GroupValue } from "./constants";
 
 const { Text } = Typography;
@@ -280,6 +282,11 @@ export default function CustomerListPage() {
   const [followUpCustomer, setFollowUpCustomer] = useState<Customer | null>(null);
   const [followUpSaving, setFollowUpSaving] = useState(false);
   const [followUpForm] = Form.useForm();
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
+  const [mergePair, setMergePair] = useState<DuplicatePair | null>(null);
+  const [mergeLoading, setMergeLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [group, setGroup] = useState<GroupValue>(() => (searchParams.get("group") as GroupValue) || "all");
   const [statusFilter, setStatusFilter] = useState<string | undefined>(() => searchParams.get("status") || undefined);
@@ -305,8 +312,8 @@ export default function CustomerListPage() {
       page,
       page_size: pageSize,
       q: debouncedSearch || undefined,
-      sort_by: "last_contacted_at",
-      sort_order: "asc",
+      sort_by: "operational_priority",
+      sort_order: "desc",
     };
     if (group !== "all") {
       const gf = GROUP_FILTERS[group];
@@ -407,6 +414,34 @@ export default function CustomerListPage() {
       URL.revokeObjectURL(url);
     } catch (e: unknown) {
       message.error(getApiErrorMessage(e, "导出客户失败"));
+    }
+  };
+  const loadDuplicates = async () => {
+    setDuplicateLoading(true);
+    try {
+      const response = await detectDuplicates();
+      const pairs = response.data.data?.pairs || [];
+      setDuplicatePairs(pairs);
+      setDuplicateOpen(true);
+      if (pairs.length === 0) message.success("未发现疑似重复客户");
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "客户查重失败"));
+    } finally {
+      setDuplicateLoading(false);
+    }
+  };
+  const confirmMerge = async () => {
+    if (!mergePair) return;
+    setMergeLoading(true);
+    try {
+      await mergeCustomers(mergePair.customer_a.id, mergePair.customer_b.id);
+      message.success(`已将“${mergePair.customer_a.name}”合并到“${mergePair.customer_b.name}”`);
+      setMergePair(null);
+      await Promise.all([fetchData(), loadDuplicates()]);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "客户合并失败"));
+    } finally {
+      setMergeLoading(false);
     }
   };
   const closeQuickFollowUp = () => {
@@ -512,6 +547,9 @@ export default function CustomerListPage() {
               </Button>
               <Button icon={<ExportOutlined />} onClick={handleExport}>
                 导出
+              </Button>
+              <Button icon={<MergeCellsOutlined />} onClick={loadDuplicates} loading={duplicateLoading}>
+                客户去重
               </Button>
               <Button
                 type="primary"
@@ -631,7 +669,7 @@ export default function CustomerListPage() {
             <div className="customer-table-titlebar">
               <div>
                 <Text strong>客户主数据台账</Text>
-                <Text type="secondary"> 最近未联系优先，点击行查看客户 360</Text>
+                <Text type="secondary"> 逾期与今日待办优先，点击行查看客户 360</Text>
               </div>
               <Text type="secondary">
                 已选 {selectedRowKeys.length} / 本页 {data.length}
@@ -778,6 +816,27 @@ export default function CustomerListPage() {
           form={followUpForm}
           onClose={closeQuickFollowUp}
           onSubmit={submitQuickFollowUp}
+        />
+        <CustomerDuplicateListModal
+          open={duplicateOpen}
+          pairs={duplicatePairs}
+          onClose={() => setDuplicateOpen(false)}
+          onMerge={(pair) => setMergePair(pair)}
+        />
+        <CustomerMergeModal
+          open={Boolean(mergePair)}
+          loading={mergeLoading}
+          pair={mergePair}
+          onCancel={() => setMergePair(null)}
+          onConfirm={confirmMerge}
+          onSwap={() => {
+            if (!mergePair) return;
+            setMergePair({
+              ...mergePair,
+              customer_a: mergePair.customer_b,
+              customer_b: mergePair.customer_a,
+            });
+          }}
         />
       </CustomerModuleShell>
     </ErrorBoundary>

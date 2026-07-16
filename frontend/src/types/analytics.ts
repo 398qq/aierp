@@ -75,6 +75,10 @@ export interface Contract {
   currency: string;
   signed_date: string | null; expire_date: string | null;
   status: string; file_url: string | null; notes: string | null;
+  delivery_address?: string | null; delivery_terms?: string | null;
+  payment_terms?: string | null; acceptance_terms?: string | null;
+  warranty_terms?: string | null; dispute_terms?: string | null;
+  invoice_type?: string | null;
   created_at: string; updated_at?: string | null;
 }
 

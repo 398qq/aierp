@@ -273,6 +273,20 @@ async def get_sales_order_pdf(
 )
 
 
+@router.get("/sales-orders/{order_id}/business-chain")
+async def get_sales_order_business_chain(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    from app.services.order_business_chain_service import get_order_business_chain
+
+    result = await get_order_business_chain(db, order_id)
+    if result is None:
+        return fail("销售订单不存在", 404)
+    return ok(result)
+
+
 @router.get("/sales-orders/{order_id}", response_model=APIResponse[SalesOrderResponse])
 async def get_sales_order(
     order_id: int,

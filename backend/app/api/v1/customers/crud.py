@@ -208,6 +208,8 @@ class CustomerCreate(BaseModel):
     annual_revenue: float | None = None
     employee_count: int | None = None
     credit_limit: float | None = None
+    contract_required: bool = False
+    credit_control_enabled: bool = False
     credit_level: str | None = None
     payment_terms: str | None = None
     payment_method: str | None = None
@@ -244,6 +246,8 @@ class CustomerUpdate(BaseModel):
     annual_revenue: float | None = None
     employee_count: int | None = None
     credit_limit: float | None = None
+    contract_required: bool | None = None
+    credit_control_enabled: bool | None = None
     credit_level: str | None = None
     payment_terms: str | None = None
     payment_method: str | None = None
@@ -278,6 +282,7 @@ class ContactUpdate(BaseModel):
 
 
 class FollowUpCreate(BaseModel):
+    opportunity_id: int | None = None
     method: str | None = None
     status: str | None = None
     content: str | None = None
@@ -289,6 +294,7 @@ class FollowUpCreate(BaseModel):
 
 
 class FollowUpUpdate(BaseModel):
+    opportunity_id: int | None = None
     method: str | None = None
     status: str | None = None
     content: str | None = None
@@ -354,6 +360,8 @@ def _customer_row(
         "annual_revenue": float(c.annual_revenue) if c.annual_revenue else None,
         "employee_count": c.employee_count,
         "credit_limit": float(c.credit_limit) if c.credit_limit else None,
+        "contract_required": c.contract_required,
+        "credit_control_enabled": c.credit_control_enabled,
         "credit_level": c.credit_level,
         "payment_terms": c.payment_terms,
         "payment_method": c.payment_method,
@@ -411,6 +419,7 @@ SORTABLE_COLUMNS = {
     "source": Customer.source,
     "credit_level": Customer.credit_level,
     "created_at": Customer.created_at,
+    "updated_at": Customer.updated_at,
     "last_contacted_at": Customer.last_contacted_at,
 }
 

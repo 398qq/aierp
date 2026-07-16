@@ -359,6 +359,7 @@ async def convert_delivery_to_invoice_v2(
     inv = Invoice(
         invoice_no=invoice_no,
         sales_order_id=note.sales_order_id,
+        delivery_note_id=note.id,
         customer_id=note.customer_id,
         amount=float(order.total_amount) if order else 0,
         tax_amount=round(float(order.total_amount) * 0.13, 4) if order else 0,

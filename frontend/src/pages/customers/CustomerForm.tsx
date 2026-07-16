@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Form, Input, Select, InputNumber, Divider, Typography } from "antd";
+import { Form, Input, Select, InputNumber, Divider, Switch, Typography } from "antd";
 
 const { Item: FormItem } = Form;
 const opts = (arr: string[]) => arr.map((v) => ({ label: v, value: v }));
@@ -113,6 +113,14 @@ export default function CustomerFormFields() {
         </FormItem>
         <FormItem name="industry" label="行业">
           <Select placeholder="选择行业" options={opts(industryOptions)} allowClear />
+        </FormItem>
+      </FormRow>
+      <FormRow cols={2}>
+        <FormItem name="contract_required" label="发货前必须签合同" valuePropName="checked">
+          <Switch checkedChildren="启用" unCheckedChildren="关闭" />
+        </FormItem>
+        <FormItem name="credit_control_enabled" label="信用与逾期控制" valuePropName="checked">
+          <Switch checkedChildren="启用" unCheckedChildren="关闭" />
         </FormItem>
       </FormRow>
       <FormRow cols={3}>

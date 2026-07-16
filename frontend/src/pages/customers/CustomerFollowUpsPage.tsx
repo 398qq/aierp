@@ -83,6 +83,16 @@ export default function CustomerFollowUpsPage() {
       },
     },
     {
+      title: "关联商机",
+      dataIndex: "opportunity_id",
+      width: 120,
+      render: (value: number | null | undefined) => value ? (
+        <Button type="link" size="small" onClick={() => navigate(`/sales/opportunities/${value}`)}>
+          OPP-{String(value).padStart(6, "0")}
+        </Button>
+      ) : <Text type="secondary">-</Text>,
+    },
+    {
       title: "方式",
       dataIndex: "method",
       width: 100,
@@ -127,12 +137,17 @@ export default function CustomerFollowUpsPage() {
     {
       title: "操作",
       key: "actions",
-      width: 110,
+      width: 170,
       fixed: "right",
       render: (_: unknown, record) => (
-        <Button size="small" onClick={() => navigate(`/customers/${record.customer_id}/follow-ups`)}>
-          客户跟进
-        </Button>
+        <Space size={4}>
+          {record.opportunity_id ? (
+            <Button size="small" onClick={() => navigate(`/sales/opportunities/${record.opportunity_id}`)}>商机</Button>
+          ) : null}
+          <Button size="small" onClick={() => navigate(`/customers/${record.customer_id}/follow-ups`)}>
+            客户跟进
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -206,7 +221,7 @@ export default function CustomerFollowUpsPage() {
           size="small"
           bordered
           tableLayout="fixed"
-          scroll={{ x: 1320 }}
+          scroll={{ x: 1500 }}
           rowClassName={(record) => record.due_bucket === "overdue" ? "followup-row-overdue" : ""}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" /> }}
           pagination={{

@@ -290,6 +290,20 @@ export default function Dashboard() {
                   width: 78,
                   render: (value: number) => <StatusTag status={`${value}天`} tone="danger" />,
                 },
+                {
+                  title: "操作",
+                  key: "actions",
+                  width: 96,
+                  render: (_: unknown, record: OverdueFollowUp) => (
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => navigate(`/customers/${record.customer_id}/follow-ups?update=${record.id}`)}
+                    >
+                      更新跟进
+                    </Button>
+                  ),
+                },
               ]}
               pagination={false}
               size="small"

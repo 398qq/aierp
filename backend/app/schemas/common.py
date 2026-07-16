@@ -91,3 +91,4 @@ class PageData(BaseModel, Generic[T]):
     total: int
     page: int
     page_size: int
+    ai: dict[int, dict[str, Any]] | None = None

@@ -241,6 +241,7 @@ def serialize_invoice(inv) -> dict:
         "id": inv.id,
         "invoice_no": inv.invoice_no,
         "sales_order_id": inv.sales_order_id,
+        "delivery_note_id": inv.delivery_note_id,
         "sales_order_no": inv.sales_order.order_no if inv.sales_order else None,
         "customer_id": inv.customer_id,
         "customer_name": inv.customer.name if inv.customer else None,

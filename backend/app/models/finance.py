@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,7 +21,9 @@ from app.models.base import TimestampMixin
 class PaymentRecord(TimestampMixin, Base):
     __tablename__ = "payment_records"
 
-    sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    sales_order_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sales_orders.id"), nullable=True
+    )
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     delivery_note_id: Mapped[int | None] = mapped_column(
         ForeignKey("delivery_notes.id"), nullable=True
@@ -43,6 +46,31 @@ class PaymentRecord(TimestampMixin, Base):
     customer = relationship("Customer", foreign_keys=[customer_id])
     delivery_note = relationship("DeliveryNote", foreign_keys=[delivery_note_id])
     invoice = relationship("Invoice", foreign_keys=[invoice_id])
+    allocations = relationship(
+        "PaymentAllocation", back_populates="payment", lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+
+class PaymentAllocation(TimestampMixin, Base):
+    __tablename__ = "payment_allocations"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payment_allocations_amount_positive"),
+        UniqueConstraint(
+            "payment_id", "invoice_id", name="uq_payment_allocation_payment_invoice"
+        ),
+    )
+
+    payment_id: Mapped[int] = mapped_column(
+        ForeignKey("payment_records.id", ondelete="CASCADE"), index=True
+    )
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
+
+    payment = relationship("PaymentRecord", back_populates="allocations")
+    invoice = relationship("Invoice", foreign_keys=[invoice_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
 
 
 class Invoice(TimestampMixin, Base):
@@ -50,6 +78,9 @@ class Invoice(TimestampMixin, Base):
 
     invoice_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    delivery_note_id: Mapped[int | None] = mapped_column(
+        ForeignKey("delivery_notes.id"), nullable=True, index=True
+    )
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6))
     tax_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
@@ -66,6 +97,7 @@ class Invoice(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
+    delivery_note = relationship("DeliveryNote", foreign_keys=[delivery_note_id])
     customer = relationship("Customer", foreign_keys=[customer_id])
     lines = relationship(
         "InvoiceLine",
@@ -120,6 +152,13 @@ class Contract(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="draft")
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
     file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    delivery_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delivery_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    acceptance_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    warranty_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dispute_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invoice_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer = relationship("Customer", foreign_keys=[customer_id])

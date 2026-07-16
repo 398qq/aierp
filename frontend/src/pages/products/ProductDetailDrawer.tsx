@@ -1,5 +1,5 @@
 import { EditOutlined } from "@ant-design/icons";
-import { Button, Card, Descriptions, Drawer, Empty, Progress, Space, Table, Tabs, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Progress, Space, Table, Tabs, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import type { InventoryItem, Product } from "../../types";
 import { formatDateTime, getAvailableQty, getStockState, ProductSalesData } from "./constants";
@@ -17,6 +17,7 @@ interface Props {
 }
 
 const money = (value?: number | null) => (value != null ? `¥${Number(value).toFixed(2)}` : "-");
+const statusLabel: Record<string, string> = { draft: "草稿", active: "已启用", frozen: "已冻结", inactive: "已停用" };
 const documentRowKey = (row: Record<string, unknown>) =>
   String(row.id || row.order_no || row.quotation_no || row.delivery_no || row.created_at);
 
@@ -104,6 +105,7 @@ export default function ProductDetailDrawer({
                   {stockState === "out" ? "缺货" : stockState === "low" ? "低库存" : "正常在库"}
                 </StatusTag>
                 {product.lifecycle_status && <StatusTag>{product.lifecycle_status}</StatusTag>}
+                {product.status && <StatusTag tone={product.status === "active" ? "success" : product.status === "frozen" ? "warning" : "danger"}>{product.status === "active" ? "已启用" : product.status === "frozen" ? "已冻结" : product.status === "inactive" ? "已停用" : "草稿"}</StatusTag>}
               </Space>
               <Text type="secondary">
                 {[
@@ -127,6 +129,16 @@ export default function ProductDetailDrawer({
               <Text type="secondary">资料完整度</Text>
             </div>
           </section>
+
+          {product.status && product.status !== "active" ? (
+            <Alert
+              showIcon
+              type={product.status === "frozen" ? "warning" : "info"}
+              message={product.status === "frozen" ? "产品已冻结，禁止新增销售业务" : product.status === "inactive" ? "产品已停用" : "产品处于草稿状态"}
+              description="请在主数据维护完成并经过状态审批后再启用产品。"
+              style={{ marginBottom: 12 }}
+            />
+          ) : null}
 
           <section className="product-detail-metrics">
             <div>
@@ -158,6 +170,10 @@ export default function ProductDetailDrawer({
           <Card size="small" title="主数据">
             <Descriptions column={3} size="small">
               <Descriptions.Item label="SKU">{product.sku || "-"}</Descriptions.Item>
+              <Descriptions.Item label="产品状态">{statusLabel[product.status || "active"] || product.status || "已启用"}</Descriptions.Item>
+              <Descriptions.Item label="产品类型">{product.product_type || "成品"}</Descriptions.Item>
+              <Descriptions.Item label="负责人">{product.owner || "-"}</Descriptions.Item>
+              <Descriptions.Item label="默认仓库">{product.default_warehouse_id ?? "-"}</Descriptions.Item>
               <Descriptions.Item label="MPN">{product.mpn || "-"}</Descriptions.Item>
               <Descriptions.Item label="条码">{product.barcode || "-"}</Descriptions.Item>
               <Descriptions.Item label="品牌">{product.brand_name || "-"}</Descriptions.Item>
@@ -166,6 +182,9 @@ export default function ProductDetailDrawer({
               <Descriptions.Item label="封装">{product.package_type || "-"}</Descriptions.Item>
               <Descriptions.Item label="封装尺寸">{product.package_case || "-"}</Descriptions.Item>
               <Descriptions.Item label="针脚数">{product.pin_count ?? "-"}</Descriptions.Item>
+              <Descriptions.Item label="库存控制" span={3}>
+                {[product.batch_control ? "批次" : null, product.serial_control ? "序列号" : null, product.shelf_life_control ? "保质期" : null].filter(Boolean).join("、") || "未启用特殊控制"}
+              </Descriptions.Item>
               <Descriptions.Item label="规格" span={3}>
                 {product.specs || "-"}
               </Descriptions.Item>
@@ -179,6 +198,14 @@ export default function ProductDetailDrawer({
             <Descriptions column={3} size="small">
               <Descriptions.Item label="标准成本">{money(product.standard_cost)}</Descriptions.Item>
               <Descriptions.Item label="目录价">{money(product.list_price)}</Descriptions.Item>
+              <Descriptions.Item label="最低销售价">{money(product.minimum_sale_price)}</Descriptions.Item>
+              <Descriptions.Item label="最新采购成本">{money(product.latest_purchase_cost)}</Descriptions.Item>
+              <Descriptions.Item label="加权平均成本">{money(product.weighted_avg_cost)}</Descriptions.Item>
+              <Descriptions.Item label="价格有效期">
+                {product.price_valid_from || product.price_valid_to
+                  ? `${product.price_valid_from || "不限起"} ～ ${product.price_valid_to || "长期"}`
+                  : "未设置"}
+              </Descriptions.Item>
               <Descriptions.Item label="库存单价">{money(product.unit_price)}</Descriptions.Item>
               <Descriptions.Item label="币种">{product.currency || "-"}</Descriptions.Item>
               <Descriptions.Item label="税率">

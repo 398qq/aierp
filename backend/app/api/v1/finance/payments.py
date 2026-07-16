@@ -13,11 +13,12 @@ from collections.abc import Mapping
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.models.finance import Invoice
+from app.models.finance import Invoice, PaymentAllocation
+from app.models.sales import DeliveryNote, SalesOrder
 from app.api.v1.finance._shared import (
     PAYMENTS_LIST_CACHE_TTL,
     PAYMENTS_STATS_CACHE_TTL,
@@ -25,7 +26,13 @@ from app.api.v1.finance._shared import (
 )
 from app.database import get_db
 from app.schemas.common import fail, ok, APIResponse, PageData
-from app.schemas.finance import PaymentRecordCreate, PaymentRecordUpdate, PaymentRecordResponse, PaymentStats
+from app.schemas.finance import (
+    PaymentAllocationRequest,
+    PaymentRecordCreate,
+    PaymentRecordResponse,
+    PaymentRecordUpdate,
+    PaymentStats,
+)
 from app.services import finance_service as svc
 from app.services.cache_service import (
     cache_bump_version,
@@ -38,12 +45,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["finance:payment"])
 
 
-def _serialize_payment(pay, invoice_map: Mapping[int, str | None]) -> dict:
+def _serialize_payment(
+    pay,
+    invoice_map: Mapping[int, str | None],
+    order_map: Mapping[int, str | None],
+    delivery_note_map: Mapping[int, str | None],
+) -> dict:
     return {
         "id": pay.id,
         "sales_order_id": pay.sales_order_id,
+        "sales_order_no": order_map.get(pay.sales_order_id),
         "customer_id": pay.customer_id,
         "delivery_note_id": pay.delivery_note_id,
+        "delivery_note_no": delivery_note_map.get(pay.delivery_note_id)
+        if pay.delivery_note_id
+        else None,
         "invoice_id": pay.invoice_id,
         "invoice_no": invoice_map.get(pay.invoice_id) if pay.invoice_id else None,
         "amount": float(pay.amount),
@@ -65,6 +81,28 @@ async def _load_invoice_no(db: AsyncSession, invoice_id: int | None) -> str | No
         return None
     result = await db.execute(
         select(Invoice.invoice_no).where(Invoice.id == invoice_id)
+    )
+    row = result.first()
+    return row[0] if row else None
+
+
+async def _load_order_no(db: AsyncSession, order_id: int | None) -> str | None:
+    if not order_id:
+        return None
+    result = await db.execute(
+        select(SalesOrder.order_no).where(SalesOrder.id == order_id)
+    )
+    row = result.first()
+    return row[0] if row else None
+
+
+async def _load_delivery_note_no(
+    db: AsyncSession, delivery_note_id: int | None
+) -> str | None:
+    if not delivery_note_id:
+        return None
+    result = await db.execute(
+        select(DeliveryNote.delivery_no).where(DeliveryNote.id == delivery_note_id)
     )
     row = result.first()
     return row[0] if row else None
@@ -136,9 +174,38 @@ async def list_payments(
             )
         ).all()
         invoice_map = {inv_id: inv_no or "" for inv_id, inv_no in invs}
+    order_ids = list({p.sales_order_id for p in payments if p.sales_order_id})
+    order_map: dict[int, str] = {}
+    if order_ids:
+        orders = (
+            await db.execute(
+                select(SalesOrder.id, SalesOrder.order_no).where(
+                    SalesOrder.id.in_(order_ids)
+                )
+            )
+        ).all()
+        order_map = {order_id: order_no or "" for order_id, order_no in orders}
+    delivery_note_ids = list(
+        {p.delivery_note_id for p in payments if p.delivery_note_id}
+    )
+    delivery_note_map: dict[int, str] = {}
+    if delivery_note_ids:
+        delivery_notes = (
+            await db.execute(
+                select(DeliveryNote.id, DeliveryNote.delivery_no).where(
+                    DeliveryNote.id.in_(delivery_note_ids)
+                )
+            )
+        ).all()
+        delivery_note_map = {
+            note_id: note_no or "" for note_id, note_no in delivery_notes
+        }
     serialized = {
         **result,
-        "list": [_serialize_payment(p, invoice_map) for p in payments],
+        "list": [
+            _serialize_payment(p, invoice_map, order_map, delivery_note_map)
+            for p in payments
+        ],
     }
     await cache_set_versioned(
         "payments:list",
@@ -182,8 +249,15 @@ async def get_payment(
     if not pay:
         return fail("回款记录不存在", 404)
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
+    order_no = await _load_order_no(db, pay.sales_order_id)
+    delivery_note_no = await _load_delivery_note_no(db, pay.delivery_note_id)
     return ok(
-        _serialize_payment(pay, {pay.invoice_id: invoice_no} if pay.invoice_id else {})
+        _serialize_payment(
+            pay,
+            {pay.invoice_id: invoice_no} if pay.invoice_id else {},
+            {pay.sales_order_id: order_no} if pay.sales_order_id else {},
+            {pay.delivery_note_id: delivery_note_no} if pay.delivery_note_id else {},
+        )
     )
 
 
@@ -196,8 +270,112 @@ async def create_payment(
     pay = await svc.create_payment(db, body.model_dump())
     await _bump_payment_caches()
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
+    order_no = await _load_order_no(db, pay.sales_order_id)
+    delivery_note_no = await _load_delivery_note_no(db, pay.delivery_note_id)
     return ok(
-        _serialize_payment(pay, {pay.invoice_id: invoice_no} if pay.invoice_id else {})
+        _serialize_payment(
+            pay,
+            {pay.invoice_id: invoice_no} if pay.invoice_id else {},
+            {pay.sales_order_id: order_no} if pay.sales_order_id else {},
+            {pay.delivery_note_id: delivery_note_no} if pay.delivery_note_id else {},
+        )
+    )
+
+
+@router.put("/payments/{pay_id}/allocations")
+async def replace_payment_allocations(
+    pay_id: int,
+    body: PaymentAllocationRequest,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Allocate one receipt across one or more invoices atomically."""
+    pay = await svc.get_payment(db, pay_id)
+    if not pay:
+        return fail("回款记录不存在", 404)
+
+    invoice_ids = [item.invoice_id for item in body.allocations]
+    if len(invoice_ids) != len(set(invoice_ids)):
+        return fail("同一张发票不能重复核销", 400)
+    requested_total = round(sum(item.amount for item in body.allocations), 6)
+    if requested_total > float(pay.amount or 0) + 0.000001:
+        return fail("核销金额不能超过本次回款金额", 400)
+
+    invoices = list(
+        (
+            await db.scalars(
+                select(Invoice).where(
+                    Invoice.id.in_(invoice_ids), Invoice.deleted_at.is_(None)
+                )
+            )
+        ).all()
+    )
+    invoice_map = {item.id: item for item in invoices}
+    if len(invoice_map) != len(invoice_ids):
+        return fail("存在无效发票", 400)
+    if any(item.customer_id != pay.customer_id for item in invoices):
+        return fail("回款只能核销同一客户的发票", 400)
+
+    current = list(
+        (
+            await db.scalars(
+                select(PaymentAllocation).where(
+                    PaymentAllocation.payment_id == pay_id,
+                    PaymentAllocation.deleted_at.is_(None),
+                )
+            )
+        ).all()
+    )
+    for item in current:
+        await db.delete(item)
+    await db.flush()
+
+    for requested in body.allocations:
+        invoice = invoice_map[requested.invoice_id]
+        allocated_elsewhere = float(
+            await db.scalar(
+                select(func.coalesce(func.sum(PaymentAllocation.amount), 0)).where(
+                    PaymentAllocation.invoice_id == invoice.id,
+                    PaymentAllocation.deleted_at.is_(None),
+                )
+            )
+            or 0
+        )
+        if allocated_elsewhere + requested.amount > float(invoice.amount) + 0.000001:
+            return fail(f"发票 {invoice.invoice_no or invoice.id} 核销金额超出发票金额", 400)
+        db.add(
+            PaymentAllocation(
+                payment_id=pay.id,
+                invoice_id=invoice.id,
+                sales_order_id=invoice.sales_order_id,
+                amount=requested.amount,
+            )
+        )
+
+    await db.flush()
+    for invoice in invoices:
+        allocated = float(
+            await db.scalar(
+                select(func.coalesce(func.sum(PaymentAllocation.amount), 0)).where(
+                    PaymentAllocation.invoice_id == invoice.id,
+                    PaymentAllocation.deleted_at.is_(None),
+                )
+            )
+            or 0
+        )
+        if allocated >= float(invoice.amount) - 0.000001:
+            invoice.status = "paid"
+
+    pay.status = "completed" if requested_total >= float(pay.amount) - 0.000001 else "partial"
+    await _bump_payment_caches()
+    await cache_bump_version("invoices:list")
+    return ok(
+        {
+            "payment_id": pay.id,
+            "allocated_amount": round(requested_total, 2),
+            "unallocated_amount": max(round(float(pay.amount) - requested_total, 2), 0),
+            "status": pay.status,
+        }
     )
 
 
@@ -214,8 +392,15 @@ async def update_payment(
     pay = await svc.update_payment(db, pay, body.model_dump(exclude_none=True))
     await _bump_payment_caches()
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
+    order_no = await _load_order_no(db, pay.sales_order_id)
+    delivery_note_no = await _load_delivery_note_no(db, pay.delivery_note_id)
     return ok(
-        _serialize_payment(pay, {pay.invoice_id: invoice_no} if pay.invoice_id else {})
+        _serialize_payment(
+            pay,
+            {pay.invoice_id: invoice_no} if pay.invoice_id else {},
+            {pay.sales_order_id: order_no} if pay.sales_order_id else {},
+            {pay.delivery_note_id: delivery_note_no} if pay.delivery_note_id else {},
+        )
     )
 
 

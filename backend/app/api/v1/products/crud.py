@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.models.audit import FieldChangeLog, StatusTransitionLog
 from app.models.product import Product
 from app.schemas.common import fail, ok
 from app.services.cache_service import cache_bump_version
@@ -27,6 +28,12 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 # Cache key version — bump to invalidate all entries after schema change
 PRODUCTS_LIST_CACHE_VERSION = "v3"
+PRODUCT_STATUS_TRANSITIONS = {
+    "draft": {"active", "inactive"},
+    "active": {"frozen", "inactive"},
+    "frozen": {"active", "inactive"},
+    "inactive": {"active"},
+}
 
 
 # --- Schemas ---
@@ -36,6 +43,9 @@ class ProductCreate(BaseModel):
     # 基础标识
     sku: str | None = None
     name: str = Field(min_length=1, max_length=255)
+    status: str = "active"
+    product_type: str = "finished_good"
+    owner: str | None = None
     mpn: str | None = None
     datecode: str | None = Field(None, max_length=100)
     barcode: str | None = None
@@ -55,6 +65,10 @@ class ProductCreate(BaseModel):
     # 规格
     specs: str | None = None
     unit: str | None = None
+    default_warehouse_id: int | None = None
+    batch_control: bool = False
+    serial_control: bool = False
+    shelf_life_control: bool = False
     # 物理属性
     length_mm: float | None = None
     width_mm: float | None = None
@@ -67,6 +81,12 @@ class ProductCreate(BaseModel):
     standard_cost: float | None = None
     list_price: float | None = None
     wholesale_price: float | None = None
+    minimum_sale_price: float | None = None
+    price_valid_from: str | None = None
+    price_valid_to: str | None = None
+    latest_purchase_cost: float | None = None
+    weighted_avg_cost: float | None = None
+    cost_updated_at: str | None = None
     # 生命周期与合规
     lifecycle_status: str | None = None
     eol_date: str | None = None
@@ -88,6 +108,9 @@ class ProductUpdate(BaseModel):
     # 基础标识
     sku: str | None = None
     name: str | None = Field(None, min_length=1, max_length=255)
+    status: str | None = None
+    product_type: str | None = None
+    owner: str | None = None
     mpn: str | None = None
     datecode: str | None = Field(None, max_length=100)
     barcode: str | None = None
@@ -107,6 +130,10 @@ class ProductUpdate(BaseModel):
     # 规格
     specs: str | None = None
     unit: str | None = None
+    default_warehouse_id: int | None = None
+    batch_control: bool | None = None
+    serial_control: bool | None = None
+    shelf_life_control: bool | None = None
     # 物理属性
     length_mm: float | None = None
     width_mm: float | None = None
@@ -119,6 +146,12 @@ class ProductUpdate(BaseModel):
     standard_cost: float | None = None
     list_price: float | None = None
     wholesale_price: float | None = None
+    minimum_sale_price: float | None = None
+    price_valid_from: str | None = None
+    price_valid_to: str | None = None
+    latest_purchase_cost: float | None = None
+    weighted_avg_cost: float | None = None
+    cost_updated_at: str | None = None
     # 生命周期与合规
     lifecycle_status: str | None = None
     eol_date: str | None = None
@@ -142,6 +175,8 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
+    if body.status not in {"draft", "active", "frozen", "inactive"}:
+        return fail("产品状态无效", 422)
     product = Product(**body.model_dump())
     db.add(product)
     await db.flush()
@@ -173,8 +208,48 @@ async def update_product(
     product = result.scalar_one_or_none()
     if product is None:
         return fail("Product not found", 404)
-    for key, val in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if "status" in data and data["status"] not in {
+        "draft",
+        "active",
+        "frozen",
+        "inactive",
+    }:
+        return fail("产品状态无效", 422)
+    old_status = product.status
+    if "status" in data and data["status"] != old_status:
+        if data["status"] not in PRODUCT_STATUS_TRANSITIONS.get(old_status, set()):
+            return fail(f"产品状态转换非法: {old_status} → {data['status']}", 409)
+    actor = str(_user.get("username") or _user.get("user_id") or "system")
+    changes = [
+        FieldChangeLog(
+            table_name="products",
+            record_id=product.id,
+            field_name=key,
+            old_value=str(getattr(product, key))
+            if getattr(product, key) is not None
+            else None,
+            new_value=str(val) if val is not None else None,
+            actor=actor,
+        )
+        for key, val in data.items()
+        if getattr(product, key, None) != val
+    ]
+    for key, val in data.items():
         setattr(product, key, val)
+    db.add_all(changes)
+    if "status" in data and data["status"] != old_status:
+        db.add(
+            StatusTransitionLog(
+                aggregate_type="product",
+                aggregate_id=product.id,
+                aggregate_no=product.sku,
+                status_before=old_status,
+                status_after=data["status"],
+                action="status_change",
+                actor=actor,
+            )
+        )
     await db.flush()
     from app.services.embedding_pipeline import after_product_save
 

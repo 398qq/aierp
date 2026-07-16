@@ -1,7 +1,7 @@
 """Finance domain state machines.
 
-Invoice:       draft → sent → paid | cancelled (terminal)
-               sent → overdue → paid
+Invoice:       draft → issued → paid | cancelled (terminal)
+               issued → overdue → paid
 PaymentRecord: pending → completed | overdue
 Contract:      draft → signed → active → expired | terminated (terminal)
 Commission:    draft → pending_approval → approved → paid | rejected | cancelled
@@ -12,8 +12,8 @@ from app.domain.shared.errors import InvalidStateTransition
 # ── Invoice ──────────────────────────────────────────────────
 
 INVOICE_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"sent", "cancelled"},
-    "sent": {"paid", "cancelled", "overdue"},
+    "draft": {"issued", "cancelled"},
+    "issued": {"paid", "cancelled", "overdue"},
     "overdue": {"paid", "cancelled"},
     "paid": set(),
     "cancelled": set(),

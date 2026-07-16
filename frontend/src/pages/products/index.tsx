@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Alert,
   Modal,
   Popconfirm,
   Popover,
@@ -41,8 +42,8 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { aiParseBom, aiParseProduct, aiSearchProducts, batchDeleteProducts, batchUpdateProducts, createProduct, deleteProduct, getBrands, getProduct, getProductInventories, getProducts, getProductSales, getProductStats, importProducts, updateProduct, updateProductInventory, getApiErrorMessage } from "../../api";
-import type { Brand, InventoryItem, Product } from "../../types";
+import { aiParseBom, aiParseProduct, aiSearchProducts, batchDeleteProducts, batchUpdateProducts, createProduct, deleteProduct, getBrands, getProduct, getProductInventories, getProducts, getProductSales, getProductStats, getWarehouses, importProducts, updateProduct, updateProductInventory, getApiErrorMessage } from "../../api";
+import type { Brand, InventoryItem, Product, Warehouse } from "../../types";
 import {
   BatchTaskType,
   CATEGORIES,
@@ -87,11 +88,13 @@ export default function ProductList() {
   const [category, setCategory] = useState<string | undefined>();
   const [brandId, setBrandId] = useState<number | undefined>();
   const [stockStatus, setStockStatus] = useState<string | undefined>();
+  const [productStatus, setProductStatus] = useState<string | undefined>();
   const [sort, setSort] = useState<string>("created_at_desc");
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
@@ -137,10 +140,14 @@ export default function ProductList() {
   });
 
   const [form] = Form.useForm();
+  const watchedEditorStatus = Form.useWatch("status", form) as string | undefined;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const allColKeys = [
     "sku",
+    "status",
+    "product_type",
     "name",
+    "owner",
     "category",
     "package_type",
     "specs",
@@ -155,6 +162,8 @@ export default function ProductList() {
     "locked",
     "safety_stock",
     "unit_price",
+    "minimum_sale_price",
+    "weighted_avg_cost",
     "last_sale_at",
     "actions",
   ];
@@ -333,6 +342,7 @@ export default function ProductList() {
       if (category) params.category = category;
       if (brandId) params.brand_id = brandId;
       if (stockStatus) params.stock_status = stockStatus;
+      if (productStatus) params.status = productStatus;
       const resp = await getProducts(params);
       const list = (resp.data.data.list || []) as Product[];
       setData(list);
@@ -375,6 +385,15 @@ export default function ProductList() {
     }
   };
 
+  const loadWarehouses = async () => {
+    try {
+      const r = await getWarehouses({ page: 1, page_size: 200 });
+      if (r.data.code === 0) setWarehouses((r.data.data.list || []) as Warehouse[]);
+    } catch {
+      // Warehouse selection is optional; keep the form usable if the directory is unavailable.
+    }
+  };
+
   const resetAllFilters = () => {
     setQ("");
     setScene("all");
@@ -382,6 +401,7 @@ export default function ProductList() {
     setCategory(undefined);
     setBrandId(undefined);
     setStockStatus(undefined);
+    setProductStatus(undefined);
     setSort("created_at_desc");
     setAiSearchMode(false);
     setAiSearchResults(null);
@@ -406,6 +426,7 @@ export default function ProductList() {
     setEditing(null);
     form.resetFields();
     loadBrands();
+    loadWarehouses();
     setModalOpen(true);
   };
 
@@ -413,6 +434,7 @@ export default function ProductList() {
     setEditing(p);
     form.setFieldsValue(p);
     loadBrands();
+    loadWarehouses();
     setModalOpen(true);
   };
 
@@ -784,7 +806,7 @@ export default function ProductList() {
   useEffect(() => {
     setPage(1);
     fetch(1);
-  }, [category, brandId, stockStatus]);
+  }, [category, brandId, stockStatus, productStatus]);
 
   const columns: ColumnsType<Product> = useProductTableColumns({
     onOpenDetail: openDetail,
@@ -960,6 +982,14 @@ export default function ProductList() {
                   options={STOCK_OPTIONS}
                 />
                 <Select
+                  allowClear
+                  placeholder="产品状态"
+                  style={{ width: 108 }}
+                  value={productStatus}
+                  onChange={(v) => { setProductStatus(v); setPage(1); }}
+                  options={[{ value: "active", label: "已启用" }, { value: "draft", label: "草稿" }, { value: "frozen", label: "已冻结" }, { value: "inactive", label: "已停用" }]}
+                />
+                <Select
                   value={sort}
                   onChange={(v) => {
                     setSort(v);
@@ -1071,6 +1101,11 @@ export default function ProductList() {
                     库存：
                     {STOCK_OPTIONS.find((option) => option.value === stockStatus)?.label ||
                       stockStatus}
+                  </Tag>
+                )}
+                {productStatus && (
+                  <Tag closable onClose={() => setProductStatus(undefined)}>
+                    产品状态：{productStatus}
                   </Tag>
                 )}
                 {aiSearchMode && (
@@ -1186,8 +1221,8 @@ export default function ProductList() {
           <div className="product-table-panel erp-table">
             <div className="product-table-header">
               <div className="product-table-title">
-                <strong>{aiSearchMode ? "AI 搜索结果" : currentListTitle}</strong>
-                <span>共 {currentListTotal} 条产品</span>
+                <strong>{aiSearchMode ? "AI 搜索结果" : `产品台账 · ${currentListTitle}`}</strong>
+                <span>共 {currentListTotal} 条 · 固定 SKU/产品名称</span>
               </div>
               <Space size={6}>
                 {aiSearchMode && <StatusTag tone="processing">语义搜索</StatusTag>}
@@ -1221,6 +1256,8 @@ export default function ProductList() {
               }
               rowClassName={(record) => {
                 if (contextProduct?.id === record.id) return "product-row-selected";
+                if (record.status === "frozen") return "product-row-frozen";
+                if (record.status === "inactive") return "product-row-inactive";
                 const state = getStockState(record);
                 if (state === "low") return "product-row-low";
                 if (state === "out") return "product-row-out";
@@ -1311,20 +1348,35 @@ export default function ProductList() {
         open={modalOpen}
         onCancel={closeEditor}
         onOk={() => form.submit()}
-        width={640}
+        width={760}
+        destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleSave}>
+          {editing && watchedEditorStatus && watchedEditorStatus !== "active" ? (
+            <Alert
+              showIcon
+              type={watchedEditorStatus === "frozen" ? "warning" : "info"}
+              message={watchedEditorStatus === "frozen" ? "产品已冻结" : watchedEditorStatus === "inactive" ? "产品已停用" : "产品尚未启用"}
+              description="该状态会影响报价、销售订单及后续业务单据，请确认状态变更符合审批及业务规则。"
+              style={{ marginBottom: 12 }}
+            />
+          ) : null}
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+              <Form.Item name="name" label="产品名称" rules={[{ required: true, message: "请输入产品名称" }, { max: 200, message: "名称不能超过 200 个字符" }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="sku" label="SKU">
-                <Input />
+              <Form.Item name="sku" label="SKU / 料号" rules={[{ max: 100, message: "SKU 不能超过 100 个字符" }]}>
+                <Input placeholder="企业内部唯一料号" />
               </Form.Item>
             </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item name="status" label="产品状态" initialValue="active"><Select options={[{ value: "draft", label: "草稿" }, { value: "active", label: "已启用" }, { value: "frozen", label: "已冻结" }, { value: "inactive", label: "已停用" }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="product_type" label="产品类型" initialValue="finished_good"><Select options={[{ value: "finished_good", label: "成品" }, { value: "raw_material", label: "原材料" }, { value: "semi_finished", label: "半成品" }, { value: "service", label: "服务" }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="owner" label="产品负责人"><Input /></Form.Item></Col>
           </Row>
           <Row gutter={12}>
             <Col span={12}>
@@ -1351,8 +1403,33 @@ export default function ProductList() {
             </Col>
           </Row>
           <Form.Item name="specs" label="规格">
-            <Input.TextArea rows={2} />
+            <Input.TextArea rows={2} placeholder="填写关键技术参数，支持采购、报价和替代料识别" />
           </Form.Item>
+          <Card size="small" title="库存控制" style={{ marginBottom: 12 }}>
+            <Row gutter={12}>
+              <Col span={8}><Form.Item name="default_warehouse_id" label="默认仓库"><Select allowClear showSearch optionFilterProp="label" placeholder="选择默认仓库" options={warehouses.map((w) => ({ value: w.id, label: `${w.name}${w.location ? ` · ${w.location}` : ""}` }))} /></Form.Item></Col>
+              <Col span={5}><Form.Item name="batch_control" valuePropName="checked" label="批次管理"><Checkbox>启用</Checkbox></Form.Item></Col>
+              <Col span={5}><Form.Item name="serial_control" valuePropName="checked" label="序列号管理"><Checkbox>启用</Checkbox></Form.Item></Col>
+              <Col span={6}><Form.Item name="shelf_life_control" valuePropName="checked" label="保质期管理"><Checkbox>启用</Checkbox></Form.Item></Col>
+            </Row>
+            <div style={{ color: "#8c8c8c", fontSize: 12 }}>库存控制会影响收货、发货及库存台账的批次/序列号校验。</div>
+          </Card>
+          <Card size="small" title="价格与成本" style={{ marginBottom: 12 }}>
+            <Row gutter={12}>
+              <Col span={8}><Form.Item name="list_price" label="目录价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+              <Col span={8}><Form.Item name="wholesale_price" label="批发价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+              <Col span={8}><Form.Item name="minimum_sale_price" label="最低销售价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}><Form.Item name="latest_purchase_cost" label="最新采购成本"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+              <Col span={12}><Form.Item name="weighted_avg_cost" label="加权平均成本"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}><Form.Item name="price_valid_from" label="价格生效日"><Input placeholder="YYYY-MM-DD" /></Form.Item></Col>
+              <Col span={12}><Form.Item name="price_valid_to" label="价格失效日"><Input placeholder="YYYY-MM-DD（可留空）" /></Form.Item></Col>
+            </Row>
+            <div style={{ color: "#8c8c8c", fontSize: 12 }}>最低销售价用于报价与销售订单校验；成本字段用于毛利和采购分析。</div>
+          </Card>
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="brand_id" label="品牌">

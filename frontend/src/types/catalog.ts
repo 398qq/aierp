@@ -1,6 +1,9 @@
 // Product & Inventory
 export interface Product {
   id: number; sku: string | null; name: string;
+  status?: "draft" | "active" | "frozen" | "inactive" | string;
+  product_type?: string;
+  owner?: string | null;
   // 基础标识
   mpn: string | null; datecode?: string | null; barcode: string | null;
   hs_code: string | null; origin_country: string | null;
@@ -13,6 +16,10 @@ export interface Product {
   temperature_range: string | null; power_rating: string | null;
   // 规格
   specs: string | null; unit: string | null;
+  default_warehouse_id?: number | null;
+  batch_control?: boolean;
+  serial_control?: boolean;
+  shelf_life_control?: boolean;
   // 物理属性
   length_mm: number | null; width_mm: number | null;
   height_mm: number | null; gross_weight_g: number | null;
@@ -21,6 +28,10 @@ export interface Product {
   tax_rate: number | null; currency: string;
   standard_cost: number | null; list_price: number | null;
   wholesale_price: number | null;
+  minimum_sale_price?: number | null;
+  price_valid_from?: string | null; price_valid_to?: string | null;
+  latest_purchase_cost?: number | null; weighted_avg_cost?: number | null;
+  cost_updated_at?: string | null;
   // 生命周期与合规
   lifecycle_status: string | null; eol_date: string | null;
   alternative_mpn: string | null;

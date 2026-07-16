@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
-import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, deleteOpportunity, getOpportunities, getApiErrorMessage } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
@@ -29,6 +29,7 @@ export default function OpportunityList() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | undefined>();
   const [stage, setStage] = useState<string | undefined>();
+  const [assignedTo, setAssignedTo] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
   const [q, setQ] = useState("");
@@ -38,12 +39,13 @@ export default function OpportunityList() {
   const [aiMap, setAiMap] = useState<Record<number, OpportunityAI>>({});
   const navigate = useNavigate();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { page_size: 100 };
       if (status) params.status = status;
       if (stage) params.stage = stage;
+      if (assignedTo) params.assigned_to = assignedTo;
       if (customerId) params.customer_id = customerId;
       if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
@@ -53,11 +55,18 @@ export default function OpportunityList() {
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); } finally {
       setLoading(false);
     }
-  };
+  }, [assignedTo, customerId, includeAi, q, stage, status]);
 
   useEffect(() => {
     load();
-  }, [status, stage, customerId, q, includeAi]);
+  }, [load]);
+
+  const ownerOptions = useMemo(
+    () => Array.from(new Set(data.map((item) => item.assigned_to).filter(Boolean) as string[]))
+      .sort((a, b) => a.localeCompare(b, "zh-CN"))
+      .map((value) => ({ value, label: value })),
+    [data],
+  );
 
   const stats = useMemo(() => {
     const amount = data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -71,13 +80,19 @@ export default function OpportunityList() {
       const diffDays = Math.ceil((due - Date.now()) / (24 * 60 * 60 * 1000));
       return diffDays >= 0 && diffDays <= 14;
     }).length;
+    const overdue = data.filter((item) => {
+      if (!item.expected_close_date || item.status !== "active") return false;
+      const due = new Date(item.expected_close_date).getTime();
+      return !Number.isNaN(due) && due < Date.now();
+    }).length;
     const atRisk = includeAi ? Object.values(aiMap).filter((item) => item.risk_level === "high").length : 0;
-    return { amount, weightedAmount, avgWin, active, dueSoon, atRisk };
+    return { amount, weightedAmount, avgWin, active, dueSoon, overdue, atRisk };
   }, [aiMap, data, includeAi]);
 
   const clearFilters = () => {
     setStatus(undefined);
     setStage(undefined);
+    setAssignedTo(undefined);
     setCustomerId(undefined);
     setSearchText("");
     setQ("");
@@ -91,10 +106,12 @@ export default function OpportunityList() {
       stage: r.stage ? (stageLabel[r.stage] || r.stage) : "",
       status: STATUS_OPTIONS.find((s) => s.value === r.status)?.label || r.status,
       amount: r.amount || 0,
+      weighted_amount: Number(r.amount || 0) * Number(r.win_probability || 0) / 100,
       win_probability: r.win_probability ?? 0,
       expected_close_date: r.expected_close_date?.slice(0, 10) || "",
       assigned_to: r.assigned_to || "",
       source: r.source || "",
+      updated_at: r.updated_at?.slice(0, 10) || r.created_at?.slice(0, 10) || "",
     })),
   [data]);
 
@@ -122,6 +139,7 @@ export default function OpportunityList() {
           { title: "预计金额", value: stats.amount, prefix: "¥", precision: 0 },
           { title: "加权金额", value: stats.weightedAmount, prefix: "¥", precision: 0 },
           { title: "平均赢率", value: stats.avgWin, suffix: "%", precision: 1 },
+          { title: "已超期", value: stats.overdue, suffix: "个" },
           { title: "14天内预计成交", value: stats.dueSoon, suffix: "个" },
           { title: "高风险", value: includeAi ? stats.atRisk : "-", suffix: includeAi ? "个" : undefined },
         ]}
@@ -177,6 +195,16 @@ export default function OpportunityList() {
             onChange={setStage}
             options={STAGE_OPTIONS}
           />
+          <Select
+            placeholder="负责人"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            style={{ width: 140 }}
+            value={assignedTo}
+            onChange={setAssignedTo}
+            options={ownerOptions}
+          />
           <Button onClick={clearFilters}>清空筛选</Button>
           <Space>
             <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
@@ -191,14 +219,16 @@ export default function OpportunityList() {
               { key: "stage", title: "阶段" },
               { key: "status", title: "状态" },
               { key: "amount", title: "金额" },
+              { key: "weighted_amount", title: "加权金额" },
               { key: "win_probability", title: "赢率(%)" },
               { key: "expected_close_date", title: "预计成交" },
               { key: "assigned_to", title: "负责人" },
               { key: "source", title: "来源" },
+              { key: "updated_at", title: "最近更新" },
             ]}
             filename="opportunities_export.csv"
           />
-          {selected.length ? (
+              {selected.length ? (
             <Select
               placeholder={`批量推进 ${selected.length} 个`}
               style={{ width: 180 }}
@@ -272,6 +302,16 @@ export default function OpportunityList() {
                 render: (value: number | null) => <Typography.Text strong>{money(value)}</Typography.Text>,
               },
               {
+                title: "加权金额",
+                key: "weighted_amount",
+                width: 130,
+                align: "right",
+                sorter: (a, b) => Number(a.amount || 0) * Number(a.win_probability || 0) - Number(b.amount || 0) * Number(b.win_probability || 0),
+                render: (_: unknown, record: Opportunity) => (
+                  <Typography.Text>{money(Number(record.amount || 0) * Number(record.win_probability || 0) / 100)}</Typography.Text>
+                ),
+              },
+              {
                 title: "赢率",
                 dataIndex: "win_probability",
                 width: 150,
@@ -286,6 +326,17 @@ export default function OpportunityList() {
               { title: "预计成交", dataIndex: "expected_close_date", width: 120, sorter: (a, b) => (a.expected_close_date || "").localeCompare(b.expected_close_date || ""), render: shortDate },
               { title: "负责人", dataIndex: "assigned_to", width: 120, render: (value: string | null) => value || "-" },
               { title: "来源", dataIndex: "source", width: 120, ellipsis: true, render: (value: string | null) => value || "-" },
+              { title: "最近更新", dataIndex: "updated_at", width: 120, sorter: (a, b) => (a.updated_at || a.created_at || "").localeCompare(b.updated_at || b.created_at || ""), render: (value: string | null, record: Opportunity) => shortDate(value || record.created_at) },
+              {
+                title: "风险",
+                key: "risk",
+                width: 90,
+                render: (_: unknown, record: Opportunity) => {
+                  const risk = aiMap[record.id]?.risk_level;
+                  if (!risk) return <Typography.Text type="secondary">未分析</Typography.Text>;
+                  return <StatusTag tone={risk === "high" ? "danger" : risk === "medium" ? "warning" : "success"}>{risk === "high" ? "高风险" : risk === "medium" ? "关注" : "正常"}</StatusTag>;
+                },
+              },
               {
                 title: "操作", width: 60, fixed: "right",
                 render: (_: unknown, record: Opportunity) => {
@@ -309,13 +360,14 @@ export default function OpportunityList() {
             ]}
             summary={(pageData: readonly Opportunity[]) => {
               const totalAmt = pageData.reduce((s, r) => s + Number(r.amount || 0), 0);
+              const weightedAmt = pageData.reduce((s, r) => s + Number(r.amount || 0) * Number(r.win_probability || 0) / 100, 0);
               return (
                 <Table.Summary.Row>
-                  <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
-                  <Table.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={0} colSpan={2}>合计 <Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={2} colSpan={2} />
                   <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalAmt)}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} colSpan={5} />
+                  <Table.Summary.Cell index={5} align="right"><Typography.Text strong>{money(weightedAmt)}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} colSpan={7} />
                 </Table.Summary.Row>
               );
             }}

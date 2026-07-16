@@ -4,7 +4,7 @@
  *      /customers/:customerId/follow-ups/:followupId/edit
  */
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Form, Input, Select, DatePicker, Button, Card, Spin, Space } from "antd";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -19,6 +19,7 @@ const { TextArea } = Input;
 export default function FollowUpForm() {
   const { message } = App.useApp();
   const { customerId, followupId } = useParams<{ customerId: string; followupId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,7 @@ export default function FollowUpForm() {
   const custId = Number(customerId);
   const followupIdNum = followupId ? Number(followupId) : null;
   const isEdit = !!followupIdNum && !isNaN(followupIdNum);
+  const opportunityId = Number(searchParams.get("opportunity_id")) || null;
 
   // 加载编辑数据
   useEffect(() => {
@@ -72,6 +74,7 @@ export default function FollowUpForm() {
       }
       const submitData = {
         ...values,
+        ...(opportunityId ? { opportunity_id: opportunityId } : {}),
         planned_at: values.planned_at ? (values.planned_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss") : null,
         completed_at: values.completed_at
           ? (values.completed_at as dayjs.Dayjs).format("YYYY-MM-DD HH:mm:ss")
@@ -87,7 +90,7 @@ export default function FollowUpForm() {
         await createFollowUp(custId, submitData);
         message.success("创建成功");
       }
-      navigate(`/customers/${custId}/follow-ups`);
+      navigate(opportunityId ? `/sales/opportunities/${opportunityId}` : `/customers/${custId}/follow-ups`);
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); } finally {
       setLoading(false);
     }
@@ -95,7 +98,7 @@ export default function FollowUpForm() {
 
   // 返回列表
   const handleBack = () => {
-    navigate(`/customers/${custId}/follow-ups`);
+    navigate(opportunityId ? `/sales/opportunities/${opportunityId}` : `/customers/${custId}/follow-ups`);
   };
 
   // 无效的客户ID

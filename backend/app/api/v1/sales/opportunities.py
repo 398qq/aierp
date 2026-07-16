@@ -15,6 +15,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -23,6 +24,7 @@ from app.api.v1.sales._shared import (
     _opportunities_cache_key,
 )
 from app.database import get_db
+from app.models.customer import CustomerFollowUp
 from app.schemas.common import fail, ok, APIResponse, PageData
 from app.schemas.sales import (
     OpportunityResponse,
@@ -32,6 +34,7 @@ from app.schemas.sales import (
     OpportunityUpdate,
 )
 from app.services import sales_service as svc
+from app.services.order_business_chain_service import get_opportunity_business_chain
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
@@ -41,6 +44,10 @@ from app.services.cache_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sales:opportunity"])
+
+
+def _audit_actor(user: dict) -> str:
+    return str(user.get("username") or user.get("user_id") or "system")
 
 
 async def _bump_opportunity_caches() -> None:
@@ -151,6 +158,70 @@ async def get_opportunity(
     )
 
 
+@router.get("/opportunities/{opp_id}/follow-ups")
+async def list_opportunity_followups(
+    opp_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    opportunity = await svc.get_opportunity(db, opp_id)
+    if not opportunity:
+        return fail("商机不存在", 404)
+    rows = (
+        await db.execute(
+            select(CustomerFollowUp)
+            .where(
+                CustomerFollowUp.opportunity_id == opp_id,
+                CustomerFollowUp.deleted_at.is_(None),
+            )
+            .order_by(
+                CustomerFollowUp.planned_at.asc().nulls_last(),
+                CustomerFollowUp.created_at.desc(),
+            )
+        )
+    ).scalars().all()
+    return ok([
+        {
+            "id": row.id,
+            "opportunity_id": row.opportunity_id,
+            "method": row.method,
+            "status": row.status,
+            "content": row.content,
+            "result": row.result,
+            "planned_at": row.planned_at.isoformat() if row.planned_at else None,
+            "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+            "priority": row.priority,
+            "assigned_to": row.assigned_to,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ])
+
+
+@router.get("/opportunities/{opp_id}/business-chain")
+async def opportunity_business_chain(
+    opp_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    result = await get_opportunity_business_chain(db, opp_id)
+    if result is None:
+        return fail("商机不存在", 404)
+    return ok(result)
+
+
+@router.get("/opportunities/{opp_id}/audit")
+async def opportunity_audit(
+    opp_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    opportunity = await svc.get_opportunity(db, opp_id)
+    if not opportunity:
+        return fail("商机不存在", 404)
+    return ok(await svc.get_opportunity_audit(db, opp_id))
+
+
 @router.post(
     "/opportunities", status_code=201, response_model=APIResponse[OpportunityResponse]
 )
@@ -159,7 +230,9 @@ async def create_opportunity(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    opp = await svc.create_opportunity(db, body.model_dump())
+    opp = await svc.create_opportunity(
+        db, body.model_dump(), actor=_audit_actor(_user)
+    )
     from app.services.sales_ai_pipeline import after_opportunity_save
 
     after_opportunity_save(opp.id)
@@ -179,7 +252,12 @@ async def update_opportunity(
     opp = await svc.get_opportunity(db, opp_id)
     if not opp:
         return fail("商机不存在", 404)
-    opp = await svc.update_opportunity(db, opp, body.model_dump(exclude_none=True))
+    opp = await svc.update_opportunity(
+        db,
+        opp,
+        body.model_dump(exclude_none=True),
+        actor=_audit_actor(_user),
+    )
     from app.services.sales_ai_pipeline import after_opportunity_save
 
     after_opportunity_save(opp.id)
@@ -198,7 +276,7 @@ async def delete_opportunity(
     opp = await svc.get_opportunity(db, opp_id)
     if not opp:
         return fail("商机不存在", 404)
-    await svc.delete_opportunity(db, opp)
+    await svc.delete_opportunity(db, opp, actor=_audit_actor(_user))
     await _bump_opportunity_caches()
     return ok({"deleted": opp_id})
 
@@ -212,7 +290,7 @@ async def batch_delete_opportunities(
     for oid in body.ids:
         opp = await svc.get_opportunity(db, oid)
         if opp:
-            await svc.delete_opportunity(db, opp)
+            await svc.delete_opportunity(db, opp, actor=_audit_actor(_user))
     await _bump_opportunity_caches()
     return ok({"deleted": len(body.ids)})
 
@@ -233,7 +311,9 @@ async def batch_update_opportunities(
             if body.win_probability is not None:
                 updates["win_probability"] = body.win_probability
             if updates:
-                await svc.update_opportunity(db, opp, updates)
+                await svc.update_opportunity(
+                    db, opp, updates, actor=_audit_actor(_user)
+                )
                 count += 1
     await _bump_opportunity_caches()
     return ok({"updated": count})

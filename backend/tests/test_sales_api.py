@@ -97,6 +97,123 @@ class TestOpportunities:
         assert resp.status_code == 200
         assert resp.json()["data"]["title"] == "查单条"
 
+    async def test_opportunity_followup_appears_in_opportunity_and_today_queue(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        created = await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={
+                "title": "商机跟进闭环",
+                "customer_id": test_customer["id"],
+                "stage": "qualified",
+                "amount": 20000,
+                "win_probability": 30,
+            },
+        )
+        opportunity_id = created.json()["data"]["id"]
+        followup = await async_client.post(
+            f"/api/v1/customers/{test_customer['id']}/follow-ups",
+            headers=auth_headers,
+            json={
+                "opportunity_id": opportunity_id,
+                "method": "wechat",
+                "status": "planned",
+                "content": "确认客户预算与决策人",
+                "planned_at": "2026-07-16 10:00:00",
+                "priority": "high",
+            },
+        )
+        assert followup.status_code == 201
+
+        listed = await async_client.get(
+            f"/api/v1/opportunities/{opportunity_id}/follow-ups",
+            headers=auth_headers,
+        )
+        assert listed.status_code == 200
+        assert listed.json()["data"][0]["opportunity_id"] == opportunity_id
+
+        queue = await async_client.get(
+            "/api/v1/customers/follow-ups-global",
+            headers=auth_headers,
+            params={"q": "确认客户预算与决策人"},
+        )
+        queue_item = next(
+            item
+            for item in queue.json()["data"]["list"]
+            if item["id"] == followup.json()["data"]["id"]
+        )
+        assert queue_item["opportunity_id"] == opportunity_id
+
+    async def test_followup_rejects_opportunity_from_another_customer(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        created = await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={"title": "客户归属校验", "customer_id": test_customer["id"]},
+        )
+        other_customer = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "另一客户", "type": "终端客户"},
+        )
+        response = await async_client.post(
+            f"/api/v1/customers/{other_customer.json()['data']['id']}/follow-ups",
+            headers=auth_headers,
+            json={
+                "opportunity_id": created.json()["data"]["id"],
+                "content": "错误关联",
+            },
+        )
+        assert response.status_code == 400
+        assert response.json()["msg"] == "商机不存在或不属于当前客户"
+
+    async def test_opportunity_business_chain_contains_quote_and_order(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        opportunity = await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={
+                "title": "单据链测试商机",
+                "customer_id": test_customer["id"],
+                "amount": 1000,
+                "stage": "proposal",
+            },
+        )
+        opportunity_id = opportunity.json()["data"]["id"]
+        quotation = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "opportunity_id": opportunity_id,
+                "status": "draft",
+                "items": [
+                    {"product_name": "链路产品", "quantity": 2, "unit_price": 500}
+                ],
+            },
+        )
+        quotation_id = quotation.json()["data"]["id"]
+        converted = await async_client.post(
+            f"/api/v1/quotations/{quotation_id}/convert-to-order",
+            headers=auth_headers,
+        )
+        assert converted.status_code == 200
+
+        response = await async_client.get(
+            f"/api/v1/opportunities/{opportunity_id}/business-chain",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        chain = response.json()["data"]
+        assert chain["summary"]["quotation_count"] == 1
+        assert chain["summary"]["order_count"] == 1
+        assert chain["summary"]["quoted_amount"] == 1000
+        assert chain["summary"]["ordered_amount"] == 1000
+        assert chain["orders"][0]["quotation"]["id"] == quotation_id
+
     async def test_get_opportunity_with_ai_serializes_expected_close_date(
         self,
         async_client: AsyncClient,
@@ -172,6 +289,55 @@ class TestOpportunities:
         )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
+
+    async def test_opportunity_audit_tracks_actor_stage_and_amount(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        created = await async_client.post(
+            "/api/v1/opportunities",
+            headers=auth_headers,
+            json={
+                "title": "审计测试商机",
+                "customer_id": test_customer["id"],
+                "amount": 10000,
+                "stage": "lead",
+                "win_probability": 10,
+            },
+        )
+        opportunity_id = created.json()["data"]["id"]
+        updated = await async_client.put(
+            f"/api/v1/opportunities/{opportunity_id}",
+            headers=auth_headers,
+            json={"amount": 18000, "stage": "qualified"},
+        )
+        assert updated.status_code == 200
+
+        response = await async_client.get(
+            f"/api/v1/opportunities/{opportunity_id}/audit",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        audit = response.json()["data"]
+        assert audit["transition_count"] == 2
+        assert audit["field_change_count"] == 1
+        assert any(
+            item["action"] == "create" and item["actor"] == "testuser"
+            for item in audit["list"]
+        )
+        assert any(
+            item["action"] == "stage_change"
+            and item["before"] == "lead"
+            and item["after"] == "qualified"
+            and item["actor"] == "testuser"
+            for item in audit["list"]
+        )
+        assert any(
+            item["field_name"] == "amount"
+            and float(item["before"]) == 10000
+            and float(item["after"]) == 18000
+            for item in audit["list"]
+        )
 
     async def test_delete_opportunity(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
@@ -266,6 +432,9 @@ class TestOpportunities:
         resp = await async_client.get("/api/v1/opportunities")
         assert resp.status_code == 401
 
+        audit_resp = await async_client.get("/api/v1/opportunities/1/audit")
+        assert audit_resp.status_code == 401
+
 
 class TestQuotations:
     """Quotation CRUD + convert-to-order."""
@@ -308,6 +477,33 @@ class TestQuotations:
         assert round(item["sales_profit"], 2) == 20.00
         assert item["datecode"] == "2026W18"
         assert item["lead_time"] == "现货"
+
+    async def test_quotation_total_is_recalculated_with_line_discount(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        response = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "total_amount": 1,
+                "items": [
+                    {
+                        "product_name": "DISCOUNT-CONTROL",
+                        "quantity": 10,
+                        "unit_price": 100,
+                        "discount_rate": 10,
+                        "total_price": 1,
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 201
+        quote = response.json()["data"]
+        assert quote["total_amount"] == 900
+        assert quote["items"][0]["total_price"] == 900
+        assert quote["items"][0]["discount_rate"] == 10
 
     async def test_list_searches_quotation_product_lines(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
@@ -419,9 +615,9 @@ class TestQuotations:
         match = next((q for q in items if q["id"] == quo_id), None)
         assert match is not None, "newly created quotation not in list"
         assert match.get("customer_id") == test_customer["id"]
-        assert (
-            match.get("customer_name") == customer_name
-        ), f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
+        assert match.get("customer_name") == customer_name, (
+            f"BUG: list response missing customer_name (got {match.get('customer_name')!r})"
+        )
 
         # Detail endpoint
         detail_resp = await async_client.get(
@@ -577,6 +773,35 @@ class TestQuotations:
         )
         assert resp.status_code == 200
         assert "document_no" in resp.json()["data"]
+        repeated = await async_client.post(
+            f"/api/v1/quotations/{quo_id}/convert-to-order",
+            headers=auth_headers,
+        )
+        assert repeated.status_code == 200
+        assert (
+            repeated.json()["data"]["document_no"] == resp.json()["data"]["document_no"]
+        )
+
+    async def test_convert_rejected_quotation_reports_actual_state(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        created = await async_client.post(
+            "/api/v1/quotations",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "lost",
+                "items": [
+                    {"product_name": "STATE-CONTROL", "quantity": 1, "unit_price": 10}
+                ],
+            },
+        )
+        response = await async_client.post(
+            f"/api/v1/quotations/{created.json()['data']['id']}/convert-to-order",
+            headers=auth_headers,
+        )
+        assert response.status_code == 409
+        assert "lost 状态不允许转换为订单" in response.json()["msg"]
 
     async def test_batch_delete_quotations(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
@@ -688,6 +913,87 @@ class TestSalesOrders:
         assert resp.json()["code"] == 0
         assert "order_no" in resp.json()["data"]
 
+    async def test_business_chain_summarizes_order_progress(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        created = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "pending",
+                "total_amount": 500,
+                "items": [
+                    {
+                        "product_name": "CHAIN-ITEM",
+                        "quantity": 5,
+                        "unit_price": 100,
+                        "total_price": 500,
+                    }
+                ],
+            },
+        )
+        order_id = created.json()["data"]["id"]
+
+        response = await async_client.get(
+            f"/api/v1/sales-orders/{order_id}/business-chain",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        chain = response.json()["data"]
+        assert chain["order"]["id"] == order_id
+        assert len(chain["item_progress"]) == 1
+        assert chain["item_progress"][0] | {"order_item_id": 0} == {
+            "order_item_id": 0,
+            "product_id": None,
+            "product_code": None,
+            "ordered_quantity": 5,
+            "delivered_quantity": 0,
+            "pending_quantity": 5,
+        }
+        assert chain["progress"] == {
+            "ordered_quantity": 5,
+            "delivered_quantity": 0,
+            "pending_delivery_quantity": 5,
+            "delivery_percent": 0,
+            "order_amount": 500.0,
+            "invoiced_amount": 0.0,
+            "uninvoiced_amount": 500.0,
+            "invoice_percent": 0,
+            "paid_amount": 0.0,
+            "outstanding_amount": 500.0,
+            "payment_percent": 0,
+        }
+
+    async def test_contract_required_customer_blocks_delivery_without_signed_contract(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        updated = await async_client.put(
+            f"/api/v1/customers/{test_customer['id']}",
+            headers=auth_headers,
+            json={"contract_required": True},
+        )
+        assert updated.status_code == 200
+        created = await async_client.post(
+            "/api/v1/sales-orders",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "status": "confirmed",
+                "total_amount": 500,
+                "items": [{"product_name": "CONTROL", "quantity": 1}],
+            },
+        )
+
+        converted = await async_client.post(
+            f"/api/v1/sales-orders/{created.json()['data']['id']}/convert-to-delivery",
+            headers=auth_headers,
+        )
+
+        assert converted.status_code == 409
+        assert "先签合同" in converted.json()["msg"]
+
     async def test_list_searches_sales_order_product_lines(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
@@ -796,9 +1102,9 @@ class TestSalesOrders:
         match = next((o for o in items if o["id"] == order_id), None)
         assert match is not None, "newly created order not in list"
         assert match.get("customer_id") == test_customer["id"]
-        assert (
-            match.get("customer_name") == customer_name
-        ), f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
+        assert match.get("customer_name") == customer_name, (
+            f"BUG: order list missing customer_name (got {match.get('customer_name')!r})"
+        )
 
         # Detail
         detail_resp = await async_client.get(
@@ -992,7 +1298,7 @@ class TestSalesOrders:
         assert order.status_code == 200
         assert len(order.json()["data"]["items"]) == 2
 
-    async def test_convert_order_twice_fails(
+    async def test_convert_order_twice_returns_existing_delivery(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):
         order = await async_client.post(
@@ -1013,15 +1319,17 @@ class TestSalesOrders:
             },
         )
         order_id = order.json()["data"]["id"]
-        await async_client.post(
+        first = await async_client.post(
             f"/api/v1/sales-orders/{order_id}/convert-to-delivery",
             headers=auth_headers,
         )
-        resp = await async_client.post(
+        second = await async_client.post(
             f"/api/v1/sales-orders/{order_id}/convert-to-delivery",
             headers=auth_headers,
         )
-        assert resp.status_code == 409
+        assert second.status_code == 200
+        assert second.json()["data"]["id"] == first.json()["data"]["id"]
+        assert "已有关联发货单" in second.json()["data"]["msg"]
 
     async def test_batch_delete_orders(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
@@ -1058,7 +1366,9 @@ class TestSalesOrders:
 class TestDeliveryNotes:
     """DeliveryNote CRUD."""
 
-    async def _create_order(self, async_client, auth_headers, customer_id, product_name="Test"):
+    async def _create_order(
+        self, async_client, auth_headers, customer_id, product_name="Test"
+    ):
         resp = await async_client.post(
             "/api/v1/sales-orders",
             headers=auth_headers,
@@ -1356,6 +1666,7 @@ class TestConversions:
         assert first.status_code == 200
         assert second.status_code == 200
         assert second.json()["data"]["id"] == first.json()["data"]["id"]
+        assert "已有关联发货单" in second.json()["data"]["msg"]
 
     # ── v1 convert-to-invoice ────────────────────────────────────────
 

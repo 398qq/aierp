@@ -110,6 +110,19 @@ export const getOpportunities = (params: Record<string, unknown>) =>
 export const getOpportunity = (id: number, includeAi = false) =>
   client.get<APIResponse<Opportunity>>(`/opportunities/${id}?include_ai=${includeAi}`);
 
+export const getOpportunityFollowUps = (id: number) =>
+  client.get<APIResponse<FollowUp[]>>(`/opportunities/${id}/follow-ups`);
+
+export const getOpportunityBusinessChain = (id: number) =>
+  client.get<APIResponse<import("../types").OpportunityBusinessChain>>(
+    `/opportunities/${id}/business-chain`,
+  );
+
+export const getOpportunityAudit = (id: number) =>
+  client.get<APIResponse<import("../types").OpportunityAuditTrail>>(
+    `/opportunities/${id}/audit`,
+  );
+
 export const createOpportunity = (data: Record<string, unknown>) =>
   client.post<APIResponse<Opportunity>>("/opportunities", data);
 
@@ -212,6 +225,11 @@ export const getSalesOrders = (params: Record<string, unknown>) =>
 
 export const getSalesOrder = (id: number, includeAi = false) =>
   client.get<APIResponse<SalesOrder>>(`/sales-orders/${id}?include_ai=${includeAi}`);
+
+export const getSalesOrderBusinessChain = (id: number) =>
+  client.get<APIResponse<import("../types").SalesOrderBusinessChain>>(
+    `/sales-orders/${id}/business-chain`,
+  );
 
 export const createSalesOrder = (data: Record<string, unknown>) =>
   client.post<APIResponse<SalesOrder>>("/sales-orders", data);

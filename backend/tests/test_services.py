@@ -209,6 +209,22 @@ class TestSecurity:
 
 class TestSalesAIService:
     @pytest.mark.unit
+    def test_paginated_response_preserves_ai_enrichment(self):
+        from app.schemas.common import PageData
+
+        page = PageData[dict](
+            list=[{"id": 7}],
+            total=1,
+            page=1,
+            page_size=20,
+            ai={7: {"delivery_risk": "medium", "flag": None}},
+        )
+
+        assert page.model_dump()["ai"] == {
+            7: {"delivery_risk": "medium", "flag": None}
+        }
+
+    @pytest.mark.unit
     async def test_order_detail_ai_timeout_returns_safe_fallback(self, monkeypatch):
         from datetime import date
         from app.services import sales_ai_service
@@ -242,7 +258,11 @@ class TestSalesAIService:
         class SlowAIClient:
             async def chat_structured(self, *_args, **_kwargs):
                 await asyncio.sleep(1)
-                return {"items": [{"id": 1, "health": "fair", "flag": None}]}
+                return {
+                    "items": [
+                        {"id": 1, "delivery_risk": "low", "flag": None}
+                    ]
+                }
 
         order = MagicMock(id=1, total_amount=100, status="pending", items=[])
         monkeypatch.setattr(sales_ai_service, "SALES_AI_TIMEOUT_SECONDS", 0.01)
@@ -251,4 +271,29 @@ class TestSalesAIService:
             result = await sales_ai_service.enrich_order_list(MagicMock(), [order])
 
         assert time.perf_counter() - started < 0.5
-        assert result == {1: {"health": "fair", "flag": None}}
+        assert result == {1: {"delivery_risk": "low", "flag": None}}
+
+    @pytest.mark.unit
+    async def test_order_list_ai_accepts_cached_serialized_orders(self, monkeypatch):
+        from app.services import sales_ai_service
+
+        async def fake_cached_ai_call(*_args, **_kwargs):
+            return {
+                "items": [
+                    {"id": 7, "delivery_risk": "medium", "flag": None}
+                ]
+            }
+
+        monkeypatch.setattr(sales_ai_service, "_cached_ai_call", fake_cached_ai_call)
+        cached_order = {
+            "id": 7,
+            "total_amount": "6101.00",
+            "status": "confirmed",
+            "items": [{"id": 70}],
+        }
+
+        result = await sales_ai_service.enrich_order_list(
+            MagicMock(), [cached_order]
+        )
+
+        assert result == {7: {"delivery_risk": "medium", "flag": None}}

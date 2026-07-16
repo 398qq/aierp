@@ -13,6 +13,7 @@ should encapsulate.
 import logging
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_uow
@@ -20,6 +21,7 @@ from app.application.sales import ConvertQuotationToOrderUseCase
 from app.application.uow import UnitOfWork
 from app.database import get_db
 from app.domain.shared.errors import InvalidStateTransition, NotFoundError
+from app.models.sales import DeliveryNote, SalesOrder
 from app.schemas.common import fail, ok
 from app.schemas.sales import ConversionValidation, ConvertResponse
 from app.services import sales_service as svc
@@ -36,6 +38,25 @@ async def convert_quote_to_order(
     uow: UnitOfWork = Depends(get_uow),
     user: dict = Depends(get_current_user),
 ):
+    # Conversion is idempotent from the UI's perspective. A double-click or a
+    # stale detail page should return the already-created order, not a vague
+    # state-transition error.
+    existing_order = await uow.session.scalar(
+        select(SalesOrder).where(
+            SalesOrder.quotation_id == quote_id,
+            SalesOrder.deleted_at.is_(None),
+        )
+    )
+    if existing_order is not None:
+        return ok(
+            ConvertResponse(
+                id=existing_order.id or 0,
+                document_no=existing_order.order_no or "",
+                msg="报价单已转换，已返回原销售订单",
+                ai_validation=None,
+            )
+        )
+
     use_case = ConvertQuotationToOrderUseCase(
         uow.session,
         user_id=user["user_id"],
@@ -46,8 +67,8 @@ async def convert_quote_to_order(
         order = await use_case.execute(quote_id)
     except NotFoundError:
         return fail("报价单不存在", 404)
-    except InvalidStateTransition:
-        return fail("报价单已转换或状态不允许转换", 400)
+    except InvalidStateTransition as exc:
+        return fail(str(exc), 409)
 
     await uow.commit()
 
@@ -85,6 +106,26 @@ async def convert_order_to_delivery(
     order = await svc.get_sales_order(db, order_id)
     if not order:
         return fail("销售订单不存在", 404)
+    existing_note = await db.scalar(
+        select(DeliveryNote).where(
+            DeliveryNote.sales_order_id == order_id,
+            DeliveryNote.deleted_at.is_(None),
+        )
+    )
+    if existing_note is not None:
+        return ok(
+            ConvertResponse(
+                id=existing_note.id,
+                document_no=existing_note.delivery_no or "",
+                msg="销售订单已有关联发货单，已返回原发货单",
+                ai_validation=None,
+            )
+        )
+    from app.services.order_release_policy import validate_order_release
+
+    release_error = await validate_order_release(db, order)
+    if release_error:
+        return fail(release_error, 409)
     note = await svc.convert_order_to_delivery(db, order)
     if not note:
         return fail("订单已转换", 409)

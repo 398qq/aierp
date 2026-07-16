@@ -8,6 +8,7 @@ from app.core.datetime_utils import to_utc
 from app.core.permissions import require_perm
 from app.database import get_db
 from app.models.customer import Customer, CustomerFollowUp
+from app.models.sales import Opportunity
 from app.schemas.common import fail, ok
 from app.services.cache_service import cache_bump_version
 
@@ -42,6 +43,7 @@ async def list_followups(
         [
             {
                 "id": f.id,
+                "opportunity_id": f.opportunity_id,
                 "method": f.method,
                 "status": f.status,
                 "content": f.content,
@@ -66,11 +68,23 @@ async def create_followup(
 ):
     try:
         data = body.model_dump()
+        if data.get("opportunity_id") is not None:
+            opportunity = await db.scalar(
+                select(Opportunity).where(
+                    Opportunity.id == data["opportunity_id"],
+                    Opportunity.customer_id == customer_id,
+                    Opportunity.deleted_at.is_(None),
+                )
+            )
+            if opportunity is None:
+                return fail("商机不存在或不属于当前客户", 400)
         for date_field in ("planned_at", "completed_at"):
             if data.get(date_field):
                 data[date_field] = to_utc(datetime.fromisoformat(data[date_field]))
         if data.get("completed_at") and not data.get("status"):
             data["status"] = "completed"
+        if data.get("status") != "completed":
+            data["completed_at"] = None
         followup = CustomerFollowUp(customer_id=customer_id, **data)
         db.add(followup)
         with db.no_autoflush:
@@ -116,6 +130,16 @@ async def update_followup(
     if followup is None:
         return fail("Follow-up not found", 404)
     data = body.model_dump(exclude_unset=True)
+    if data.get("opportunity_id") is not None:
+        opportunity = await db.scalar(
+            select(Opportunity).where(
+                Opportunity.id == data["opportunity_id"],
+                Opportunity.customer_id == customer_id,
+                Opportunity.deleted_at.is_(None),
+            )
+        )
+        if opportunity is None:
+            return fail("商机不存在或不属于当前客户", 400)
     for date_field in ("planned_at", "completed_at"):
         if date_field in data and data.get(date_field) is None:
             del data[date_field]

@@ -36,6 +36,13 @@ const lifecycleTone: Record<string, string> = {
   obsolete: "neutral",
 };
 
+const productTypeLabel: Record<string, string> = {
+  finished_good: "成品",
+  raw_material: "原材料",
+  semi_finished: "半成品",
+  service: "服务",
+};
+
 export function useProductTableColumns({
   onOpenDetail,
   onOpenEdit,
@@ -63,6 +70,24 @@ export function useProductTableColumns({
         key: "mpn",
         width: 140,
         render: (v: string | null) => (v ? <span style={MONO}>{v}</span> : "-"),
+      },
+      {
+        title: "产品状态",
+        dataIndex: "status",
+        key: "status",
+        width: 90,
+        render: (value: string | undefined) => (
+          <StatusTag tone={value === "active" ? "success" : value === "frozen" ? "warning" : "danger"}>
+            {value === "active" ? "已启用" : value === "frozen" ? "已冻结" : value === "inactive" ? "已停用" : "草稿"}
+          </StatusTag>
+        ),
+      },
+      {
+        title: "产品类型",
+        dataIndex: "product_type",
+        key: "product_type",
+        width: 90,
+        render: (value: string | undefined) => productTypeLabel[value || ""] || value || "成品",
       },
       {
         title: "产品名称",
@@ -100,11 +125,24 @@ export function useProductTableColumns({
         render: (v: string | null) => v || "-",
       },
       {
+        title: "负责人",
+        dataIndex: "owner",
+        key: "owner",
+        width: 90,
+        render: (v: string | null) => v || "-",
+      },
+      {
         title: "分类",
         dataIndex: "category",
         key: "category",
         width: 80,
-        render: (v: string) => (v ? <StatusTag>{v}</StatusTag> : "-"),
+        render: (v: string) => (
+          v ? (
+            <span title={v}>
+              <StatusTag style={{ maxWidth: 68, display: "inline-block" }}>{v}</StatusTag>
+            </span>
+          ) : "-"
+        ),
       },
       {
         title: "封装",
@@ -240,6 +278,26 @@ export function useProductTableColumns({
         dataIndex: "list_price",
         key: "list_price",
         width: 90,
+        align: "right",
+        render: (v: number | null) => (
+          <span className="product-number">{v != null ? `¥${v.toFixed(2)}` : "-"}</span>
+        ),
+      },
+      {
+        title: "最低销售价",
+        dataIndex: "minimum_sale_price",
+        key: "minimum_sale_price",
+        width: 105,
+        align: "right",
+        render: (v: number | null) => (
+          <span className="product-number">{v != null ? `¥${v.toFixed(2)}` : "-"}</span>
+        ),
+      },
+      {
+        title: "加权成本",
+        dataIndex: "weighted_avg_cost",
+        key: "weighted_avg_cost",
+        width: 95,
         align: "right",
         render: (v: number | null) => (
           <span className="product-number">{v != null ? `¥${v.toFixed(2)}` : "-"}</span>

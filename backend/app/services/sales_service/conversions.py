@@ -41,6 +41,16 @@ class SalesConversionService(BaseCRUDService):
         self, db: AsyncSession, quote: Quotation
     ) -> SalesOrder:
         assert_can_transition_quotation(quote.status, "won")
+        existing_order = await db.scalar(
+            select(SalesOrder).where(
+                SalesOrder.quotation_id == quote.id,
+                SalesOrder.deleted_at.is_(None),
+            )
+        )
+        if existing_order is not None:
+            raise ValueError(
+                f"报价单已转换为销售订单 {existing_order.order_no or existing_order.id}"
+            )
         order_no = await generate_doc_no(db, "SO", SalesOrder, "order_no")
         order = SalesOrder(
             order_no=order_no,
@@ -48,6 +58,12 @@ class SalesConversionService(BaseCRUDService):
             quotation_id=quote.id,
             total_amount=quote.total_amount,
             status="pending",
+            currency=quote.currency,
+            incoterms=quote.incoterms,
+            payment_terms=quote.payment_terms,
+            discount_rate=quote.discount_rate,
+            discount_amount=quote.discount_amount,
+            subtotal=quote.subtotal,
             order_date=datetime.now(timezone.utc),
         )
         db.add(order)
@@ -59,8 +75,11 @@ class SalesConversionService(BaseCRUDService):
                 product_id=qi.product_id,
                 product_name=qi.product_name,
                 quantity=qi.quantity,
+                unit=qi.unit,
                 unit_price=qi.unit_price,
                 total_price=qi.total_price,
+                tax_rate=qi.tax_rate,
+                discount_rate=qi.discount_rate,
             )
             db.add(soi)
 
@@ -123,7 +142,7 @@ class SalesConversionService(BaseCRUDService):
 
         existing = await db.execute(
             select(func.count()).where(
-                Invoice.sales_order_id == note.sales_order_id,
+                Invoice.delivery_note_id == note.id,
                 Invoice.deleted_at.is_(None),
             )
         )
@@ -140,6 +159,7 @@ class SalesConversionService(BaseCRUDService):
         inv = Invoice(
             invoice_no=invoice_no,
             sales_order_id=note.sales_order_id,
+            delivery_note_id=note.id,
             customer_id=note.customer_id,
             amount=float(order.total_amount) if order else 0,
             tax_amount=round(float(order.total_amount) * 0.13, 4) if order else 0,

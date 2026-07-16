@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { CustomerSelect, ProductSelect, QuotationSelect, SalesModuleShell, money } from "./salesUi";
+import { getSalesOrderStatusOptions, SALES_ORDER_STATUS_LABELS } from "./salesOrderStatus";
 
 type OrderItemForm = {
   product_id?: number;
@@ -18,14 +19,6 @@ type OrderItemForm = {
 };
 
 const toNumber = (value: unknown) => Number(value || 0);
-
-const STATUS_OPTIONS = [
-  { value: "pending", label: "待确认" },
-  { value: "confirmed", label: "已确认" },
-  { value: "shipped", label: "已发货" },
-  { value: "delivered", label: "已签收" },
-  { value: "cancelled", label: "已取消" },
-];
 
 const sectionTitleStyle = {
   display: "flex",
@@ -49,6 +42,7 @@ export default function SalesOrderForm() {
   const [searchParams] = useSearchParams();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [originalStatus, setOriginalStatus] = useState("pending");
   const isEdit = !!id;
   const watchedItems = Form.useWatch("items", form) as OrderItemForm[] | undefined;
   const watchedTotal = Form.useWatch("total_amount", form) as number | undefined;
@@ -68,6 +62,7 @@ export default function SalesOrderForm() {
     if (isEdit) {
       getSalesOrder(Number(id)).then((r) => {
         const order = r.data.data;
+        setOriginalStatus(order.status || "pending");
         form.setFieldsValue({
           ...order,
           order_date: order.order_date ? dayjs(order.order_date) : null,
@@ -207,7 +202,7 @@ export default function SalesOrderForm() {
                   <Input placeholder="系统自动生成 / 手工编号" />
                 </Form.Item>
                 <Form.Item name="status" label="执行状态">
-                  <Select options={STATUS_OPTIONS} />
+                  <Select options={getSalesOrderStatusOptions(originalStatus, isEdit)} />
                 </Form.Item>
                 <Form.Item name="order_date" label="下单日期">
                   <DatePicker style={{ width: "100%" }} />
@@ -397,7 +392,7 @@ export default function SalesOrderForm() {
                   <div>
                     <div style={labelTextStyle}>执行状态</div>
                     <StatusTag tone={watchedStatus === "confirmed" ? "info" : watchedStatus === "cancelled" ? "danger" : "neutral"} style={{ margin: 0 }}>
-                      {STATUS_OPTIONS.find((item) => item.value === watchedStatus)?.label || watchedStatus || "待确认"}
+                      {SALES_ORDER_STATUS_LABELS[watchedStatus || ""] || watchedStatus || "待确认"}
                     </StatusTag>
                   </div>
                   <div>

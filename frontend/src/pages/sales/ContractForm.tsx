@@ -83,6 +83,17 @@ export default function ContractForm() {
             <Form.Item name="expire_date" label="到期日期"><DatePicker style={{ width: "100%" }} /></Form.Item>
           </div>
           <Form.Item name="file_url" label="文件URL"><Input /></Form.Item>
+          <Card size="small" title="商务条款" style={{ marginBottom: 16 }}>
+            <Form.Item name="delivery_address" label="交货地址"><Input.TextArea rows={2} /></Form.Item>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+              <Form.Item name="invoice_type" label="发票类型"><Select allowClear options={[{ value: "增值税专用发票", label: "增值税专用发票" }, { value: "增值税普通发票", label: "增值税普通发票" }]} /></Form.Item>
+              <Form.Item name="payment_terms" label="付款条款"><Input placeholder="货到验收后30日付款" /></Form.Item>
+            </div>
+            <Form.Item name="delivery_terms" label="交付条款"><Input.TextArea rows={2} placeholder="交货方式、分批交付和运输责任" /></Form.Item>
+            <Form.Item name="acceptance_terms" label="验收条款"><Input.TextArea rows={2} placeholder="验收期限、标准和异议期限" /></Form.Item>
+            <Form.Item name="warranty_terms" label="质保与售后"><Input.TextArea rows={2} /></Form.Item>
+            <Form.Item name="dispute_terms" label="违约与争议解决"><Input.TextArea rows={2} /></Form.Item>
+          </Card>
           <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>{isEdit ? "保存" : "创建"}</Button>

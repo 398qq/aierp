@@ -4,12 +4,21 @@ import logging
 from datetime import datetime, timezone
 
 from app.domain.states import assert_can_transition_opportunity
+from app.models.audit import FieldChangeLog, StatusTransitionLog
 from app.models.sales import Opportunity
 from app.services.sales_service._helpers import _customer_search_ids
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+
+def _audit_value(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 async def list_opportunities(
@@ -87,7 +96,78 @@ async def get_opportunity(db: AsyncSession, opp_id: int) -> Opportunity | None:
     return result.scalar_one_or_none()
 
 
-async def create_opportunity(db: AsyncSession, data: dict) -> Opportunity:
+async def get_opportunity_audit(db: AsyncSession, opp_id: int) -> dict:
+    """Return a unified, newest-first audit trail for one opportunity."""
+    transitions = (
+        (
+            await db.execute(
+                select(StatusTransitionLog).where(
+                    StatusTransitionLog.aggregate_id == opp_id,
+                    StatusTransitionLog.aggregate_type.in_(
+                        ("opportunity", "opportunity_stage")
+                    ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    field_changes = (
+        (
+            await db.execute(
+                select(FieldChangeLog).where(
+                    FieldChangeLog.table_name == "opportunities",
+                    FieldChangeLog.record_id == opp_id,
+                    FieldChangeLog.field_name.not_in(("status", "stage")),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    items = [
+        {
+            "id": f"transition-{row.id}",
+            "event_type": "transition",
+            "action": row.action,
+            "field_name": "stage"
+            if row.aggregate_type == "opportunity_stage"
+            else "status",
+            "before": row.status_before,
+            "after": row.status_after,
+            "actor": row.actor,
+            "reason": row.reason,
+            "occurred_at": row.transitioned_at.isoformat(),
+        }
+        for row in transitions
+    ]
+    items.extend(
+        {
+            "id": f"field-{row.id}",
+            "event_type": "field_change",
+            "action": "field_change",
+            "field_name": row.field_name,
+            "before": row.old_value,
+            "after": row.new_value,
+            "actor": row.actor,
+            "reason": row.reason,
+            "occurred_at": row.changed_at.isoformat(),
+        }
+        for row in field_changes
+    )
+    items.sort(key=lambda item: item["occurred_at"], reverse=True)
+    return {
+        "list": items,
+        "total": len(items),
+        "transition_count": len(transitions),
+        "field_change_count": len(field_changes),
+    }
+
+
+async def create_opportunity(
+    db: AsyncSession, data: dict, *, actor: str | None = None
+) -> Opportunity:
     opp = Opportunity(**data)
     db.add(opp)
     await db.flush()
@@ -97,26 +177,112 @@ async def create_opportunity(db: AsyncSession, data: dict) -> Opportunity:
 
     await on_first_opportunity(db, opp.customer_id)
 
+    db.add(
+        StatusTransitionLog(
+            aggregate_type="opportunity",
+            aggregate_id=opp.id,
+            aggregate_no=f"OPP-{opp.id:06d}",
+            status_before=None,
+            status_after=opp.status,
+            action="create",
+            actor=actor,
+            customer_id=opp.customer_id,
+        )
+    )
+
     await db.commit()
     await db.refresh(opp)
     return opp
 
 
 async def update_opportunity(
-    db: AsyncSession, opp: Opportunity, data: dict
+    db: AsyncSession,
+    opp: Opportunity,
+    data: dict,
+    *,
+    actor: str | None = None,
 ) -> Opportunity:
+    changes = {
+        key: (getattr(opp, key, None), value)
+        for key, value in data.items()
+        if value is not None and getattr(opp, key, None) != value
+    }
     if "status" in data and data["status"] != opp.status:
         assert_can_transition_opportunity(opp.status, data["status"])
     for k, v in data.items():
         if v is not None:
             setattr(opp, k, v)
+    for field_name, (old_value, new_value) in changes.items():
+        db.add(
+            FieldChangeLog(
+                table_name="opportunities",
+                record_id=opp.id,
+                field_name=field_name,
+                old_value=_audit_value(old_value),
+                new_value=_audit_value(new_value),
+                actor=actor,
+            )
+        )
+    if "status" in changes:
+        before, after = changes["status"]
+        db.add(
+            StatusTransitionLog(
+                aggregate_type="opportunity",
+                aggregate_id=opp.id,
+                aggregate_no=f"OPP-{opp.id:06d}",
+                status_before=_audit_value(before),
+                status_after=str(after),
+                action="status_change",
+                actor=actor,
+                customer_id=opp.customer_id,
+            )
+        )
+    if "stage" in changes:
+        before, after = changes["stage"]
+        db.add(
+            StatusTransitionLog(
+                aggregate_type="opportunity_stage",
+                aggregate_id=opp.id,
+                aggregate_no=f"OPP-{opp.id:06d}",
+                status_before=_audit_value(before),
+                status_after=str(after),
+                action="stage_change",
+                actor=actor,
+                customer_id=opp.customer_id,
+            )
+        )
     await db.commit()
     await db.refresh(opp)
     return opp
 
 
-async def delete_opportunity(db: AsyncSession, opp: Opportunity) -> None:
-    opp.deleted_at = datetime.now(timezone.utc)
+async def delete_opportunity(
+    db: AsyncSession, opp: Opportunity, *, actor: str | None = None
+) -> None:
+    deleted_at = datetime.now(timezone.utc)
+    opp.deleted_at = deleted_at
+    db.add(
+        FieldChangeLog(
+            table_name="opportunities",
+            record_id=opp.id,
+            field_name="deleted_at",
+            old_value=None,
+            new_value=deleted_at.isoformat(),
+            actor=actor,
+        )
+    )
+    db.add(
+        StatusTransitionLog(
+            aggregate_type="opportunity",
+            aggregate_id=opp.id,
+            aggregate_no=f"OPP-{opp.id:06d}",
+            status_before=opp.status,
+            status_after="deleted",
+            action="delete",
+            actor=actor,
+            customer_id=opp.customer_id,
+        )
+    )
     await db.commit()
 
 

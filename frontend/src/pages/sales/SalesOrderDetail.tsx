@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
-import { StatusTag } from "../../ui";
+import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Progress, Select, Space, Spin, Switch, Table, Tooltip, Typography, message } from "antd";
 import {
   ArrowLeftOutlined,
   CarOutlined,
@@ -11,11 +10,11 @@ import {
   EyeInvisibleOutlined,
   EyeOutlined,
 } from "@ant-design/icons";
-import { getPayments, getSalesOrder, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF, getApiErrorMessage } from "../../api";
+import { getPayments, getSalesOrder, getSalesOrderBusinessChain, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF, getApiErrorMessage } from "../../api";
 import type { SalesOrderPDFOptions } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
-import type { SalesOrder, SalesOrderItem } from "../../types";
-import { CustomerLink, ErpAuditInfo, ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import type { SalesOrder, SalesOrderBusinessChain, SalesOrderItem } from "../../types";
+import { CustomerLink, ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
 
 const STATUS_STEPS = [
   { key: "pending", label: "待确认" },
@@ -34,6 +33,7 @@ export default function SalesOrderDetail() {
   const [includeAi, setIncludeAi] = useState(true);
   const [showExtraColumns, setShowExtraColumns] = useState(false);
   const [payments, setPayments] = useState<{ amount: number; status: string }[]>([]);
+  const [businessChain, setBusinessChain] = useState<SalesOrderBusinessChain | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [pdfForm] = Form.useForm<SalesOrderPDFOptions>();
@@ -55,6 +55,9 @@ export default function SalesOrderDetail() {
       .then((r) => {
         setOrder(r.data.data);
         loadPayments(oid);
+        getSalesOrderBusinessChain(oid)
+          .then((chain) => setBusinessChain(chain.data.data))
+          .catch(() => setBusinessChain(null));
       })
       .catch((e) => setError(e.message || "加载失败"))
       .finally(() => setLoading(false));
@@ -74,6 +77,27 @@ export default function SalesOrderDetail() {
     const pct = total > 0 ? (paid / total) * 100 : 0;
     return { paid, total, outstanding, pct };
   }, [payments, order]);
+
+  const financialSummary = useMemo(() => {
+    const gross = Number(order?.total_amount || 0);
+    const untaxed = (order?.items || []).reduce((sum, item) => {
+      const lineTotal = Number(item.total_price || 0);
+      const taxRate = Number(item.tax_rate || 0) / 100;
+      return sum + (taxRate > 0 ? lineTotal / (1 + taxRate) : lineTotal);
+    }, 0);
+    return { gross, untaxed, tax: Math.max(gross - untaxed, 0) };
+  }, [order]);
+
+  const itemProgress = useMemo(
+    () => new Map((businessChain?.item_progress || []).map((item) => [item.order_item_id, item])),
+    [businessChain],
+  );
+
+  const isDeliveryOverdue = Boolean(
+    order?.delivery_date
+    && new Date(order.delivery_date).getTime() < Date.now()
+    && (businessChain?.progress.pending_delivery_quantity || 0) > 0,
+  );
 
   const runAction = async (action: () => Promise<void>, success: string) => {
     setActionLoading(true);
@@ -146,9 +170,10 @@ export default function SalesOrderDetail() {
     >
       <MetricBand
         items={[
-          { title: "订单金额", value: order.total_amount || 0, prefix: "¥", precision: 0 },
-          { title: "产品行数", value: itemSummary.count, suffix: "项" },
-          { title: "总数量", value: itemSummary.quantity, suffix: "件" },
+          { title: "价税合计", value: order.total_amount || 0, prefix: "¥", precision: 2 },
+          { title: "待发数量", value: businessChain?.progress.pending_delivery_quantity ?? itemSummary.quantity, suffix: "件" },
+          { title: "未开票", value: businessChain?.progress.uninvoiced_amount ?? order.total_amount, prefix: "¥", precision: 2 },
+          { title: "未回款", value: businessChain?.progress.outstanding_amount ?? paymentSummary.outstanding, prefix: "¥", precision: 2 },
           { title: "状态", value: order.status },
           { title: "交付日期", value: order.delivery_date ? shortDate(order.delivery_date) : "-" },
         ]}
@@ -156,7 +181,7 @@ export default function SalesOrderDetail() {
 
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          {order.status === "pending" ? (
+          {["pending", "draft"].includes(order.status) ? (
             <Button
               type="primary"
               style={{ background: "#52c41a", borderColor: "#52c41a" }}
@@ -269,10 +294,72 @@ export default function SalesOrderDetail() {
               <Descriptions.Item label="总金额">{money(order.total_amount)}</Descriptions.Item>
               <Descriptions.Item label="下单日期">{shortDate(order.order_date)}</Descriptions.Item>
               <Descriptions.Item label="预计交货">{shortDate(order.delivery_date)}</Descriptions.Item>
-              <Descriptions.Item label="关联报价">{order.quotation_id ? `报价 #${order.quotation_id}` : "-"}</Descriptions.Item>
+              <Descriptions.Item label="客户订单号">{order.customer_po_no || "-"}</Descriptions.Item>
+              <Descriptions.Item label="关联报价">{order.quotation_no || (order.quotation_id ? `报价 #${order.quotation_id}` : "-")}</Descriptions.Item>
+              <Descriptions.Item label="币种">{order.currency || "CNY"}</Descriptions.Item>
+              <Descriptions.Item label="贸易条款">{order.incoterms || "-"}</Descriptions.Item>
+              <Descriptions.Item label="付款条件">{order.payment_terms || "-"}</Descriptions.Item>
+              <Descriptions.Item label="付款到期日">{shortDate(order.due_date)}</Descriptions.Item>
+              <Descriptions.Item label="收货地址" span={2}>{order.shipping_address || "-"}</Descriptions.Item>
+              <Descriptions.Item label="开票地址" span={2}>{order.billing_address || "-"}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{order.notes || "-"}</Descriptions.Item>
             </Descriptions>
           </Card>
+
+          {businessChain && (
+            <Card title="业务链与履约进度" size="small">
+              <Descriptions column={3} size="small">
+                <Descriptions.Item label="来源商机">{businessChain.opportunity?.number || "-"}</Descriptions.Item>
+                <Descriptions.Item label="来源报价">{businessChain.quotation?.number || "-"}</Descriptions.Item>
+                <Descriptions.Item label="合同">{businessChain.contracts.map((item) => item.number).join("、") || "-"}</Descriptions.Item>
+                <Descriptions.Item label="发货进度">
+                  {businessChain.progress.delivered_quantity}/{businessChain.progress.ordered_quantity}（{businessChain.progress.delivery_percent}%）
+                </Descriptions.Item>
+                <Descriptions.Item label="开票进度">
+                  {money(businessChain.progress.invoiced_amount)} / {money(businessChain.progress.order_amount)}
+                </Descriptions.Item>
+                <Descriptions.Item label="回款进度">
+                  {money(businessChain.progress.paid_amount)} / {money(businessChain.progress.order_amount)}
+                </Descriptions.Item>
+                <Descriptions.Item label="待发数量">{businessChain.progress.pending_delivery_quantity}</Descriptions.Item>
+                <Descriptions.Item label="未开票">{money(businessChain.progress.uninvoiced_amount)}</Descriptions.Item>
+                <Descriptions.Item label="未回款">
+                  <Typography.Text type={businessChain.progress.outstanding_amount > 0 ? "danger" : undefined}>
+                    {money(businessChain.progress.outstanding_amount)}
+                  </Typography.Text>
+                </Descriptions.Item>
+              </Descriptions>
+              <Divider style={{ margin: "12px 0" }} />
+              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                {[
+                  { title: "合同", rows: businessChain.contracts, path: "contracts" },
+                  { title: "发货单", rows: businessChain.deliveries, path: "delivery-notes" },
+                  { title: "发票", rows: businessChain.invoices, path: "invoices" },
+                  { title: "回款", rows: businessChain.payments, path: "payments" },
+                ].map((group) => (
+                  <div key={group.title}>
+                    <Typography.Text strong>{group.title}（{group.rows.length}）</Typography.Text>
+                    <Table
+                      style={{ marginTop: 6 }}
+                      rowKey="id"
+                      size="small"
+                      pagination={false}
+                      locale={{ emptyText: `暂无${group.title}` }}
+                      dataSource={group.rows}
+                      columns={[
+                        { title: "单据号", dataIndex: "number", render: (value: string, row) => (
+                          <Typography.Link onClick={() => navigate(group.path === "payments" ? `/sales/payments/${row.id}/edit` : `/sales/${group.path}/${row.id}`)}>{value}</Typography.Link>
+                        ) },
+                        { title: "状态", dataIndex: "status", width: 110, render: (value: string) => <SalesStatusTag value={value} /> },
+                        { title: "日期", dataIndex: "date", width: 110, render: (value: string | null) => shortDate(value) },
+                        { title: "金额", dataIndex: "amount", width: 120, align: "right", render: (value?: number) => value == null ? "-" : money(value) },
+                      ]}
+                    />
+                  </div>
+                ))}
+              </Space>
+            </Card>
+          )}
 
           <Card
             title="订单明细"
@@ -292,7 +379,9 @@ export default function SalesOrderDetail() {
                 <ErpExportButton
                   data={order.items as unknown as Record<string, unknown>[]}
                   columns={[
+                    { key: "product_id", title: "产品ID" },
                     { key: "product_name", title: "产品" },
+                    { key: "unit", title: "单位" },
                     { key: "quantity", title: "数量" },
                     { key: "unit_price", title: "单价" },
                     { key: "total_price", title: "小计" },
@@ -309,19 +398,31 @@ export default function SalesOrderDetail() {
               pagination={false}
               columns={[
                 { title: "#", width: 40, render: (_: unknown, __: SalesOrderItem, index: number) => index + 1 },
-                { title: "产品", dataIndex: "product_name", ellipsis: true },
-                { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+                { title: "产品编码", width: 120, render: (_: unknown, row: SalesOrderItem) => itemProgress.get(row.id)?.product_code || (row.product_id ? `#${row.product_id}` : "-") },
+                { title: "产品名称 / 规格", dataIndex: "product_name", ellipsis: true },
+                { title: "单位", dataIndex: "unit", width: 65, render: (v: string | null) => v || "-" },
+                { title: "订单数量", dataIndex: "quantity", width: 85, align: "right" as const },
+                { title: "已发", width: 70, align: "right" as const, render: (_: unknown, row: SalesOrderItem) => itemProgress.get(row.id)?.delivered_quantity ?? 0 },
+                { title: "待发", width: 70, align: "right" as const, render: (_: unknown, row: SalesOrderItem) => <Typography.Text type={(itemProgress.get(row.id)?.pending_quantity ?? row.quantity) > 0 ? "warning" : undefined}>{itemProgress.get(row.id)?.pending_quantity ?? row.quantity}</Typography.Text> },
                 { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number | null) => (v != null ? money(v) : "-") },
-                { title: "小计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number | null) => (v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-") },
+                { title: "折扣", dataIndex: "discount_rate", width: 70, align: "right" as const, render: (v: number | null) => v != null ? `${v}%` : "-" },
+                { title: "税率", dataIndex: "tax_rate", width: 70, align: "right" as const, render: (v: number | null) => v != null ? `${v}%` : "-" },
+                { title: "价税合计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number | null) => (v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-") },
                 ...(showExtraColumns ? [{ title: "备注", dataIndex: "notes" as keyof SalesOrderItem, width: 160, ellipsis: true, render: (v: string | null) => v || "-" }] : []),
               ]}
               summary={() => (
                 <Table.Summary.Row>
                   <Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={1} />
-                  <Table.Summary.Cell index={2}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={3}>-</Table.Summary.Cell>
-                  <Table.Summary.Cell index={4}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} />
+                  <Table.Summary.Cell index={3} />
+                  <Table.Summary.Cell index={4}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5}><Typography.Text strong>{businessChain?.progress.delivered_quantity || 0}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6}><Typography.Text strong>{businessChain?.progress.pending_delivery_quantity ?? itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} />
+                  <Table.Summary.Cell index={8} />
+                  <Table.Summary.Cell index={9} />
+                  <Table.Summary.Cell index={10}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
                 </Table.Summary.Row>
               )}
               scroll={{ x: "max-content" }}
@@ -335,8 +436,16 @@ export default function SalesOrderDetail() {
           <Card size="small" title={<><DollarOutlined /> 订单摘要</>}>
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">订单金额</Typography.Text>
-                <Typography.Text strong>{money(order.total_amount)}</Typography.Text>
+                <Typography.Text type="secondary">未税金额</Typography.Text>
+                <Typography.Text>{money(financialSummary.untaxed)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">税额</Typography.Text>
+                <Typography.Text>{money(financialSummary.tax)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">价税合计</Typography.Text>
+                <Typography.Text strong>{money(financialSummary.gross)}</Typography.Text>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">产品行数</Typography.Text>
@@ -359,6 +468,27 @@ export default function SalesOrderDetail() {
                 <Typography.Text type="secondary">交付日期</Typography.Text>
                 <Typography.Text>{shortDate(order.delivery_date)}</Typography.Text>
               </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="履约与风险">
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <div>
+                <Typography.Text type="secondary">发货进度</Typography.Text>
+                <Progress size="small" percent={businessChain?.progress.delivery_percent || 0} />
+              </div>
+              <div>
+                <Typography.Text type="secondary">开票进度</Typography.Text>
+                <Progress size="small" percent={businessChain?.progress.invoice_percent || 0} />
+              </div>
+              <div>
+                <Typography.Text type="secondary">回款进度</Typography.Text>
+                <Progress size="small" percent={businessChain?.progress.payment_percent || 0} />
+              </div>
+              {isDeliveryOverdue ? <Alert showIcon type="error" message="订单已超过预计交期，仍有待发数量" /> : null}
+              {businessChain && businessChain.contracts.length === 0 ? <Alert showIcon type="warning" message="订单尚未关联合同" /> : null}
+              {businessChain && businessChain.progress.outstanding_amount > 0 ? <Alert showIcon type="warning" message={`尚有 ${money(businessChain.progress.outstanding_amount)} 未回款`} /> : null}
+              {!isDeliveryOverdue && businessChain?.contracts.length && businessChain.progress.outstanding_amount <= 0 ? <Alert showIcon type="success" message="当前未发现履约异常" /> : null}
             </Space>
           </Card>
 
@@ -417,7 +547,7 @@ export default function SalesOrderDetail() {
 
           <Card size="small" title="下一步动作">
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
-              {order.status === "pending" ? (
+              {["pending", "draft"].includes(order.status) ? (
                 <Alert showIcon type="info" message="订单待确认，建议检查产品明细和交期后确认。" />
               ) : order.status === "confirmed" ? (
                 <Alert showIcon type="success" message="订单已确认，可转为发货单执行交付。" />

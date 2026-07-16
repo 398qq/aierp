@@ -29,6 +29,13 @@ _DATE_FIELDS = {
 CONTRACT_STATUSES = {"draft", "signed", "active", "expired", "terminated", "cancelled"}
 CONTRACT_INITIAL_STATUSES = {"draft", "signed"}
 CONTRACT_LOCKED_EDITABLE_FIELDS = {"status", "file_url", "notes"}
+DEFAULT_INVOICE_TAX_RATE = Decimal("0.13")
+
+
+def _calculate_invoice_tax(amount: Any) -> Decimal:
+    return (Decimal(str(amount or 0)) * DEFAULT_INVOICE_TAX_RATE).quantize(
+        Decimal("0.01")
+    )
 
 
 def _parse_dates(data: dict) -> dict:
@@ -106,6 +113,8 @@ async def get_invoice(db: AsyncSession, inv_id: int) -> Invoice | None:
 async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
     _parse_dates(data)
     await _apply_sales_order_customer(db, data)
+    if data.get("tax_amount") is None:
+        data["tax_amount"] = _calculate_invoice_tax(data.get("amount"))
     if not data.get("invoice_no"):
         data["invoice_no"] = await generate_doc_no(db, "INV", Invoice, "invoice_no")
     inv = Invoice(**data)
@@ -117,6 +126,8 @@ async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
 
 async def update_invoice(db: AsyncSession, inv: Invoice, data: dict) -> Invoice:
     _parse_dates(data)
+    if "amount" in data and "tax_amount" not in data:
+        data["tax_amount"] = _calculate_invoice_tax(data["amount"])
     if "status" in data and data["status"] != inv.status:
         assert_can_transition_invoice(inv.status, data["status"])
     await _apply_sales_order_customer(db, data)

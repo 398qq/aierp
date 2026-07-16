@@ -15,6 +15,84 @@ class TestCustomers:
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
 
+    async def test_list_sorts_recently_updated_customers_first(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        first = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "排序验证客户甲", "type": "终端客户"},
+        )
+        second = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "排序验证客户乙", "type": "终端客户"},
+        )
+        first_id = first.json()["data"]["id"]
+        second_id = second.json()["data"]["id"]
+
+        updated = await async_client.put(
+            f"/api/v1/customers/{first_id}",
+            headers=auth_headers,
+            json={"notes": "最近更新"},
+        )
+        assert updated.status_code == 200
+
+        listed = await async_client.get(
+            "/api/v1/customers",
+            headers=auth_headers,
+            params={
+                "q": "排序验证客户",
+                "sort_by": "updated_at",
+                "sort_order": "desc",
+            },
+        )
+        ids = [item["id"] for item in listed.json()["data"]["list"]]
+        assert ids.index(first_id) < ids.index(second_id)
+
+    async def test_list_sorts_by_operational_priority(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        customer_ids = {}
+        for key, suffix in (("ordinary", "普通"), ("today", "今日"), ("overdue", "逾期")):
+            created = await async_client.post(
+                "/api/v1/customers",
+                headers=auth_headers,
+                json={"name": f"行动排序客户{suffix}", "type": "终端客户"},
+            )
+            customer_ids[key] = created.json()["data"]["id"]
+
+        now = datetime.now(timezone.utc)
+        for key, planned_at in (
+            ("today", now.replace(hour=18, minute=0, second=0, microsecond=0)),
+            ("overdue", now - timedelta(days=2)),
+        ):
+            followup = await async_client.post(
+                f"/api/v1/customers/{customer_ids[key]}/follow-ups",
+                headers=auth_headers,
+                json={
+                    "status": "planned",
+                    "planned_at": planned_at.isoformat(),
+                    "content": "排序验证",
+                },
+            )
+            assert followup.status_code == 201
+
+        listed = await async_client.get(
+            "/api/v1/customers",
+            headers=auth_headers,
+            params={
+                "q": "行动排序客户",
+                "sort_by": "operational_priority",
+            },
+        )
+        ids = [item["id"] for item in listed.json()["data"]["list"]]
+        assert ids == [
+            customer_ids["overdue"],
+            customer_ids["today"],
+            customer_ids["ordinary"],
+        ]
+
     async def test_list_requires_customer_read_permission(
         self, async_client: AsyncClient, db_session
     ):
@@ -1328,6 +1406,39 @@ class TestCustomerFollowups:
         )
         assert resp.status_code == 201
         assert resp.json()["code"] == 0
+
+    async def test_add_unscheduled_in_progress_followup_ignores_completed_time(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        cust = await async_client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "未排期跟进测试", "type": "终端客户"},
+        )
+        cid = cust.json()["data"]["id"]
+
+        resp = await async_client.post(
+            f"/api/v1/customers/{cid}/follow-ups",
+            headers=auth_headers,
+            json={
+                "method": "wechat",
+                "status": "in_progress",
+                "content": "采购6101T",
+                "result": "下周一交货",
+                "planned_at": None,
+                "completed_at": "2026-07-19T00:00:00+00:00",
+                "priority": "high",
+                "assigned_to": "刘斌",
+            },
+        )
+
+        assert resp.status_code == 201
+        listed = await async_client.get(
+            f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers
+        )
+        created = next(item for item in listed.json()["data"] if item["id"] == resp.json()["data"]["id"])
+        assert created["planned_at"] is None
+        assert created["completed_at"] is None
 
     async def test_list_followups(self, async_client: AsyncClient, auth_headers: dict):
         cust = await async_client.post(

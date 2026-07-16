@@ -91,6 +91,9 @@ class Product(TimestampMixin, Base):
     # ── 基础标识 ──
     sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    product_type: Mapped[str] = mapped_column(String(30), default="finished_good")
+    owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
     mpn: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )  # Manufacturer Part Number
@@ -127,6 +130,12 @@ class Product(TimestampMixin, Base):
     # ── 规格文本 ──
     specs: Mapped[str | None] = mapped_column(Text, nullable=True)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    default_warehouse_id: Mapped[int | None] = mapped_column(
+        ForeignKey("warehouses.id"), nullable=True
+    )
+    batch_control: Mapped[bool] = mapped_column(Boolean, default=False)
+    serial_control: Mapped[bool] = mapped_column(Boolean, default=False)
+    shelf_life_control: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # ── 物理属性 ──
     length_mm: Mapped[float | None] = mapped_column(DECIMAL(10, 3), nullable=True)
@@ -149,6 +158,24 @@ class Product(TimestampMixin, Base):
     wholesale_price: Mapped[float | None] = mapped_column(
         DECIMAL(20, 6), nullable=True
     )  # 批发价
+    minimum_sale_price: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )
+    price_valid_from: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    price_valid_to: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    latest_purchase_cost: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )
+    weighted_avg_cost: Mapped[float | None] = mapped_column(
+        DECIMAL(20, 6), nullable=True
+    )
+    cost_updated_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # ── 生命周期与合规 ──
     lifecycle_status: Mapped[str | None] = mapped_column(

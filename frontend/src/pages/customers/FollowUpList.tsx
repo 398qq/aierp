@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
@@ -49,6 +49,7 @@ export default function FollowUpList() {
   const { message } = App.useApp();
   const { customerId } = useParams<{ customerId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [allData, setAllData] = useState<FollowUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -206,7 +207,33 @@ export default function FollowUpList() {
     setUpdateResult("");
     setUpdateStatus("in_progress");
     setUpdateNextAt(null);
+    if (searchParams.has("update")) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("update");
+      setSearchParams(nextParams, { replace: true });
+    }
   };
+
+  useEffect(() => {
+    const updateId = Number(searchParams.get("update"));
+    if (!updateId || loading || updateOpen) return;
+    const record = allData.find((item) => item.id === updateId);
+    if (!record) {
+      message.warning("未找到要更新的跟进记录");
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("update");
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
+    if (record.status !== "in_progress") {
+      message.warning("只有进行中的跟进可以更新进展");
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("update");
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
+    openUpdate(record);
+  }, [allData, loading, message, searchParams, setSearchParams, updateOpen]);
 
   const appendUpdateText = (current: string | null, label: string, next: string) => {
     const text = next.trim();

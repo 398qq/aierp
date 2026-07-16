@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 
 class PaymentRecordCreate(BaseModel):
-    sales_order_id: int
+    sales_order_id: int | None = None
     customer_id: int
     delivery_note_id: int | None = None
     invoice_id: int | None = None
@@ -39,15 +39,25 @@ class PaymentRecordUpdate(BaseModel):
     notes: str | None = None
 
 
+class PaymentAllocationItem(BaseModel):
+    invoice_id: int
+    amount: float = Field(gt=0)
+
+
+class PaymentAllocationRequest(BaseModel):
+    allocations: list[PaymentAllocationItem] = Field(min_length=1)
+
+
 # --- Invoice ---
 
 
 class InvoiceCreate(BaseModel):
     invoice_no: str | None = None
     sales_order_id: int
+    delivery_note_id: int | None = None
     customer_id: int
     amount: float
-    tax_amount: float = 0
+    tax_amount: float | None = None
     invoice_date: str | None = None
     invoice_type: str = "普通发票"
     status: str = "draft"
@@ -60,6 +70,7 @@ class InvoiceCreate(BaseModel):
 class InvoiceUpdate(BaseModel):
     invoice_no: str | None = None
     sales_order_id: int | None = None
+    delivery_note_id: int | None = None
     customer_id: int | None = None
     amount: float | None = None
     tax_amount: float | None = None
@@ -115,6 +126,13 @@ class ContractCreate(BaseModel):
         "draft", "signed", "active", "expired", "terminated", "cancelled"
     ] = "draft"
     file_url: str | None = None
+    delivery_address: str | None = None
+    delivery_terms: str | None = None
+    payment_terms: str | None = None
+    acceptance_terms: str | None = None
+    warranty_terms: str | None = None
+    dispute_terms: str | None = None
+    invoice_type: str | None = None
     notes: str | None = None
 
 
@@ -132,6 +150,13 @@ class ContractUpdate(BaseModel):
         | None
     ) = None
     file_url: str | None = None
+    delivery_address: str | None = None
+    delivery_terms: str | None = None
+    payment_terms: str | None = None
+    acceptance_terms: str | None = None
+    warranty_terms: str | None = None
+    dispute_terms: str | None = None
+    invoice_type: str | None = None
     notes: str | None = None
 
 
@@ -150,9 +175,11 @@ class MarkReadRequest(BaseModel):
 
 class PaymentRecordResponse(BaseModel):
     id: int
-    sales_order_id: int
+    sales_order_id: int | None = None
+    sales_order_no: str | None = None
     customer_id: int
     delivery_note_id: int | None = None
+    delivery_note_no: str | None = None
     invoice_id: int | None = None
     invoice_no: str | None = None
     amount: float
@@ -172,6 +199,7 @@ class InvoiceResponse(BaseModel):
     id: int
     invoice_no: str | None = None
     sales_order_id: int
+    delivery_note_id: int | None = None
     sales_order_no: str | None = None
     customer_id: int
     customer_name: str | None = None
@@ -217,6 +245,13 @@ class ContractResponse(BaseModel):
     expire_date: str | None = None
     status: str
     file_url: str | None = None
+    delivery_address: str | None = None
+    delivery_terms: str | None = None
+    payment_terms: str | None = None
+    acceptance_terms: str | None = None
+    warranty_terms: str | None = None
+    dispute_terms: str | None = None
+    invoice_type: str | None = None
     notes: str | None = None
     created_at: datetime
     updated_at: datetime | None = None

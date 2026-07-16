@@ -109,7 +109,10 @@ export const PRODUCT_TASK_LABELS: Record<ProductTaskKey, string> = {
 
 export const COL_LABEL_MAP: Record<string, string> = {
   sku: "SKU",
+  status: "产品状态",
+  product_type: "产品类型",
   name: "产品名称",
+  owner: "负责人",
   category: "分类",
   package_type: "封装",
   specs: "规格",
@@ -124,6 +127,8 @@ export const COL_LABEL_MAP: Record<string, string> = {
   locked: "锁定",
   safety_stock: "安全库存",
   unit_price: "单价",
+  minimum_sale_price: "最低销售价",
+  weighted_avg_cost: "加权平均成本",
   last_sale_at: "最近销售",
   actions: "操作",
 };

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.domain.states import assert_can_transition_quotation
+from app.domain.shared.errors import BusinessRuleViolation
 from app.models.product import Product
 from app.models.sales import Inquiry, Quotation, QuotationItem, SalesOrder
 from app.services.base_crud import BaseCRUDService
@@ -21,6 +22,31 @@ from app.services.sales_service._helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _validate_quotation_products(db: AsyncSession, items: list[dict]) -> None:
+    product_ids = {item.get("product_id") for item in items if item.get("product_id")}
+    if not product_ids:
+        return
+    products = list(
+        (await db.scalars(select(Product).where(Product.id.in_(product_ids)))).all()
+    )
+    blocked = [item for item in products if item.status in {"frozen", "inactive"}]
+    if blocked:
+        raise BusinessRuleViolation(
+            f"产品已冻结或停用，不能报价: {', '.join(item.sku or item.name for item in blocked)}"
+        )
+    product_by_id = {item.id: item for item in products}
+    for line in items:
+        product = product_by_id.get(line.get("product_id"))
+        if product and product.minimum_sale_price is not None:
+            final_price = float(line.get("unit_price") or 0) * (
+                1 - float(line.get("discount_rate") or 0) / 100
+            )
+            if final_price < float(product.minimum_sale_price):
+                raise BusinessRuleViolation(
+                    "报价低于产品最低销售价，请调整价格或提交特价审批"
+                )
 
 
 # ── Service ────────────────────────────────────────────────────────────
@@ -193,6 +219,7 @@ class QuotationService(BaseCRUDService):
                 db, "QT", Quotation, "quotation_no"
             )
         normalized_items, total = _normalize_quotation_items(items_data)
+        await _validate_quotation_products(db, normalized_items)
         if normalized_items:
             data["total_amount"] = total
         quote = Quotation(**{k: v for k, v in data.items() if k != "items"})
@@ -223,6 +250,7 @@ class QuotationService(BaseCRUDService):
                 item.deleted_at = datetime.now(timezone.utc)
             await db.flush()
             normalized_items, total = _normalize_quotation_items(items_data)
+            await _validate_quotation_products(db, normalized_items)
             for item_data in normalized_items:
                 qi = QuotationItem(quotation_id=quote.id, **item_data)
                 db.add(qi)
@@ -250,6 +278,12 @@ class QuotationService(BaseCRUDService):
             title=f"{quote.title or quote.quotation_no or f'报价单 #{quote.id}'} - 复制",
             total_amount=quote.total_amount,
             status="draft",
+            currency=quote.currency,
+            incoterms=quote.incoterms,
+            payment_terms=quote.payment_terms,
+            discount_rate=quote.discount_rate,
+            discount_amount=quote.discount_amount,
+            subtotal=quote.subtotal,
             valid_until=quote.valid_until,
             notes=quote.notes,
         )
@@ -264,8 +298,11 @@ class QuotationService(BaseCRUDService):
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.quantity,
+                    unit=item.unit,
                     unit_price=item.unit_price,
                     total_price=item.total_price,
+                    tax_rate=item.tax_rate,
+                    discount_rate=item.discount_rate,
                     cost_price=item.cost_price,
                     untaxed_cost=item.untaxed_cost,
                     taxed_cost=item.taxed_cost,
@@ -285,6 +322,7 @@ class QuotationService(BaseCRUDService):
 
     async def send_quotation(self, db: AsyncSession, quote: Quotation) -> Quotation:
         """Mark quotation as sent and trigger WeCom notification."""
+        assert_can_transition_quotation(quote.status, "sent")
         quote.status = "sent"
         await db.commit()
         await db.refresh(quote)

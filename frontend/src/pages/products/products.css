@@ -279,6 +279,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px;
+  flex-wrap: wrap;
 }
 
 .product-filter-primary {
@@ -291,6 +292,8 @@
 }
 
 .product-filter-fields {
+  flex: 2 1 620px;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -428,6 +431,9 @@
 }
 
 .product-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -435,6 +441,7 @@
   min-height: 50px;
   padding: 10px 12px;
   border-bottom: 1px solid #edf0f5;
+  background: #fff;
 }
 
 .product-table-title {
@@ -454,6 +461,9 @@
 }
 
 .product-table-panel .ant-table-thead > tr > th {
+  position: sticky;
+  top: 50px;
+  z-index: 1;
   color: #475569;
   font-size: 12px;
   font-weight: 600;
@@ -463,6 +473,24 @@
 .product-table-panel .ant-table-tbody > tr > td {
   color: #334155;
   font-size: 13px;
+}
+
+/* Keep long classifications, brands and specifications inside their ledger cells.
+   The table retains horizontal scrolling for the full ERP field set, while the
+   document itself never gets widened by a single long value. */
+.product-table-panel .ant-table-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-table-panel .ant-table-cell .ant-tag {
+  max-width: 100%;
+  margin-inline-end: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .product-sku,
@@ -515,9 +543,18 @@
 .product-row-out td {
   background: #fff8f7;
 }
+.product-row-frozen td {
+  background: #fffaf0;
+}
+.product-row-inactive td {
+  background: #f8fafc;
+  color: #94a3b8;
+}
 
 .product-row-low:hover td,
-.product-row-out:hover td {
+.product-row-out:hover td,
+.product-row-frozen:hover td,
+.product-row-inactive:hover td {
   background: #f8fafc !important;
 }
 

@@ -137,6 +137,9 @@ def product_row(
         "id": p.id,
         "sku": p.sku,
         "name": p.name,
+        "status": p.status,
+        "product_type": p.product_type,
+        "owner": p.owner,
         "mpn": p.mpn,
         "datecode": p.datecode,
         "barcode": p.barcode,
@@ -154,6 +157,10 @@ def product_row(
         "power_rating": p.power_rating,
         "specs": p.specs,
         "unit": p.unit,
+        "default_warehouse_id": p.default_warehouse_id,
+        "batch_control": p.batch_control,
+        "serial_control": p.serial_control,
+        "shelf_life_control": p.shelf_life_control,
         "length_mm": float(p.length_mm) if p.length_mm is not None else None,
         "width_mm": float(p.width_mm) if p.width_mm is not None else None,
         "height_mm": float(p.height_mm) if p.height_mm is not None else None,
@@ -170,6 +177,20 @@ def product_row(
         "wholesale_price": float(p.wholesale_price)
         if p.wholesale_price is not None
         else None,
+        "minimum_sale_price": float(p.minimum_sale_price)
+        if p.minimum_sale_price is not None
+        else None,
+        "price_valid_from": p.price_valid_from.isoformat()
+        if p.price_valid_from
+        else None,
+        "price_valid_to": p.price_valid_to.isoformat() if p.price_valid_to else None,
+        "latest_purchase_cost": float(p.latest_purchase_cost)
+        if p.latest_purchase_cost is not None
+        else None,
+        "weighted_avg_cost": float(p.weighted_avg_cost)
+        if p.weighted_avg_cost is not None
+        else None,
+        "cost_updated_at": p.cost_updated_at.isoformat() if p.cost_updated_at else None,
         "lifecycle_status": p.lifecycle_status,
         "eol_date": str(p.eol_date) if p.eol_date else None,
         "alternative_mpn": p.alternative_mpn,
@@ -315,10 +336,7 @@ class ProductService(BaseCRUDService):
             await db.execute(
                 select(func.count())
                 .select_from(base)
-                .where(
-                    (base.c.supplier_count <= 0)
-                    | (base.c.supplier_count.is_(None))
-                )
+                .where((base.c.supplier_count <= 0) | (base.c.supplier_count.is_(None)))
             )
         ).scalar() or 0
 
@@ -342,6 +360,7 @@ class ProductService(BaseCRUDService):
         q: str | None = None,
         category: str | None = None,
         brand_id: int | None = None,
+        status: str | None = None,
         scene: str | None = None,
         stock_status: str | None = None,
         sort: str | None = None,
@@ -361,6 +380,7 @@ class ProductService(BaseCRUDService):
             q=q,
             category=category,
             brand_id=brand_id,
+            status=status,
             scene=scene,
             stock_status=effective_stock_status,
             sort=sort,
@@ -421,6 +441,8 @@ class ProductService(BaseCRUDService):
             base = base.where(Product.category == category)
         if brand_id:
             base = base.where(Product.brand_id == brand_id)
+        if status:
+            base = base.where(Product.status == status)
 
         if effective_stock_status == "in_stock":
             base = base.where(inv_subq.c.available > 0)

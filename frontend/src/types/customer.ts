@@ -25,6 +25,8 @@ export interface Customer {
   annual_revenue: number | null;
   employee_count: number | null;
   credit_limit: number | null;
+  contract_required?: boolean;
+  credit_control_enabled?: boolean;
   credit_level: string | null;
   tax_rate: number | null;
   payment_terms: string | null;
@@ -99,6 +101,7 @@ export interface KpiData {
 
 export interface OverdueFollowUp {
   id: number;
+  opportunity_id?: number | null;
   customer_id: number;
   customer_name: string;
   owner: string | null;
@@ -300,6 +303,7 @@ export interface Contact {
 
 export interface FollowUp {
   id: number;
+  opportunity_id?: number | null;
   method: string | null;
   status: string | null;
   content: string | null;

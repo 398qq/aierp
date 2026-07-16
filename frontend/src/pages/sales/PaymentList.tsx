@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Dropdown, Form, InputNumber, Modal, Select, Space, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { getPayments, deletePayment, getPaymentStats, getApiErrorMessage } from "../../api";
-import type { PaymentRecord } from "../../types";
+import { allocatePayment, getInvoices, getPayments, deletePayment, getPaymentStats, getApiErrorMessage } from "../../api";
+import type { Invoice, PaymentRecord } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
@@ -21,6 +21,10 @@ export default function PaymentList() {
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [stats, setStats] = useState<{ total_received: number; total_pending: number; total_overdue: number }>({ total_received: 0, total_pending: 0, total_overdue: 0 });
+  const [allocationTarget, setAllocationTarget] = useState<PaymentRecord | null>(null);
+  const [invoiceOptions, setInvoiceOptions] = useState<Invoice[]>([]);
+  const [allocating, setAllocating] = useState(false);
+  const [allocationForm] = Form.useForm();
   const navigate = useNavigate();
 
   const load = async () => {
@@ -39,11 +43,38 @@ export default function PaymentList() {
 
   useEffect(() => { load(); }, [page, status, customerId]);
 
+  const openAllocation = async (payment: PaymentRecord) => {
+    try {
+      const response = await getInvoices({ customer_id: payment.customer_id, page_size: 100 });
+      setInvoiceOptions((response.data.data.list || []).filter((invoice) => invoice.status !== "paid" && invoice.status !== "cancelled"));
+      allocationForm.setFieldsValue({ allocations: [{ invoice_id: payment.invoice_id, amount: payment.amount }] });
+      setAllocationTarget(payment);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "加载待核销发票失败"));
+    }
+  };
+
+  const submitAllocation = async () => {
+    if (!allocationTarget) return;
+    const values = await allocationForm.validateFields();
+    setAllocating(true);
+    try {
+      await allocatePayment(allocationTarget.id, values.allocations);
+      message.success("回款核销完成");
+      setAllocationTarget(null);
+      load();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "回款核销失败"));
+    } finally {
+      setAllocating(false);
+    }
+  };
+
   const exportData = useMemo(() =>
     data.map((r) => ({
       id: r.id,
-      sales_order_id: r.sales_order_id,
-      delivery_note_id: r.delivery_note_id ?? "",
+      sales_order_no: r.sales_order_no || `#${r.sales_order_id}`,
+      delivery_note_no: r.delivery_note_no || (r.delivery_note_id ? `#${r.delivery_note_id}` : ""),
       invoice_no: r.invoice_no || "",
       amount: r.amount,
       payment_method: r.payment_method || "",
@@ -78,8 +109,8 @@ export default function PaymentList() {
           data={exportData}
           columns={[
             { key: "id", title: "ID" },
-            { key: "sales_order_id", title: "关联订单" },
-            { key: "delivery_note_id", title: "发货单" },
+            { key: "sales_order_no", title: "关联订单号" },
+            { key: "delivery_note_no", title: "关联发货单号" },
             { key: "invoice_no", title: "发票" },
             { key: "amount", title: "金额" },
             { key: "payment_method", title: "方式" },
@@ -97,21 +128,25 @@ export default function PaymentList() {
         columns={[
           { title: "#", width: 45, fixed: "left", render: (_: unknown, __: PaymentRecord, index: number) => (page - 1) * 20 + index + 1 },
           {
-            title: "关联订单", dataIndex: "sales_order_id", width: 100,
-            render: (value: number) => (
+            title: "关联订单号", dataIndex: "sales_order_no", width: 160,
+            render: (value: string | null, record: PaymentRecord) => (
               <div>
                 <div className="erp-cell-primary">
-                  <Typography.Link strong onClick={() => navigate(`/sales/orders/${value}`)}>#{value}</Typography.Link>
+                  <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.sales_order_id}`)}>
+                    {value || `#${record.sales_order_id}`}
+                  </Typography.Link>
                 </div>
               </div>
             ),
           },
           {
-            title: "发货单", dataIndex: "delivery_note_id", width: 80,
-            render: (value: number | null) => {
-              if (!value) return <span style={{ color: "#999" }}>-</span>;
+            title: "关联发货单号", dataIndex: "delivery_note_no", width: 160,
+            render: (value: string | null, record: PaymentRecord) => {
+              if (!record.delivery_note_id) return <span style={{ color: "#999" }}>-</span>;
               return (
-                <a onClick={() => navigate(`/sales/delivery-notes/${value}`)}>#{value}</a>
+                <a onClick={() => navigate(`/sales/delivery-notes/${record.delivery_note_id}`)}>
+                  {value || `#${record.delivery_note_id}`}
+                </a>
               );
             },
           },
@@ -146,6 +181,7 @@ export default function PaymentList() {
               const items: MenuProps["items"] = [
                 { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/payments/${r.id}`) },
                 { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/payments/${r.id}/edit`) },
+                { key: "allocate", label: "核销发票", onClick: () => openAllocation(r) },
                 { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                   Modal.confirm({ title: "确定删除?", content: `删除回款 #${r.id}？`, onOk: async () => {
@@ -176,6 +212,45 @@ export default function PaymentList() {
         }}
         pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
       />
+
+      <Modal
+        title={`回款核销 ${allocationTarget?.transaction_ref || (allocationTarget ? `#${allocationTarget.id}` : "")}`}
+        open={Boolean(allocationTarget)}
+        onCancel={() => setAllocationTarget(null)}
+        onOk={submitAllocation}
+        confirmLoading={allocating}
+        width={680}
+      >
+        <Typography.Paragraph type="secondary">
+          回款金额：{money(allocationTarget?.amount || 0)}。可拆分核销同一客户的多张发票，核销合计不能超过回款金额。
+        </Typography.Paragraph>
+        <Form form={allocationForm} layout="vertical">
+          <Form.List name="allocations">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" style={{ width: "100%" }}>
+                {fields.map((field) => (
+                  <Space key={field.key} align="start">
+                    <Form.Item {...field} name={[field.name, "invoice_id"]} label="发票" rules={[{ required: true }]}>
+                      <Select
+                        style={{ width: 300 }}
+                        options={invoiceOptions.map((invoice) => ({
+                          value: invoice.id,
+                          label: `${invoice.invoice_no || `#${invoice.id}`} · ${money(invoice.amount)}`,
+                        }))}
+                      />
+                    </Form.Item>
+                    <Form.Item {...field} name={[field.name, "amount"]} label="核销金额" rules={[{ required: true }]}>
+                      <InputNumber min={0.01} precision={2} style={{ width: 180 }} />
+                    </Form.Item>
+                    {fields.length > 1 && <Button danger onClick={() => remove(field.name)}>删除</Button>}
+                  </Space>
+                ))}
+                <Button onClick={() => add({ amount: 0 })}>增加核销发票</Button>
+              </Space>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
     </SalesModuleShell>
   );
 }

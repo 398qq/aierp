@@ -13,7 +13,10 @@ type QuoteItemForm = {
   product_id?: number;
   product_name?: string;
   quantity?: number;
+  unit?: string;
   unit_price?: number;
+  tax_rate?: number;
+  discount_rate?: number;
   total_price?: number;
   cost_price?: number;
   untaxed_cost?: number;
@@ -104,7 +107,8 @@ export default function QuotationForm() {
     const next = items.map((item) => {
       const quantity = toNumber(item?.quantity || 1);
       const unitPrice = toNumber(item?.unit_price);
-      const totalPrice = quantity * unitPrice;
+      const discountRate = Math.min(Math.max(toNumber(item?.discount_rate), 0), 100);
+      const totalPrice = quantity * unitPrice * (1 - discountRate / 100);
       const costPrice = toNumber(item?.cost_price);
       const taxedCost = quantity * costPrice;
       const untaxedCost = taxedCost / (1 + COST_TAX_RATE);
@@ -120,6 +124,8 @@ export default function QuotationForm() {
       return {
         ...item,
         quantity,
+        tax_rate: item.tax_rate ?? 13,
+        discount_rate: discountRate,
         total_price: totalPrice,
         cost_price: costPrice,
         untaxed_cost: untaxedCost,
@@ -356,11 +362,38 @@ export default function QuotationForm() {
                           ),
                         },
                         {
+                          title: "单位",
+                          width: 90,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "unit"]} style={{ marginBottom: 0 }}>
+                              <Input placeholder="件" />
+                            </Form.Item>
+                          ),
+                        },
+                        {
                           title: "含税单价",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "unit_price"]} style={{ marginBottom: 0 }}>
                               <InputNumber min={0} precision={4} prefix="¥" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "折扣率",
+                          width: 110,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "discount_rate"]} style={{ marginBottom: 0 }}>
+                              <InputNumber min={0} max={100} precision={2} suffix="%" style={{ width: "100%" }} />
+                            </Form.Item>
+                          ),
+                        },
+                        {
+                          title: "税率",
+                          width: 100,
+                          render: (_: unknown, field) => (
+                            <Form.Item name={[field.name, "tax_rate"]} style={{ marginBottom: 0 }}>
+                              <InputNumber min={0} max={100} precision={2} suffix="%" style={{ width: "100%" }} />
                             </Form.Item>
                           ),
                         },
@@ -483,6 +516,9 @@ export default function QuotationForm() {
                         onClick={() => add({
                           quantity: 1,
                           unit_price: 0,
+                          unit: "件",
+                          tax_rate: 13,
+                          discount_rate: 0,
                           total_price: 0,
                           cost_price: 0,
                           untaxed_cost: 0,

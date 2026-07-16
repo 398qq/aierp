@@ -61,6 +61,7 @@ async def list_products(
     q: str | None = None,
     category: str | None = None,
     brand_id: int | None = None,
+    status: str | None = Query(None, description="draft | active | frozen | inactive"),
     scene: str | None = Query(
         None,
         description="all | in_stock | out_of_stock | low_stock | pending_completion | stale_30d | no_supplier",
@@ -83,6 +84,7 @@ async def list_products(
         q=q,
         category=category,
         brand_id=brand_id,
+        status=status,
         scene=scene,
         stock_status=stock_status,
         sort=sort,
@@ -102,6 +104,7 @@ async def list_products(
         q=q,
         category=category,
         brand_id=brand_id,
+        status=status,
         scene=scene,
         stock_status=stock_status,
         sort=sort,

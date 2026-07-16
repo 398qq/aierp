@@ -44,6 +44,12 @@ class Opportunity(TimestampMixin, Base):
     quotations = relationship(
         "Quotation", back_populates="opportunity", lazy="selectin"
     )
+    follow_ups = relationship(
+        "CustomerFollowUp",
+        foreign_keys="CustomerFollowUp.opportunity_id",
+        lazy="selectin",
+        back_populates="opportunity",
+    )
 
 
 class Quotation(TimestampMixin, Base):

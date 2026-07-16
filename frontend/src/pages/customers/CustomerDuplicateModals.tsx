@@ -62,9 +62,10 @@ interface MergeModalProps {
   pair: DuplicatePair | null;
   onCancel: () => void;
   onConfirm: () => void;
+  onSwap: () => void;
 }
 
-export function CustomerMergeModal({ open, loading, pair, onCancel, onConfirm }: MergeModalProps) {
+export function CustomerMergeModal({ open, loading, pair, onCancel, onConfirm, onSwap }: MergeModalProps) {
   return (
     <Modal
       title="合并客户"
@@ -90,6 +91,9 @@ export function CustomerMergeModal({ open, loading, pair, onCancel, onConfirm }:
               电话: {pair.customer_b.phone || "无"} | 负责人: {pair.customer_b.owner || "无"}
             </div>
           </Card>
+          <Button style={{ marginTop: 12 }} onClick={onSwap} disabled={loading}>
+            交换保留对象
+          </Button>
           <p style={{ marginTop: 12, color: "#ff4d4f" }}>
             合并后，源客户的联系人、跟进记录、标签、附件和订单将转移到目标客户，源客户将被删除。
           </p>

@@ -696,6 +696,7 @@ class CustomerStatsService(BaseCRUDService):
             items.append(
                 {
                     "id": fu.id,
+                    "opportunity_id": fu.opportunity_id,
                     "customer_id": cust.id,
                     "customer_name": cust.name,
                     "owner": cust.owner,
@@ -757,6 +758,7 @@ class CustomerStatsService(BaseCRUDService):
             items.append(
                 {
                     "id": fu.id,
+                    "opportunity_id": fu.opportunity_id,
                     "customer_id": cust.id,
                     "customer_name": cust.name,
                     "owner": cust.owner,
@@ -861,6 +863,7 @@ class CustomerStatsService(BaseCRUDService):
             items.append(
                 {
                     "id": fu.id,
+                    "opportunity_id": fu.opportunity_id,
                     "customer_id": cust.id,
                     "customer_name": cust.name,
                     "owner": cust.owner,

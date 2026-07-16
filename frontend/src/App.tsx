@@ -55,6 +55,7 @@ const CustomerIntelligenceDashboard = lazy(
 const CustomerAIWorkbench = lazy(() => import("./pages/customers/CustomerAIWorkbench"));
 const CustomerSegments = lazy(() => import("./pages/customers/CustomerSegments"));
 const CustomerFollowUpsPage = lazy(() => import("./pages/customers/CustomerFollowUpsPage"));
+const FollowUpList = lazy(() => import("./pages/customers/FollowUpList"));
 const ProductList = lazy(() => import("./pages/products/index"));
 const ProductDetail = lazy(() => import("./pages/products/ProductDetail"));
 const SupplierList = lazy(() => import("./pages/suppliers/index"));
@@ -282,7 +283,11 @@ export default function App() {
                 />
                 <Route
                   path="/customers/:customerId/follow-ups"
-                  element={<Navigate to="../?tab=followups" relative="path" replace />}
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <FollowUpList />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path="/customers/:customerId/follow-ups/new"

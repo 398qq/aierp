@@ -218,22 +218,22 @@ class TestDeliveryNoteStateMachine:
 
 
 class TestInvoiceStateMachine:
-    """draft → sent → paid | cancelled. sent → overdue → paid."""
+    """draft → issued → paid | cancelled. issued → overdue → paid."""
 
-    def test_draft_to_sent(self):
-        assert_ok("draft", "sent", assert_can_transition_invoice)
+    def test_draft_to_issued(self):
+        assert_ok("draft", "issued", assert_can_transition_invoice)
 
     def test_draft_to_cancelled(self):
         assert_ok("draft", "cancelled", assert_can_transition_invoice)
 
-    def test_sent_to_paid(self):
-        assert_ok("sent", "paid", assert_can_transition_invoice)
+    def test_issued_to_paid(self):
+        assert_ok("issued", "paid", assert_can_transition_invoice)
 
-    def test_sent_to_cancelled(self):
-        assert_ok("sent", "cancelled", assert_can_transition_invoice)
+    def test_issued_to_cancelled(self):
+        assert_ok("issued", "cancelled", assert_can_transition_invoice)
 
-    def test_sent_to_overdue(self):
-        assert_ok("sent", "overdue", assert_can_transition_invoice)
+    def test_issued_to_overdue(self):
+        assert_ok("issued", "overdue", assert_can_transition_invoice)
 
     def test_overdue_to_paid(self):
         assert_ok("overdue", "paid", assert_can_transition_invoice)
@@ -251,7 +251,7 @@ class TestInvoiceStateMachine:
         assert_blocked("draft", "paid", assert_can_transition_invoice)
 
     def test_overdue_cannot_reopen(self):
-        assert_blocked("overdue", "sent", assert_can_transition_invoice)
+        assert_blocked("overdue", "issued", assert_can_transition_invoice)
 
 
 # ── PaymentRecord ──────────────────────────────────────────────────────

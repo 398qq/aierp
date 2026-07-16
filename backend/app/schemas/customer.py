@@ -18,6 +18,8 @@ class CustomerCreate(BaseModel):
     customer_type: str | None = None
     region: str | None = None
     credit_limit: float | None = None
+    contract_required: bool = False
+    credit_control_enabled: bool = False
     credit_level: str | None = None
     # 2026-06-23 schema 扩展：业务必填字段（必须走 API，不再走 SQL 例外）
     unified_social_credit_code: str | None = Field(None, max_length=32, description="统一社会信用代码 18 位")
@@ -56,6 +58,8 @@ class CustomerUpdate(BaseModel):
     customer_type: str | None = None
     region: str | None = None
     credit_limit: float | None = None
+    contract_required: bool | None = None
+    credit_control_enabled: bool | None = None
     credit_level: str | None = None
     # 2026-06-23 schema 扩展：业务必填字段（必须走 API，不再走 SQL 例外）
     unified_social_credit_code: str | None = Field(None, max_length=32)
@@ -95,6 +99,8 @@ class CustomerResponse(BaseModel):
     customer_type: str | None
     region: str | None
     credit_limit: float | None
+    contract_required: bool = False
+    credit_control_enabled: bool = False
     credit_level: str | None
     # 2026-06-23 schema 扩展
     unified_social_credit_code: str | None = None
@@ -134,6 +140,7 @@ class ContactCreate(BaseModel):
 
 
 class FollowUpCreate(BaseModel):
+    opportunity_id: int | None = None
     method: str | None = None
     status: str | None = None
     content: str | None = None

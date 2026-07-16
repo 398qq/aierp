@@ -5,6 +5,8 @@ import hashlib
 import json
 import logging
 from collections import Counter
+from collections.abc import Mapping
+from typing import Any
 
 from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +21,13 @@ SALES_AI_TIMEOUT_SECONDS = 12
 AI_ENRICHMENT_CACHE_TTL = 1800
 # Bump this when prompts change to invalidate all cached AI responses
 AI_ENRICHMENT_PROMPT_VERSION = "v1"
+
+
+def _entity_value(entity: object, field: str, default: Any = None) -> Any:
+    """Read a field from either an ORM entity or a cached serialized mapping."""
+    if isinstance(entity, Mapping):
+        return entity.get(field, default)
+    return getattr(entity, field, default)
 
 
 def _ai_enrichment_cache_key(entity: str, input_data: list[dict]) -> str:
@@ -237,7 +246,7 @@ async def enrich_delivery_note(db: AsyncSession, note: DeliveryNote) -> dict | N
 
 
 async def enrich_opportunity_list(
-    db: AsyncSession, opps: list[Opportunity]
+    db: AsyncSession, opps: list[Opportunity | Mapping[str, Any]]
 ) -> dict[int, dict]:
     from app.services.ai.prompts import list_risk_summary_prompt
 
@@ -246,12 +255,12 @@ async def enrich_opportunity_list(
 
     opp_data = [
         {
-            "id": o.id,
-            "title": o.title,
-            "stage": o.stage or "",
-            "amount": str(o.amount or 0),
-            "status": o.status,
-            "win_probability": str(o.win_probability or ""),
+            "id": _entity_value(o, "id"),
+            "title": _entity_value(o, "title"),
+            "stage": _entity_value(o, "stage", "") or "",
+            "amount": str(_entity_value(o, "amount", 0) or 0),
+            "status": _entity_value(o, "status"),
+            "win_probability": str(_entity_value(o, "win_probability", "") or ""),
         }
         for o in opps
     ]
@@ -284,7 +293,7 @@ async def enrich_opportunity_list(
 
 
 async def enrich_quotation_list(
-    db: AsyncSession, quotes: list[Quotation]
+    db: AsyncSession, quotes: list[Quotation | Mapping[str, Any]]
 ) -> dict[int, dict]:
     from app.services.ai.prompts import quotation_list_enrich_prompt
 
@@ -293,10 +302,10 @@ async def enrich_quotation_list(
 
     quote_data = [
         {
-            "id": q.id,
-            "total_amount": str(q.total_amount),
-            "status": q.status,
-            "item_count": str(len(q.items) if q.items else 0),
+            "id": _entity_value(q, "id"),
+            "total_amount": str(_entity_value(q, "total_amount", 0) or 0),
+            "status": _entity_value(q, "status"),
+            "item_count": str(len(_entity_value(q, "items", []) or [])),
         }
         for q in quotes
     ]
@@ -319,7 +328,10 @@ async def enrich_quotation_list(
         schema,
     )
     if not result:
-        return {q.id: {"pricing_health": "fair", "flag": None} for q in quotes}
+        return {
+            int(_entity_value(q, "id")): {"pricing_health": "fair", "flag": None}
+            for q in quotes
+        }
     return {
         item["id"]: {
             "pricing_health": item.get("pricing_health", "fair"),
@@ -331,7 +343,7 @@ async def enrich_quotation_list(
 
 
 async def enrich_order_list(
-    db: AsyncSession, orders: list[SalesOrder]
+    db: AsyncSession, orders: list[SalesOrder | Mapping[str, Any]]
 ) -> dict[int, dict]:
     from app.services.ai.prompts import order_list_enrich_prompt
 
@@ -339,15 +351,21 @@ async def enrich_order_list(
         return {}
     order_data = [
         {
-            "id": o.id,
-            "total_amount": str(o.total_amount or 0),
-            "status": o.status,
-            "item_count": str(len(o.items) if getattr(o, "items", None) else 0),
+            "id": _entity_value(o, "id"),
+            "total_amount": str(_entity_value(o, "total_amount", 0) or 0),
+            "status": _entity_value(o, "status"),
+            "item_count": str(len(_entity_value(o, "items", []) or [])),
         }
         for o in orders
     ]
     schema = {
-        "items": [{"id": "integer", "health": "string", "flag": "string | null"}],
+        "items": [
+            {
+                "id": "integer",
+                "delivery_risk": "string: low / medium / high",
+                "flag": "string | null",
+            }
+        ],
     }
     result = await _cached_ai_call(
         "order_list",
@@ -362,16 +380,22 @@ async def enrich_order_list(
         schema,
     )
     if not result:
-        return {o.id: {"health": "fair", "flag": None} for o in orders}
+        return {
+            int(_entity_value(o, "id")): {"delivery_risk": "low", "flag": None}
+            for o in orders
+        }
     return {
-        item["id"]: {"health": item.get("health", "fair"), "flag": item.get("flag")}
+        item["id"]: {
+            "delivery_risk": item.get("delivery_risk", "low"),
+            "flag": item.get("flag"),
+        }
         for item in result.get("items", [])
         if "id" in item
     }
 
 
 async def enrich_delivery_list(
-    db: AsyncSession, notes: list[DeliveryNote]
+    db: AsyncSession, notes: list[DeliveryNote | Mapping[str, Any]]
 ) -> dict[int, dict]:
     from app.services.ai.prompts import delivery_list_enrich_prompt
 
@@ -380,9 +404,9 @@ async def enrich_delivery_list(
 
     note_data = [
         {
-            "id": n.id,
-            "status": n.status,
-            "item_count": str(len(n.items) if n.items else 0),
+            "id": _entity_value(n, "id"),
+            "status": _entity_value(n, "status"),
+            "item_count": str(len(_entity_value(n, "items", []) or [])),
         }
         for n in notes
     ]
@@ -403,7 +427,10 @@ async def enrich_delivery_list(
         schema,
     )
     if not result:
-        return {n.id: {"completion_risk": "low", "flag": None} for n in notes}
+        return {
+            int(_entity_value(n, "id")): {"completion_risk": "low", "flag": None}
+            for n in notes
+        }
     return {
         item["id"]: {
             "completion_risk": item.get("completion_risk", "low"),

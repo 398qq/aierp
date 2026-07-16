@@ -43,6 +43,56 @@ async def _create_delivery_note(
 
 
 class TestFinanceCustomerLinks:
+    async def test_payment_can_allocate_across_multiple_invoices(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_customer: dict,
+    ):
+        order_id = await _create_order(async_client, auth_headers, test_customer["id"])
+        invoice_ids = []
+        for amount in (3000, 5000):
+            invoice = await async_client.post(
+                "/api/v1/invoices",
+                headers=auth_headers,
+                json={
+                    "sales_order_id": order_id,
+                    "customer_id": test_customer["id"],
+                    "amount": amount,
+                    "status": "issued",
+                },
+            )
+            invoice_ids.append(invoice.json()["data"]["id"])
+        payment = await async_client.post(
+            "/api/v1/payments",
+            headers=auth_headers,
+            json={
+                "sales_order_id": order_id,
+                "customer_id": test_customer["id"],
+                "amount": 8000,
+            },
+        )
+
+        allocated = await async_client.put(
+            f"/api/v1/payments/{payment.json()['data']['id']}/allocations",
+            headers=auth_headers,
+            json={
+                "allocations": [
+                    {"invoice_id": invoice_ids[0], "amount": 3000},
+                    {"invoice_id": invoice_ids[1], "amount": 5000},
+                ]
+            },
+        )
+
+        assert allocated.status_code == 200
+        assert allocated.json()["data"]["status"] == "completed"
+        assert allocated.json()["data"]["unallocated_amount"] == 0
+        for invoice_id in invoice_ids:
+            invoice = await async_client.get(
+                f"/api/v1/invoices/{invoice_id}", headers=auth_headers
+            )
+            assert invoice.json()["data"]["status"] == "paid"
+
     async def test_invoice_uses_sales_order_customer(
         self,
         async_client: AsyncClient,
@@ -64,12 +114,28 @@ class TestFinanceCustomerLinks:
                 "sales_order_id": order_id,
                 "customer_id": other_customer.id,
                 "amount": 8000,
-                "tax_amount": 0,
             },
         )
 
         assert resp.status_code == 200
         assert resp.json()["data"]["customer_id"] == test_customer["id"]
+        assert resp.json()["data"]["tax_amount"] == 1040.0
+
+        recalculated = await async_client.put(
+            f"/api/v1/invoices/{resp.json()['data']['id']}",
+            headers=auth_headers,
+            json={"amount": 10000},
+        )
+        assert recalculated.status_code == 200
+        assert recalculated.json()["data"]["tax_amount"] == 1300.0
+
+        issued = await async_client.put(
+            f"/api/v1/invoices/{resp.json()['data']['id']}",
+            headers=auth_headers,
+            json={"status": "issued"},
+        )
+        assert issued.status_code == 200
+        assert issued.json()["data"]["status"] == "issued"
 
     async def test_payment_uses_sales_order_customer(
         self,
@@ -96,11 +162,19 @@ class TestFinanceCustomerLinks:
         )
 
         assert resp.status_code == 200
+        assert resp.json()["data"]["sales_order_no"]
         payment_id = resp.json()["data"]["id"]
         detail = await async_client.get(
             f"/api/v1/payments/{payment_id}", headers=auth_headers
         )
         assert detail.json()["data"]["customer_id"] == test_customer["id"]
+        assert detail.json()["data"]["sales_order_no"] == resp.json()["data"]["sales_order_no"]
+
+        listed = await async_client.get("/api/v1/payments", headers=auth_headers)
+        listed_payment = next(
+            item for item in listed.json()["data"]["list"] if item["id"] == payment_id
+        )
+        assert listed_payment["sales_order_no"] == resp.json()["data"]["sales_order_no"]
 
     async def test_contract_uses_sales_order_customer_when_order_linked(
         self,
@@ -155,6 +229,7 @@ class TestFinanceCustomerLinks:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["delivery_note_id"] == dn_id
+        assert data["delivery_note_no"]
         assert data["sales_order_id"] == order_id
         assert data["amount"] == 5000
 
@@ -163,6 +238,7 @@ class TestFinanceCustomerLinks:
             f"/api/v1/payments/{data['id']}", headers=auth_headers
         )
         assert detail.json()["data"]["delivery_note_id"] == dn_id
+        assert detail.json()["data"]["delivery_note_no"] == data["delivery_note_no"]
 
     async def test_payment_list_filter_by_delivery_note(
         self,
@@ -212,3 +288,4 @@ class TestFinanceCustomerLinks:
         payload = resp.json()["data"]
         assert payload["total"] == 1
         assert payload["list"][0]["id"] == pay1_id
+        assert payload["list"][0]["delivery_note_no"]

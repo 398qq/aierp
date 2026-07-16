@@ -220,16 +220,33 @@ export default function ProductDetail() {
         <Link to={`/products/${id}/360`}><Button icon={<PieChartOutlined />}>360</Button></Link>
       </Space>
 
+      {product.status && product.status !== "active" ? (
+        <Alert
+          showIcon
+          type={product.status === "frozen" ? "warning" : "info"}
+          message={product.status === "frozen" ? "产品已冻结，新增报价和销售订单将被拦截" : product.status === "inactive" ? "产品已停用" : "产品尚未启用"}
+          description="请在主数据维护完成并完成状态审批后再恢复正常业务流转。"
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+
       {/* Product Info */}
       <Card title="产品信息" style={{ marginBottom: 16 }}>
-        <Descriptions bordered column={3} size="small">
-          <Descriptions.Item label="SKU">{product.sku || "-"}</Descriptions.Item>
-          <Descriptions.Item label="名称">{product.name}</Descriptions.Item>
-          <Descriptions.Item label="品牌">{brandName || (product.brand_id ? `#${product.brand_id}` : "-")}</Descriptions.Item>
+          <Descriptions bordered column={3} size="small">
+            <Descriptions.Item label="SKU">{product.sku || "-"}</Descriptions.Item>
+            <Descriptions.Item label="名称">{product.name}</Descriptions.Item>
+            <Descriptions.Item label="品牌">{brandName || (product.brand_id ? `#${product.brand_id}` : "-")}</Descriptions.Item>
+            <Descriptions.Item label="产品状态">{product.status === "active" ? "已启用" : product.status === "frozen" ? "已冻结" : product.status === "inactive" ? "已停用" : product.status === "draft" ? "草稿" : "-"}</Descriptions.Item>
+            <Descriptions.Item label="产品类型">{product.product_type || "成品"}</Descriptions.Item>
+            <Descriptions.Item label="负责人">{product.owner || "-"}</Descriptions.Item>
+            <Descriptions.Item label="默认仓库">{product.default_warehouse_id ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="库存控制">
+              {[product.batch_control ? "批次" : null, product.serial_control ? "序列号" : null, product.shelf_life_control ? "保质期" : null].filter(Boolean).join("、") || "未启用特殊控制"}
+            </Descriptions.Item>
           <Descriptions.Item label="分类">{product.category || "-"}</Descriptions.Item>
           <Descriptions.Item label="封装">{product.package_type || "-"}</Descriptions.Item>
           <Descriptions.Item label="单位">{product.unit || "-"}</Descriptions.Item>
-        </Descriptions>
+          </Descriptions>
         {Object.keys(specsObj).length > 0 && (
           <Card title="规格参数" size="small" type="inner" style={{ marginTop: 12 }}>
             <Descriptions column={4} size="small">

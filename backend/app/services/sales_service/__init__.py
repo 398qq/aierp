@@ -37,6 +37,7 @@ from app.services.sales_service.opportunities import (
     create_opportunity,
     delete_opportunity,
     get_opportunity,
+    get_opportunity_audit,
     list_opportunities,
     update_opportunity,
 )
@@ -83,6 +84,7 @@ __all__ = [
     "_normalize_sales_order_items",
     "list_opportunities",
     "get_opportunity",
+    "get_opportunity_audit",
     "create_opportunity",
     "update_opportunity",
     "delete_opportunity",

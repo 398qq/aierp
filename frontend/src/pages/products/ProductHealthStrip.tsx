@@ -48,8 +48,8 @@ export default function ProductHealthStrip({
         <div className="product-health-title">
           <InboxOutlined />
           <div>
-            <span>产品主数据</span>
-            <small>统一维护产品、库存、价格与供应关系</small>
+            <span>产品主数据台账</span>
+            <small>统一维护产品标识、库存控制、价格成本与供应关系</small>
           </div>
           {statsLoading && <StatusTag>刷新中</StatusTag>}
         </div>

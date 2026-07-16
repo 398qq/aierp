@@ -137,6 +137,7 @@ export type { SalesOrderItem } from "./sales";
 export type { OpportunityAI } from "./sales";
 export type { QuotationAI } from "./sales";
 export type { SalesOrderAI } from "./sales";
+export type { SalesOrderBusinessChain, OpportunityBusinessChain, OpportunityAuditItem, OpportunityAuditTrail, BusinessDocumentRef } from "./sales";
 export type { DeliveryNoteAI } from "./sales";
 export type { FunnelStage } from "./sales";
 export type { SalesDashboardOverview } from "./sales";

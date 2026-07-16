@@ -43,14 +43,15 @@ def _normalize_quotation_items(
         item = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
         qty = int(item.get("quantity") or 1)
         unit_price = float(item.get("unit_price") or 0)
-        total_price = item.get("total_price")
-        line_total = float(total_price) if total_price is not None else qty * unit_price
+        discount_rate = min(max(float(item.get("discount_rate") or 0), 0), 100)
+        line_total = qty * unit_price * (1 - discount_rate / 100)
         cost_price = float(item.get("cost_price") or 0)
         taxed_cost = qty * cost_price
         untaxed_cost = taxed_cost / (1 + QUOTE_COST_TAX_RATE)
         sales_profit = line_total - taxed_cost
         item["quantity"] = qty
         item["unit_price"] = unit_price
+        item["discount_rate"] = discount_rate
         item["total_price"] = line_total
         item["cost_price"] = cost_price
         item["untaxed_cost"] = untaxed_cost

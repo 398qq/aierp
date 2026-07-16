@@ -81,6 +81,7 @@ SORTABLE_COLUMNS: dict[str, any] = {
     "source": Customer.source,
     "credit_level": Customer.credit_level,
     "created_at": Customer.created_at,
+    "updated_at": Customer.updated_at,
     "last_contacted_at": Customer.last_contacted_at,
 }
 

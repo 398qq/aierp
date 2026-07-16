@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Divider, Empty, Progress, Space, Spin, Table, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, AuditOutlined, EditOutlined } from "@ant-design/icons";
-import { getContract } from "../../api";
-import type { Contract } from "../../types";
+import { getContract, getSalesOrder, getSalesOrderBusinessChain } from "../../api";
+import type { Contract, SalesOrder, SalesOrderBusinessChain } from "../../types";
 import { CustomerLink, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
@@ -28,12 +28,29 @@ export default function ContractDetail() {
   const [ct, setCt] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [order, setOrder] = useState<SalesOrder | null>(null);
+  const [chain, setChain] = useState<SalesOrderBusinessChain | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     getContract(Number(id))
-      .then((r) => setCt(r.data.data))
+      .then(async (r) => {
+        const contract = r.data.data;
+        if (!contract) {
+          setCt(null);
+          return;
+        }
+        setCt(contract);
+        if (contract.sales_order_id) {
+          const [orderResult, chainResult] = await Promise.allSettled([
+            getSalesOrder(contract.sales_order_id),
+            getSalesOrderBusinessChain(contract.sales_order_id),
+          ]);
+          if (orderResult.status === "fulfilled") setOrder(orderResult.value.data.data);
+          if (chainResult.status === "fulfilled") setChain(chainResult.value.data.data);
+        }
+      })
       .catch((e) => setError(e.message || "加载失败"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -76,8 +93,9 @@ export default function ContractDetail() {
     >
       <MetricBand
         items={[
-          { title: "合同金额", value: ct.amount || 0, prefix: "¥", precision: 0 },
-          { title: "已开票金额", value: 0, prefix: "¥", precision: 0 },
+          { title: "合同金额", value: ct.amount || 0, prefix: "¥", precision: 2 },
+          { title: "已开票金额", value: chain?.progress.invoiced_amount || 0, prefix: "¥", precision: 2 },
+          { title: "已回款金额", value: chain?.progress.paid_amount || 0, prefix: "¥", precision: 2 },
           { title: "状态", value: STATUS[ct.status]?.label || ct.status },
           { title: "到期日", value: ct.expire_date ? shortDate(ct.expire_date) : "-" },
         ]}
@@ -105,8 +123,47 @@ export default function ContractDetail() {
               <Descriptions.Item label="签署日期">{shortDate(ct.signed_date)}</Descriptions.Item>
               <Descriptions.Item label="到期日期">{shortDate(ct.expire_date)}</Descriptions.Item>
               <Descriptions.Item label="关联订单">{ct.sales_order_id ? `订单 #${ct.sales_order_id}` : "-"}</Descriptions.Item>
+              <Descriptions.Item label="币种">{ct.currency || "CNY"}</Descriptions.Item>
+              <Descriptions.Item label="发票类型">{ct.invoice_type || "-"}</Descriptions.Item>
+              <Descriptions.Item label="交货地址" span={2}>{ct.delivery_address || order?.shipping_address || "-"}</Descriptions.Item>
               <Descriptions.Item label="文件">{ct.file_url ? <Typography.Link href={ct.file_url} target="_blank">查看文件</Typography.Link> : "-"}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{ct.notes || "-"}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          <Card title="合同产品明细" size="small">
+            {order ? <Table
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={order.items}
+              columns={[
+                { title: "产品", dataIndex: "product_name", ellipsis: true },
+                { title: "数量", dataIndex: "quantity", align: "right" as const },
+                { title: "单位", dataIndex: "unit", render: (value: string | null) => value || "-" },
+                { title: "单价", dataIndex: "unit_price", align: "right" as const, render: (value: number | null) => value == null ? "-" : money(value) },
+                { title: "金额", dataIndex: "total_price", align: "right" as const, render: (value: number | null) => value == null ? "-" : money(value) },
+              ]}
+              summary={() => <Table.Summary.Row><Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={1}><Typography.Text strong>{order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={2} /><Table.Summary.Cell index={3} /><Table.Summary.Cell index={4}><Typography.Text strong>{money(order.total_amount)}</Typography.Text></Table.Summary.Cell></Table.Summary.Row>}
+            /> : <Typography.Text type="secondary">未关联合同订单，暂无产品明细</Typography.Text>}
+          </Card>
+
+          <Card title="合同商务条款" size="small">
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="付款条款">{ct.payment_terms || "-"}</Descriptions.Item>
+              <Descriptions.Item label="交付条款">{ct.delivery_terms || "-"}</Descriptions.Item>
+              <Descriptions.Item label="验收条款">{ct.acceptance_terms || "-"}</Descriptions.Item>
+              <Descriptions.Item label="质保与售后">{ct.warranty_terms || "-"}</Descriptions.Item>
+              <Descriptions.Item label="违约与争议解决">{ct.dispute_terms || "-"}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          <Card title="签署确认" size="small">
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="甲方（客户）">{order?.customer_name || "客户"}</Descriptions.Item>
+              <Descriptions.Item label="乙方（供方）">本公司</Descriptions.Item>
+              <Descriptions.Item label="签署日期">{shortDate(ct.signed_date)}</Descriptions.Item>
+              <Descriptions.Item label="合同文件">{ct.file_url ? <Typography.Link href={ct.file_url} target="_blank">查看已上传文件</Typography.Link> : "待上传"}</Descriptions.Item>
             </Descriptions>
           </Card>
         </Space>
@@ -117,6 +174,14 @@ export default function ContractDetail() {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">合同金额</Typography.Text>
                 <Typography.Text strong>{money(ct.amount)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">未开票</Typography.Text>
+                <Typography.Text type={chain?.progress.uninvoiced_amount ? "warning" : undefined}>{money(chain?.progress.uninvoiced_amount || 0)}</Typography.Text>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <Typography.Text type="secondary">未回款</Typography.Text>
+                <Typography.Text type={chain?.progress.outstanding_amount ? "danger" : undefined}>{money(chain?.progress.outstanding_amount || 0)}</Typography.Text>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">合同标题</Typography.Text>
@@ -139,6 +204,26 @@ export default function ContractDetail() {
                 <Typography.Text type="secondary">到期日期</Typography.Text>
                 <Typography.Text>{shortDate(ct.expire_date)}</Typography.Text>
               </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="合同执行进度">
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Typography.Text type="secondary">交付</Typography.Text>
+              <Progress size="small" percent={chain?.progress.delivery_percent || 0} />
+              <Typography.Text type="secondary">开票</Typography.Text>
+              <Progress size="small" percent={chain?.progress.invoice_percent || 0} />
+              <Typography.Text type="secondary">回款</Typography.Text>
+              <Progress size="small" percent={chain?.progress.payment_percent || 0} />
+            </Space>
+          </Card>
+
+          <Card size="small" title="关联单据">
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <Typography.Link onClick={() => ct.sales_order_id && navigate(`/sales/orders/${ct.sales_order_id}`)}>销售订单：{order?.order_no || (ct.sales_order_id ? `#${ct.sales_order_id}` : "未关联")}</Typography.Link>
+              <Typography.Text>发货单：{chain?.deliveries.length || 0} 张</Typography.Text>
+              <Typography.Text>发票：{chain?.invoices.length || 0} 张</Typography.Text>
+              <Typography.Text>回款：{chain?.payments.length || 0} 笔</Typography.Text>
             </Space>
           </Card>
 

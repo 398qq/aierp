@@ -101,6 +101,8 @@ class Customer(TimestampMixin, Base):
 
     # ── 信用与付款 ──
     credit_limit: Mapped[float | None] = mapped_column(nullable=True)
+    contract_required: Mapped[bool] = mapped_column(default=False)
+    credit_control_enabled: Mapped[bool] = mapped_column(default=False)
     credit_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(
         String(100), nullable=True
@@ -191,6 +193,9 @@ class CustomerFollowUp(TimestampMixin, Base):
     __tablename__ = "customer_follow_ups"
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    opportunity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("opportunities.id"), nullable=True
+    )
     method: Mapped[str | None] = mapped_column(String(30), nullable=True)
     status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -205,6 +210,9 @@ class CustomerFollowUp(TimestampMixin, Base):
     assigned_to: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     customer = relationship("Customer", back_populates="follow_ups")
+    opportunity = relationship(
+        "Opportunity", foreign_keys=[opportunity_id], back_populates="follow_ups"
+    )
 
 
 class CustomerTag(TimestampMixin, Base):

@@ -153,6 +153,16 @@ export const createPayment = (data: Record<string, unknown>) =>
 export const updatePayment = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse<PaymentRecord>>(`/payments/${id}`, data);
 
+export const allocatePayment = (
+  id: number,
+  allocations: Array<{ invoice_id: number; amount: number }>,
+) => client.put<APIResponse<{
+  payment_id: number;
+  allocated_amount: number;
+  unallocated_amount: number;
+  status: string;
+}>>(`/payments/${id}/allocations`, { allocations });
+
 export const deletePayment = (id: number) => client.delete<APIResponse>(`/payments/${id}`);
 
 // ============================================================

@@ -14,7 +14,7 @@ from app.domain.shared.errors import InsufficientStockError
 from app.domain.states import assert_can_transition_delivery
 from app.models.finance import PaymentRecord
 from app.models.product import Warehouse
-from app.models.sales import DeliveryNote, DeliveryNoteItem, SalesOrder
+from app.models.sales import DeliveryNote, DeliveryNoteItem, SalesOrder, SalesOrderItem
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 from app.services.inventory_service import deduct_for_delivery, lock_for_sales_order
@@ -203,8 +203,46 @@ class DeliveryNoteService(BaseCRUDService):
             and old_status != new_status
         ):
             await self._auto_deduct_delivery(db, note)
+            await self._sync_sales_order_fulfillment_status(db, note.sales_order_id)
+            await db.commit()
 
         return note
+
+    async def _sync_sales_order_fulfillment_status(
+        self, db: AsyncSession, order_id: int
+    ) -> None:
+        """Derive order status from actual downstream delivery documents."""
+        order = await db.get(SalesOrder, order_id)
+        if order is None:
+            return
+        ordered_qty = int(
+            await db.scalar(
+                select(func.coalesce(func.sum(SalesOrderItem.quantity), 0)).where(
+                    SalesOrderItem.order_id == order_id,
+                    SalesOrderItem.deleted_at.is_(None),
+                )
+            )
+            or 0
+        )
+        rows = (
+            await db.execute(
+                select(DeliveryNote.status, func.coalesce(func.sum(DeliveryNoteItem.quantity), 0))
+                .join(DeliveryNoteItem, DeliveryNoteItem.delivery_note_id == DeliveryNote.id)
+                .where(
+                    DeliveryNote.sales_order_id == order_id,
+                    DeliveryNote.deleted_at.is_(None),
+                    DeliveryNoteItem.deleted_at.is_(None),
+                    DeliveryNote.status.in_(["shipped", "delivered", "completed"]),
+                )
+                .group_by(DeliveryNote.status)
+            )
+        ).all()
+        delivered_qty = sum(int(row[1] or 0) for row in rows)
+        statuses = {str(row[0]) for row in rows}
+        if ordered_qty and delivered_qty >= ordered_qty and statuses <= {"delivered", "completed"}:
+            order.status = "delivered"
+        elif delivered_qty > 0:
+            order.status = "shipped"
 
     async def soft_delete_delivery_note(
         self, db: AsyncSession, note: DeliveryNote

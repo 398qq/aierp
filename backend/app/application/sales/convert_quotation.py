@@ -64,6 +64,7 @@ class ConvertQuotationToOrderUseCase:
                 QuotationModel.deleted_at.is_(None),
             )
             .options(selectinload(QuotationModel.items))
+            .with_for_update()
         )
         result = await self._session.execute(stmt)
         quote_orm = result.scalar_one_or_none()
@@ -71,6 +72,17 @@ class ConvertQuotationToOrderUseCase:
             raise NotFoundError(
                 f"报价单 {quotation_id} 不存在",
                 quotation_id=quotation_id,
+            )
+
+        existing_order = await self._session.scalar(
+            select(SalesOrderModel).where(
+                SalesOrderModel.quotation_id == quotation_id,
+                SalesOrderModel.deleted_at.is_(None),
+            )
+        )
+        if existing_order is not None:
+            raise InvalidStateTransition(
+                f"报价单已转换为销售订单 {existing_order.order_no or existing_order.id}"
             )
 
         # 2. Build domain quotation
@@ -118,7 +130,6 @@ class ConvertQuotationToOrderUseCase:
                     unit_price=line.unit_price,
                 )
                 for line in domain_quote.lines
-                if line.product_id is not None
             ],
         )
 
@@ -135,21 +146,31 @@ class ConvertQuotationToOrderUseCase:
             quotation_id=domain_quote.id,
             total_amount=float(domain_order.total),
             status=domain_order.status.value,
+            currency=quote_orm.currency,
+            incoterms=quote_orm.incoterms,
+            payment_terms=quote_orm.payment_terms,
+            discount_rate=quote_orm.discount_rate,
+            discount_amount=quote_orm.discount_amount,
+            subtotal=quote_orm.subtotal,
         )
         self._session.add(new_order_orm)
         await self._session.flush()
         domain_order.id = new_order_orm.id
         domain_order.order_no = new_order_orm.order_no
 
-        for line in domain_order.lines:
+        source_lines = list(quote_orm.items)
+        for line, source_line in zip(domain_order.lines, source_lines, strict=True):
             self._session.add(
                 SalesOrderItem(
                     order_id=new_order_orm.id,
-                    product_id=line.product_id,
+                    product_id=source_line.product_id,
                     product_name=line.product_name,
                     quantity=line.quantity,
+                    unit=source_line.unit,
                     unit_price=line.unit_price,
                     total_price=line.subtotal,
+                    tax_rate=source_line.tax_rate,
+                    discount_rate=source_line.discount_rate,
                 )
             )
 
@@ -185,7 +206,9 @@ def _quote_line_from_orm(item: QuotationItem):
     )
 
 
-def _quotation_status(raw_status: str | None, quotation_id: int | None) -> QuotationStatus:
+def _quotation_status(
+    raw_status: str | None, quotation_id: int | None
+) -> QuotationStatus:
     if not raw_status:
         return QuotationStatus.DRAFT
     try:

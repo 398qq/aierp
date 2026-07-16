@@ -6,7 +6,7 @@ import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getInvoices, deleteInvoice, getApiErrorMessage } from "../../api";
 import type { Invoice } from "../../types";
-import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
+import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" }, issued: { color: "blue", label: "已开票" },
@@ -101,12 +101,9 @@ export default function InvoiceList() {
           {
             title: "发票号", dataIndex: "invoice_no", width: 140, fixed: "left",
             render: (v: string, r: Invoice) => (
-              <div>
-                <div className="erp-cell-primary">
-                  <Typography.Link strong onClick={() => navigate(`/sales/invoices/${r.id}`)}>{v || `#${r.id}`}</Typography.Link>
-                </div>
-                <div className="erp-cell-secondary"><CustomerLink id={r.customer_id} /></div>
-              </div>
+              <Typography.Link strong onClick={() => navigate(`/sales/invoices/${r.id}`)}>
+                {v || `#${r.id}`}
+              </Typography.Link>
             ),
           },
           { title: "客户", dataIndex: "customer_name", width: 180, render: (v: string | null | undefined, r: Invoice) =>

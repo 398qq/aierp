@@ -5,6 +5,7 @@ export interface Opportunity {
   id: number;
   customer_id: number;
   product_id: number | null;
+  product_name?: string | null;
   title: string;
   description: string | null;
   status: string;
@@ -92,6 +93,77 @@ export interface SalesOrder {
   ai?: SalesOrderAI | null;
 }
 
+export interface BusinessDocumentRef {
+  id: number;
+  number: string;
+  status: string;
+  amount?: number;
+  date?: string | null;
+}
+
+export interface SalesOrderBusinessChain {
+  order: BusinessDocumentRef;
+  opportunity: BusinessDocumentRef | null;
+  quotation: BusinessDocumentRef | null;
+  contracts: BusinessDocumentRef[];
+  deliveries: BusinessDocumentRef[];
+  invoices: BusinessDocumentRef[];
+  payments: BusinessDocumentRef[];
+  item_progress: Array<{
+    order_item_id: number;
+    product_id: number | null;
+    product_code: string | null;
+    ordered_quantity: number;
+    delivered_quantity: number;
+    pending_quantity: number;
+  }>;
+  progress: {
+    ordered_quantity: number;
+    delivered_quantity: number;
+    pending_delivery_quantity: number;
+    delivery_percent: number;
+    order_amount: number;
+    invoiced_amount: number;
+    uninvoiced_amount: number;
+    invoice_percent: number;
+    paid_amount: number;
+    outstanding_amount: number;
+    payment_percent: number;
+  };
+}
+
+export interface OpportunityBusinessChain {
+  opportunity: BusinessDocumentRef & { title: string; stage: string | null };
+  quotations: Array<BusinessDocumentRef & { created_at?: string | null }>;
+  orders: SalesOrderBusinessChain[];
+  summary: {
+    quotation_count: number;
+    order_count: number;
+    quoted_amount: number;
+    ordered_amount: number;
+    conversion_rate: number;
+  };
+}
+
+export interface OpportunityAuditItem {
+  id: string;
+  event_type: "transition" | "field_change";
+  action: "create" | "status_change" | "stage_change" | "delete" | "field_change" | string;
+  field_name: string;
+  before: string | null;
+  after: string | null;
+  actor: string | null;
+  reason: string | null;
+  occurred_at: string;
+}
+
+export interface OpportunityAuditTrail {
+  list: OpportunityAuditItem[];
+  total: number;
+  transition_count: number;
+  field_change_count: number;
+}
+
 export interface DeliveryNote {
   id: number;
   delivery_no: string | null;
@@ -130,6 +202,7 @@ export interface Invoice {
   id: number;
   invoice_no: string | null;
   sales_order_id: number;
+  delivery_note_id: number | null;
   sales_order_no?: string | null;
   customer_id: number;
   customer_name?: string | null;

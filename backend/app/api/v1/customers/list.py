@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.customers.crud import (
@@ -24,7 +24,7 @@ from app.api.v1.customers.crud import (
 )
 from app.core.permissions import require_perm
 from app.database import get_db
-from app.models.customer import Customer
+from app.models.customer import Customer, CustomerFollowUp
 from app.models.sales import SalesOrder
 from app.schemas.common import ok
 from app.services.cache_service import cache_get_versioned, cache_set_versioned
@@ -103,9 +103,25 @@ async def list_customers(
         .group_by(SalesOrder.customer_id)
         .subquery()
     )
+    next_follow_ups = (
+        select(
+            CustomerFollowUp.customer_id.label("customer_id"),
+            func.min(CustomerFollowUp.planned_at).label("next_planned_at"),
+        )
+        .where(
+            CustomerFollowUp.deleted_at.is_(None),
+            CustomerFollowUp.planned_at.is_not(None),
+            or_(
+                CustomerFollowUp.status.is_(None),
+                CustomerFollowUp.status.notin_(["completed", "cancelled"]),
+            ),
+        )
+        .group_by(CustomerFollowUp.customer_id)
+        .subquery()
+    )
     stmt = select(Customer, func.coalesce(order_totals.c.total_amount, 0)).outerjoin(
         order_totals, order_totals.c.customer_id == Customer.id
-    )
+    ).outerjoin(next_follow_ups, next_follow_ups.c.customer_id == Customer.id)
     conditions = []
     _keyword = keyword or q
     if _keyword:
@@ -164,11 +180,45 @@ async def list_customers(
             conditions.append(Customer.id.in_(tag_filter))
     for c in conditions:
         stmt = stmt.where(c)
-    sort_col = SORTABLE_COLUMNS.get(sort_by, Customer.id)
-    if sort_order == "desc":
-        stmt = stmt.order_by(sort_col.desc())
+    if sort_by == "operational_priority":
+        now = datetime.now(timezone.utc)
+        today_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+        tomorrow_start = today_start + timedelta(days=1)
+        priority_tier = case(
+            (next_follow_ups.c.next_planned_at < today_start, 0),
+            (
+                next_follow_ups.c.next_planned_at < tomorrow_start,
+                1,
+            ),
+            (
+                or_(
+                    Customer.level.in_(["A", "B"]),
+                    func.coalesce(order_totals.c.total_amount, 0) > 0,
+                ),
+                2,
+            ),
+            (
+                or_(
+                    Customer.last_contacted_at.is_(None),
+                    Customer.last_contacted_at < now - timedelta(days=30),
+                ),
+                3,
+            ),
+            else_=4,
+        )
+        stmt = stmt.order_by(
+            priority_tier.asc(),
+            next_follow_ups.c.next_planned_at.asc().nulls_last(),
+            func.coalesce(order_totals.c.total_amount, 0).desc(),
+            Customer.updated_at.desc(),
+            Customer.id.desc(),
+        )
     else:
-        stmt = stmt.order_by(sort_col.asc())
+        sort_col = SORTABLE_COLUMNS.get(sort_by, Customer.id)
+        if sort_order == "desc":
+            stmt = stmt.order_by(sort_col.desc(), Customer.id.desc())
+        else:
+            stmt = stmt.order_by(sort_col.asc(), Customer.id.asc())
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total_result = await db.execute(count_stmt)
     total = total_result.scalar() or 0

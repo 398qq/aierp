@@ -99,6 +99,7 @@ async def overdue_followups(
         result.append(
             {
                 "id": fu.id,
+                "opportunity_id": fu.opportunity_id,
                 "customer_id": cust.id,
                 "customer_name": cust.name,
                 "owner": cust.owner,
@@ -163,6 +164,7 @@ async def follow_up_reminders(
         items.append(
             {
                 "id": fu.id,
+                "opportunity_id": fu.opportunity_id,
                 "customer_id": cust.id,
                 "customer_name": cust.name,
                 "owner": cust.owner,
@@ -267,6 +269,7 @@ async def global_follow_ups(
         items.append(
             {
                 "id": fu.id,
+                "opportunity_id": fu.opportunity_id,
                 "customer_id": cust.id,
                 "customer_name": cust.name,
                 "owner": cust.owner,
