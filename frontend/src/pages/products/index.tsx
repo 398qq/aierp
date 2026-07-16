@@ -378,7 +378,7 @@ export default function ProductList() {
 
   const loadBrands = async () => {
     try {
-      const r = await getBrands();
+      const r = await getBrands({ page: 1, page_size: 200 });
       const payload = r.data.data as Brand[] | { list?: Brand[] };
       setBrands(Array.isArray(payload) ? payload : payload.list || []);
     } catch {

@@ -88,7 +88,7 @@ export default function ProductEdit() {
     setLoading(true);
     Promise.all([
       getProduct(productId),
-      getBrands().catch(() => null),
+      getBrands({ page: 1, page_size: 200 }).catch(() => null),
       getWarehouses({ page: 1, page_size: 200 }).catch(() => null),
     ])
       .then(([productResponse, brandResponse, warehouseResponse]) => {

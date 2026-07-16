@@ -103,3 +103,21 @@ test("product detail provides supplier relationship management", async ({ page }
   await expect(page.getByRole("dialog", { name: "批量添加供应商关系" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: /供应商（可多选）/ })).toBeVisible();
 });
+
+test("product editor loads brands beyond the default first page", async ({ page }) => {
+  const login = await page.request.post("/api/v1/auth/login", {
+    data: { username: "admin", password: "admin123" },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  const products = await page.request.get("/api/v1/products?page=1&page_size=1");
+  const product = (await products.json()).data.list[0];
+  const brands = await page.request.get("/api/v1/brands?page=2&page_size=20");
+  const laterBrand = (await brands.json()).data.list[0];
+  expect(laterBrand?.name).toBeTruthy();
+
+  await page.goto(`/products/${product.id}/edit`, { waitUntil: "domcontentloaded" });
+  const brandSelect = page.getByRole("combobox", { name: "品牌" });
+  await brandSelect.click();
+  await brandSelect.fill(laterBrand.name);
+  await expect(page.getByRole("option", { name: new RegExp(laterBrand.name) })).toHaveCount(1);
+});
