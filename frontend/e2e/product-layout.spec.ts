@@ -97,4 +97,9 @@ test("product detail provides supplier relationship management", async ({ page }
   await expect(page.getByRole("combobox", { name: /供应商/ })).toBeVisible();
   await expect(page.getByLabel("供应商料号")).toBeVisible();
   await expect(page.getByLabel("采购价")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "批量添加" }).click();
+  await expect(page.getByRole("dialog", { name: "批量添加供应商关系" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: /供应商（可多选）/ })).toBeVisible();
 });

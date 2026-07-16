@@ -25,6 +25,12 @@ export default function ProductDetail() {
   const [editingSupplierLink, setEditingSupplierLink] = useState<SupplierProductLink | null>(null);
   const [supplierLinkSaving, setSupplierLinkSaving] = useState(false);
   const [supplierForm] = Form.useForm();
+  const [batchAddingSuppliers, setBatchAddingSuppliers] = useState(false);
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<number[]>([]);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [batchEditField, setBatchEditField] = useState<string>();
+  const [batchEditValue, setBatchEditValue] = useState<unknown>();
   const [benchmark, setBenchmark] = useState<PriceBenchmark | null>(null);
   const [aiPrice, setAiPrice] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,13 +133,23 @@ export default function ProductDetail() {
   };
 
   const openCreateSupplierLink = () => {
+    setBatchAddingSuppliers(false);
     setEditingSupplierLink(null);
     supplierForm.resetFields();
     supplierForm.setFieldsValue({ currency: "CNY", is_preferred: false });
     setSupplierModalOpen(true);
   };
 
+  const openBatchCreateSupplierLinks = () => {
+    setEditingSupplierLink(null);
+    setBatchAddingSuppliers(true);
+    supplierForm.resetFields();
+    supplierForm.setFieldsValue({ currency: "CNY", is_preferred: false });
+    setSupplierModalOpen(true);
+  };
+
   const openEditSupplierLink = (link: SupplierProductLink) => {
+    setBatchAddingSuppliers(false);
     setEditingSupplierLink(link);
     supplierForm.setFieldsValue(link);
     setSupplierModalOpen(true);
@@ -141,18 +157,54 @@ export default function ProductDetail() {
 
   const saveSupplierLink = async () => {
     const values = await supplierForm.validateFields();
-    const supplierId = editingSupplierLink?.supplier_id || values.supplier_id;
     setSupplierLinkSaving(true);
     try {
-      const payload = { ...values, product_id: Number(id) };
-      if (editingSupplierLink) await updateSupplierProduct(supplierId, Number(id), payload);
-      else await linkSupplierProduct(supplierId, payload);
-      message.success(editingSupplierLink ? "供应商关系已更新" : "供应商关系已添加");
+      const supplierIds: number[] = batchAddingSuppliers ? values.supplier_ids : [editingSupplierLink?.supplier_id || values.supplier_id];
+      const { supplier_id: _supplierId, supplier_ids: _supplierIds, ...terms } = values;
+      const payload = { ...terms, product_id: Number(id) };
+      const results = await Promise.allSettled(supplierIds.map((supplierId) => editingSupplierLink
+        ? updateSupplierProduct(supplierId, Number(id), payload)
+        : linkSupplierProduct(supplierId, payload)));
+      const succeeded = results.filter((result) => result.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+      if (failed) message.warning(`完成 ${succeeded} 条，失败 ${failed} 条`);
+      else message.success(editingSupplierLink ? "供应商关系已更新" : `已添加 ${succeeded} 个供应商关系`);
       setSupplierModalOpen(false);
       await reloadSupplierLinks();
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "保存供应商关系失败"));
     } finally { setSupplierLinkSaving(false); }
+  };
+
+  const batchUpdateSupplierLinks = async () => {
+    if (!batchEditField || batchEditValue === undefined || batchEditValue === null || selectedSupplierIds.length === 0) {
+      message.warning("请选择修改字段并填写新值");
+      return;
+    }
+    setSupplierLinkSaving(true);
+    const results = await Promise.allSettled(selectedSupplierIds.map((supplierId) =>
+      updateSupplierProduct(supplierId, Number(id), { product_id: Number(id), [batchEditField]: batchEditValue }),
+    ));
+    const succeeded = results.filter((result) => result.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    if (failed) message.warning(`批量更新完成 ${succeeded} 条，失败 ${failed} 条`);
+    else message.success(`已更新 ${succeeded} 条供应商关系`);
+    setSupplierLinkSaving(false);
+    setBatchEditOpen(false);
+    setSelectedSupplierIds([]);
+    await reloadSupplierLinks();
+  };
+
+  const batchRemoveSupplierLinks = async () => {
+    setSupplierLinkSaving(true);
+    const results = await Promise.allSettled(selectedSupplierIds.map((supplierId) => unlinkSupplierProduct(supplierId, Number(id))));
+    const succeeded = results.filter((result) => result.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    if (failed) message.warning(`批量解除完成 ${succeeded} 条，失败 ${failed} 条`);
+    else message.success(`已解除 ${succeeded} 条供应商关系`);
+    setSupplierLinkSaving(false);
+    setSelectedSupplierIds([]);
+    await reloadSupplierLinks();
   };
 
   const removeSupplierLink = async (link: SupplierProductLink) => {
@@ -255,6 +307,9 @@ export default function ProductDetail() {
 
   const totalStock = inventory.reduce((s, i) => s + (i.quantity || 0), 0);
   const lowStock = inventory.some((i) => i.quantity <= i.safety_stock);
+  const normalizedSupplierSearch = supplierSearch.trim().toLowerCase();
+  const filteredSupplierProducts = supplierProducts.filter((link) => !normalizedSupplierSearch || [link.supplier_name, link.supplier_sku]
+    .some((value) => value?.toLowerCase().includes(normalizedSupplierSearch)));
 
   return (
     <div>
@@ -454,12 +509,22 @@ export default function ProductDetail() {
       )}
 
       {/* Supplier Linkages */}
-      <Card title={<><LinkOutlined /> 供应商关联 ({supplierProducts.length})</>} extra={<Button icon={<PlusOutlined />} onClick={openCreateSupplierLink}>添加供应商</Button>} style={{ marginBottom: 16 }}>
+      <Card title={<><LinkOutlined /> 供应商关联 ({supplierProducts.length})</>} extra={<Space><Button icon={<PlusOutlined />} onClick={openCreateSupplierLink}>添加供应商</Button><Button icon={<PlusOutlined />} onClick={openBatchCreateSupplierLinks}>批量添加</Button></Space>} style={{ marginBottom: 16 }}>
         {supplierProducts.length > 0 ? (
+          <>
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Input.Search allowClear placeholder="查询供应商名称 / 供应商料号" value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} style={{ width: 300 }} />
+            <Text type="secondary">已选择 {selectedSupplierIds.length} 条</Text>
+            <Button disabled={!selectedSupplierIds.length} onClick={() => { setBatchEditField(undefined); setBatchEditValue(undefined); setBatchEditOpen(true); }}>批量修改</Button>
+            <Popconfirm title={`解除选中的 ${selectedSupplierIds.length} 条关联？`} description="不会删除供应商或产品主数据。" okText="批量解除" cancelText="取消" onConfirm={batchRemoveSupplierLinks}>
+              <Button danger disabled={!selectedSupplierIds.length} loading={supplierLinkSaving}>批量解除</Button>
+            </Popconfirm>
+          </Space>
           <Table
             size="small"
-            dataSource={supplierProducts}
-            rowKey="id"
+            dataSource={filteredSupplierProducts}
+            rowKey={(link) => link.supplier_id!}
+            rowSelection={{ selectedRowKeys: selectedSupplierIds, onChange: (keys) => setSelectedSupplierIds(keys.map(Number)) }}
             pagination={false}
             columns={[
               { title: "供应商", key: "supplier", width: 150, render: (_: unknown, r: SupplierProductLink) => <a onClick={() => navigate(`/suppliers/${r.supplier_id || r.id}`)}>{String(r.supplier_name || r.brand_name || "-")}</a> },
@@ -478,15 +543,16 @@ export default function ProductDetail() {
               </Space> },
             ]}
           />
+          </>
         ) : (
           <Text type="secondary">暂无供应商关联，前往 <a onClick={() => navigate("/suppliers")}>供应商管理</a> 进行关联</Text>
         )}
       </Card>
 
-      <Modal title={editingSupplierLink ? "编辑供应商关系" : "添加供应商关系"} open={supplierModalOpen} onCancel={() => setSupplierModalOpen(false)} onOk={saveSupplierLink} confirmLoading={supplierLinkSaving} okText="保存" width={720}>
+      <Modal title={editingSupplierLink ? "编辑供应商关系" : batchAddingSuppliers ? "批量添加供应商关系" : "添加供应商关系"} open={supplierModalOpen} onCancel={() => setSupplierModalOpen(false)} onOk={saveSupplierLink} confirmLoading={supplierLinkSaving} okText="保存" width={720}>
         <Form form={supplierForm} layout="vertical">
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="supplier_id" label="供应商" rules={[{ required: true, message: "请选择供应商" }]}><Select disabled={Boolean(editingSupplierLink)} showSearch optionFilterProp="label" options={suppliers.filter((supplier) => editingSupplierLink?.supplier_id === supplier.id || !supplierProducts.some((link) => link.supplier_id === supplier.id)).map((supplier) => ({ value: supplier.id, label: supplier.name }))} /></Form.Item></Col>
+            <Col span={12}><Form.Item name={batchAddingSuppliers ? "supplier_ids" : "supplier_id"} label={batchAddingSuppliers ? "供应商（可多选）" : "供应商"} rules={[{ required: true, message: "请选择供应商" }]}><Select mode={batchAddingSuppliers ? "multiple" : undefined} disabled={Boolean(editingSupplierLink)} showSearch optionFilterProp="label" options={suppliers.filter((supplier) => editingSupplierLink?.supplier_id === supplier.id || !supplierProducts.some((link) => link.supplier_id === supplier.id)).map((supplier) => ({ value: supplier.id, label: supplier.name }))} /></Form.Item></Col>
             <Col span={12}><Form.Item name="supplier_sku" label="供应商料号"><Input /></Form.Item></Col>
             <Col span={8}><Form.Item name="cost_price" label="采购价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
             <Col span={8}><Form.Item name="currency" label="币种"><Select options={["CNY", "USD", "EUR", "HKD"].map((value) => ({ value, label: value }))} /></Form.Item></Col>
@@ -497,6 +563,19 @@ export default function ProductDetail() {
             <Col span={24}><Form.Item name="notes" label="备注"><Input.TextArea rows={3} /></Form.Item></Col>
           </Row>
         </Form>
+      </Modal>
+
+      <Modal title={`批量修改 ${selectedSupplierIds.length} 条供应商关系`} open={batchEditOpen} onCancel={() => setBatchEditOpen(false)} onOk={batchUpdateSupplierLinks} confirmLoading={supplierLinkSaving} okButtonProps={{ disabled: !batchEditField || batchEditValue === undefined || batchEditValue === null }} okText="批量更新">
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Alert type="warning" showIcon message="批量修改会用同一个值覆盖所选关系的对应字段" />
+          <Select placeholder="选择要修改的字段" value={batchEditField} onChange={(value) => { setBatchEditField(value); setBatchEditValue(undefined); }} style={{ width: "100%" }} options={[
+            { label: "采购价", value: "cost_price" }, { label: "币种", value: "currency" }, { label: "交期（天）", value: "lead_time_days" }, { label: "MOQ", value: "moq" }, { label: "SPQ", value: "spq" }, { label: "首选供应商", value: "is_preferred" }, { label: "备注", value: "notes" },
+          ]} />
+          {batchEditField === "currency" ? <Select placeholder="选择币种" value={batchEditValue as string} onChange={setBatchEditValue} style={{ width: "100%" }} options={["CNY", "USD", "EUR", "HKD"].map((value) => ({ value, label: value }))} />
+            : batchEditField === "is_preferred" ? <Select placeholder="选择是否首选" value={batchEditValue as boolean} onChange={setBatchEditValue} style={{ width: "100%" }} options={[{ label: "是", value: true }, { label: "否", value: false }]} />
+            : batchEditField === "notes" ? <Input.TextArea rows={3} placeholder="输入统一备注" value={batchEditValue as string} onChange={(event) => setBatchEditValue(event.target.value)} />
+            : batchEditField ? <InputNumber min={0} precision={batchEditField === "cost_price" ? 4 : 0} placeholder="输入统一值" value={batchEditValue as number} onChange={setBatchEditValue} style={{ width: "100%" }} /> : null}
+        </Space>
       </Modal>
 
       {/* Pricing Intelligence */}
