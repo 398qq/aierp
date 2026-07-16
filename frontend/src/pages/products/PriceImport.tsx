@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Card,
   Upload,
@@ -18,7 +18,8 @@ import { CloudUploadOutlined, InboxOutlined, CheckCircleOutlined } from "@ant-de
 import type { UploadFile, UploadProps } from "antd/es/upload/interface";
 import readXlsxFile from "read-excel-file/browser";
 import type { Row as ExcelRow } from "read-excel-file/browser";
-import { priceImport } from "../../api";
+import { getWarehouses, priceImport } from "../../api";
+import type { Warehouse } from "../../types";
 
 const { Dragger } = Upload;
 const { Text, Title } = Typography;
@@ -137,6 +138,17 @@ export default function PriceImport() {
   const [step, setStep] = useState<"upload" | "mapping" | "preview" | "result">("upload");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const warehouseNames = useMemo(
+    () => new Map(warehouses.map((warehouse) => [warehouse.id, warehouse.name])),
+    [warehouses],
+  );
+
+  useEffect(() => {
+    getWarehouses({ page: 1, page_size: 100 })
+      .then((response) => setWarehouses(response.data.data.list || []))
+      .catch(() => setWarehouses([]));
+  }, []);
 
   const parseFile = useCallback(async (file: File) => {
     const fileName = file.name.toLowerCase();
@@ -243,7 +255,12 @@ export default function PriceImport() {
 
   const previewColumns = [
     { title: "SKU", dataIndex: "sku", key: "sku" },
-    { title: "仓库ID", dataIndex: "warehouse_id", key: "warehouse_id" },
+    {
+      title: "仓库名称",
+      dataIndex: "warehouse_id",
+      key: "warehouse_id",
+      render: (warehouseId: number) => warehouseNames.get(warehouseId) || "未知仓库",
+    },
     { title: "含税单价", dataIndex: "unit_price", key: "unit_price" },
     { title: "库存数量", dataIndex: "quantity", key: "quantity" },
   ];

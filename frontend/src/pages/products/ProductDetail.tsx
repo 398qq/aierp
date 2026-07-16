@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse, Flex } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, List, Typography, message, Progress, Row, Col, Table, InputNumber, Collapse, Flex, Modal, Form, Input, Select, Switch, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined } from "@ant-design/icons";
-import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct, getApiErrorMessage } from "../../api";
+import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
+import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, linkSupplierProduct, updateSupplierProduct, unlinkSupplierProduct, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct, getApiErrorMessage } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
 import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch } from "../../types";
 
@@ -20,6 +20,11 @@ export default function ProductDetail() {
   const [similar, setSimilar] = useState<Record<string, unknown>[]>([]);
   const [substitutes, setSubstitutes] = useState<Record<string, unknown> | null>(null);
   const [supplierProducts, setSupplierProducts] = useState<SupplierProductLink[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [editingSupplierLink, setEditingSupplierLink] = useState<SupplierProductLink | null>(null);
+  const [supplierLinkSaving, setSupplierLinkSaving] = useState(false);
+  const [supplierForm] = Form.useForm();
   const [benchmark, setBenchmark] = useState<PriceBenchmark | null>(null);
   const [aiPrice, setAiPrice] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,21 +101,67 @@ export default function ProductDetail() {
       if (supRes.status === "fulfilled") {
         const allSuppliers = (supRes.value.data.data.list || []) as Supplier[];
         // Get linked products for each supplier that may carry this product
-        const spResults: SupplierProductLink[] = [];
-        for (const s of allSuppliers.slice(0, 10)) {
-          try {
-            const spResp = await getSupplierProducts(s.id);
-            const linked = ((spResp.data.data || []) as SupplierProductLink[])
-              .filter((l) => l.product_id === pid);
-            spResults.push(...linked);
-          } catch { /* */ }
-        }
-        setSupplierProducts(spResults);
+        setSuppliers(allSuppliers);
+        const linkResults = await Promise.allSettled(allSuppliers.map(async (supplier) => {
+          const response = await getSupplierProducts(supplier.id);
+          return ((response.data.data || []) as SupplierProductLink[])
+            .filter((link) => link.product_id === pid)
+            .map((link) => ({ ...link, supplier_id: supplier.id, supplier_name: supplier.name }));
+        }));
+        setSupplierProducts(linkResults.flatMap((result) => result.status === "fulfilled" ? result.value : []));
       }
       if (benchRes.status === "fulfilled" && benchRes.value.data.code === 0) {
         setBenchmark(benchRes.value.data.data as PriceBenchmark);
       }
     } catch { /* */ }
+  };
+
+  const reloadSupplierLinks = async () => {
+    const results = await Promise.allSettled(suppliers.map(async (supplier) => {
+      const response = await getSupplierProducts(supplier.id);
+      return ((response.data.data || []) as SupplierProductLink[])
+        .filter((link) => link.product_id === Number(id))
+        .map((link) => ({ ...link, supplier_id: supplier.id, supplier_name: supplier.name }));
+    }));
+    setSupplierProducts(results.flatMap((result) => result.status === "fulfilled" ? result.value : []));
+  };
+
+  const openCreateSupplierLink = () => {
+    setEditingSupplierLink(null);
+    supplierForm.resetFields();
+    supplierForm.setFieldsValue({ currency: "CNY", is_preferred: false });
+    setSupplierModalOpen(true);
+  };
+
+  const openEditSupplierLink = (link: SupplierProductLink) => {
+    setEditingSupplierLink(link);
+    supplierForm.setFieldsValue(link);
+    setSupplierModalOpen(true);
+  };
+
+  const saveSupplierLink = async () => {
+    const values = await supplierForm.validateFields();
+    const supplierId = editingSupplierLink?.supplier_id || values.supplier_id;
+    setSupplierLinkSaving(true);
+    try {
+      const payload = { ...values, product_id: Number(id) };
+      if (editingSupplierLink) await updateSupplierProduct(supplierId, Number(id), payload);
+      else await linkSupplierProduct(supplierId, payload);
+      message.success(editingSupplierLink ? "供应商关系已更新" : "供应商关系已添加");
+      setSupplierModalOpen(false);
+      await reloadSupplierLinks();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "保存供应商关系失败"));
+    } finally { setSupplierLinkSaving(false); }
+  };
+
+  const removeSupplierLink = async (link: SupplierProductLink) => {
+    if (!link.supplier_id) return;
+    try {
+      await unlinkSupplierProduct(link.supplier_id, Number(id));
+      message.success("已解除供应商关联");
+      await reloadSupplierLinks();
+    } catch (error: unknown) { message.error(getApiErrorMessage(error, "解除供应商关联失败")); }
   };
 
   const loadSalesDocs = async () => {
@@ -239,7 +290,7 @@ export default function ProductDetail() {
             <Descriptions.Item label="产品状态">{product.status === "active" ? "已启用" : product.status === "frozen" ? "已冻结" : product.status === "inactive" ? "已停用" : product.status === "draft" ? "草稿" : "-"}</Descriptions.Item>
             <Descriptions.Item label="产品类型">{product.product_type || "成品"}</Descriptions.Item>
             <Descriptions.Item label="负责人">{product.owner || "-"}</Descriptions.Item>
-            <Descriptions.Item label="默认仓库">{product.default_warehouse_id ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="默认仓库">{product.default_warehouse_name || "-"}</Descriptions.Item>
             <Descriptions.Item label="生产日期">{product.datecode || "-"}</Descriptions.Item>
             <Descriptions.Item label="库存控制">
               {[product.batch_control ? "批次" : null, product.serial_control ? "序列号" : null, product.shelf_life_control ? "保质期" : null].filter(Boolean).join("、") || "未启用特殊控制"}
@@ -344,7 +395,7 @@ export default function ProductDetail() {
             renderItem={(i) => (
               <List.Item>
                 <Space>
-                  <StatusTag>仓库 #{i.warehouse_id}</StatusTag>
+                  <StatusTag>{i.warehouse_name || "未知仓库"}</StatusTag>
                   <Text>库存: {i.quantity}</Text>
                   <Text type="secondary">安全库存: {i.safety_stock}</Text>
                   <Progress
@@ -403,7 +454,7 @@ export default function ProductDetail() {
       )}
 
       {/* Supplier Linkages */}
-      <Card title={<><LinkOutlined /> 供应商关联 ({supplierProducts.length})</>} style={{ marginBottom: 16 }}>
+      <Card title={<><LinkOutlined /> 供应商关联 ({supplierProducts.length})</>} extra={<Button icon={<PlusOutlined />} onClick={openCreateSupplierLink}>添加供应商</Button>} style={{ marginBottom: 16 }}>
         {supplierProducts.length > 0 ? (
           <Table
             size="small"
@@ -412,17 +463,41 @@ export default function ProductDetail() {
             pagination={false}
             columns={[
               { title: "供应商", key: "supplier", width: 150, render: (_: unknown, r: SupplierProductLink) => <a onClick={() => navigate(`/suppliers/${r.supplier_id || r.id}`)}>{String(r.supplier_name || r.brand_name || "-")}</a> },
+              { title: "供应商料号", dataIndex: "supplier_sku", width: 120, render: (v: string) => v || "-" },
               { title: "成本价", dataIndex: "cost_price", width: 100, render: (v: number | null) => v ? `¥${Number(v).toFixed(4)}` : "-" },
               { title: "交期(天)", dataIndex: "lead_time_days", width: 80 },
               { title: "MOQ", dataIndex: "moq", width: 60 },
               { title: "SPQ", dataIndex: "spq", width: 60 },
               { title: "首选", dataIndex: "is_preferred", width: 60, render: (v: boolean) => v ? <StatusTag tone="success">是</StatusTag> : null },
+              { title: "操作", key: "actions", width: 210, render: (_: unknown, link: SupplierProductLink) => <Space size={0}>
+                <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/suppliers/${link.supplier_id}`)}>查看</Button>
+                <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditSupplierLink(link)}>编辑</Button>
+                <Popconfirm title="解除供应商关联？" description="不会删除供应商或产品主数据。" okText="解除关联" cancelText="取消" onConfirm={() => removeSupplierLink(link)}>
+                  <Button type="link" danger size="small" icon={<DeleteOutlined />}>解除关联</Button>
+                </Popconfirm>
+              </Space> },
             ]}
           />
         ) : (
           <Text type="secondary">暂无供应商关联，前往 <a onClick={() => navigate("/suppliers")}>供应商管理</a> 进行关联</Text>
         )}
       </Card>
+
+      <Modal title={editingSupplierLink ? "编辑供应商关系" : "添加供应商关系"} open={supplierModalOpen} onCancel={() => setSupplierModalOpen(false)} onOk={saveSupplierLink} confirmLoading={supplierLinkSaving} okText="保存" width={720}>
+        <Form form={supplierForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="supplier_id" label="供应商" rules={[{ required: true, message: "请选择供应商" }]}><Select disabled={Boolean(editingSupplierLink)} showSearch optionFilterProp="label" options={suppliers.filter((supplier) => editingSupplierLink?.supplier_id === supplier.id || !supplierProducts.some((link) => link.supplier_id === supplier.id)).map((supplier) => ({ value: supplier.id, label: supplier.name }))} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="supplier_sku" label="供应商料号"><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="cost_price" label="采购价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="currency" label="币种"><Select options={["CNY", "USD", "EUR", "HKD"].map((value) => ({ value, label: value }))} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="lead_time_days" label="交期（天）"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="moq" label="MOQ"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="spq" label="SPQ"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="is_preferred" label="首选供应商" valuePropName="checked"><Switch /></Form.Item></Col>
+            <Col span={24}><Form.Item name="notes" label="备注"><Input.TextArea rows={3} /></Form.Item></Col>
+          </Row>
+        </Form>
+      </Modal>
 
       {/* Pricing Intelligence */}
       <Card

@@ -233,7 +233,7 @@ export default function InventoryList() {
       dataIndex: "warehouse_name",
       key: "wh",
       width: 100,
-      render: (v, r) => (
+      render: (v) => (
         <a
           style={{
             fontWeight: 700,
@@ -243,7 +243,7 @@ export default function InventoryList() {
             textUnderlineOffset: 3,
           }}
         >
-          {String(v || `#${r.warehouse_id}`)}
+          {String(v || "未知仓库")}
         </a>
       ),
     },
@@ -497,7 +497,7 @@ export default function InventoryList() {
               </div>
               <div className="nb-list-item-actions">
                 <Text>
-                  库存: {String(s.quantity)} (仓库 #{String(s.warehouse_id)})
+                  库存: {String(s.quantity)}（{String(s.warehouse_name || "未知仓库")}）
                 </Text>
                 <span className="nb-tag nb-tag--danger">{String(s.suggestion)}</span>
               </div>
@@ -662,7 +662,7 @@ export default function InventoryList() {
             </p>
             <p>
               <Text strong>仓库: </Text>
-              {adjustProduct.warehouse_name || `#${adjustProduct.warehouse_id}`}
+              {adjustProduct.warehouse_name || "未知仓库"}
             </p>
             <p>
               <Text strong>在库: </Text>

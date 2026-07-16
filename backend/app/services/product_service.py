@@ -24,11 +24,11 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.product import Brand, Inventory, Product, SupplierProduct
+from app.models.product import Brand, Inventory, Product, SupplierProduct, Warehouse
 from app.services.base_crud import BaseCRUDService
 
 PRODUCTS_LIST_CACHE_TTL = 300
-PRODUCTS_LIST_CACHE_VERSION = "v2"
+PRODUCTS_LIST_CACHE_VERSION = "v3"
 
 
 # ── Shared metrics subqueries ──────────────────────────────────────────
@@ -127,6 +127,7 @@ def product_row(
     supplier_count: int | None = None,
     last_sale_at=None,
     inventory_updated_at=None,
+    default_warehouse_name: str | None = None,
 ) -> dict[str, Any]:
     """Serialize a Product + joined metrics into the standard list/detail row."""
     completion_score, missing_fields = product_completion(p)
@@ -158,6 +159,7 @@ def product_row(
         "specs": p.specs,
         "unit": p.unit,
         "default_warehouse_id": p.default_warehouse_id,
+        "default_warehouse_name": default_warehouse_name,
         "batch_control": p.batch_control,
         "serial_control": p.serial_control,
         "shelf_life_control": p.shelf_life_control,
@@ -413,10 +415,12 @@ class ProductService(BaseCRUDService):
                 inv_subq.c.inventory_updated_at,
                 supplier_subq.c.supplier_count,
                 sales_subq.c.last_sale_at,
+                Warehouse.name.label("default_warehouse_name"),
             )
             .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
             .outerjoin(supplier_subq, Product.id == supplier_subq.c.product_id)
             .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
+            .outerjoin(Warehouse, Product.default_warehouse_id == Warehouse.id)
             .where(Product.deleted_at.is_(None))
         )
 
@@ -523,6 +527,7 @@ class ProductService(BaseCRUDService):
                 supplier_count=supplier_count,
                 last_sale_at=last_sale_at,
                 inventory_updated_at=inventory_updated_at,
+                default_warehouse_name=default_warehouse_name,
             )
             for (
                 p,
@@ -535,6 +540,7 @@ class ProductService(BaseCRUDService):
                 inventory_updated_at,
                 supplier_count,
                 last_sale_at,
+                default_warehouse_name,
             ) in rows
         ]
         payload = {"list": items, "total": total, "page": page, "page_size": page_size}
@@ -565,10 +571,12 @@ class ProductService(BaseCRUDService):
                 inv_subq.c.inventory_updated_at,
                 supplier_subq.c.supplier_count,
                 sales_subq.c.last_sale_at,
+                Warehouse.name.label("default_warehouse_name"),
             )
             .outerjoin(inv_subq, Product.id == inv_subq.c.product_id)
             .outerjoin(supplier_subq, Product.id == supplier_subq.c.product_id)
             .outerjoin(sales_subq, Product.id == sales_subq.c.product_id)
+            .outerjoin(Warehouse, Product.default_warehouse_id == Warehouse.id)
             .where(Product.id == product_id, Product.deleted_at.is_(None))
         )
         row = result.one_or_none()
@@ -585,6 +593,7 @@ class ProductService(BaseCRUDService):
             inventory_updated_at,
             supplier_count,
             last_sale_at,
+            default_warehouse_name,
         ) = row
         return product_row(
             product,
@@ -597,6 +606,7 @@ class ProductService(BaseCRUDService):
             supplier_count=supplier_count,
             last_sale_at=last_sale_at,
             inventory_updated_at=inventory_updated_at,
+            default_warehouse_name=default_warehouse_name,
         )
 
     async def get_product_sales_history(

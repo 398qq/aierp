@@ -82,3 +82,19 @@ test("product name opens the standalone product detail page", async ({ page }) =
   await page.getByRole("button", { name: "添加规格字段" }).click();
   await expect(specNameFields).toHaveCount(specCount + 1);
 });
+
+test("product detail provides supplier relationship management", async ({ page }) => {
+  const login = await page.request.post("/api/v1/auth/login", {
+    data: { username: "admin", password: "admin123" },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  const products = await page.request.get("/api/v1/products?page=1&page_size=1");
+  const product = (await products.json()).data.list[0];
+
+  await page.goto(`/products/${product.id}`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "添加供应商" }).click();
+  await expect(page.getByRole("dialog", { name: "添加供应商关系" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: /供应商/ })).toBeVisible();
+  await expect(page.getByLabel("供应商料号")).toBeVisible();
+  await expect(page.getByLabel("采购价")).toBeVisible();
+});

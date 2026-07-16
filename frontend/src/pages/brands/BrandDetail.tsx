@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input, Flex } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input, Flex, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getBrand, getBrands, getProducts, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand, getApiErrorMessage } from "../../api";
+import { getBrand, getBrands, getProducts, updateProduct, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand, getApiErrorMessage } from "../../api";
 import type { Brand, Product, BrandProfile, BrandPortfolio, SimilarBrand, BrandComparison, BrandHealth, BrandRisk, BrandSupplierMatrix, BrandRecommendation, BrandProductPerformance, BrandCustomerPenetration, BrandLifecycle, BrandPriceTrends } from "../../types";
 import { getBrandAiTasks, getBrandNextAction } from "./brandAiOrchestration";
 
@@ -47,6 +47,10 @@ export default function BrandDetail() {
   const [priceTrends, setPriceTrends] = useState<BrandPriceTrends | null>(null);
   const [priceTrendsLoading, setPriceTrendsLoading] = useState(false);
   const [autoCompleteLoading, setAutoCompleteLoading] = useState(false);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkCandidates, setLinkCandidates] = useState<Product[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -195,6 +199,53 @@ export default function BrandDetail() {
     finally { setAutoCompleteLoading(false); }
   };
 
+  const openLinkProducts = async () => {
+    setLinkLoading(true);
+    setSelectedProductIds([]);
+    try {
+      const response = await getProducts({ page: 1, page_size: 100 });
+      const payload = response.data.data as { list?: Product[] } | Product[];
+      const allProducts = Array.isArray(payload) ? payload : (payload.list || []);
+      setLinkCandidates(allProducts.filter((product) => !product.brand_id));
+      setLinkModalOpen(true);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "加载待关联产品失败"));
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const handleLinkProducts = async () => {
+    if (selectedProductIds.length === 0) {
+      message.warning("请至少选择一个产品");
+      return;
+    }
+    setLinkLoading(true);
+    try {
+      await Promise.all(selectedProductIds.map((productId) => updateProduct(productId, { brand_id: Number(id) })));
+      message.success(`已关联 ${selectedProductIds.length} 个产品`);
+      setLinkModalOpen(false);
+      await loadData();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "关联产品失败"));
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const handleUnlinkProduct = async (product: Product) => {
+    setLinkLoading(true);
+    try {
+      await updateProduct(product.id, { brand_id: null });
+      message.success(`已解除 ${product.name} 的品牌关联`);
+      await loadData();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "解除关联失败"));
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!brand) return <Alert type="error" message="品牌未找到" />;
 
@@ -207,6 +258,27 @@ export default function BrandDetail() {
     { title: "分类", dataIndex: "category", width: 100, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "封装", dataIndex: "package_type", width: 100 },
     { title: "单位", dataIndex: "unit", width: 60 },
+    {
+      title: "操作",
+      key: "actions",
+      width: 230,
+      fixed: "right",
+      render: (_, product) => (
+        <Space size={0}>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/products/${product.id}`)}>查看</Button>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => navigate(`/products/${product.id}/edit`)}>编辑</Button>
+          <Popconfirm
+            title="解除产品关联？"
+            description="仅清空该产品的品牌归属，不会删除产品主数据。"
+            okText="解除关联"
+            cancelText="取消"
+            onConfirm={() => handleUnlinkProduct(product)}
+          >
+            <Button type="link" danger size="small" icon={<DeleteOutlined />}>解除关联</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ];
 
   const productCount = brand.product_count ?? products.length;
@@ -1038,11 +1110,47 @@ export default function BrandDetail() {
       )}
 
       {/* Products */}
-      <Card title={`关联产品 (${products.length})`}>
+      <Card
+        title={`关联产品 (${products.length})`}
+        extra={<Button icon={<PlusOutlined />} loading={linkLoading} onClick={openLinkProducts}>手动关联产品</Button>}
+      >
         {products.length > 0 ? (
-          <Table rowKey="id" columns={productColumns} dataSource={products} size="small" pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
+          <Table rowKey="id" columns={productColumns} dataSource={products} size="small" scroll={{ x: 820 }} pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
         ) : (<Text type="secondary">暂无关联产品</Text>)}
       </Card>
+
+      <Modal
+        title="关联产品"
+        open={linkModalOpen}
+        onCancel={() => setLinkModalOpen(false)}
+        onOk={handleLinkProducts}
+        confirmLoading={linkLoading}
+        okText="确认关联"
+        destroyOnHidden
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="仅显示尚未归属品牌的产品"
+          description="关联后，产品主数据的品牌归属将更新为当前品牌。"
+          style={{ marginBottom: 16 }}
+        />
+        <Select
+          mode="multiple"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="按 SKU 或产品名称选择"
+          value={selectedProductIds}
+          onChange={setSelectedProductIds}
+          options={linkCandidates.map((product) => ({
+            value: product.id,
+            label: `${product.sku || "无 SKU"} · ${product.name}`,
+          }))}
+          style={{ width: "100%" }}
+          notFoundContent="没有可关联的未归属产品"
+        />
+      </Modal>
 
       {/* Compare Modal */}
       <Modal

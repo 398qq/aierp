@@ -89,6 +89,8 @@ export interface SupplierProductLink {
   id: number;
   supplier_id?: number;
   supplier_name?: string;
+  supplier_sku?: string | null;
+  currency?: string;
   product_id: number;
   cost_price: number | null;
   lead_time_days: number | null;

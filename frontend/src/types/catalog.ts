@@ -17,6 +17,7 @@ export interface Product {
   // 规格
   specs: string | null; unit: string | null;
   default_warehouse_id?: number | null;
+  default_warehouse_name?: string | null;
   batch_control?: boolean;
   serial_control?: boolean;
   shelf_life_control?: boolean;

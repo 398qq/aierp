@@ -197,7 +197,7 @@ export default function ProductDetailDrawer({
               <Descriptions.Item label="产品状态">{statusLabel[product.status || "active"] || product.status || "已启用"}</Descriptions.Item>
               <Descriptions.Item label="产品类型">{product.product_type || "成品"}</Descriptions.Item>
               <Descriptions.Item label="负责人">{product.owner || "-"}</Descriptions.Item>
-              <Descriptions.Item label="默认仓库">{product.default_warehouse_id ?? "-"}</Descriptions.Item>
+              <Descriptions.Item label="默认仓库">{product.default_warehouse_name || "-"}</Descriptions.Item>
               <Descriptions.Item label="MPN">{product.mpn || "-"}</Descriptions.Item>
               <Descriptions.Item label="生产日期">{product.datecode || "-"}</Descriptions.Item>
               <Descriptions.Item label="条码">{product.barcode || "-"}</Descriptions.Item>

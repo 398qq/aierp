@@ -269,6 +269,7 @@ class TestProductsAPI:
                 "package_type": "SOP-8",
                 "specs": "rail-to-rail",
                 "unit": "pcs",
+                "default_warehouse_id": wh1.id,
             },
         )
         product_id = create_resp.json()["data"]["id"]
@@ -306,6 +307,7 @@ class TestProductsAPI:
         assert data["locked_quantity"] == 2
         assert data["inventory_location_count"] == 2
         assert data["supplier_count"] == 1
+        assert data["default_warehouse_name"] == "华东仓"
         assert data["completion_score"] == 50
         assert sorted(data["missing_fields"]) == sorted(
             ["MPN", "品牌", "封装类型", "HS编码", "原产国"]
