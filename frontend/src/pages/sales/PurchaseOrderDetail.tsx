@@ -7,6 +7,7 @@ import { confirmLargePurchaseOrder, confirmPurchaseOrderSupplier, getApiErrorMes
 import type { PurchaseOrder, PurchaseOrderItem } from "../../types";
 import { StatusTag } from "../../ui";
 import { ErpStatusTimeline, MetricBand, SalesModuleShell, money, shortDate } from "./salesUi";
+import { PurchaseOrderPrint } from "./PurchaseOrderPrint";
 
 const STATUS: Record<string, { label: string; tone: "neutral" | "info" | "processing" | "success" | "danger" }> = {
   draft: { label: "草稿", tone: "neutral" }, approved: { label: "已审批", tone: "info" },
@@ -76,6 +77,7 @@ export default function PurchaseOrderDetail() {
   const needsLargeConfirm = po.total_amount > 10000 && !po.large_order_confirmed;
 
   return <SalesModuleShell title={po.order_no || `PO #${po.id}`} subtitle={`采购订单模板 ${po.contract_terms_version || "v3.4"}`} activeKey="procurement" extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/purchase-orders")}>返回列表</Button>}>
+    <PurchaseOrderPrint po={po} />
     <MetricBand items={[
       { title: "价税合计", value: po.total_amount, prefix: "¥", precision: 2 }, { title: "总数量", value: summary.quantity, suffix: "pcs" },
       { title: "明细行", value: po.items.length, suffix: "项" }, { title: "状态", value: STATUS[po.status]?.label || po.status },
