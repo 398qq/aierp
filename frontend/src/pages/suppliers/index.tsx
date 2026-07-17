@@ -693,11 +693,14 @@ export default function SupplierList() {
         }
         .supplier-grid {
           display: grid;
-          grid-template-columns: 230px minmax(0, 1fr) 280px;
+          grid-template-columns: minmax(0, 1fr) 280px;
           gap: 12px;
           align-items: start;
         }
-        .supplier-side,
+        .supplier-side {
+          grid-column: 1 / -1;
+          min-width: 0;
+        }
         .supplier-context {
           position: sticky;
           top: 76px;
@@ -716,14 +719,24 @@ export default function SupplierList() {
         .supplier-panel-body {
           padding: 12px;
         }
+        .supplier-task-list {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(145px, 1fr));
+          overflow-x: auto;
+          scrollbar-width: thin;
+        }
         .supplier-task {
           width: 100%;
           padding: 10px 12px;
           border: 0;
-          border-bottom: 1px solid #f5f5f5;
+          border-right: 1px solid #f0f0f0;
           background: transparent;
           text-align: left;
           cursor: pointer;
+          white-space: nowrap;
+        }
+        .supplier-task:last-child {
+          border-right: 0;
         }
         .supplier-task:hover,
         .supplier-task.is-active {
@@ -790,7 +803,6 @@ export default function SupplierList() {
           .supplier-grid {
             grid-template-columns: 1fr;
           }
-          .supplier-side,
           .supplier-context {
             position: static;
           }
@@ -810,7 +822,7 @@ export default function SupplierList() {
               <span>供应商管理工作台</span>
             </div>
             <div className="supplier-health-note">
-              统一维护供应商主数据、联系人、产品线、评级、认证和区域信息。顶部为全量概览，左侧队列聚焦当前页待办。
+              统一维护供应商主数据、联系人、产品线、评级、认证和区域信息。顶部为全量概览，横向队列聚焦当前页待办。
             </div>
           </div>
           <div className="supplier-health-actions">
@@ -864,24 +876,26 @@ export default function SupplierList() {
                 <Text strong>当前页队列</Text>
               </Space>
             </div>
-            {taskItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`supplier-task${task === item.key ? " is-active" : ""}`}
-                onClick={() => {
-                  setTask(item.key);
-                  setActiveSupplierId(null);
-                  setPage(1);
-                }}
-              >
-                <span className="supplier-task-main">
-                  <span style={{ fontWeight: task === item.key ? 600 : 400 }}>{item.label}</span>
-                  <StatusTag tone={item.color}>{item.count}</StatusTag>
-                </span>
-                <span className="supplier-task-note">{item.note}</span>
-              </button>
-            ))}
+            <div className="supplier-task-list">
+              {taskItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`supplier-task${task === item.key ? " is-active" : ""}`}
+                  onClick={() => {
+                    setTask(item.key);
+                    setActiveSupplierId(null);
+                    setPage(1);
+                  }}
+                >
+                  <span className="supplier-task-main">
+                    <span style={{ fontWeight: task === item.key ? 600 : 400 }}>{item.label}</span>
+                    <StatusTag tone={item.color}>{item.count}</StatusTag>
+                  </span>
+                  <span className="supplier-task-note">{item.note}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </aside>
 

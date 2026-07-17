@@ -2,6 +2,94 @@ from httpx import AsyncClient
 
 
 class TestSuppliersAPI:
+    async def test_supplier_product_crud(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
+        from app.models.product import Brand, Product, Supplier
+
+        supplier = Supplier(name="Factory CRUD", supplier_type="原厂")
+        brand = Brand(name="Factory Brand")
+        product = Product(
+            name="Factory MCU",
+            sku="MCU-CRUD-01",
+            category="MCU",
+            package_type="QFN-32",
+            brand=brand,
+        )
+        db_session.add_all([supplier, brand, product])
+        await db_session.flush()
+
+        create_resp = await async_client.post(
+            f"/api/v1/suppliers/{supplier.id}/products",
+            headers=auth_headers,
+            json={
+                "product_id": product.id,
+                "supplier_sku": "FACTORY-MCU-01",
+                "cost_price": 1.25,
+                "currency": "CNY",
+                "lead_time_days": 14,
+                "moq": 100,
+                "spq": 10,
+                "is_preferred": True,
+            },
+        )
+        assert create_resp.status_code == 200
+        assert create_resp.json()["code"] == 0
+
+        update_resp = await async_client.put(
+            f"/api/v1/suppliers/{supplier.id}/products/{product.id}",
+            headers=auth_headers,
+            json={
+                "product_id": product.id,
+                "supplier_sku": "FACTORY-MCU-01A",
+                "cost_price": 1.15,
+                "currency": "USD",
+                "lead_time_days": 10,
+                "moq": 50,
+                "spq": 5,
+                "is_preferred": False,
+                "is_active": True,
+            },
+        )
+        assert update_resp.status_code == 200
+        assert update_resp.json()["code"] == 0
+
+        list_resp = await async_client.get(
+            f"/api/v1/suppliers/{supplier.id}/products", headers=auth_headers
+        )
+        assert list_resp.status_code == 200
+        items = list_resp.json()["data"]
+        assert len(items) == 1
+        assert items[0] == {
+            **items[0],
+            "product_name": "Factory MCU",
+            "product_sku": "MCU-CRUD-01",
+            "sku": "MCU-CRUD-01",
+            "category": "MCU",
+            "package_type": "QFN-32",
+            "brand_name": "Factory Brand",
+            "supplier_sku": "FACTORY-MCU-01A",
+            "cost_price": 1.15,
+            "currency": "USD",
+            "lead_time_days": 10,
+            "moq": 50,
+            "spq": 5,
+            "is_preferred": False,
+            "is_active": True,
+        }
+
+        delete_resp = await async_client.delete(
+            f"/api/v1/suppliers/{supplier.id}/products/{product.id}",
+            headers=auth_headers,
+        )
+        assert delete_resp.status_code == 200
+        assert delete_resp.json()["code"] == 0
+
+        empty_resp = await async_client.get(
+            f"/api/v1/suppliers/{supplier.id}/products", headers=auth_headers
+        )
+        assert empty_resp.json()["data"] == []
+
     async def test_supplier_stats_summary(
         self, async_client: AsyncClient, auth_headers: dict, db_session
     ):

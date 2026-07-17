@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models.product import Product, Supplier, SupplierProduct
+from app.models.product import Brand, Product, Supplier, SupplierProduct
 from app.schemas.common import fail, ok
 
 suppliers_router = APIRouter(prefix="/suppliers", tags=["suppliers"])
@@ -409,8 +409,9 @@ async def list_supplier_products(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     query = (
-        select(SupplierProduct, Product)
+        select(SupplierProduct, Product, Brand)
         .join(Product, SupplierProduct.product_id == Product.id)
+        .outerjoin(Brand, Product.brand_id == Brand.id)
         .where(
             SupplierProduct.supplier_id == supplier_id,
             Product.deleted_at.is_(None),
@@ -418,15 +419,21 @@ async def list_supplier_products(
     )
     rows = (await db.execute(query)).all()
     items = []
-    for sp, prod in rows:
+    for sp, prod, brand in rows:
         items.append(
             {
                 "id": sp.id,
                 "product_id": sp.product_id,
                 "product_name": prod.name,
                 "product_sku": prod.sku,
+                "sku": prod.sku,
                 "product_mpn": prod.mpn,
-                "cost_price": float(sp.cost_price) if sp.cost_price else None,
+                "category": prod.category,
+                "package_type": prod.package_type,
+                "brand_name": brand.name if brand else None,
+                "cost_price": float(sp.cost_price)
+                if sp.cost_price is not None
+                else None,
                 "currency": sp.currency,
                 "price_valid_from": str(sp.price_valid_from)
                 if sp.price_valid_from
@@ -435,7 +442,7 @@ async def list_supplier_products(
                 "moq": sp.moq,
                 "spq": sp.spq,
                 "min_order_value": float(sp.min_order_value)
-                if sp.min_order_value
+                if sp.min_order_value is not None
                 else None,
                 "lead_time_days": sp.lead_time_days,
                 "supplier_sku": sp.supplier_sku,
@@ -461,7 +468,7 @@ async def link_supplier_product(
         )
     )
     if existing.scalar_one_or_none():
-        return fail("Product already linked to this supplier", 400)
+        return fail("该产品已关联此供应商，请直接编辑现有关联", 400)
 
     link = SupplierProduct(
         supplier_id=supplier_id,
@@ -502,7 +509,7 @@ async def update_supplier_product(
     )
     link = link.scalar_one_or_none()
     if not link:
-        return fail("Supplier product link not found", 404)
+        return fail("供应商产品关联不存在", 404)
 
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(link, key, value)
@@ -527,7 +534,7 @@ async def unlink_supplier_product(
     )
     link = link.scalar_one_or_none()
     if not link:
-        return fail("Supplier product link not found", 404)
+        return fail("供应商产品关联不存在", 404)
     await db.delete(link)
     await db.commit()
     return ok({"id": product_id})

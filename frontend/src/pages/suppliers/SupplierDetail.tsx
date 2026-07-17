@@ -1,13 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, Modal, Input, InputNumber, message, Switch, Typography, Popconfirm, Progress, Badge, List, Col, Row, Flex } from "antd";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined, PieChartOutlined, FileTextOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined, PieChartOutlined, FileTextOutlined, EditOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { getSupplier, getSupplierProducts, linkSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation, getApiErrorMessage } from "../../api";
+import { getSupplier, getSupplierProducts, linkSupplierProduct, updateSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation, getApiErrorMessage } from "../../api";
 import type { Supplier, SupplierProductLink, Product, SupplierScorecard, SupplierDelayPrediction, SupplierAlternatives, SupplierPriceVariance, SupplierNegotiation } from "../../types";
+import { erpPagination } from "../../ui/pagination";
 
 const { Text } = Typography;
+
+const EMPTY_LINK_FORM = {
+  product_id: 0,
+  supplier_sku: "",
+  cost_price: null as number | null,
+  currency: "CNY",
+  lead_time_days: null as number | null,
+  moq: null as number | null,
+  spq: null as number | null,
+  is_preferred: false,
+  is_active: true,
+  notes: "",
+};
 
 export default function SupplierDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,8 +35,10 @@ export default function SupplierDetail() {
   const [matching, setMatching] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [linkForm, setLinkForm] = useState({ product_id: 0, cost_price: null as number | null, lead_time_days: null as number | null, moq: null as number | null, spq: null as number | null, is_preferred: false, notes: "" });
+  const [editingLink, setEditingLink] = useState<SupplierProductLink | null>(null);
+  const [linkForm, setLinkForm] = useState({ ...EMPTY_LINK_FORM });
   const [productSearch, setProductSearch] = useState("");
+  const [linkedProductSearch, setLinkedProductSearch] = useState("");
   const [productOptions, setProductOptions] = useState<Product[]>([]);
   // AI features
   const [scorecard, setScorecard] = useState<SupplierScorecard | null>(null);
@@ -92,15 +108,53 @@ export default function SupplierDetail() {
     } catch { /* */ }
   };
 
+  const openCreateLink = () => {
+    setEditingLink(null);
+    setLinkForm({ ...EMPTY_LINK_FORM });
+    setProductSearch("");
+    setProductOptions([]);
+    setLinkModalOpen(true);
+  };
+
+  const openEditLink = (link: SupplierProductLink) => {
+    setEditingLink(link);
+    setLinkForm({
+      ...EMPTY_LINK_FORM,
+      product_id: link.product_id,
+      supplier_sku: link.supplier_sku || "",
+      cost_price: link.cost_price,
+      currency: link.currency || "CNY",
+      lead_time_days: link.lead_time_days,
+      moq: link.moq,
+      spq: link.spq,
+      is_preferred: link.is_preferred,
+      is_active: link.is_active !== false,
+      notes: link.notes || "",
+    });
+    setLinkModalOpen(true);
+  };
+
   const handleLink = async () => {
-    if (!linkForm.product_id) return;
+    if (!linkForm.product_id) {
+      message.warning("请先选择产品");
+      return;
+    }
+    if (!editingLink && linkedProducts.some((link) => link.product_id === linkForm.product_id)) {
+      message.info("该产品已有关联，可直接在列表中编辑");
+      return;
+    }
     setLinking(true);
     try {
-      await linkSupplierProduct(Number(id), linkForm);
-      message.success("关联成功");
+      if (editingLink) {
+        await updateSupplierProduct(Number(id), editingLink.product_id, linkForm);
+      } else {
+        await linkSupplierProduct(Number(id), linkForm);
+      }
+      message.success(editingLink ? "关联信息已更新" : "关联成功");
       setLinkModalOpen(false);
-      loadData();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "关联失败")); }
+      setEditingLink(null);
+      await loadData();
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, editingLink ? "更新关联失败" : "关联失败")); }
     finally { setLinking(false); }
   };
 
@@ -108,9 +162,22 @@ export default function SupplierDetail() {
     try {
       await unlinkSupplierProduct(Number(id), productId);
       message.success("已取消关联");
-      loadData();
+      await loadData();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
+
+  const filteredLinkedProducts = useMemo(() => {
+    const keyword = linkedProductSearch.trim().toLowerCase();
+    if (!keyword) return linkedProducts;
+    return linkedProducts.filter((link) => [
+      link.product_name,
+      link.sku,
+      link.product_sku,
+      link.supplier_sku,
+      link.brand_name,
+      link.category,
+    ].some((value) => String(value || "").toLowerCase().includes(keyword)));
+  }, [linkedProductSearch, linkedProducts]);
 
   const loadScorecard = async () => {
     setScorecardLoading(true);
@@ -162,19 +229,20 @@ export default function SupplierDetail() {
 
   const linkedColumns: ColumnsType<SupplierProductLink> = [
     {
-      title: "产品", key: "product", width: 200,
+      title: "产品", key: "product", width: 220,
       render: (_: unknown, r) => (
         <a onClick={() => navigate(`/products/${r.product_id}`)}>
-          {r.sku ? `[${r.sku}] ` : ""}{r.product_name || `#${r.product_id}`}
+          {r.sku || r.product_sku ? `[${r.sku || r.product_sku}] ` : ""}{r.product_name || `#${r.product_id}`}
         </a>
       ),
     },
+    { title: "原厂料号", dataIndex: "supplier_sku", width: 120, render: (v) => v || "-" },
     { title: "分类", dataIndex: "category", width: 80, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "品牌", dataIndex: "brand_name", width: 80 },
     { title: "封装", dataIndex: "package_type", width: 80 },
     {
       title: "成本价", dataIndex: "cost_price", width: 100,
-      render: (v) => v ? `¥${Number(v).toFixed(4)}` : "-",
+      render: (v, record) => v != null ? `${Number(v).toFixed(4)} ${record.currency || "CNY"}` : "-",
     },
     { title: "交期(天)", dataIndex: "lead_time_days", width: 80 },
     { title: "MOQ", dataIndex: "moq", width: 60 },
@@ -184,11 +252,18 @@ export default function SupplierDetail() {
       render: (v) => v ? <StatusTag tone="success">是</StatusTag> : null,
     },
     {
-      title: "操作", key: "action", width: 60,
+      title: "状态", dataIndex: "is_active", width: 70,
+      render: (v) => <StatusTag tone={v === false ? "neutral" : "success"}>{v === false ? "停用" : "启用"}</StatusTag>,
+    },
+    {
+      title: "操作", key: "action", width: 150, fixed: "right",
       render: (_: unknown, r) => (
-        <Popconfirm title="确认取消关联？" onConfirm={() => handleUnlink(r.product_id)}>
-          <Button size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <Space size={0}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditLink(r)}>编辑</Button>
+          <Popconfirm title="确认解除产品关联？" description="不会删除产品主数据。" okText="解除关联" cancelText="取消" onConfirm={() => handleUnlink(r.product_id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>解除</Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -197,7 +272,7 @@ export default function SupplierDetail() {
     <div>
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/suppliers")}>返回列表</Button>
-        <Button type="primary" icon={<LinkOutlined />} onClick={() => setLinkModalOpen(true)}>关联产品</Button>
+        <Button type="primary" icon={<LinkOutlined />} onClick={openCreateLink}>关联产品</Button>
         <Button icon={<ThunderboltOutlined />} onClick={() => { setMatchText(""); setMatchResults([]); setMatchModalOpen(true); }}>AI 匹配</Button>
         <Button icon={<DashboardOutlined />} loading={scorecardLoading} onClick={loadScorecard}>供应商评分</Button>
         <Button icon={<ClockCircleOutlined />} loading={delayLoading} onClick={loadDelayPrediction}>延迟预测</Button>
@@ -223,8 +298,11 @@ export default function SupplierDetail() {
         </Descriptions>
       </Card>
 
-      <Card title={`关联产品 (${linkedProducts.length})`}>
-        <Table rowKey="id" columns={linkedColumns} dataSource={linkedProducts} size="small" pagination={false} />
+      <Card
+        title={`${supplier.supplier_type === "原厂" ? "原厂关联产品" : "关联产品"} (${linkedProducts.length})`}
+        extra={<Input allowClear prefix={<SearchOutlined />} placeholder="查询产品 / SKU / 原厂料号 / 品牌" value={linkedProductSearch} onChange={(event) => setLinkedProductSearch(event.target.value)} style={{ width: 300 }} />}
+      >
+        <Table rowKey="id" columns={linkedColumns} dataSource={filteredLinkedProducts} size="small" scroll={{ x: 1150 }} pagination={erpPagination()} />
       </Card>
 
       {/* AI Match Modal */}
@@ -272,56 +350,72 @@ export default function SupplierDetail() {
 
       {/* Manual Link Modal */}
       <Modal
-        title="手动关联产品"
+        title={editingLink ? "编辑原厂产品关系" : "手动关联产品"}
         open={linkModalOpen}
-        onCancel={() => setLinkModalOpen(false)}
+        onCancel={() => { setLinkModalOpen(false); setEditingLink(null); }}
         onOk={handleLink}
         confirmLoading={linking}
-        okText="关联"
+        okText={editingLink ? "保存" : "关联"}
+        okButtonProps={{ disabled: !linkForm.product_id }}
       >
         <Space direction="vertical" style={{ width: "100%" }}>
-          <div>
+          {editingLink ? (
+            <Alert type="info" showIcon message={`正在编辑：${editingLink.product_name || `产品 #${editingLink.product_id}`}`} />
+          ) : <div>
             <Text>搜索产品：</Text>
             <Input.Search
               value={productSearch}
               onChange={(e) => handleSearchProducts(e.target.value)}
               placeholder="输入产品名称或SKU搜索"
             />
-          </div>
-          {productOptions.length > 0 && (
+          </div>}
+          {!editingLink && productOptions.length > 0 && (
             <div style={{ maxHeight: 200, overflow: "auto", border: "1px solid #f0f0f0", borderRadius: 4, padding: 8 }}>
               {productOptions.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    padding: "6px 8px", cursor: "pointer",
-                    background: linkForm.product_id === p.id ? "#e6f4ff" : undefined,
-                  }}
-                  onClick={() => setLinkForm({ ...linkForm, product_id: p.id })}
-                >
-                  [{p.sku || "-"}] {p.name} <StatusTag>{p.category || "-"}</StatusTag>
+                <div key={p.id} style={{ padding: "6px 8px", cursor: linkedProducts.some((link) => link.product_id === p.id) ? "not-allowed" : "pointer", opacity: linkedProducts.some((link) => link.product_id === p.id) ? .55 : 1, background: linkForm.product_id === p.id ? "#e6f4ff" : undefined }} onClick={() => {
+                  if (linkedProducts.some((link) => link.product_id === p.id)) {
+                    message.info("该产品已有关联，可直接在列表中编辑");
+                    return;
+                  }
+                  setLinkForm({ ...linkForm, product_id: p.id });
+                }}>
+                  [{p.sku || "-"}] {p.name} <StatusTag>{p.category || "-"}</StatusTag>{linkedProducts.some((link) => link.product_id === p.id) && <StatusTag tone="info">已关联</StatusTag>}
                 </div>
               ))}
             </div>
           )}
+          <div>
+            <Text>原厂料号：</Text>
+            <Input value={linkForm.supplier_sku} onChange={(e) => setLinkForm({ ...linkForm, supplier_sku: e.target.value })} />
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
               <Text>成本价：</Text>
-              <InputNumber value={linkForm.cost_price} onChange={(v) => setLinkForm({ ...linkForm, cost_price: v })} style={{ width: "100%" }} />
+              <InputNumber min={0} precision={4} value={linkForm.cost_price} onChange={(v) => setLinkForm({ ...linkForm, cost_price: v })} style={{ width: "100%" }} />
             </div>
             <div style={{ flex: 1 }}>
-              <Text>交期(天)：</Text>
-              <InputNumber value={linkForm.lead_time_days} onChange={(v) => setLinkForm({ ...linkForm, lead_time_days: v })} style={{ width: "100%" }} />
+              <Text>币种：</Text>
+              <Input value={linkForm.currency} onChange={(e) => setLinkForm({ ...linkForm, currency: e.target.value.toUpperCase() })} maxLength={3} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <Text>MOQ：</Text>
-              <InputNumber value={linkForm.moq} onChange={(v) => setLinkForm({ ...linkForm, moq: v })} style={{ width: "100%" }} />
+              <Text>交期(天)：</Text>
+              <InputNumber min={0} value={linkForm.lead_time_days} onChange={(v) => setLinkForm({ ...linkForm, lead_time_days: v })} style={{ width: "100%" }} />
             </div>
             <div style={{ flex: 1 }}>
+              <Text>MOQ：</Text>
+              <InputNumber min={0} value={linkForm.moq} onChange={(v) => setLinkForm({ ...linkForm, moq: v })} style={{ width: "100%" }} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}>
               <Text>SPQ：</Text>
-              <InputNumber value={linkForm.spq} onChange={(v) => setLinkForm({ ...linkForm, spq: v })} style={{ width: "100%" }} />
+              <InputNumber min={0} value={linkForm.spq} onChange={(v) => setLinkForm({ ...linkForm, spq: v })} style={{ width: "100%" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <Text>关系状态：</Text>
+              <Switch checkedChildren="启用" unCheckedChildren="停用" checked={linkForm.is_active} onChange={(v) => setLinkForm({ ...linkForm, is_active: v })} />
             </div>
           </div>
           <div>

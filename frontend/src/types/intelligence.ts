@@ -90,6 +90,7 @@ export interface SupplierProductLink {
   supplier_id?: number;
   supplier_name?: string;
   supplier_sku?: string | null;
+  product_sku?: string | null;
   currency?: string;
   product_id: number;
   cost_price: number | null;
@@ -97,6 +98,7 @@ export interface SupplierProductLink {
   moq: number | null;
   spq: number | null;
   is_preferred: boolean;
+  is_active?: boolean;
   notes: string | null;
   sku?: string;
   product_name?: string;
