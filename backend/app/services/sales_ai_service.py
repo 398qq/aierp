@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sqlalchemy import select, or_, func
@@ -293,7 +293,7 @@ async def enrich_opportunity_list(
 
 
 async def enrich_quotation_list(
-    db: AsyncSession, quotes: list[Quotation | Mapping[str, Any]]
+    db: AsyncSession, quotes: Sequence[Quotation | Mapping[str, Any]]
 ) -> dict[int, dict]:
     from app.services.ai.prompts import quotation_list_enrich_prompt
 

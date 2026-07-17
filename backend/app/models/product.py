@@ -1,3 +1,5 @@
+import datetime
+
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
@@ -15,8 +17,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
-
-import datetime
 
 
 class Brand(TimestampMixin, Base):
@@ -161,10 +161,10 @@ class Product(TimestampMixin, Base):
     minimum_sale_price: Mapped[float | None] = mapped_column(
         DECIMAL(20, 6), nullable=True
     )
-    price_valid_from: Mapped[DateTime | None] = mapped_column(
+    price_valid_from: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    price_valid_to: Mapped[DateTime | None] = mapped_column(
+    price_valid_to: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     latest_purchase_cost: Mapped[float | None] = mapped_column(
@@ -173,7 +173,7 @@ class Product(TimestampMixin, Base):
     weighted_avg_cost: Mapped[float | None] = mapped_column(
         DECIMAL(20, 6), nullable=True
     )
-    cost_updated_at: Mapped[DateTime | None] = mapped_column(
+    cost_updated_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -181,7 +181,7 @@ class Product(TimestampMixin, Base):
     lifecycle_status: Mapped[str | None] = mapped_column(
         String(20), nullable=True
     )  # active / nrnd / eol / obsolete
-    eol_date: Mapped[DateTime | None] = mapped_column(
+    eol_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )  # EOL 日期
     alternative_mpn: Mapped[str | None] = mapped_column(
@@ -407,10 +407,10 @@ class SupplierProduct(TimestampMixin, Base):
     # ── 价格与数量 ──
     cost_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
-    price_valid_from: Mapped[DateTime | None] = mapped_column(
+    price_valid_from: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    price_valid_to: Mapped[DateTime | None] = mapped_column(
+    price_valid_to: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     moq: Mapped[int | None] = mapped_column(nullable=True)  # minimum order quantity

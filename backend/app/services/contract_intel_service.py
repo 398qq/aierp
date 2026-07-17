@@ -213,7 +213,7 @@ async def assess_contract_risk(db: AsyncSession, contract_id: int) -> dict:
     payment_days: list[int] = []
     late_count = 0
     for p in payments:
-        so = so_map.get(p.sales_order_id)
+        so = so_map.get(p.sales_order_id) if p.sales_order_id is not None else None
         if so and p.payment_date:
             days = (p.payment_date - so.created_at).days
             payment_days.append(days)
