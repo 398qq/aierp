@@ -125,6 +125,8 @@ export const COL_LABEL_MAP: Record<string, string> = {
   stock_state: "库存状态",
   quantity: "库存",
   available: "可用",
+  safety_stock: "安全库存",
+  default_warehouse_name: "默认仓库",
   list_price: "列表价",
   minimum_sale_price: "最低销售价",
   weighted_avg_cost: "加权平均成本",

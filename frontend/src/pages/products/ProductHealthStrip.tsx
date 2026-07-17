@@ -44,7 +44,7 @@ export default function ProductHealthStrip({
 }: Props) {
   return (
     <div className="product-health-strip">
-      <div className="product-health-main">
+      <div className="product-health-toolbar">
         <div className="product-health-title">
           <InboxOutlined />
           <div>
@@ -68,61 +68,32 @@ export default function ProductHealthStrip({
           </Button>
         </div>
       </div>
-
-      <div className="product-health-metric" onClick={onResetFilters}>
-        <span className="product-health-icon is-primary">
-          <AppstoreOutlined />
-        </span>
-        <span className="product-health-label">SKU 总数</span>
-        <span className="product-health-value">{(stats.total ?? 0).toLocaleString()}</span>
-        <div className="product-health-sub">
-          在库率 <strong>{metrics.inStockRate}%</strong>
-        </div>
-      </div>
-      <div
-        className="product-health-metric is-warning"
-        onClick={() => onTaskClick("replenish", "low_stock")}
-      >
-        <span className="product-health-icon is-warning">
-          <ExclamationCircleOutlined />
-        </span>
-        <span className="product-health-label">低库存</span>
-        <span className="product-health-value">
-          {(stats.low_stock_count ?? 0).toLocaleString()}
-        </span>
-        <div className="product-health-sub">
-          占全部 SKU <strong>{metrics.lowStockRate}%</strong>
-        </div>
-      </div>
-      <div
-        className="product-health-metric is-danger"
-        onClick={() => onTaskClick("out", "out_of_stock")}
-      >
-        <span className="product-health-icon is-danger">
-          <StopOutlined />
-        </span>
-        <span className="product-health-label">缺货</span>
-        <span className="product-health-value">
-          {(stats.out_of_stock_count ?? 0).toLocaleString()}
-        </span>
-        <div className="product-health-sub">
-          占全部 SKU <strong>{metrics.outOfStockRate}%</strong>
-        </div>
-      </div>
-      <div
-        className="product-health-metric is-info"
-        onClick={() => onTaskClick("complete", "pending_completion")}
-      >
-        <span className="product-health-icon is-info">
-          <FileTextOutlined />
-        </span>
-        <span className="product-health-label">资料待完善</span>
-        <span className="product-health-value">
-          {(stats.pending_completion_count ?? 0).toLocaleString()}
-        </span>
-        <div className="product-health-sub">
-          资料缺口率 <strong>{metrics.completionGapRate}%</strong>
-        </div>
+      <div className="product-health-kpis">
+        <button type="button" className="product-health-metric" onClick={onResetFilters}>
+          <span className="product-health-icon is-primary"><AppstoreOutlined /></span>
+          <span className="product-health-copy"><span className="product-health-label">SKU 总数</span><small>在库率 {metrics.inStockRate}%</small></span>
+          <strong className="product-health-value">{(stats.total ?? 0).toLocaleString()}</strong>
+        </button>
+        <button type="button" className="product-health-metric is-success" onClick={() => onTaskClick("all", "in_stock")}>
+          <span className="product-health-icon is-success"><InboxOutlined /></span>
+          <span className="product-health-copy"><span className="product-health-label">正常在库</span><small>可正常销售</small></span>
+          <strong className="product-health-value">{(stats.in_stock_count ?? 0).toLocaleString()}</strong>
+        </button>
+        <button type="button" className="product-health-metric is-warning" onClick={() => onTaskClick("replenish", "low_stock")}>
+          <span className="product-health-icon is-warning"><ExclamationCircleOutlined /></span>
+          <span className="product-health-copy"><span className="product-health-label">低库存</span><small>占比 {metrics.lowStockRate}%</small></span>
+          <strong className="product-health-value">{(stats.low_stock_count ?? 0).toLocaleString()}</strong>
+        </button>
+        <button type="button" className="product-health-metric is-danger" onClick={() => onTaskClick("out", "out_of_stock")}>
+          <span className="product-health-icon is-danger"><StopOutlined /></span>
+          <span className="product-health-copy"><span className="product-health-label">缺货</span><small>占比 {metrics.outOfStockRate}%</small></span>
+          <strong className="product-health-value">{(stats.out_of_stock_count ?? 0).toLocaleString()}</strong>
+        </button>
+        <button type="button" className="product-health-metric is-info" onClick={() => onTaskClick("complete", "pending_completion")}>
+          <span className="product-health-icon is-info"><FileTextOutlined /></span>
+          <span className="product-health-copy"><span className="product-health-label">待完善</span><small>缺口率 {metrics.completionGapRate}%</small></span>
+          <strong className="product-health-value">{(stats.pending_completion_count ?? 0).toLocaleString()}</strong>
+        </button>
       </div>
     </div>
   );

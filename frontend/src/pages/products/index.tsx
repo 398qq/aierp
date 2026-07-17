@@ -161,6 +161,8 @@ export default function ProductList() {
     "stock_state",
     "quantity",
     "available",
+    "safety_stock",
+    "default_warehouse_name",
     "list_price",
     "minimum_sale_price",
     "weighted_avg_cost",
@@ -168,7 +170,12 @@ export default function ProductList() {
     "last_sale_at",
     "actions",
   ];
-  const [visibleCols, setVisibleCols] = useState<string[]>([...allColKeys]);
+  const defaultColKeys = [
+    "sku", "name", "status", "brand_name", "category", "specs", "unit",
+    "stock_state", "available", "safety_stock", "default_warehouse_name",
+    "supplier_count", "list_price", "owner", "completion_score", "actions",
+  ];
+  const [visibleCols, setVisibleCols] = useState<string[]>(defaultColKeys);
   const searchText = q.trim();
   const activeProductTask: ProductTaskKey = searchText ? "all" : productTask;
 
@@ -417,7 +424,7 @@ export default function ProductList() {
     setBrandId(view.brandId || undefined);
     setStockStatus(view.stockStatus || undefined);
     setSort(view.sort || "created_at_desc");
-    setVisibleCols(view.visibleCols?.length ? view.visibleCols : [...allColKeys]);
+    setVisibleCols(view.visibleCols?.length ? view.visibleCols : defaultColKeys);
     setAiSearchMode(false);
     setAiSearchResults(null);
     setPage(1);
@@ -880,29 +887,6 @@ export default function ProductList() {
             ))}
           </div>
 
-          <div className="product-command-panel">
-            <div className="product-command-panel-head">
-              <span className="product-command-panel-title">库存快照</span>
-            </div>
-            <div className="product-stock-snapshot">
-              <div>
-                <strong>{stats.in_stock_count}</strong>
-                <span>正常在库</span>
-              </div>
-              <div>
-                <strong>{stats.low_stock_count}</strong>
-                <span>低库存</span>
-              </div>
-              <div>
-                <strong>{stats.out_of_stock_count}</strong>
-                <span>缺货</span>
-              </div>
-              <div>
-                <strong>{stats.pending_completion_count}</strong>
-                <span>待完善</span>
-              </div>
-            </div>
-          </div>
         </aside>
 
         <main className="product-command-main">

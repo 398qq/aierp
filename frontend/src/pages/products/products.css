@@ -847,3 +847,99 @@
     width: 100%;
   }
 }
+
+/* Professional ERP ledger: compact command bar and scan-first KPI strip. */
+.product-workbench-page { gap: 12px; }
+.product-health-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #dfe4ec;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.product-health-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 68px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e8ebf2;
+}
+.product-health-title { align-items: center; font-size: 18px; }
+.product-health-title > .anticon { margin-top: 0; }
+.product-health-actions { margin-top: 0; }
+.product-health-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  min-height: 76px;
+}
+.product-health-metric {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 76px;
+  padding: 10px 14px;
+  color: inherit;
+  text-align: left;
+  background: #fff;
+  border: 0;
+  border-right: 1px solid #edf0f5;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+.product-health-metric:last-child { border-right: 0; }
+.product-health-metric::before {
+  inset: auto 12px 0;
+  width: auto;
+  height: 2px;
+  opacity: 0;
+}
+.product-health-metric:hover {
+  background: #f8fafc;
+  border-color: #edf0f5;
+  box-shadow: none;
+  transform: none;
+}
+.product-health-metric:hover::before { opacity: 1; }
+.product-health-icon { position: static; width: 30px; height: 30px; }
+.product-health-icon.is-success { color: #15803d; background: #f0fdf4; }
+.product-health-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.product-health-copy small {
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-health-label { padding-right: 0; color: #475569; }
+.product-health-value { margin-top: 0; font-size: 22px; }
+.product-command-layout { grid-template-columns: 190px minmax(0, 1fr); gap: 12px; }
+.product-task-button { padding: 8px 10px; }
+.product-filter-primary,
+.product-filter-secondary { padding: 10px; }
+.product-table-header { min-height: 44px; padding: 8px 10px; }
+.product-table-panel .ant-table-tbody > tr > td {
+  height: 46px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+@media (max-width: 1180px) {
+  .product-health-kpis {
+    grid-template-columns: repeat(5, minmax(125px, 1fr));
+    overflow-x: auto;
+  }
+  .product-health-toolbar { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 900px) {
+  .product-command-layout { grid-template-columns: 1fr; }
+  .product-command-sidebar { position: static; }
+  .product-command-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .product-command-panel-head { grid-column: 1 / -1; }
+}

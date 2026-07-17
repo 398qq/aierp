@@ -9,6 +9,8 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
 
   await page.goto("/products", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("产品台账", { exact: false }).first()).toBeVisible();
+  await expect(page.locator(".product-health-toolbar")).toBeVisible();
+  await expect(page.locator(".product-health-metric")).toHaveCount(5);
   await expect(page.locator(".product-table-panel .ant-table-tbody tr").first()).toBeVisible();
   await page.locator(".product-table-panel").evaluate((panel) => {
     window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY, behavior: "instant" });
@@ -51,6 +53,8 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
   expect(layout.headerGap).toBeLessThanOrEqual(2);
   expect(layout.bodyGap).toBeGreaterThanOrEqual(-1);
   expect(layout.headerTitles.slice(0, 2)).toEqual(["SKU", "产品名称"]);
+  expect(layout.headerTitles).toContain("安全库存");
+  expect(layout.headerTitles).toContain("默认仓库");
   expect(layout.stickyTop).toBe("auto");
   expect(layout.tableOverflow).toBeGreaterThan(0);
   expect(layout.viewportOverflow).toBeLessThanOrEqual(2);

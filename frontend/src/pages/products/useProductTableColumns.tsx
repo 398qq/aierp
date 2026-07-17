@@ -44,6 +44,25 @@ const productTypeLabel: Record<string, string> = {
   service: "服务",
 };
 
+const formatSpecs = (specs: string) => {
+  try {
+    const parsed = JSON.parse(specs) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const entries = Object.entries(parsed as Record<string, unknown>)
+        .filter(([, value]) => value != null && String(value).trim());
+      if (entries.length) {
+        return {
+          summary: entries.slice(0, 2).map(([key, value]) => `${key}：${String(value)}`).join("；"),
+          detail: entries.map(([key, value]) => `${key}：${String(value)}`).join("；"),
+        };
+      }
+    }
+  } catch {
+    // Legacy free text stays readable.
+  }
+  return { summary: specs, detail: specs };
+};
+
 export function useProductTableColumns({
   onOpenDetail,
   onOpenFullDetail,
@@ -192,11 +211,12 @@ export function useProductTableColumns({
         width: 150,
         render: (v: string | null) => {
           if (!v) return "-";
+          const formatted = formatSpecs(v);
           return (
             <Tooltip
               title={
                 <div style={{ maxWidth: 520, whiteSpace: "normal", wordBreak: "break-word" }}>
-                  {v}
+                  {formatted.detail}
                 </div>
               }
             >
@@ -209,7 +229,7 @@ export function useProductTableColumns({
                   whiteSpace: "nowrap",
                 }}
               >
-                {v}
+                {formatted.summary}
               </span>
             </Tooltip>
           );
@@ -274,6 +294,21 @@ export function useProductTableColumns({
             {getAvailableQty(r)}
           </span>
         ),
+      },
+      {
+        title: "安全库存",
+        dataIndex: "safety_stock",
+        key: "safety_stock",
+        width: 85,
+        align: "right",
+        render: (v: number | null) => <span className="product-number">{v ?? 0}</span>,
+      },
+      {
+        title: "默认仓库",
+        dataIndex: "default_warehouse_name",
+        key: "default_warehouse_name",
+        width: 120,
+        render: (v: string | null) => v || "-",
       },
       {
         title: "列表价",
