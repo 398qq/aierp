@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Select, Input, message, Popconfirm, Card, Modal, Checkbox, Spin } from "antd";
 import { StatusTag, type StatusTone } from "../../../ui";
+import { erpPagination } from "../../../ui/pagination";
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getUsers, deleteUser, getApiErrorMessage } from "../../../api";
@@ -143,7 +144,7 @@ export default function UserList() {
         }
       >
         <Table rowKey="id" loading={loading} dataSource={data} columns={columns} size="small"
-          pagination={{ current: page, total, pageSize, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }}
+          pagination={erpPagination({ current: page, total, pageSize, onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); } })}
           scroll={{ x: 700 }} />
       </Card>
 

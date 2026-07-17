@@ -5,6 +5,7 @@ import {
   message, Spin, Alert, Badge, Row, Col, Modal,
 } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import {
   SendOutlined, HistoryOutlined, CheckCircleOutlined,
   WarningOutlined, ExclamationCircleOutlined, FileTextOutlined,
@@ -330,7 +331,7 @@ export default function InquiryAutoReply() {
           columns={historyColumns}
           rowKey="id"
           loading={historyLoading}
-          pagination={{ pageSize: 10, size: "small" }}
+          pagination={erpPagination({ size: "small" })}
           size="small"
           scroll={{ x: 700 }}
         />

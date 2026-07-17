@@ -15,6 +15,7 @@ import type { Dayjs } from "dayjs";
 import { getFollowUps, deleteFollowUp, updateFollowUp, getApiErrorMessage } from "../../api";
 import type { FollowUp } from "../../types";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
+import { erpPagination } from "../../ui/pagination";
 
 const { Text } = Typography;
 
@@ -53,7 +54,7 @@ export default function FollowUpList() {
   const [allData, setAllData] = useState<FollowUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleRecord, setRescheduleRecord] = useState<FollowUp | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState<Dayjs | null>(null);
@@ -104,8 +105,9 @@ export default function FollowUpList() {
 
   // 处理分页变化
   const handleTableChange = (pagination: TablePaginationConfig) => {
-    setPage(pagination.current || 1);
-    setPageSize(pagination.pageSize || 10);
+    const nextPageSize = pagination.pageSize || 20;
+    setPage(nextPageSize !== pageSize ? 1 : pagination.current || 1);
+    setPageSize(nextPageSize);
   };
 
   const filteredData = useMemo(() => {
@@ -485,14 +487,11 @@ export default function FollowUpList() {
           bordered
           size="small"
           rowClassName={(record) => getDueFilter(record) === "overdue" ? "followup-row-overdue" : ""}
-          pagination={{
+          pagination={erpPagination({
             current: page,
             pageSize: pageSize,
             total: filteredData.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (t) => `共 ${t} 条`,
-          }}
+          })}
           onChange={handleTableChange}
           scroll={{ x: 1000 }}
         />

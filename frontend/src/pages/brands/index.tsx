@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats, getApiErrorMessage } from "../../api";
@@ -886,12 +887,10 @@ export default function BrandList() {
           onRow={(record) => ({
             onClick: () => setActiveBrandId(record.id),
           })}
-          loading={loading} size="small" pagination={{
+          loading={loading} size="small" pagination={erpPagination({
             current: page, total, pageSize: pageSize,
-            pageSizeOptions: ["10", "20", "50", "100"],
-            showSizeChanger: true, showTotal: (t) => `共 ${t} 条`,
-            onChange: (p, ps) => { setPage(p); setPageSize(ps); },
-          }}
+            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+          })}
           locale={{
             emptyText: (
               <div className="brand-empty">

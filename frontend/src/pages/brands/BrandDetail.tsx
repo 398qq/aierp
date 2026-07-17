@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input, Flex, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getBrand, getBrands, getProducts, updateProduct, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand, getApiErrorMessage } from "../../api";
@@ -1115,7 +1116,7 @@ export default function BrandDetail() {
         extra={<Button icon={<PlusOutlined />} loading={linkLoading} onClick={openLinkProducts}>手动关联产品</Button>}
       >
         {products.length > 0 ? (
-          <Table rowKey="id" columns={productColumns} dataSource={products} size="small" scroll={{ x: 820 }} pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
+          <Table rowKey="id" columns={productColumns} dataSource={products} size="small" scroll={{ x: 820 }} pagination={erpPagination()} />
         ) : (<Text type="secondary">暂无关联产品</Text>)}
       </Card>
 

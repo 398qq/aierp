@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Select, Space, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getInvoices, deleteInvoice, getApiErrorMessage } from "../../api";
@@ -18,6 +19,7 @@ export default function InvoiceList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ export default function InvoiceList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (status) params.status = status;
       if (customerId) params.customer_id = customerId;
       const resp = await getInvoices(params);
@@ -35,7 +37,7 @@ export default function InvoiceList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, status, customerId]);
+  useEffect(() => { load(); }, [page, pageSize, status, customerId]);
 
   const metrics = useMemo(() => ({
     totalCount: data.length,
@@ -156,7 +158,7 @@ export default function InvoiceList() {
             </Table.Summary.Row>
           );
         }}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
       />
     </SalesModuleShell>
   );

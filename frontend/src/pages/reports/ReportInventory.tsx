@@ -3,6 +3,7 @@ import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty } from "antd"
 import { StatusTag } from "../../ui";
 import { WarningOutlined, ShopOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import client from "../../api/client";
+import { erpPagination } from "../../ui/pagination";
 
 interface InventoryData {
   summary: { total_products: number; low_stock: number; out_of_stock: number };
@@ -59,7 +60,7 @@ export default function ReportInventory() {
 
       <Card title="库存明细" size="small">
         {d?.items?.length ? (
-          <Table rowKey="sku" columns={columns} dataSource={d.items} pagination={{ pageSize: 20 }} size="small" />
+          <Table rowKey="sku" columns={columns} dataSource={d.items} pagination={erpPagination()} size="small" />
         ) : <Empty />}
       </Card>
     </div>

@@ -14,6 +14,7 @@ import type { ColumnsType } from "antd/es/table";
 
 import { PageHeader } from "@/ui/PageHeader";
 import { ErrorBoundary } from "@/ui/ErrorBoundary";
+import { erpPagination } from "@/ui/pagination";
 
 import {
   listFieldChanges,
@@ -65,7 +66,7 @@ function RecentTab() {
       loading={loading}
       dataSource={items}
       columns={columns}
-      pagination={{ pageSize: 20 }}
+      pagination={erpPagination()}
     />
   );
 }
@@ -76,6 +77,7 @@ function FilteredTab() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const onSearch = async (values: Record<string, unknown>) => {
     setLoading(true);
@@ -83,7 +85,7 @@ function FilteredTab() {
       const res = await listFieldChanges({
         ...values,
         page,
-        page_size: 20,
+        page_size: pageSize,
       });
       setItems(res.data.items);
       setTotal(res.data.total);
@@ -95,7 +97,7 @@ function FilteredTab() {
   useEffect(() => {
     onSearch({ days_back: 30 });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, pageSize]);
 
   const columns: ColumnsType<FieldChange> = [
     { title: "时间", dataIndex: "changed_at", width: 170 },
@@ -150,13 +152,12 @@ function FilteredTab() {
         loading={loading}
         dataSource={items}
         columns={columns}
-        pagination={{
+        pagination={erpPagination({
           current: page,
-          pageSize: 20,
+          pageSize,
           total,
-          onChange: setPage,
-          showTotal: (t) => `共 ${t} 条`,
-        }}
+          onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+        })}
       />
     </>
   );

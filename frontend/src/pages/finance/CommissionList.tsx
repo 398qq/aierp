@@ -19,6 +19,7 @@ import { PageHeader } from "@/ui/PageHeader";
 import { SearchBar } from "@/ui/SearchBar";
 import { EmptyState } from "@/ui/EmptyState";
 import { ErrorBoundary } from "@/ui/ErrorBoundary";
+import { erpPagination } from "@/ui/pagination";
 
 import {
   getCommissions,
@@ -303,16 +304,15 @@ function CommissionList() {
             </Space>
           ) : null
         }
-        pagination={{
+        pagination={erpPagination({
           current: page,
           pageSize,
           total,
-          showSizeChanger: true,
           onChange: (p, ps) => {
-            setPage(p);
+            setPage(ps !== pageSize ? 1 : p);
             setPageSize(ps);
           },
-        }}
+        })}
         locale={{
           emptyText: (
             <EmptyState

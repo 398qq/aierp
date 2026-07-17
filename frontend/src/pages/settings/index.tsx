@@ -4,6 +4,7 @@ import {
   Select, Switch, Space, message, Popconfirm, Badge,
 } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "../../store/auth";
 import { getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule, getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts, getLevelRules, createLevelRule, updateLevelRule, deleteLevelRule, autoLevel, changePassword, getApiErrorMessage } from "../../api";
@@ -38,6 +39,7 @@ export default function Settings() {
   const [alertEvents, setAlertEvents] = useState<AlertEvent[]>([]);
   const [aeTotal, setAeTotal] = useState(0);
   const [aePage, setAePage] = useState(1);
+  const [aePageSize, setAePageSize] = useState(20);
   const [aeLoading, setAeLoading] = useState(false);
   const [aeReadFilter, setAeReadFilter] = useState<boolean | undefined>();
   const [checkLoading, setCheckLoading] = useState(false);
@@ -60,7 +62,7 @@ export default function Settings() {
   const loadAlertEvents = async () => {
     setAeLoading(true);
     try {
-      const params: Record<string, unknown> = { page: aePage, page_size: 20 };
+      const params: Record<string, unknown> = { page: aePage, page_size: aePageSize };
       if (aeReadFilter !== undefined) params.is_read = aeReadFilter;
       const r = await getAlertEvents(params);
       setAlertEvents(r.data.data.list);
@@ -76,7 +78,7 @@ export default function Settings() {
   };
 
   useEffect(() => { if (activeTab === "alert-rules") loadAlertRules(); }, [activeTab]);
-  useEffect(() => { if (activeTab === "alert-events") loadAlertEvents(); }, [activeTab, aePage, aeReadFilter]);
+  useEffect(() => { if (activeTab === "alert-events") loadAlertEvents(); }, [activeTab, aePage, aePageSize, aeReadFilter]);
   useEffect(() => { if (activeTab === "level-rules") loadLevelRules(); }, [activeTab]);
 
   // ---- Alert Rules CRUD ----
@@ -352,7 +354,7 @@ export default function Settings() {
             <Button onClick={handleMarkAllRead}>全部标记已读</Button>
           </Space>
           <Table rowKey="id" columns={aeColumns} dataSource={alertEvents} loading={aeLoading}
-            pagination={{ current: aePage, total: aeTotal, pageSize: 20, onChange: (p) => setAePage(p), showTotal: (t) => `共 ${t} 条` }}
+            pagination={erpPagination({ current: aePage, total: aeTotal, pageSize: aePageSize, onChange: (p, ps) => { setAePage(ps !== aePageSize ? 1 : p); setAePageSize(ps); } })}
             size="small" />
         </div>
       ),

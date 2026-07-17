@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Tag, message, Card, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { CheckOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getNotifications, markNotificationsRead, getApiErrorMessage } from "../../api";
 import type { NotificationItem } from "../../types";
@@ -19,12 +20,13 @@ export default function NotificationList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [unreadOnly, setUnreadOnly] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (unreadOnly) params.unread_only = true;
       const resp = await getNotifications(params);
       setData(resp.data.data.list || []);
@@ -33,7 +35,7 @@ export default function NotificationList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, unreadOnly]);
+  useEffect(() => { load(); }, [page, pageSize, unreadOnly]);
 
   const handleMarkAllRead = async () => {
     try {
@@ -93,7 +95,7 @@ export default function NotificationList() {
             ),
           },
         ]}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
       />
     </Card>
   );

@@ -19,6 +19,7 @@ import {
   Typography,
 } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -283,17 +284,15 @@ export default function CustomerAIWorkbench() {
           columns={columns}
           dataSource={queue.list}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无建议，点击“生成建议”开始" /> }}
-          pagination={{
+          pagination={erpPagination({
             current: page,
             total: queue.total,
             pageSize,
-            showSizeChanger: true,
-            pageSizeOptions: ["10", "20", "50"],
             onChange: (p, ps) => {
-              setPage(p);
+              setPage(ps !== pageSize ? 1 : p);
               setPageSize(ps);
             },
-          }}
+          })}
           scroll={{ x: 1250 }}
         />
       </Card>

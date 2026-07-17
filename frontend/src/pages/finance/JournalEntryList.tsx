@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Card, Typography, Modal, Descriptions } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { PlusOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
@@ -18,19 +19,20 @@ export default function JournalEntryList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const navigate = useNavigate();
 
   const fetch = async (p = page) => {
     setLoading(true);
     try {
-      const resp = await client.get("/finance/journal-entries", { params: { page: p, page_size: 20 } });
+      const resp = await client.get("/finance/journal-entries", { params: { page: p, page_size: pageSize } });
       setData(resp.data.data?.list || []);
       setTotal(resp.data.data?.total || 0);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [page]);
+  useEffect(() => { fetch(); }, [page, pageSize]);
 
   const columns: ColumnsType<Entry> = [
     { title: "凭证号", dataIndex: "entry_no", width: 160 },
@@ -50,7 +52,7 @@ export default function JournalEntryList() {
   return (
     <Card title="记账凭证" extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/finance/journal-entries/new")}>新建凭证</Button>}>
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: (p) => { setPage(p); fetch(p); } }} size="small" />
+        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })} size="small" />
     </Card>
   );
 }

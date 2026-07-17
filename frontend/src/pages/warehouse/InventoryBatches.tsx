@@ -9,6 +9,7 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { getInventoryBatches, getInventoryCogs, previewAllocation, commitBatchAllocation, getApiErrorMessage } from "../../api";
 import type { InventoryBatch, CogsReport } from "../../types";
+import { erpPagination } from "../../ui/pagination";
 
 const { Text, Title } = Typography;
 
@@ -23,6 +24,8 @@ export default function InventoryBatches() {
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [cogs, setCogs] = useState<CogsReport | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
@@ -40,10 +43,10 @@ export default function InventoryBatches() {
   const [committing, setCommitting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
 
-  const loadBatches = async (page = 1) => {
+  const loadBatches = async (requestedPage = page, requestedPageSize = pageSize) => {
     setLoading(true);
     try {
-      const r = await getInventoryBatches({ page, page_size: 50, status: "available" });
+      const r = await getInventoryBatches({ page: requestedPage, page_size: requestedPageSize, status: statusFilter || "available" });
       setBatches(r.data.data.list);
       setTotal(r.data.data.total);
     } catch { /* handled by interceptor */ }
@@ -57,7 +60,8 @@ export default function InventoryBatches() {
     } catch { /* */ }
   };
 
-  useEffect(() => { loadBatches(); loadCogs(); }, [statusFilter]);
+  useEffect(() => { loadBatches(); }, [page, pageSize, statusFilter]);
+  useEffect(() => { loadCogs(); }, []);
 
   // ── Manual Allocation Handlers ──
 
@@ -194,7 +198,15 @@ export default function InventoryBatches() {
         <Table
           rowKey="id" columns={batchColumns} dataSource={batches}
           loading={loading} size="small"
-          pagination={{ total, pageSize: 50, onChange: loadBatches }}
+          pagination={erpPagination({
+            current: page,
+            total,
+            pageSize,
+            onChange: (p, ps) => {
+              setPage(ps !== pageSize ? 1 : p);
+              setPageSize(ps);
+            },
+          })}
           scroll={{ x: 900 }}
         />
       </Card>

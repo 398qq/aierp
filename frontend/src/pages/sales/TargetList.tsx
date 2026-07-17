@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Dropdown, Modal, Popconfirm, Progress, Select, Space, Table, Tag, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { AimOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getTargets, deleteTarget, getTargetStats, getApiErrorMessage } from "../../api";
@@ -18,6 +19,7 @@ export default function TargetList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [stats, setStats] = useState<{ total_target: number; total_actual: number; achievement_pct: number }>({ total_target: 0, total_actual: 0, achievement_pct: 0 });
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ export default function TargetList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (status) params.status = status;
       const [resp, s] = await Promise.all([getTargets(params), getTargetStats()]);
       setData(resp.data.data.list || []);
@@ -35,7 +37,7 @@ export default function TargetList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, status]);
+  useEffect(() => { load(); }, [page, pageSize, status]);
 
   const exportData = useMemo(() =>
     data.map((r) => ({
@@ -146,7 +148,7 @@ export default function TargetList() {
               </Table.Summary.Row>
             );
           }}
-          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+          pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
         />
       </Card>
     </SalesModuleShell>

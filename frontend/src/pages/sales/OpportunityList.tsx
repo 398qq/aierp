@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, deleteOpportunity, getOpportunities, getApiErrorMessage } from "../../api";
@@ -371,7 +372,7 @@ export default function OpportunityList() {
                 </Table.Summary.Row>
               );
             }}
-            pagination={{ pageSize: 20, showSizeChanger: false }}
+            pagination={erpPagination()}
           />
         </Card>
       )}

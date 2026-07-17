@@ -30,6 +30,7 @@ import { PlusOutlined, SettingOutlined, StopOutlined, DeleteOutlined } from "@an
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { PageHeader } from "@/ui/PageHeader";
 import { SearchBar } from "@/ui/SearchBar";
 import { EmptyState } from "@/ui/EmptyState";
@@ -79,6 +80,7 @@ function SchemeList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [q, setQ] = useState("");
   const [tabKey, setTabKey] = useState<string>("active");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -86,10 +88,10 @@ function SchemeList() {
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
 
-  const load = async (p?: number) => {
+  const load = async (p?: number, requestedPageSize = pageSize) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p ?? page, page_size: 20, q: q || undefined };
+      const params: Record<string, unknown> = { page: p ?? page, page_size: requestedPageSize, q: q || undefined };
       if (tabKey) params.status = tabKey;
       const resp = await getCommissionSchemes(params);
       setData(resp.data.data.list);
@@ -274,16 +276,17 @@ function SchemeList() {
         loading={loading}
         size="middle"
         scroll={{ x: 900 }}
-        pagination={{
+        pagination={erpPagination({
           current: page,
-          pageSize: 20,
+          pageSize,
           total,
-          onChange: (p) => {
-            setPage(p);
-            load(p);
+          onChange: (p, ps) => {
+            const nextPage = ps !== pageSize ? 1 : p;
+            setPage(nextPage);
+            setPageSize(ps);
+            load(nextPage, ps);
           },
-          showTotal: (t) => `共 ${t} 条`,
-        }}
+        })}
       />
       <Drawer
         title={editId ? "编辑方案" : "新建方案"}

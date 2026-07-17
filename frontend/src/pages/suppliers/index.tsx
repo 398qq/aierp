@@ -21,6 +21,7 @@ import {
   message,
 } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import {
   AuditOutlined,
   BankOutlined,
@@ -151,6 +152,7 @@ export default function SupplierList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [supplierType, setSupplierType] = useState<string | undefined>();
   const [task, setTask] = useState<SupplierTaskKey>("all");
@@ -175,7 +177,7 @@ export default function SupplierList() {
   const fetch = async (p = page, q = search, st = supplierType) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: PAGE_SIZE };
+      const params: Record<string, unknown> = { page: p, page_size: pageSize };
       if (q.trim()) params.keyword = q.trim();
       if (st) params.supplier_type = st;
       const resp = await getSuppliers(params);
@@ -199,7 +201,7 @@ export default function SupplierList() {
 
   useEffect(() => {
     fetch();
-  }, [page, supplierType]);
+  }, [page, pageSize, supplierType]);
 
   useEffect(() => {
     fetchStats();
@@ -971,13 +973,12 @@ export default function SupplierList() {
                 ),
               }}
               scroll={{ x: 1260 }}
-              pagination={{
+              pagination={erpPagination({
                 current: page,
                 total: task === "all" ? total : visibleData.length,
-                pageSize: PAGE_SIZE,
-                showTotal: (t) => `共 ${t} 条`,
-                onChange: (p) => setPage(p),
-              }}
+                pageSize,
+                onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+              })}
             />
           </Card>
         </main>

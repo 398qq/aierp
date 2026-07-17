@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, Card, Tag, Select, Input, Space, Typography } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
@@ -25,13 +26,14 @@ export default function AuditLogList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [resourceType, setResourceType] = useState<string | undefined>();
   const [userId, setUserId] = useState<string>("");
 
   const fetch = async (p = page) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: 20 };
+      const params: Record<string, unknown> = { page: p, page_size: pageSize };
       if (resourceType) params.resource_type = resourceType;
       if (userId) params.user_id = Number(userId);
       const resp = await client.get("/permissions/audit-logs", { params });
@@ -41,7 +43,7 @@ export default function AuditLogList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [resourceType]);
+  useEffect(() => { fetch(); }, [page, pageSize, resourceType]);
 
   const handleSearch = () => { setPage(1); fetch(1); };
 
@@ -79,7 +81,7 @@ export default function AuditLogList() {
       </Space>
       <Table
         rowKey="id" columns={columns} dataSource={data} loading={loading}
-        pagination={{ current: page, total, pageSize: 20, onChange: (p) => { setPage(p); fetch(p); } }}
+        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
         size="small"
       />
     </Card>

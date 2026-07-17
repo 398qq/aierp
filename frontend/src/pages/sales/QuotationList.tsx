@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import {
   CopyOutlined,
@@ -50,6 +51,7 @@ export default function QuotationList() {
   const [stats, setStats] = useState<QuotationStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [scene, setScene] = useState<QuoteScene>("all");
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
@@ -73,7 +75,7 @@ export default function QuotationList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20, sort_by: "updated_at", sort_order: "desc" };
+      const params: Record<string, unknown> = { page, page_size: pageSize, sort_by: "updated_at", sort_order: "desc" };
       if (status) params.status = status;
       if (customerId) params.customer_id = customerId;
       if (q.trim()) params.q = q.trim();
@@ -89,7 +91,7 @@ export default function QuotationList() {
 
   useEffect(() => {
     load();
-  }, [page, scene, customerId, q, includeAi]);
+  }, [page, pageSize, scene, customerId, q, includeAi]);
 
   useEffect(() => {
     loadStats();
@@ -372,13 +374,12 @@ export default function QuotationList() {
             },
           ]}
           scroll={{ x: "max-content" }}
-          pagination={{
+          pagination={erpPagination({
             current: page,
             total: scene === "expiring" || scene === "expired" ? visibleData.length : total,
-            pageSize: 20,
-            onChange: setPage,
-            showTotal: (count) => `共 ${count} 条`,
-          }}
+            pageSize,
+            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+          })}
         />
       </Card>
     </SalesModuleShell>

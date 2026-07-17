@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Card, Statistic, Row, Col, Tag, Button, Spin, message, Select, Space } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
@@ -190,7 +191,7 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
         columns={columns}
         dataSource={quotations}
         rowKey="id"
-        pagination={{ pageSize: 10, size: "small" }}
+        pagination={erpPagination({ size: "small" })}
         scroll={{ x: 760 }}
       />
     </div>

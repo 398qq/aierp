@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments, getApiErrorMessage } from "../../api";
@@ -21,6 +22,7 @@ export default function DeliveryNoteList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
@@ -34,7 +36,7 @@ export default function DeliveryNoteList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (status) params.status = status;
       if (customerId) params.customer_id = customerId;
       if (q.trim()) params.q = q.trim();
@@ -72,7 +74,7 @@ export default function DeliveryNoteList() {
     }
   };
 
-  useEffect(() => { load(); }, [page, status, customerId, q, includeAi]);
+  useEffect(() => { load(); }, [page, pageSize, status, customerId, q, includeAi]);
 
   const stats = useMemo(() => {
     const pending = data.filter((item) => item.status === "pending").length;
@@ -267,7 +269,7 @@ export default function DeliveryNoteList() {
               </Table.Summary.Row>
             );
           }}
-          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (count) => `共 ${count} 条` }}
+          pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
         />
       </Card>
     </SalesModuleShell>

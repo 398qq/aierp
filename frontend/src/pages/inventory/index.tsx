@@ -34,6 +34,7 @@ import {
   getApiErrorMessage,
 } from "../../api";
 import type { InventoryItem } from "../../types";
+import { erpPagination } from "../../ui/pagination";
 import "./neo-brutalist.css";
 
 const { Text } = Typography;
@@ -43,6 +44,7 @@ export default function InventoryList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [adjustProduct, setAdjustProduct] = useState<InventoryItem | null>(null);
@@ -64,7 +66,7 @@ export default function InventoryList() {
     setLoading(true);
     try {
       const [invResp, ovResp] = await Promise.all([
-        getInventory({ page: p, page_size: 20 }),
+        getInventory({ page: p, page_size: pageSize }),
         getInventoryOverview(),
       ]);
       setData(invResp.data.data.list as InventoryItem[]);
@@ -79,7 +81,7 @@ export default function InventoryList() {
 
   useEffect(() => {
     fetch();
-  }, [page]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     setForecastLoading(true);
@@ -539,13 +541,12 @@ export default function InventoryList() {
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
-          pagination={{
+          pagination={erpPagination({
             current: page,
             total,
-            pageSize: 20,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (p) => setPage(p),
-          }}
+            pageSize,
+            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+          })}
         />
       </div>
 

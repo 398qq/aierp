@@ -6,12 +6,13 @@ import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage, getGlobalFollowUps } from "@/api";
 import type { GlobalFollowUp } from "@/types";
 import CustomerModuleShell from "./CustomerModuleShell";
+import { erpPagination } from "@/ui/pagination";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
 import { getGlobalFollowUpDueMeta, GLOBAL_FOLLOW_UP_BUCKETS, type GlobalFollowUpBucket } from "./constants";
 
 const { Text } = Typography;
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 export default function CustomerFollowUpsPage() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function CustomerFollowUpsPage() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [status, setStatus] = useState<string | undefined>();
@@ -36,7 +38,7 @@ export default function CustomerFollowUpsPage() {
     try {
       const params: Record<string, unknown> = {
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
         q: debouncedQ || undefined,
         status,
         priority,
@@ -52,7 +54,7 @@ export default function CustomerFollowUpsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedQ, status, priority, dueBucket]);
+  }, [page, pageSize, debouncedQ, status, priority, dueBucket]);
 
   useEffect(() => {
     load();
@@ -224,14 +226,12 @@ export default function CustomerFollowUpsPage() {
           scroll={{ x: 1500 }}
           rowClassName={(record) => record.due_bucket === "overdue" ? "followup-row-overdue" : ""}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" /> }}
-          pagination={{
+          pagination={erpPagination({
             current: page,
-            pageSize: PAGE_SIZE,
+            pageSize,
             total,
-            showSizeChanger: false,
-            showTotal: (value, range) => `${range[0]}-${range[1]} / ${value}`,
-            onChange: setPage,
-          }}
+            onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); },
+          })}
         />
       </div>
     </CustomerModuleShell>

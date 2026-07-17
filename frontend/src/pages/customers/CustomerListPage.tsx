@@ -42,6 +42,7 @@ import dayjs from "dayjs";
 import { createFollowUp, detectDuplicates, exportCustomers, getCustomers, getApiErrorMessage, mergeCustomers } from "@/api";
 import type { Customer, DuplicatePair } from "@/types";
 import { ErrorBoundary, StatusTag, useColumnResize } from "@/ui";
+import { erpPagination, ERP_PAGE_SIZE_OPTIONS } from "@/ui/pagination";
 import CustomerModuleShell from "./CustomerModuleShell";
 import { CustomerDetailPanel } from "./CustomerDetailPanel";
 import { CustomerFormDrawer } from "./CustomerFormDrawer";
@@ -271,7 +272,7 @@ export default function CustomerListPage() {
   const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
   const [pageSize, setPageSize] = useState(() => {
     const size = Number(searchParams.get("page_size"));
-    return [20, 50, 100].includes(size) ? size : 50;
+    return [20, 50, 100].includes(size) ? size : 20;
   });
   const [search, setSearch] = useState(() => searchParams.get("q") || "");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -297,7 +298,7 @@ export default function CustomerListPage() {
   useEffect(() => {
     const next = new URLSearchParams();
     if (page > 1) next.set("page", String(page));
-    if (pageSize !== 50) next.set("page_size", String(pageSize));
+    if (pageSize !== 20) next.set("page_size", String(pageSize));
     if (search) next.set("q", search);
     if (group !== "all") next.set("group", group);
     if (statusFilter) next.set("status", statusFilter);
@@ -724,8 +725,9 @@ export default function CustomerListPage() {
                     pageSize={pageSize}
                     total={total}
                     showSizeChanger
-                    pageSizeOptions={[20, 50, 100]}
-                    showTotal={(t, range) => `${range[0]}-${range[1]} / ${t}`}
+                    pageSizeOptions={ERP_PAGE_SIZE_OPTIONS}
+                    showQuickJumper
+                    showTotal={(t, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${t} 条`}
                     onChange={handlePaginationChange}
                     size="small"
                   />
@@ -759,15 +761,12 @@ export default function CustomerListPage() {
                   />
                 ),
               }}
-              pagination={{
+              pagination={erpPagination({
                 current: page,
                 pageSize,
                 total,
-                showSizeChanger: true,
-                pageSizeOptions: [20, 50, 100],
-                showTotal: (t, range) => `${range[0]}-${range[1]} / ${t}`,
                 onChange: handlePaginationChange,
-              }}
+              })}
               onRow={(r) => ({
                 onClick: () => {
                   setSelectedCustomer(r);

@@ -5,6 +5,7 @@ import type { ColumnsType } from "antd/es/table";
 import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, getApiErrorMessage } from "../../api";
 import type { Warehouse } from "../../types";
 import WarehouseForm from "./WarehouseForm";
+import { erpPagination } from "../../ui/pagination";
 
 interface WarehouseRecord extends Warehouse {
   created_at?: string;
@@ -15,6 +16,7 @@ export default function WarehouseList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Create modal
   const [createOpen, setCreateOpen] = useState(false);
@@ -118,11 +120,10 @@ export default function WarehouseList() {
           dataSource={data}
           loading={loading}
           size="small"
-          pagination={{
-            current: page, total, pageSize: 20,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (p) => setPage(p),
-          }}
+          pagination={erpPagination({
+            current: page, total, pageSize,
+            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+          })}
         />
       </Card>
 

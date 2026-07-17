@@ -25,6 +25,7 @@ import {
   message,
 } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -1269,16 +1270,12 @@ export default function ProductList() {
               pagination={
                 aiSearchMode
                   ? false
-                  : {
+                  : erpPagination({
                       current: page,
                       pageSize,
                       total: currentListTotal,
-                      showTotal: (count, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${count} 条`,
-                      showSizeChanger: true,
-                      pageSizeOptions: ["20", "50", "100"],
                       showQuickJumper: total > pageSize,
-                      locale: { items_per_page: "条/页", jump_to: "跳至", page: "页" },
-                    }
+                    })
               }
             />
           </div>

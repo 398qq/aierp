@@ -5,6 +5,7 @@ import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
 import { getApiErrorMessage } from "../../api";
+import { erpPagination } from "../../ui/pagination";
 
 interface ApprovalReq {
   id: number; doc_type: string; doc_id: number;
@@ -90,7 +91,7 @@ export default function ApprovalList() {
         { key: "approved", label: "已通过" },
         { key: "rejected", label: "已驳回" },
       ]} />
-      <Table rowKey="id" columns={columns} dataSource={data} loading={loading} pagination={{ pageSize: 20 }} />
+      <Table rowKey="id" columns={columns} dataSource={data} loading={loading} pagination={erpPagination()} />
 
       <Modal title="审批详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null} width={600}>
         {detail && (

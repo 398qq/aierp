@@ -155,7 +155,14 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <ConfigProvider locale={zhCN} theme={antdTheme}>
+      <ConfigProvider
+        locale={zhCN}
+        theme={antdTheme}
+        pagination={{
+          showSizeChanger: true,
+          totalBoundaryShowSizeChanger: 0,
+        }}
+      >
         <style>{`
         :root {
           --color-primary: ${antdTheme.token.colorPrimary};

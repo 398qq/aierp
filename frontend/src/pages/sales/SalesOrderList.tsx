@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, Upload, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
@@ -16,6 +17,7 @@ export default function SalesOrderList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
@@ -33,7 +35,7 @@ export default function SalesOrderList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (status) params.status = status;
       if (customerId) params.customer_id = customerId;
       if (q.trim()) params.q = q.trim();
@@ -49,7 +51,7 @@ export default function SalesOrderList() {
 
   useEffect(() => {
     load();
-  }, [page, status, customerId, q, includeAi]);
+  }, [page, pageSize, status, customerId, q, includeAi]);
 
   const stats = useMemo(() => {
     const amount = data.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
@@ -270,7 +272,7 @@ export default function SalesOrderList() {
               },
             },
           ]}
-          pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (count) => `共 ${count} 条` }}
+          pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
         />
       </Card>
 

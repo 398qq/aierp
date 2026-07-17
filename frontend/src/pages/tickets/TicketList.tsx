@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, Select, message, Popconfirm } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getTickets, deleteTicket, getApiErrorMessage } from "../../api";
 import type { Ticket } from "../../types";
@@ -24,6 +25,7 @@ export default function TicketList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [priority, setPriority] = useState<string | undefined>();
   const [selected, setSelected] = useState<number[]>([]);
@@ -32,7 +34,7 @@ export default function TicketList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (status) params.status = status;
       if (priority) params.priority = priority;
       const resp = await getTickets(params);
@@ -42,7 +44,7 @@ export default function TicketList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, status, priority]);
+  useEffect(() => { load(); }, [page, pageSize, status, priority]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -93,7 +95,7 @@ export default function TicketList() {
             ),
           },
         ]}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
       />
     </div>
   );

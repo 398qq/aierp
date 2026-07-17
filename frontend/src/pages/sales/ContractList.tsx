@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Upload, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
@@ -20,6 +21,7 @@ export default function ContractList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [importOpen, setImportOpen] = useState(false);
@@ -35,7 +37,7 @@ export default function ContractList() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: 20 };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (status) params.status = status;
       if (customerId) params.customer_id = customerId;
       const resp = await getContracts(params);
@@ -45,7 +47,7 @@ export default function ContractList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [page, status, customerId]);
+  useEffect(() => { load(); }, [page, pageSize, status, customerId]);
 
   const exportData = useMemo(() =>
     data.map((r) => ({
@@ -151,7 +153,7 @@ export default function ContractList() {
             </Table.Summary.Row>
           );
         }}
-        pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }}
+        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
       />
 
       <Modal

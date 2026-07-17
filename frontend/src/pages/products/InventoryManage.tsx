@@ -9,6 +9,7 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { getProductInventories, createProductInventory, updateProductInventory, deleteProductInventory, getProducts, getWarehouses, getApiErrorMessage } from "../../api";
 import type { InventoryItem, Product, Warehouse } from "../../types";
+import { erpPagination } from "../../ui/pagination";
 
 const { Title, Text } = Typography;
 
@@ -256,18 +257,15 @@ export default function InventoryManage() {
           loading={loading}
           rowKey="id"
           scroll={{ x: 1000 }}
-          pagination={{
+          pagination={erpPagination({
             current: page,
             pageSize,
             total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (t) => `共 ${t} 条`,
             onChange: (p, ps) => {
-              setPage(p);
+              setPage(ps !== pageSize ? 1 : p);
               setPageSize(ps);
             },
-          }}
+          })}
         />
       </Card>
 

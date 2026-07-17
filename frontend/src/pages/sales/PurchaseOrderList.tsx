@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
@@ -22,6 +23,7 @@ export default function PurchaseOrderList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [receivePO, setReceivePO] = useState<PurchaseOrder | null>(null);
   const [receiveWarehouseId, setReceiveWarehouseId] = useState(1);
@@ -40,7 +42,7 @@ export default function PurchaseOrderList() {
   const fetch = async (p = page) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: p, page_size: 20 };
+      const params: Record<string, unknown> = { page: p, page_size: pageSize };
       if (filterSupplierId) params.supplier_id = filterSupplierId;
       if (filterStatus) params.status = filterStatus;
       if (filterDateFrom) params.date_from = filterDateFrom;
@@ -53,7 +55,7 @@ export default function PurchaseOrderList() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [page, filterSupplierId, filterStatus, filterDateFrom, filterDateTo, q]);
+  useEffect(() => { fetch(); }, [page, pageSize, filterSupplierId, filterStatus, filterDateFrom, filterDateTo, q]);
 
   useEffect(() => {
     getSuppliers({ page: 1, page_size: 200 }).then((r) =>
@@ -289,11 +291,10 @@ export default function PurchaseOrderList() {
           bordered
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           scroll={{ x: 900 }}
-          pagination={{
-            current: page, total, pageSize: 20,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (p) => setPage(p),
-          }}
+          pagination={erpPagination({
+            current: page, total, pageSize,
+            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+          })}
         />
       </Card>
 

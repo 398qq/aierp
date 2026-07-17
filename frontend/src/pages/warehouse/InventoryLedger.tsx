@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, Card, Select, Input, message } from "antd";
 import { StatusTag } from "../../ui";
+import { erpPagination } from "../../ui/pagination";
 import { ReloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getInventoryTransactions, getWarehouses, getApiErrorMessage } from "../../api";
@@ -48,7 +49,7 @@ export default function InventoryLedger() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(20);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState<number | undefined>();
@@ -81,7 +82,7 @@ export default function InventoryLedger() {
 
   useEffect(() => {
     fetch();
-  }, [page, warehouseId, typeFilter]);
+  }, [page, pageSize, warehouseId, typeFilter]);
 
   const handleSearch = () => {
     setPage(1);
@@ -169,13 +170,12 @@ export default function InventoryLedger() {
           loading={loading}
           size="small"
           scroll={{ x: 1000 }}
-          pagination={{
+          pagination={erpPagination({
             current: page,
             total,
             pageSize,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (p) => setPage(p),
-          }}
+            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+          })}
         />
       </Card>
     </div>
