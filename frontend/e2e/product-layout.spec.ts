@@ -11,6 +11,7 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
   await expect(page.getByText("产品台账", { exact: false }).first()).toBeVisible();
   await expect(page.locator(".product-health-toolbar")).toBeVisible();
   await expect(page.locator(".product-health-metric")).toHaveCount(5);
+  await expect(page.locator(".product-task-button")).toHaveCount(7);
   await expect(page.locator(".product-table-panel .ant-table-tbody tr").first()).toBeVisible();
   await page.locator(".product-table-panel").evaluate((panel) => {
     window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY, behavior: "instant" });
@@ -33,6 +34,7 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
     const scrollBody = document.querySelector<HTMLElement>(
       ".product-table-panel .ant-table-content",
     );
+    const taskButtons = Array.from(document.querySelectorAll<HTMLElement>(".product-task-button"));
 
     return {
       headerGap: headerRow && panelHeader
@@ -46,6 +48,7 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
       viewportOverflow:
         Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth,
       stickyTop: headerRow ? getComputedStyle(headerRow.firstElementChild as Element).top : null,
+      taskTops: taskButtons.map((button) => Math.round(button.getBoundingClientRect().top)),
     };
   });
 
@@ -58,6 +61,7 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
   expect(layout.stickyTop).toBe("auto");
   expect(layout.tableOverflow).toBeGreaterThan(0);
   expect(layout.viewportOverflow).toBeLessThanOrEqual(2);
+  expect(new Set(layout.taskTops).size).toBe(1);
 });
 
 test("product name opens the standalone product detail page", async ({ page }) => {
@@ -124,4 +128,22 @@ test("product editor loads brands beyond the default first page", async ({ page 
   await brandSelect.click();
   await brandSelect.fill(laterBrand.name);
   await expect(page.getByRole("option", { name: new RegExp(laterBrand.name) })).toHaveCount(1);
+});
+
+test("product ledger supports changing rows per page", async ({ page }) => {
+  const login = await page.request.post("/api/v1/auth/login", {
+    data: { username: "admin", password: "admin123" },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  await page.goto("/products", { waitUntil: "domcontentloaded" });
+
+  const pageSizeSelect = page.locator(".ant-pagination-options-size-changer");
+  await expect(pageSizeSelect).toContainText("20 条/页");
+  await pageSizeSelect.click();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes("/api/v1/products") && response.url().includes("page_size=50") && response.ok()),
+    page.getByRole("option", { name: "50 条/页" }).click(),
+  ]);
+  await expect(pageSizeSelect).toContainText("50 条/页");
+  await expect(page.getByText(/第 1-50 条 \/ 共 \d+ 条/)).toBeVisible();
 });

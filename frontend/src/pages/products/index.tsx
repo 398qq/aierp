@@ -81,6 +81,7 @@ export default function ProductList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState("");
   const [scene, setScene] = useState<SceneValue>("all");
   const [aiSearchMode, setAiSearchMode] = useState(false);
@@ -344,7 +345,7 @@ export default function ProductList() {
     if (aiSearchMode) return;
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: nextPage, page_size: PAGE_SIZE, sort };
+      const params: Record<string, unknown> = { page: nextPage, page_size: pageSize, sort };
       if (search) params.q = search;
       if (scene && scene !== "all") params.scene = scene;
       if (category) params.category = category;
@@ -767,6 +768,10 @@ export default function ProductList() {
     _filters: unknown,
     sorter: SorterResult<Product> | SorterResult<Product>[],
   ) => {
+    if (!aiSearchMode && pagination.pageSize && pagination.pageSize !== pageSize) {
+      setPageSize(pagination.pageSize);
+      setPage(1);
+    }
     if (!aiSearchMode && pagination.current && pagination.current !== page) {
       setPage(pagination.current);
     }
@@ -787,7 +792,7 @@ export default function ProductList() {
 
   useEffect(() => {
     fetch();
-  }, [page, sort, scene]);
+  }, [page, pageSize, sort, scene]);
 
   useEffect(() => {
     if (aiSearchMode) return;
@@ -1266,10 +1271,13 @@ export default function ProductList() {
                   ? false
                   : {
                       current: page,
-                      pageSize: PAGE_SIZE,
+                      pageSize,
                       total: currentListTotal,
-                      showTotal: (count) => `共 ${count} 条`,
-                      showSizeChanger: false,
+                      showTotal: (count, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${count} 条`,
+                      showSizeChanger: true,
+                      pageSizeOptions: ["20", "50", "100"],
+                      showQuickJumper: total > pageSize,
+                      locale: { items_per_page: "条/页", jump_to: "跳至", page: "页" },
                     }
               }
             />
