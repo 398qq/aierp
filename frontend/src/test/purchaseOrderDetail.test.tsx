@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import PurchaseOrderDetail from "../pages/sales/PurchaseOrderDetail";
@@ -79,17 +79,39 @@ describe("PurchaseOrderDetail printing", () => {
 
   afterEach(cleanup);
 
-  it("renders a dedicated v3.4 purchase-order print document", async () => {
+  it("prints contract terms and protects customer references by default", async () => {
     renderDetail();
 
     const document = await screen.findByTestId("purchase-order-print");
-    expect(within(document).getByText("采购订单")).toBeInTheDocument();
-    expect(within(document).getByText("PO202607170002")).toBeInTheDocument();
+    expect(within(document).getByText("采购合同")).toBeInTheDocument();
+    expect(within(document).getAllByText("PO202607170002").length).toBeGreaterThan(0);
+    expect(within(document).getAllByText("深圳天允电子有限公司").length).toBeGreaterThan(0);
+    expect(within(document).getByText(/商务与交付条件/)).toBeInTheDocument();
+    expect(within(document).getByText("价税合计（大写）")).toBeInTheDocument();
+    expect(within(document).getByText(/履约与验收要求/)).toBeInTheDocument();
     expect(within(document).getByText("QMA6101T")).toBeInTheDocument();
     expect(within(document).getByText("≥24+")).toBeInTheDocument();
     expect(within(document).queryByText("审批通过")).not.toBeInTheDocument();
+    expect(within(document).getAllByText("采购合同条款 v3.4").length).toBeGreaterThan(0);
+    expect(within(document).getByText("7.14 保密条款")).toBeInTheDocument();
+    expect(within(document).queryByText("SO202607150003")).not.toBeInTheDocument();
+    expect(within(document).queryByText("测试客户")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /打印采购订单/ }));
-    expect(window.print).toHaveBeenCalledOnce();
+    expect(await screen.findByText("对外打印确认")).toBeInTheDocument();
+    expect(window.print).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认打印" }));
+    await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
+  });
+
+  it("only includes related SO and customer after explicit opt-in", async () => {
+    renderDetail();
+
+    const document = await screen.findByTestId("purchase-order-print");
+    fireEvent.click(screen.getByRole("button", { name: /打印采购订单/ }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /显示关联 SO、关联客户及内部备注/ }));
+
+    expect(within(document).getByText("SO202607150003")).toBeInTheDocument();
+    expect(within(document).getAllByText("测试客户").length).toBeGreaterThan(0);
   });
 });

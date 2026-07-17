@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, InputNumber, Modal, Select, Space, Spin, Table, Typography, message } from "antd";
+import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, InputNumber, Modal, Select, Space, Spin, Table, Typography, message } from "antd";
 import { ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, PrinterOutlined, SendOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { confirmLargePurchaseOrder, confirmPurchaseOrderSupplier, getApiErrorMessage, getPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder } from "../../api";
@@ -25,6 +25,8 @@ export default function PurchaseOrderDetail() {
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [warehouseId, setWarehouseId] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [includeCustomerReferences, setIncludeCustomerReferences] = useState(false);
   const [confirmationForm] = Form.useForm();
 
   const load = async () => {
@@ -71,13 +73,21 @@ export default function PurchaseOrderDetail() {
     catch (error: unknown) { message.error(getApiErrorMessage(error, "收货失败")); }
     finally { setActing(false); }
   };
+  const openPrintDialog = () => {
+    setIncludeCustomerReferences(false);
+    setPrintOpen(true);
+  };
+  const confirmPrint = () => {
+    setPrintOpen(false);
+    window.setTimeout(() => window.print(), 0);
+  };
 
   if (loading) return <SalesModuleShell title="采购订单详情" activeKey="procurement"><Spin style={{ display: "block", margin: 80 }} /></SalesModuleShell>;
   if (!po) return <SalesModuleShell title="采购订单详情" activeKey="procurement"><Empty description="采购订单不存在" /></SalesModuleShell>;
   const needsLargeConfirm = po.total_amount > 10000 && !po.large_order_confirmed;
 
   return <SalesModuleShell title={po.order_no || `PO #${po.id}`} subtitle={`采购订单模板 ${po.contract_terms_version || "v3.4"}`} activeKey="procurement" extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/purchase-orders")}>返回列表</Button>}>
-    <PurchaseOrderPrint po={po} />
+    <PurchaseOrderPrint po={po} includeCustomerReferences={includeCustomerReferences} />
     <MetricBand items={[
       { title: "价税合计", value: po.total_amount, prefix: "¥", precision: 2 }, { title: "总数量", value: summary.quantity, suffix: "pcs" },
       { title: "明细行", value: po.items.length, suffix: "项" }, { title: "状态", value: STATUS[po.status]?.label || po.status },
@@ -91,7 +101,7 @@ export default function PurchaseOrderDetail() {
       {po.status === "ordered" && <Button icon={<CheckCircleOutlined />} onClick={() => setConfirmOpen(true)}>记录供应商确认</Button>}
       {["ordered", "partially_received"].includes(po.status) && <Button type="primary" onClick={() => setReceiveOpen(true)}>采购收货</Button>}
       {["draft", "approved", "ordered", "partially_received"].includes(po.status) && <Button danger onClick={() => Modal.confirm({ title: "取消采购订单", content: "取消后不可恢复，确认继续？", okText: "确认取消", okButtonProps: { danger: true }, onOk: () => transition("cancelled") })}>取消订单</Button>}
-      <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印采购订单</Button>
+      <Button icon={<PrinterOutlined />} onClick={openPrintDialog}>打印采购订单</Button>
     </Space></Card>
     {needsLargeConfirm && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message="金额超过 ¥10,000，审批前必须完成二次确认" />}
     {po.status === "ordered" && po.supplier_confirmation_status !== "confirmed" && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message="供应商须在 PO 发出后 24 小时内书面确认单价、数量、交期、批次和分批交货安排" />}
@@ -127,6 +137,15 @@ export default function PurchaseOrderDetail() {
     </div>
 
     <Modal title="采购收货" open={receiveOpen} onCancel={() => setReceiveOpen(false)} onOk={receive} confirmLoading={acting}><Typography.Text>入库仓库 ID：</Typography.Text><InputNumber min={1} value={warehouseId} onChange={(value) => setWarehouseId(value || 1)} /></Modal>
+    <Modal title="对外打印确认" open={printOpen} onCancel={() => setPrintOpen(false)} onOk={confirmPrint} okText="确认打印" cancelText="取消">
+      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Alert type="warning" showIcon message="客户信息保护" description="关联销售订单、关联客户和内部备注默认不打印，避免向供应商泄露客户及内部业务信息。" />
+        <Checkbox checked={includeCustomerReferences} onChange={(event) => setIncludeCustomerReferences(event.target.checked)}>
+          显示关联 SO、关联客户及内部备注
+        </Checkbox>
+        <Typography.Text type="secondary">采购合同条款 v3.4 将固定附在采购订单后打印。</Typography.Text>
+      </Space>
+    </Modal>
     <Modal title="记录供应商书面确认" open={confirmOpen} onCancel={() => setConfirmOpen(false)} onOk={confirmSupplier} confirmLoading={acting}><Form form={confirmationForm} layout="vertical" initialValues={{ method: "wechat", allow_partial_delivery: false }}><Form.Item name="method" label="确认方式" rules={[{ required: true }]}><Select options={[{ value: "wechat", label: "微信文字" }, { value: "email", label: "电子邮件" }, { value: "erp", label: "ERP确认" }, { value: "sealed_letter", label: "盖章确认函" }, { value: "implied_24h", label: "超过24小时默示接受" }]} /></Form.Item><Form.Item name="confirmed_delivery_date" label="供应商确认交期" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item><Form.Item name="allow_partial_delivery" label="是否允许分批交货"><Select options={[{ value: false, label: "不允许" }, { value: true, label: "允许" }]} /></Form.Item></Form></Modal>
   </SalesModuleShell>;
 }
