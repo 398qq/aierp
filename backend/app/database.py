@@ -120,9 +120,37 @@ async def init_db():
     await _ensure_critical_indexes(engine)
     await _ensure_pgvector(engine)
     await _ensure_customer_status_machine(engine)
+    await _ensure_purchase_order_v34_schema(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
     await _seed_commission_scheme_rbac(engine)
+
+
+async def _ensure_purchase_order_v34_schema(eng) -> None:
+    """Apply the idempotent purchase order v3.4 schema on existing databases."""
+    import pathlib
+
+    if eng.dialect.name != "postgresql":
+        return
+    sql_path = (
+        pathlib.Path(__file__).resolve().parent
+        / "migrations"
+        / "023-purchase-order-v3-4.sql"
+    )
+    if not sql_path.exists():
+        return
+    sql = sql_path.read_text()
+    async with eng.begin() as conn:
+        for statement in sql.split(";"):
+            statement = statement.strip()
+            if not statement or statement.upper() in {"BEGIN", "COMMIT"}:
+                continue
+            if statement.startswith("--"):
+                statement = "\n".join(statement.splitlines()[1:]).strip()
+            if statement.upper() in {"BEGIN", "COMMIT"}:
+                continue
+            if statement:
+                await conn.exec_driver_sql(statement + ";")
 
 
 async def _ensure_customer_status_machine(eng) -> None:

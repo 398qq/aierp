@@ -1,268 +1,130 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Empty, Modal, Space, Spin, Table, Tag, Tooltip, Typography, InputNumber, message } from "antd";
+import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, InputNumber, Modal, Select, Space, Spin, Table, Typography, message } from "antd";
+import { ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, PrinterOutlined, SendOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+import { confirmLargePurchaseOrder, confirmPurchaseOrderSupplier, getApiErrorMessage, getPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder } from "../../api";
+import type { PurchaseOrder, PurchaseOrderItem } from "../../types";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, DollarOutlined, EditOutlined, CheckCircleOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
-import { getPurchaseOrder, receivePurchaseOrder, getApiErrorMessage } from "../../api";
-import client from "../../api/client";
-import type { PurchaseOrder } from "../../types";
-import { ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, shortDate, money } from "./salesUi";
+import { ErpStatusTimeline, MetricBand, SalesModuleShell, money, shortDate } from "./salesUi";
 
-const STATUS: Record<string, { color: string; label: string }> = {
-  draft: { color: "default", label: "草稿" },
-  received: { color: "green", label: "已收货" },
-  cancelled: { color: "red", label: "已取消" },
+const STATUS: Record<string, { label: string; tone: "neutral" | "info" | "processing" | "success" | "danger" }> = {
+  draft: { label: "草稿", tone: "neutral" }, approved: { label: "已审批", tone: "info" },
+  ordered: { label: "已下单", tone: "processing" }, partially_received: { label: "部分收货", tone: "processing" },
+  received: { label: "已收货", tone: "success" }, cancelled: { label: "已取消", tone: "danger" },
 };
-
-const STATUS_STEPS = [
-  { key: "draft", label: "草稿" },
-  { key: "received", label: "已收货" },
-];
-
-type POItem = { id: number; product_id: number; product_name?: string; product_sku?: string; quantity: number; unit_price: number; amount: number; notes?: string };
+const STEPS = ["draft", "approved", "ordered", "partially_received", "received"].map((key) => ({ key, label: STATUS[key].label }));
 
 export default function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [po, setPo] = useState<(PurchaseOrder & { items: POItem[] }) | null>(null);
+  const [po, setPo] = useState<(PurchaseOrder & { items: PurchaseOrderItem[] }) | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [receiveWarehouseId, setReceiveWarehouseId] = useState(1);
-  const [receiving, setReceiving] = useState(false);
-  const [showExtraColumns, setShowExtraColumns] = useState(false);
+  const [acting, setActing] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [warehouseId, setWarehouseId] = useState(1);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmationForm] = Form.useForm();
 
-  const fetch = async () => {
+  const load = async () => {
     setLoading(true);
-    setError(null);
-    try {
-      const r = await getPurchaseOrder(Number(id));
-      setPo(r.data.data as PurchaseOrder & { items: POItem[] });
-    } catch (e) {
-      const errMsg = (e as { message?: string }).message || "加载采购订单详情失败";
-      setError(errMsg);
-    }
+    try { const response = await getPurchaseOrder(Number(id)); setPo(response.data.data); }
+    catch (error: unknown) { message.error(getApiErrorMessage(error, "加载采购订单失败")); }
     finally { setLoading(false); }
   };
+  useEffect(() => { load(); }, [id]);
 
-  useEffect(() => { fetch(); }, [id]);
+  const summary = useMemo(() => ({
+    quantity: (po?.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    amount: (po?.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0),
+  }), [po]);
 
-  const itemSummary = useMemo(() => {
-    const items = po?.items || [];
-    const quantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    const amount = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    return { count: items.length, quantity, amount };
-  }, [po]);
-
-  const handleReceive = async () => {
+  const transition = async (target: string) => {
     if (!po) return;
-    setReceiving(true);
+    setActing(true);
+    try { await transitionPurchaseOrder(po.id, target); message.success("采购订单状态已更新"); await load(); }
+    catch (error: unknown) { message.error(getApiErrorMessage(error, "状态更新失败")); }
+    finally { setActing(false); }
+  };
+  const confirmLarge = async () => {
+    if (!po) return;
+    setActing(true);
+    try { await confirmLargePurchaseOrder(po.id); message.success("大额采购已完成二次确认"); await load(); }
+    catch (error: unknown) { message.error(getApiErrorMessage(error, "二次确认失败")); }
+    finally { setActing(false); }
+  };
+  const confirmSupplier = async () => {
+    if (!po) return;
+    const values = await confirmationForm.validateFields();
+    setActing(true);
     try {
-      await receivePurchaseOrder(po.id, receiveWarehouseId);
-      message.success(`PO ${po.order_no || `#${po.id}`} 已收货，库存已入库`);
-      fetch();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "收货失败")); }
-    finally { setReceiving(false); }
+      await confirmPurchaseOrderSupplier(po.id, { ...values, confirmed_delivery_date: dayjs(values.confirmed_delivery_date).format("YYYY-MM-DD") });
+      message.success("供应商书面确认已记录"); setConfirmOpen(false); await load();
+    } catch (error: unknown) { message.error(getApiErrorMessage(error, "记录供应商确认失败")); }
+    finally { setActing(false); }
+  };
+  const receive = async () => {
+    if (!po) return;
+    setActing(true);
+    try { await receivePurchaseOrder(po.id, warehouseId); message.success("收货入库完成"); setReceiveOpen(false); await load(); }
+    catch (error: unknown) { message.error(getApiErrorMessage(error, "收货失败")); }
+    finally { setActing(false); }
   };
 
-  if (loading) {
-    return (
-      <SalesModuleShell title="采购订单详情" activeKey="procurement">
-        <Spin style={{ display: "block", margin: "80px auto" }} />
-      </SalesModuleShell>
-    );
-  }
+  if (loading) return <SalesModuleShell title="采购订单详情" activeKey="procurement"><Spin style={{ display: "block", margin: 80 }} /></SalesModuleShell>;
+  if (!po) return <SalesModuleShell title="采购订单详情" activeKey="procurement"><Empty description="采购订单不存在" /></SalesModuleShell>;
+  const needsLargeConfirm = po.total_amount > 10000 && !po.large_order_confirmed;
 
-  if (error) {
-    return (
-      <SalesModuleShell title="采购订单详情" activeKey="procurement">
-        <Alert type="error" message={error} />
-      </SalesModuleShell>
-    );
-  }
+  return <SalesModuleShell title={po.order_no || `PO #${po.id}`} subtitle={`采购订单模板 ${po.contract_terms_version || "v3.4"}`} activeKey="procurement" extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/purchase-orders")}>返回列表</Button>}>
+    <MetricBand items={[
+      { title: "价税合计", value: po.total_amount, prefix: "¥", precision: 2 }, { title: "总数量", value: summary.quantity, suffix: "pcs" },
+      { title: "明细行", value: po.items.length, suffix: "项" }, { title: "状态", value: STATUS[po.status]?.label || po.status },
+      { title: "供应商确认", value: po.supplier_confirmation_status === "confirmed" ? "已确认" : "待确认" },
+    ]} />
+    <Card size="small" style={{ marginBottom: 12 }}><Space wrap>
+      {po.status === "draft" && <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/purchase-orders/${po.id}/edit`)}>编辑</Button>}
+      {po.status === "draft" && needsLargeConfirm && <Button danger icon={<SafetyCertificateOutlined />} loading={acting} onClick={() => Modal.confirm({ title: "大额采购二次确认", content: `确认采购金额 ${money(po.total_amount)} 及全部批次、交期要求？`, onOk: confirmLarge })}>二次确认</Button>}
+      {po.status === "draft" && !needsLargeConfirm && <Button type="primary" loading={acting} onClick={() => transition("approved")}>审批通过</Button>}
+      {po.status === "approved" && <Button type="primary" icon={<SendOutlined />} loading={acting} onClick={() => transition("ordered")}>发送给供应商</Button>}
+      {po.status === "ordered" && <Button icon={<CheckCircleOutlined />} onClick={() => setConfirmOpen(true)}>记录供应商确认</Button>}
+      {["ordered", "partially_received"].includes(po.status) && <Button type="primary" onClick={() => setReceiveOpen(true)}>采购收货</Button>}
+      {["draft", "approved", "ordered", "partially_received"].includes(po.status) && <Button danger onClick={() => Modal.confirm({ title: "取消采购订单", content: "取消后不可恢复，确认继续？", okText: "确认取消", okButtonProps: { danger: true }, onOk: () => transition("cancelled") })}>取消订单</Button>}
+      <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印采购订单</Button>
+    </Space></Card>
+    {needsLargeConfirm && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message="金额超过 ¥10,000，审批前必须完成二次确认" />}
+    {po.status === "ordered" && po.supplier_confirmation_status !== "confirmed" && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message="供应商须在 PO 发出后 24 小时内书面确认单价、数量、交期、批次和分批交货安排" />}
 
-  if (!po) {
-    return (
-      <SalesModuleShell title="采购订单详情" activeKey="procurement">
-        <Empty description="采购订单不存在" />
-      </SalesModuleShell>
-    );
-  }
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 12, alignItems: "start" }}>
+      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Card size="small" title="采购订单头信息" extra={<StatusTag tone={STATUS[po.status]?.tone}>{STATUS[po.status]?.label}</StatusTag>}>
+          <Descriptions bordered size="small" column={3}>
+            <Descriptions.Item label="订单号">{po.order_no}</Descriptions.Item><Descriptions.Item label="创建日期">{shortDate(po.created_at)}</Descriptions.Item><Descriptions.Item label="合同条款">{po.contract_terms_version}</Descriptions.Item>
+            <Descriptions.Item label="供应商">{po.supplier_name}</Descriptions.Item><Descriptions.Item label="联系人">{po.supplier_contact || "-"}</Descriptions.Item><Descriptions.Item label="付款方式">{po.payment_terms || "-"}</Descriptions.Item>
+            <Descriptions.Item label="预计交期">{shortDate(po.expected_date)}</Descriptions.Item><Descriptions.Item label="关联SO">{po.sales_order_no || "-"}</Descriptions.Item><Descriptions.Item label="客户">{po.customer_name || "-"}</Descriptions.Item>
+            <Descriptions.Item label="交货地址" span={3}>{po.delivery_address || "-"}</Descriptions.Item>
+            <Descriptions.Item label="备注" span={3}>{po.notes || "-"}</Descriptions.Item>
+          </Descriptions>
+        </Card>
+        <Card size="small" title="采购明细（含税）">
+          <Table rowKey="id" size="small" bordered pagination={false} scroll={{ x: 1650 }} dataSource={po.items} columns={[
+            { title: "#", width: 45, fixed: "left", render: (_v, _r, index) => index + 1 },
+            { title: "供应商型号(MPN)", dataIndex: "supplier_mpn", width: 170, fixed: "left" }, { title: "自有SKU", dataIndex: "product_sku", width: 140 },
+            { title: "品名", dataIndex: "product_name", width: 180 }, { title: "品牌", dataIndex: "brand_name", width: 100 }, { title: "封装", dataIndex: "package_type", width: 100 },
+            { title: "数量(pcs)", dataIndex: "quantity", width: 100, align: "right" }, { title: "最小包装", width: 110, render: (_v, r) => r.min_pack_qty ? `${r.min_pack_qty}/${r.min_pack_unit || "包"}` : "-" },
+            { title: "生产批次", dataIndex: "date_code_requirement", width: 120 }, { title: "含税单价", dataIndex: "unit_price", width: 110, align: "right", render: (value) => money(value) },
+            { title: "金额", dataIndex: "amount", width: 120, align: "right", render: (value) => <Typography.Text strong>{money(value)}</Typography.Text> },
+            { title: "备注", dataIndex: "notes", width: 150 },
+          ]} summary={() => <Table.Summary.Row><Table.Summary.Cell index={0} colSpan={6}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={6}><Typography.Text strong>{summary.quantity.toLocaleString()}</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={7} colSpan={3} /><Table.Summary.Cell index={10}><Typography.Text strong>{money(summary.amount)}</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={11} /></Table.Summary.Row>} />
+        </Card>
+      </Space>
+      <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
+        <Card size="small" title="金额与控制"><div>未税金额：{money(po.subtotal)}</div><div>税率：{po.tax_rate}%</div><div>税额：{money(po.tax_amount)}</div><div><strong>价税合计：{money(po.total_amount)}</strong></div><div style={{ marginTop: 8 }}>大额确认：{po.large_order_confirmed ? "已确认" : po.total_amount > 10000 ? "待确认" : "无需"}</div></Card>
+        <Card size="small" title="状态流转"><ErpStatusTimeline currentStatus={po.status} steps={STEPS} createdAt={po.created_at} lostStatus="cancelled" /></Card>
+        <Card size="small" title="供应商确认"><div>状态：{po.supplier_confirmation_status === "confirmed" ? "已书面确认" : "待确认"}</div><div>方式：{po.supplier_confirmation_method || "-"}</div><div>确认交期：{shortDate(po.supplier_confirmed_delivery_date || null)}</div><div>分批交货：{po.allow_partial_delivery ? "允许" : "不允许"}</div></Card>
+      </Space>
+    </div>
 
-  return (
-    <SalesModuleShell
-      title={po.order_no || `采购订单 #${po.id}`}
-      subtitle={po.notes ? `备注: ${po.notes}` : "采购订单详情，含采购明细和供应商信息"}
-      activeKey="procurement"
-      extra={(
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/purchase-orders")}>返回列表</Button>
-      )}
-    >
-      <MetricBand
-        items={[
-          { title: "采购金额", value: po.total_amount || 0, prefix: "¥", precision: 0 },
-          { title: "产品行数", value: itemSummary.count, suffix: "项" },
-          { title: "总数量", value: itemSummary.quantity, suffix: "件" },
-          { title: "状态", value: STATUS[po.status]?.label || po.status },
-          { title: "预计到货", value: po.expected_date ? shortDate(po.expected_date) : "-" },
-        ]}
-      />
-
-      <Card size="small" style={{ marginBottom: 12 }}>
-        <Space wrap>
-          {po.status === "draft" && (
-            <>
-              <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/purchase-orders/${po.id}/edit`)}>编辑</Button>
-              <Button type="primary" icon={<CheckCircleOutlined />}
-                onClick={() => Modal.confirm({
-                  title: "采购收货",
-                  content: (
-                    <div>
-                      <p>确认收货 <strong>{po.order_no || `#${po.id}`}</strong> ?</p>
-                      <p>入库仓库: <InputNumber min={1} value={receiveWarehouseId} onChange={(v) => setReceiveWarehouseId(v || 1)} style={{ width: 80 }} /></p>
-                    </div>
-                  ),
-                  onOk: handleReceive,
-                  okButtonProps: { loading: receiving },
-                  okText: "确认收货",
-                })}>收货</Button>
-            </>
-          )}
-          <Button onClick={async () => {
-            try { await client.post("/approvals/submit", { doc_type: "purchase_order", doc_id: po.id }); message.success("已提交审批"); } catch (e: unknown) { message.error(getApiErrorMessage(e, "提交审批失败")); }
-          }}>提交审批</Button>
-        </Space>
-      </Card>
-
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 12, alignItems: "start" }}>
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Card
-            size="small"
-            title="采购订单信息"
-            extra={<StatusTag tone={STATUS[po.status]?.color}>{STATUS[po.status]?.label || po.status}</StatusTag>}
-          >
-            <Descriptions column={2} size="small" bordered>
-              <Descriptions.Item label="订单号">{po.order_no || "-"}</Descriptions.Item>
-              <Descriptions.Item label="供应商">{po.supplier_name || `#${po.supplier_id}`}</Descriptions.Item>
-              <Descriptions.Item label="总金额">¥{po.total_amount?.toLocaleString() ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="预计到货">{shortDate(po.expected_date)}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{shortDate(po.created_at)}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={2}>{po.notes || "-"}</Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          <Card
-            size="small"
-            title="采购明细"
-            extra={(
-              <Space>
-                <Tooltip title={showExtraColumns ? "隐藏备注列" : "显示备注列"}>
-                  <Button
-                    size="small"
-                    type={showExtraColumns ? "primary" : "default"}
-                    icon={showExtraColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                    onClick={() => setShowExtraColumns((prev) => !prev)}
-                  >
-                    {showExtraColumns ? "隐藏备注" : "查看备注"}
-                  </Button>
-                </Tooltip>
-                <ErpExportButton
-                  data={(po.items || []) as unknown as Record<string, unknown>[]}
-                  columns={[
-                    { key: "product_name", title: "产品" },
-                    { key: "quantity", title: "数量" },
-                    { key: "unit_price", title: "单价" },
-                    { key: "amount", title: "小计" },
-                  ]}
-                  filename={`purchase_order_${po.order_no || po.id}_items.csv`}
-                />
-              </Space>
-            )}
-          >
-            <Table
-              rowKey="id"
-              dataSource={po.items || []}
-              size="small"
-              pagination={false}
-              bordered
-              columns={[
-                { title: "#", width: 50, render: (_: unknown, __: unknown, i: number) => i + 1 },
-                { title: "产品", dataIndex: "product_name", ellipsis: true,
-                  render: (v: string | undefined, r: POItem) => (
-                    <Typography.Link onClick={() => navigate(`/products/${r.product_id}`)}>
-                      {v || "未命名产品"}
-                    </Typography.Link>
-                  ) },
-                { title: "数量", dataIndex: "quantity", width: 80, align: "right" as const },
-                { title: "单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (v: number) => `¥${v?.toFixed(2) ?? "0.00"}` },
-                { title: "小计", dataIndex: "amount", width: 120, align: "right" as const, render: (v: number) => <Typography.Text strong>{`¥${v?.toFixed(2) ?? "0.00"}`}</Typography.Text> },
-                ...(showExtraColumns ? [{ title: "备注", dataIndex: "notes" as keyof POItem, width: 160, ellipsis: true, render: (v: string | undefined) => v || "-" }] : []),
-              ]}
-              summary={() => (
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} />
-                  <Table.Summary.Cell index={2}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={3}>-</Table.Summary.Cell>
-                  <Table.Summary.Cell index={4}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
-                </Table.Summary.Row>
-              )}
-              scroll={{ x: "max-content" }}
-            />
-          </Card>
-        </Space>
-
-        <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-          <Card size="small" title={<><DollarOutlined /> 采购摘要</>}>
-            <Space direction="vertical" size={4} style={{ width: "100%" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">采购金额</Typography.Text>
-                <Typography.Text strong>{money(po.total_amount)}</Typography.Text>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">产品行数</Typography.Text>
-                <Typography.Text>{itemSummary.count} 项</Typography.Text>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">总数量</Typography.Text>
-                <Typography.Text>{itemSummary.quantity} 件</Typography.Text>
-              </div>
-              <Divider style={{ margin: "6px 0" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">状态</Typography.Text>
-                <StatusTag tone={STATUS[po.status]?.color}>{STATUS[po.status]?.label || po.status}</StatusTag>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">供应商</Typography.Text>
-                <Typography.Text>{po.supplier_name || `#${po.supplier_id}`}</Typography.Text>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text type="secondary">预计到货</Typography.Text>
-                <Typography.Text>{shortDate(po.expected_date)}</Typography.Text>
-              </div>
-            </Space>
-          </Card>
-
-          <Card size="small" title="状态流转">
-            <ErpStatusTimeline
-              currentStatus={po.status}
-              steps={STATUS_STEPS}
-              createdAt={po.created_at}
-              lostStatus="cancelled"
-            />
-          </Card>
-
-          <Card size="small" title="下一步动作">
-            <Space direction="vertical" size={8} style={{ width: "100%" }}>
-              {po.status === "draft" ? (
-                <Alert showIcon type="info" message="采购单待处理，可编辑修改或执行收货。" />
-              ) : po.status === "received" ? (
-                <Alert showIcon type="success" message="采购单已收货，库存已自动更新。" />
-              ) : null}
-              <Button block icon={<EditOutlined />} onClick={() => navigate(`/sales/purchase-orders/${po.id}/edit`)}>编辑采购单</Button>
-            </Space>
-          </Card>
-        </Space>
-      </div>
-    </SalesModuleShell>
-  );
+    <Modal title="采购收货" open={receiveOpen} onCancel={() => setReceiveOpen(false)} onOk={receive} confirmLoading={acting}><Typography.Text>入库仓库 ID：</Typography.Text><InputNumber min={1} value={warehouseId} onChange={(value) => setWarehouseId(value || 1)} /></Modal>
+    <Modal title="记录供应商书面确认" open={confirmOpen} onCancel={() => setConfirmOpen(false)} onOk={confirmSupplier} confirmLoading={acting}><Form form={confirmationForm} layout="vertical" initialValues={{ method: "wechat", allow_partial_delivery: false }}><Form.Item name="method" label="确认方式" rules={[{ required: true }]}><Select options={[{ value: "wechat", label: "微信文字" }, { value: "email", label: "电子邮件" }, { value: "erp", label: "ERP确认" }, { value: "sealed_letter", label: "盖章确认函" }, { value: "implied_24h", label: "超过24小时默示接受" }]} /></Form.Item><Form.Item name="confirmed_delivery_date" label="供应商确认交期" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item><Form.Item name="allow_partial_delivery" label="是否允许分批交货"><Select options={[{ value: false, label: "不允许" }, { value: true, label: "允许" }]} /></Form.Item></Form></Modal>
+  </SalesModuleShell>;
 }

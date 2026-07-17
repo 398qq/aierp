@@ -4,8 +4,24 @@ export interface PurchaseOrder {
   supplier_name?: string;
   status: string; total_amount: number;
   currency: string; incoterms: string | null; payment_terms: string | null;
+  supplier_contact: string | null;
+  sales_order_id: number | null; sales_order_no?: string | null; customer_name?: string | null;
+  delivery_address: string | null; tax_rate: number; subtotal: number; tax_amount: number;
   expected_date: string | null;
+  large_order_confirmed: boolean; large_order_confirmed_at?: string | null;
+  supplier_confirmation_status: string; supplier_confirmed_at?: string | null;
+  supplier_confirmation_method?: string | null; supplier_confirmed_delivery_date?: string | null;
+  allow_partial_delivery: boolean; contract_terms_version: string; sent_at?: string | null;
   notes: string | null; created_at: string;
+}
+
+export interface PurchaseOrderItem {
+  id: number; product_id: number; sales_order_id: number | null;
+  supplier_mpn: string | null; product_sku: string | null; product_name: string | null;
+  brand_name: string | null; package_type: string | null;
+  quantity: number; unit: string; min_pack_qty: number | null; min_pack_unit: string | null;
+  date_code_requirement: string; tax_rate: number; unit_price: number; amount: number;
+  customer_name: string | null; notes: string | null;
 }
 
 export interface PaymentRecord {

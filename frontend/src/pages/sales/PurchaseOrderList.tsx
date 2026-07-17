@@ -13,6 +13,9 @@ import { ErpExportButton, MetricBand, SalesModuleShell, shortDate } from "./sale
 
 const STATUS: Record<string, { tone: StatusTone; label: string }> = {
   draft: { tone: "neutral", label: "草稿" },
+  approved: { tone: "info", label: "已审批" },
+  ordered: { tone: "processing", label: "已下单" },
+  partially_received: { tone: "processing", label: "部分收货" },
   received: { tone: "success", label: "已收货" },
   cancelled: { tone: "danger", label: "已取消" },
 };
@@ -120,7 +123,7 @@ export default function PurchaseOrderList() {
   })), [data]);
 
   const columns: ColumnsType<PurchaseOrder> = [
-    { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: PurchaseOrder, index: number) => (page - 1) * 20 + index + 1 },
+    { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: PurchaseOrder, index: number) => (page - 1) * pageSize + index + 1 },
     {
       title: "采购单", dataIndex: "order_no", minWidth: 200,
       render: (v: string | null, r: PurchaseOrder) => (
@@ -149,8 +152,6 @@ export default function PurchaseOrderList() {
         const items: MenuProps["items"] = [
           { key: "view", label: "查看详情", onClick: () => navigate(`/sales/purchase-orders/${r.id}`) },
           ...(r.status === "draft" ? [
-            { key: "receive", icon: <CheckCircleOutlined />, label: "收货",
-              onClick: () => { setReceivePO(r); setReceiveModalOpen(true); } },
             { key: "edit", icon: <EditOutlined />, label: "编辑",
               onClick: () => navigate(`/sales/purchase-orders/${r.id}/edit`) },
             { type: "divider" as const },
@@ -163,6 +164,10 @@ export default function PurchaseOrderList() {
                 cancelText: "取消",
                 okButtonProps: { danger: true },
               }) },
+          ] : []),
+          ...(["ordered", "partially_received"].includes(r.status) ? [
+            { key: "receive", icon: <CheckCircleOutlined />, label: "收货",
+              onClick: () => { setReceivePO(r); setReceiveModalOpen(true); } },
           ] : []),
         ];
         return (
@@ -246,6 +251,9 @@ export default function PurchaseOrderList() {
             onChange={(v) => { setFilterStatus(v); setPage(1); }}
             options={[
               { value: "draft", label: "草稿" },
+              { value: "approved", label: "已审批" },
+              { value: "ordered", label: "已下单" },
+              { value: "partially_received", label: "部分收货" },
               { value: "received", label: "已收货" },
               { value: "cancelled", label: "已取消" },
             ]}

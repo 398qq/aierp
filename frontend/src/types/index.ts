@@ -59,7 +59,7 @@ export type { InventoryItem } from "./catalog";
 export type { InventoryBatch, CogsReport } from "./catalog";
 
 // operations.ts
-export type { PurchaseOrder } from "./operations";
+export type { PurchaseOrder, PurchaseOrderItem } from "./operations";
 export type { PaymentRecord } from "./operations";
 export type { SalesTarget } from "./operations";
 export type { Ticket } from "./operations";

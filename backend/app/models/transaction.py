@@ -14,6 +14,14 @@ class PurchaseOrder(TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
     incoterms: Mapped[str | None] = mapped_column(String(20), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    supplier_contact: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sales_order_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sales_orders.id"), nullable=True
+    )
+    delivery_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tax_rate: Mapped[float] = mapped_column(DECIMAL(5, 2), default=13)
+    subtotal: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    tax_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     total_amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     expected_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -21,8 +29,30 @@ class PurchaseOrder(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     logistics_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     logistics_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    large_order_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    large_order_confirmed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    supplier_confirmation_status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )
+    supplier_confirmed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    supplier_confirmation_method: Mapped[str | None] = mapped_column(
+        String(30), nullable=True
+    )
+    supplier_confirmed_delivery_date: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    allow_partial_delivery: Mapped[bool] = mapped_column(Boolean, default=False)
+    contract_terms_version: Mapped[str] = mapped_column(String(20), default="v3.4")
+    sent_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     supplier = relationship("Supplier", foreign_keys=[supplier_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id])
     items = relationship("PurchaseOrderItem", back_populates="order", lazy="selectin")
 
 
@@ -31,11 +61,24 @@ class PurchaseOrderItem(TimestampMixin, Base):
 
     order_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.id"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    sales_order_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sales_orders.id"), nullable=True
+    )
+    supplier_mpn: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    product_sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    brand_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    package_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     quantity: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     tax_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
     unit_price: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
     amount: Mapped[float] = mapped_column(DECIMAL(20, 6), default=0)
+    min_pack_qty: Mapped[int | None] = mapped_column(nullable=True)
+    min_pack_unit: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    date_code_requirement: Mapped[str] = mapped_column(String(100), default="不限")
+    customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     order = relationship(
         "PurchaseOrder", back_populates="items", foreign_keys=[order_id]

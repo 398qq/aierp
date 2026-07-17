@@ -11,7 +11,7 @@ populated by the AI restock pipeline.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.api.deps import get_current_user
 from app.database import get_db
@@ -21,7 +21,7 @@ from app.models.transaction import PurchaseOrder
 from app.schemas.common import ok
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -32,17 +32,38 @@ po_router = APIRouter(prefix="/purchase-orders", tags=["transactions:purchase-or
 
 class POItemCreate(BaseModel):
     product_id: int
-    quantity: int = 1
-    unit_price: float = 0
+    sales_order_id: int | None = None
+    supplier_mpn: str | None = None
+    product_sku: str | None = None
+    product_name: str | None = None
+    brand_name: str | None = None
+    package_type: str | None = None
+    quantity: int = Field(1, gt=0)
+    unit: str = "pcs"
+    min_pack_qty: int | None = Field(None, gt=0)
+    min_pack_unit: str | None = None
+    date_code_requirement: str = "不限"
+    tax_rate: float = Field(13, ge=0, le=100)
+    unit_price: float = Field(0, ge=0)
     amount: float = 0
+    customer_name: str | None = None
+    notes: str | None = None
 
 
 class POCreate(BaseModel):
     order_no: str | None = None
     supplier_id: int
     status: str = "draft"
-    total_amount: float = 0
+    sales_order_id: int | None = None
+    supplier_contact: str | None = None
+    payment_terms: str | None = None
+    currency: str = "CNY"
+    incoterms: str | None = None
+    delivery_address: str | None = None
+    tax_rate: float = Field(13, ge=0, le=100)
     expected_date: str | None = None
+    allow_partial_delivery: bool = False
+    contract_terms_version: str = "v3.4"
     notes: str | None = None
     items: list[POItemCreate] | None = None
 
@@ -59,6 +80,7 @@ async def list_purchase_orders(
     status: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    q: str | None = None,
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -73,6 +95,9 @@ async def list_purchase_orders(
             PurchaseOrder.status,
             PurchaseOrder.total_amount,
             PurchaseOrder.expected_date,
+            PurchaseOrder.supplier_confirmation_status,
+            PurchaseOrder.sales_order_id,
+            PurchaseOrder.large_order_confirmed,
             PurchaseOrder.notes,
             PurchaseOrder.created_at,
         )
@@ -101,6 +126,16 @@ async def list_purchase_orders(
         count_base = count_base.where(
             PurchaseOrder.created_at <= datetime.fromisoformat(date_to + "T23:59:59")
         )
+    if q and q.strip():
+        keyword = f"%{q.strip()}%"
+        search_filter = or_(
+            PurchaseOrder.order_no.ilike(keyword),
+            Supplier.name.ilike(keyword),
+        )
+        base = base.where(search_filter)
+        count_base = count_base.join(
+            Supplier, PurchaseOrder.supplier_id == Supplier.id, isouter=True
+        ).where(search_filter)
 
     total = (await db.execute(count_base)).scalar() or 0
     rows = (
@@ -122,8 +157,11 @@ async def list_purchase_orders(
                     "status": r[4],
                     "total_amount": float(r[5]),
                     "expected_date": str(r[6]) if r[6] else None,
-                    "notes": r[7],
-                    "created_at": str(r[8]) if r[8] else None,
+                    "supplier_confirmation_status": r[7],
+                    "sales_order_id": r[8],
+                    "large_order_confirmed": r[9],
+                    "notes": r[10],
+                    "created_at": str(r[11]) if r[11] else None,
                 }
                 for r in rows
             ],
@@ -166,6 +204,7 @@ async def create_purchase_order(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
+    from app.models.product import Supplier
     from app.models.transaction import PurchaseOrderItem
 
     data = body.model_dump()
@@ -178,17 +217,26 @@ async def create_purchase_order(
 
         data["order_no"] = await generate_doc_no(db, "PO", PurchaseOrder, "order_no")
 
-    order = PurchaseOrder(**data)
+    supplier = await db.get(Supplier, body.supplier_id)
+    if supplier is None or supplier.deleted_at is not None:
+        raise NotFoundError("供应商不存在")
+    data["supplier_contact"] = data.get("supplier_contact") or supplier.contact_person
+    data["payment_terms"] = data.get("payment_terms") or supplier.payment_terms
+    data.pop("status", None)
+    order = PurchaseOrder(**data, status="draft")
     db.add(order)
     await db.flush()
 
     if items_data:
         total = 0.0
         for item in items_data:
+            item["amount"] = round(item["quantity"] * item["unit_price"], 6)
             poi = PurchaseOrderItem(order_id=order.id, **item)
             db.add(poi)
-            total += item.get("amount", 0) or 0
+            total += item["amount"]
         order.total_amount = total
+        order.subtotal = round(total / (1 + float(order.tax_rate) / 100), 6)
+        order.tax_amount = round(total - float(order.subtotal), 6)
 
     await db.commit()
     await db.refresh(order)
@@ -203,7 +251,15 @@ async def create_purchase_order(
 
 class POUpdate(BaseModel):
     supplier_id: int | None = None
+    sales_order_id: int | None = None
+    supplier_contact: str | None = None
+    payment_terms: str | None = None
+    currency: str | None = None
+    incoterms: str | None = None
+    delivery_address: str | None = None
+    tax_rate: float | None = Field(None, ge=0, le=100)
     expected_date: str | None = None
+    allow_partial_delivery: bool | None = None
     notes: str | None = None
     items: list[POItemCreate] | None = None
 
@@ -214,46 +270,92 @@ async def get_purchase_order(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    from app.models.product import Supplier
+    from app.models.customer import Customer
+    from app.models.product import Product, Supplier
+    from app.models.sales import SalesOrder
     from app.models.transaction import PurchaseOrderItem
 
     result = await db.execute(
         select(PurchaseOrder)
         .where(PurchaseOrder.id == po_id, PurchaseOrder.deleted_at.is_(None))
         .options(
-            selectinload(PurchaseOrder.items).selectinload(PurchaseOrderItem.product)
+            selectinload(PurchaseOrder.items)
+            .selectinload(PurchaseOrderItem.product)
+            .selectinload(Product.brand)
         )
     )
     po = result.scalar_one_or_none()
     if po is None:
         raise NotFoundError("采购订单不存在")
 
-    supplier_name = None
+    supplier = None
     if po.supplier_id:
-        r = await db.execute(select(Supplier.name).where(Supplier.id == po.supplier_id))
-        supplier_name = r.scalar()
+        supplier = await db.get(Supplier, po.supplier_id)
+    sales_order_no = None
+    customer_name = None
+    if po.sales_order_id:
+        so_row = (
+            await db.execute(
+                select(SalesOrder.order_no, Customer.name)
+                .join(Customer, SalesOrder.customer_id == Customer.id)
+                .where(SalesOrder.id == po.sales_order_id)
+            )
+        ).one_or_none()
+        if so_row:
+            sales_order_no, customer_name = so_row
 
     return ok(
         {
             "id": po.id,
             "order_no": po.order_no,
             "supplier_id": po.supplier_id,
-            "supplier_name": supplier_name or f"#{po.supplier_id}",
+            "supplier_name": supplier.name if supplier else f"#{po.supplier_id}",
+            "supplier_contact": po.supplier_contact,
+            "sales_order_id": po.sales_order_id,
+            "sales_order_no": sales_order_no,
+            "customer_name": customer_name,
             "status": po.status,
+            "currency": po.currency,
+            "incoterms": po.incoterms,
+            "payment_terms": po.payment_terms,
+            "delivery_address": po.delivery_address,
+            "tax_rate": float(po.tax_rate),
+            "subtotal": float(po.subtotal),
+            "tax_amount": float(po.tax_amount),
             "total_amount": float(po.total_amount),
             "expected_date": str(po.expected_date) if po.expected_date else None,
             "notes": po.notes,
+            "allow_partial_delivery": po.allow_partial_delivery,
+            "large_order_confirmed": po.large_order_confirmed,
+            "large_order_confirmed_at": str(po.large_order_confirmed_at) if po.large_order_confirmed_at else None,
+            "supplier_confirmation_status": po.supplier_confirmation_status,
+            "supplier_confirmed_at": str(po.supplier_confirmed_at) if po.supplier_confirmed_at else None,
+            "supplier_confirmation_method": po.supplier_confirmation_method,
+            "supplier_confirmed_delivery_date": str(po.supplier_confirmed_delivery_date) if po.supplier_confirmed_delivery_date else None,
+            "contract_terms_version": po.contract_terms_version,
+            "sent_at": str(po.sent_at) if po.sent_at else None,
             "created_at": str(po.created_at),
             "updated_at": str(po.updated_at) if po.updated_at else None,
             "items": [
                 {
                     "id": i.id,
                     "product_id": i.product_id,
-                    "product_name": i.product.name if i.product else f"#{i.product_id}",
-                    "product_sku": i.product.sku if i.product and i.product.sku else "",
+                    "sales_order_id": i.sales_order_id,
+                    "supplier_mpn": i.supplier_mpn or (i.product.mpn if i.product else None),
+                    "product_name": i.product_name or (i.product.name if i.product else f"#{i.product_id}"),
+                    "product_sku": i.product_sku or (i.product.sku if i.product else ""),
+                    "brand_name": i.brand_name or (i.product.brand.name if i.product and i.product.brand else None),
+                    "package_type": i.package_type or (i.product.package_type if i.product else None),
                     "quantity": i.quantity,
+                    "unit": i.unit or "pcs",
+                    "min_pack_qty": i.min_pack_qty,
+                    "min_pack_unit": i.min_pack_unit,
+                    "date_code_requirement": i.date_code_requirement or "不限",
+                    "tax_rate": float(i.tax_rate) if i.tax_rate is not None else 13,
                     "unit_price": float(i.unit_price),
                     "amount": float(i.amount),
+                    "customer_name": i.customer_name,
+                    "notes": i.notes,
                 }
                 for i in po.items
             ],
@@ -284,22 +386,27 @@ async def update_purchase_order(
     data = body.model_dump(exclude_none=True)
     items_data = data.pop("items", None)
 
-    if "supplier_id" in data:
-        po.supplier_id = data["supplier_id"]
+    for field in (
+        "supplier_id", "sales_order_id", "supplier_contact", "payment_terms",
+        "currency", "incoterms", "delivery_address", "tax_rate",
+        "allow_partial_delivery", "notes",
+    ):
+        if field in data:
+            setattr(po, field, data[field])
     if "expected_date" in data and data["expected_date"]:
         po.expected_date = datetime.fromisoformat(data["expected_date"])
-    if "notes" in data:
-        po.notes = data["notes"]
-
     if items_data is not None:
         for item in po.items:
             await db.delete(item)
         total = 0.0
         for item in items_data:
+            item["amount"] = round(item["quantity"] * item["unit_price"], 6)
             poi = PurchaseOrderItem(order_id=po.id, **item)
             db.add(poi)
             total += item.get("amount", 0) or 0
         po.total_amount = total
+        po.subtotal = round(total / (1 + float(po.tax_rate) / 100), 6)
+        po.tax_amount = round(total - float(po.subtotal), 6)
 
     await db.commit()
     await db.refresh(po)
@@ -332,6 +439,118 @@ class POReceive(BaseModel):
     warehouse_id: int = 1
 
 
+class POTransition(BaseModel):
+    target_status: str
+
+
+@po_router.post("/{po_id}/confirm-large-order")
+async def confirm_large_purchase_order(
+    po_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    po = await db.get(PurchaseOrder, po_id)
+    if po is None or po.deleted_at is not None:
+        raise NotFoundError("采购订单不存在")
+    if po.status != "draft":
+        raise BusinessRuleViolation("只有草稿采购订单可以执行大额二次确认")
+    po.large_order_confirmed = True
+    po.large_order_confirmed_at = datetime.now(timezone.utc)
+    await db.commit()
+    return ok({"id": po.id, "large_order_confirmed": True})
+
+
+@po_router.post("/{po_id}/transition")
+async def transition_purchase_order(
+    po_id: int,
+    body: POTransition,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    po = (
+        await db.execute(
+            select(PurchaseOrder)
+            .where(PurchaseOrder.id == po_id, PurchaseOrder.deleted_at.is_(None))
+            .options(selectinload(PurchaseOrder.items))
+        )
+    ).scalar_one_or_none()
+    if po is None:
+        raise NotFoundError("采购订单不存在")
+    assert_can_transition_purchase_order(po.status, body.target_status)
+    if body.target_status == "approved":
+        if not po.items:
+            raise BusinessRuleViolation("空采购订单不能审批")
+        missing_headers = [
+            label
+            for value, label in (
+                (po.supplier_contact, "供应商联系人"),
+                (po.payment_terms, "付款方式"),
+                (po.expected_date, "预计交期"),
+                (po.delivery_address, "交货地址"),
+            )
+            if not value
+        ]
+        if missing_headers:
+            raise BusinessRuleViolation(
+                f"采购订单头信息不完整: {', '.join(missing_headers)}"
+            )
+        missing = [
+            str(item.product_sku or item.product_id)
+            for item in po.items
+            if not all(
+                (
+                    item.supplier_mpn,
+                    item.product_sku,
+                    item.product_name,
+                    item.brand_name,
+                    item.package_type,
+                    item.date_code_requirement,
+                )
+            )
+        ]
+        if missing:
+            raise BusinessRuleViolation(
+                f"以下明细缺少 MPN/SKU/品名/品牌/封装/生产批次: {', '.join(missing)}"
+            )
+        if float(po.total_amount) > 10000 and not po.large_order_confirmed:
+            raise BusinessRuleViolation("采购金额超过 ¥10,000，须先完成二次确认")
+    if body.target_status == "ordered":
+        po.sent_at = datetime.now(timezone.utc)
+        po.supplier_confirmation_status = "pending"
+    po.status = body.target_status
+    await db.commit()
+    return ok({"id": po.id, "status": po.status})
+
+
+class POSupplierConfirmation(BaseModel):
+    method: str
+    confirmed_delivery_date: str
+    allow_partial_delivery: bool = False
+
+
+@po_router.post("/{po_id}/supplier-confirmation")
+async def record_supplier_confirmation(
+    po_id: int,
+    body: POSupplierConfirmation,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    po = await db.get(PurchaseOrder, po_id)
+    if po is None or po.deleted_at is not None:
+        raise NotFoundError("采购订单不存在")
+    if po.status not in {"ordered", "partially_received"}:
+        raise BusinessRuleViolation("采购订单发送给供应商后才能记录确认")
+    po.supplier_confirmation_status = "confirmed"
+    po.supplier_confirmation_method = body.method
+    po.supplier_confirmed_at = datetime.now(timezone.utc)
+    po.supplier_confirmed_delivery_date = datetime.fromisoformat(
+        body.confirmed_delivery_date
+    )
+    po.allow_partial_delivery = body.allow_partial_delivery
+    await db.commit()
+    return ok({"id": po.id, "supplier_confirmation_status": "confirmed"})
+
+
 @po_router.post("/{po_id}/receive")
 async def receive_purchase_order(
     po_id: int,
@@ -351,6 +570,9 @@ async def receive_purchase_order(
         raise NotFoundError("采购订单不存在")
     if po.status == "received":
         raise BusinessRuleViolation("采购订单已收货")
+
+    if po.supplier_confirmation_status != "confirmed":
+        raise BusinessRuleViolation("供应商尚未完成书面确认，不能收货")
 
     assert_can_transition_purchase_order(po.status, "received")
 

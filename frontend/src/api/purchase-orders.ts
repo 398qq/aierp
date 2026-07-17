@@ -33,7 +33,7 @@ export const receivePurchaseOrder = (poId: number, warehouseId: number = 1) =>
   client.post<APIResponse>(`/purchase-orders/${poId}/receive`, { warehouse_id: warehouseId });
 
 export const getPurchaseOrder = (id: number) =>
-  client.get<APIResponse<PurchaseOrder & { items: { id: number; product_id: number; product_name?: string; product_sku?: string; quantity: number; unit_price: number; amount: number }[] }>>(`/purchase-orders/${id}`);
+  client.get<APIResponse<PurchaseOrder & { items: import("../types/operations").PurchaseOrderItem[] }>>(`/purchase-orders/${id}`);
 
 export const updatePurchaseOrder = (id: number, data: Record<string, unknown>) =>
   client.put<APIResponse>(`/purchase-orders/${id}`, data);
@@ -43,6 +43,15 @@ export const deletePurchaseOrder = (id: number) =>
 
 export const batchDeletePurchaseOrders = (ids: number[]) =>
   client.post<APIResponse>("/purchase-orders/batch-delete", { ids });
+
+export const transitionPurchaseOrder = (id: number, targetStatus: string) =>
+  client.post<APIResponse>(`/purchase-orders/${id}/transition`, { target_status: targetStatus });
+
+export const confirmLargePurchaseOrder = (id: number) =>
+  client.post<APIResponse>(`/purchase-orders/${id}/confirm-large-order`);
+
+export const confirmPurchaseOrderSupplier = (id: number, data: { method: string; confirmed_delivery_date: string; allow_partial_delivery: boolean }) =>
+  client.post<APIResponse>(`/purchase-orders/${id}/supplier-confirmation`, data);
 
 
 // Purchase Order Intelligence (AI)
@@ -56,4 +65,3 @@ export const assessPORisk = (orderId: number) =>
   client.post<APIResponse<PORiskAssessment>>(`/ai/purchase-orders/${orderId}/risk`);
 
 // ============================================================
-
