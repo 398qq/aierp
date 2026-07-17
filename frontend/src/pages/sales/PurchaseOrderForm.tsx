@@ -41,25 +41,57 @@ export default function PurchaseOrderForm() {
   }, [taxRate, watchedItems]);
 
   useEffect(() => {
-    Promise.all([
-      getSuppliers({ page: 1, page_size: 200 }),
-      getProducts({ page: 1, page_size: 200 }),
-      getSalesOrders({ page: 1, page_size: 200 }),
-    ]).then(async ([supplierRes, productRes, salesRes]) => {
-      setSuppliers((supplierRes.data.data?.list || []) as Supplier[]);
-      setProducts((productRes.data.data?.list || []) as Product[]);
-      setSalesOrders((salesRes.data.data?.list || []) as SalesOrder[]);
+    let active = true;
+
+    const loadFormData = async () => {
+      const [supplierResult, productResult, salesResult] = await Promise.allSettled([
+        getSuppliers({ page: 1, page_size: 200 }),
+        getProducts({ page: 1, page_size: 100 }),
+        getSalesOrders({ page: 1, page_size: 100 }),
+      ]);
+      if (!active) return;
+
+      if (supplierResult.status === "fulfilled") {
+        setSuppliers((supplierResult.value.data.data?.list || []) as Supplier[]);
+      } else {
+        message.error("供应商数据加载失败，请稍后重试");
+      }
+      if (productResult.status === "fulfilled") {
+        setProducts((productResult.value.data.data?.list || []) as Product[]);
+      } else {
+        message.error("产品数据加载失败，请稍后重试");
+      }
+      if (salesResult.status === "fulfilled") {
+        setSalesOrders((salesResult.value.data.data?.list || []) as SalesOrder[]);
+      } else {
+        message.warning("关联销售订单加载失败，不影响采购订单录入");
+      }
+
       if (!isEdit) return;
-      const response = await getPurchaseOrder(Number(id));
-      const po = response.data.data;
-      form.setFieldsValue({
-        ...po,
-        expected_date: po.expected_date ? dayjs(po.expected_date) : null,
-        items: po.items,
-      });
-      const links = await getSupplierProducts(po.supplier_id);
-      setSupplierLinks(links.data.data || []);
-    }).catch(() => message.error("采购订单基础数据加载失败")).finally(() => setLoading(false));
+      try {
+        const response = await getPurchaseOrder(Number(id));
+        if (!active) return;
+        const po = response.data.data;
+        form.setFieldsValue({
+          ...po,
+          expected_date: po.expected_date ? dayjs(po.expected_date) : null,
+          items: po.items,
+        });
+        try {
+          const links = await getSupplierProducts(po.supplier_id);
+          if (active) setSupplierLinks(links.data.data || []);
+        } catch {
+          if (active) message.warning("供应商关联产品加载失败，可手动选择产品");
+        }
+      } catch {
+        if (active) message.error("采购订单详情加载失败，请返回列表后重试");
+      }
+    };
+
+    void loadFormData().finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, [form, id, isEdit]);
 
   const selectSupplier = async (supplierId: number) => {
