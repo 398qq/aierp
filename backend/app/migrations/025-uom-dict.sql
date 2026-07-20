@@ -30,7 +30,8 @@ INSERT INTO uom_dict (code, name, uom_type, category, sort_order) VALUES
     ('GROUP',    '组',     'count', 'count',    10),
     ('CARD',     '卡',     'count', 'unit',     11),
     ('BOARD',    '板',     'count', 'unit',     12),
-    ('MODULE',   '模组',   'count', 'unit',     13);
+    ('MODULE',   '模组',   'count', 'unit',     13)
+ON CONFLICT (code) DO NOTHING;
 
 -- 包装单位（uom_type = 'package'）
 INSERT INTO uom_dict (code, name, uom_type, category, sort_order) VALUES
@@ -54,7 +55,8 @@ INSERT INTO uom_dict (code, name, uom_type, category, sort_order) VALUES
     ('BTL',          '瓶',       'package', 'container',    37),
     ('DRUM',         '桶',       'package', 'container',    38),
     ('MPQ',          '最小包装', 'package', NULL,           39),
-    ('SPQ',          '标准包装', 'package', NULL,           40);
+    ('SPQ',          '标准包装', 'package', NULL,           40)
+ON CONFLICT (code) DO NOTHING;
 
 -- ============================================================
 -- 2. 产品包装层级表
@@ -62,7 +64,7 @@ INSERT INTO uom_dict (code, name, uom_type, category, sort_order) VALUES
 CREATE TABLE IF NOT EXISTS product_pack_levels (
     id              BIGSERIAL PRIMARY KEY,
     product_id      BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    uom_code        VARCHAR(10) NOT NULL REFERENCES uom_dict(code),
+    uom_code        VARCHAR(20) NOT NULL REFERENCES uom_dict(code),
     pack_level      SMALLINT NOT NULL CHECK (pack_level BETWEEN 0 AND 2),
     qty_per_parent  DECIMAL(18, 4) NOT NULL DEFAULT 1,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

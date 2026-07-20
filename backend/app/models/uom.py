@@ -1,6 +1,7 @@
 """Unit of Measure (UOM) and product packaging level models."""
 
 import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     DECIMAL,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -71,14 +73,32 @@ class ProductPackLevel(TimestampMixin, Base):
         String(20), ForeignKey("uom_dict.code"), nullable=False
     )
     pack_level: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    qty_per_parent: Mapped[float] = mapped_column(
+    qty_per_parent: Mapped[Decimal] = mapped_column(
         DECIMAL(18, 4), nullable=False, default=1
     )
 
     __table_args__ = (
         CheckConstraint("pack_level BETWEEN 0 AND 2", name="ck_pack_level_range"),
-        Index("idx_ppl_product_level", "product_id", "pack_level", unique=True),
-        Index("idx_ppl_product", "product_id"),
+        Index(
+            "idx_ppl_product_level",
+            "product_id",
+            "pack_level",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "idx_ppl_product",
+            "product_id",
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "idx_ppl_uom",
+            "uom_code",
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
     )
 
     uom: Mapped["UomDict"] = relationship(

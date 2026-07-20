@@ -5,7 +5,7 @@ Usage:
     <UomSelect uomType="package" value={minPackUnit} onChange={setMinPackUnit} />
 */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Select, Spin, Typography } from "antd";
 import client from "../api/client";
 
@@ -19,10 +19,26 @@ interface UomItem {
 interface UomSelectProps {
   uomType?: "count" | "package";
   value?: string;
-  onChange?: (value: string) => void;
+  onChange?: (value: string | undefined) => void;
   placeholder?: string;
   style?: React.CSSProperties;
   allowClear?: boolean;
+}
+
+const inflightRequests = new Map<string, Promise<UomItem[]>>();
+
+function loadUoms(uomType?: "count" | "package"): Promise<UomItem[]> {
+  const key = uomType || "all";
+  const existing = inflightRequests.get(key);
+  if (existing) return existing;
+
+  const params = uomType ? { uom_type: uomType } : {};
+  const request = client
+    .get<{ code: number; msg: string; data: UomItem[] }>("/uoms", { params })
+    .then((response) => response.data.data || [])
+    .finally(() => inflightRequests.delete(key));
+  inflightRequests.set(key, request);
+  return request;
 }
 
 export function UomSelect({
@@ -35,18 +51,22 @@ export function UomSelect({
 }: UomSelectProps) {
   const [items, setItems] = useState<UomItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const fetched = useRef(false);
-
   useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
+    let active = true;
     setLoading(true);
-    const params = uomType ? { uom_type: uomType } : {};
-    client
-      .get<{ code: number; msg: string; data: UomItem[] }>("/uoms", { params })
-      .then((r) => setItems(r.data.data || []))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
+    loadUoms(uomType)
+      .then((loadedItems) => {
+        if (active) setItems(loadedItems);
+      })
+      .catch(() => {
+        if (active) setItems([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [uomType]);
 
   // Group by category for better UX

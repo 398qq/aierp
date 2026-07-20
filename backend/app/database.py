@@ -122,6 +122,7 @@ async def init_db():
     await _ensure_customer_status_machine(engine)
     await _ensure_purchase_order_v34_schema(engine)
     await _ensure_customer_product_code_schema(engine)
+    await _ensure_uom_schema(engine)
     await _seed_rbac(engine)
     await _seed_phase6(engine)
     await _seed_commission_scheme_rbac(engine)
@@ -179,6 +180,30 @@ async def _ensure_customer_product_code_schema(eng) -> None:
                 continue
             if statement:
                 await conn.exec_driver_sql(statement + ";")
+
+
+async def _ensure_uom_schema(eng) -> None:
+    """Create and seed the UOM dictionary on existing PostgreSQL databases."""
+    import pathlib
+
+    if eng.dialect.name != "postgresql":
+        return
+    sql_path = (
+        pathlib.Path(__file__).resolve().parent / "migrations" / "025-uom-dict.sql"
+    )
+    if not sql_path.exists():
+        return
+
+    async with eng.begin() as conn:
+        for statement in sql_path.read_text().split(";"):
+            statement = "\n".join(
+                line
+                for line in statement.splitlines()
+                if not line.strip().startswith("--")
+            ).strip()
+            if not statement or statement.upper() in {"BEGIN", "COMMIT"}:
+                continue
+            await conn.exec_driver_sql(statement + ";")
 
 
 async def _ensure_customer_status_machine(eng) -> None:

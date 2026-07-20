@@ -1,5 +1,7 @@
 """UOM (Unit of Measure) dictionary API — read-only reference data."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,14 +15,16 @@ router = APIRouter(prefix="/uoms", tags=["UOM"])
 
 @router.get("")
 async def list_uoms(
-    uom_type: str | None = Query(None, description="count / package"),
+    uom_type: Literal["count", "package"] | None = Query(
+        None, description="count / package"
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get all UOM entries, optionally filtered by type."""
     stmt = select(UomDict).where(UomDict.deleted_at.is_(None))
     if uom_type:
         stmt = stmt.where(UomDict.uom_type == uom_type)
-    stmt = stmt.order_by(UomDict.sort_order)
+    stmt = stmt.order_by(UomDict.sort_order, UomDict.code)
     result = await db.execute(stmt)
     return ok([_to_dict(u) for u in result.scalars().all()])
 
