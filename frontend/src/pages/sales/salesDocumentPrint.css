@@ -43,11 +43,14 @@
   .sales-print-table thead { display: table-header-group; }
   .sales-print-table tfoot { display: table-row-group; }
   .sales-print-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .sales-print-table.quotation-items th:nth-child(2) { width: 38mm; }
-  .sales-print-table.quotation-items th:nth-child(5), .sales-print-table.quotation-items th:nth-child(9) { width: 25mm; }
-  .sales-print-table.quotation-items th:nth-child(6), .sales-print-table.quotation-items th:nth-child(7) { width: 20mm; }
-  .sales-print-table.quotation-items th:nth-child(8) { width: 15mm; }
-  .sales-print-table.quotation-items th:nth-child(10) { width: 28mm; }
+  .sales-print-table.quotation-items th:nth-child(2) { width: 27mm; }
+  .sales-print-table.quotation-items th:nth-child(3) { width: 35mm; }
+  .sales-print-table.quotation-items th:nth-child(4) { width: 17mm; }
+  .sales-print-table.quotation-items th:nth-child(5) { width: 12mm; }
+  .sales-print-table.quotation-items th:nth-child(6), .sales-print-table.quotation-items th:nth-child(10) { width: 25mm; }
+  .sales-print-table.quotation-items th:nth-child(7), .sales-print-table.quotation-items th:nth-child(8) { width: 15mm; }
+  .sales-print-table.quotation-items th:nth-child(9) { width: 24mm; }
+  .sales-print-table.quotation-items th:nth-child(11) { width: 24mm; }
   .sales-print-table.delivery-items th:nth-child(2) { width: auto; }
   .sales-print-table.delivery-items th:nth-child(3) { width: 20mm; }
   .sales-print-table.delivery-items th:nth-child(4) { width: 32mm; }

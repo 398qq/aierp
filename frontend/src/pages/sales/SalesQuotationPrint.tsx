@@ -76,22 +76,23 @@ export function SalesQuotationPrint({ quote, customerName }: { quote: Quotation;
       <section className="sales-print-section">
         <h2><span>03</span> 报价明细</h2>
         <table className="sales-print-table quotation-items">
-          <thead><tr><th>#</th><th>产品名称 / 规格</th><th>单位</th><th className="number">数量</th><th className="number">含税单价</th><th>生产批次</th><th>交期</th><th className="number">税率</th><th className="number">价税合计</th><th>备注</th></tr></thead>
+          <thead><tr><th>#</th><th>客户料号</th><th>产品名称 / 规格</th><th className="number">数量</th><th>单位</th><th className="number">含税单价</th><th className="number">折扣</th><th className="number">税率</th><th>批次 / 交期</th><th className="number">价税合计</th><th>备注</th></tr></thead>
           <tbody>{quote.items.map((item, index) => (
             <tr key={item.id}>
               <td>{index + 1}</td>
-              <td><strong>{item.customer_product_name || item.product_name || "-"}</strong><small>{item.customer_part_no ? `客户料号：${item.customer_part_no}` : ""}</small></td>
-              <td>{item.unit || "-"}</td>
+              <td><strong>{item.customer_part_no || "-"}</strong></td>
+              <td><strong>{item.customer_product_name || item.product_name || "-"}</strong></td>
               <td className="number">{Number(item.quantity || 0).toLocaleString("zh-CN")}</td>
+              <td>{item.unit || "-"}</td>
               <td className="number">{amount(item.unit_price, quote.currency, 6)}</td>
-              <td>{item.datecode || "-"}</td>
-              <td>{item.lead_time || "-"}</td>
+              <td className="number">{item.discount_rate == null ? "-" : `${item.discount_rate}%`}</td>
               <td className="number">{item.tax_rate == null ? "-" : `${item.tax_rate}%`}</td>
+              <td>{item.datecode || "-"}<small>{item.lead_time ? `交期：${item.lead_time}` : ""}</small></td>
               <td className="number"><strong>{amount(item.total_price, quote.currency)}</strong></td>
               <td>{item.notes || "-"}</td>
             </tr>
           ))}</tbody>
-          <tfoot><tr><td colSpan={3}>合计</td><td className="number"><strong>{quantity.toLocaleString("zh-CN")}</strong></td><td colSpan={4} /><td className="number"><strong>{amount(quote.total_amount, quote.currency)}</strong></td><td /></tr></tfoot>
+          <tfoot><tr><td colSpan={3}>合计</td><td className="number"><strong>{quantity.toLocaleString("zh-CN")}</strong></td><td colSpan={5} /><td className="number"><strong>{amount(quote.total_amount, quote.currency)}</strong></td><td /></tr></tfoot>
         </table>
         <div className="sales-print-totals">
           <div><span>未税金额</span><strong>{amount(untaxed, quote.currency)}</strong></div>
