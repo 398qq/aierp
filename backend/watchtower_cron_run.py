@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
-import urllib.request, urllib.parse, json, sys
+import json
+import os
+import urllib.request
+import urllib.parse
+import sys
 
 BASE = "http://localhost:8080"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+from lib.erp_auth import get_erp_creds
+
+USERNAME, PASSWORD = get_erp_creds()
 
 
 def api(method, path, token=None, data=None):
@@ -17,10 +25,10 @@ def api(method, path, token=None, data=None):
 
 # Step 1: Login
 login = api(
-    "POST", "/api/v1/auth/login", data={"username": "admin", "password": "admin123"}
+    "POST", "/api/v1/auth/login", data={"username": USERNAME, "password": PASSWORD}
 )
 token = login["data"]["token"]
-print(f"TOKEN_OK", file=sys.stderr)
+print("TOKEN_OK", file=sys.stderr)
 
 # Step 2: Trigger scan
 print("Triggering watchtower scan...", file=sys.stderr)
@@ -42,7 +50,6 @@ alert_list = [a for a in alerts["data"]["list"] if not a.get("is_read")]
 print(f"FOUND {len(alert_list)} unread alerts", file=sys.stderr)
 
 # Steps 5-7: Format, send, mark read
-from hermes_tools import send_message
 
 results = []
 for a in alert_list:

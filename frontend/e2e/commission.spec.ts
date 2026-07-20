@@ -9,12 +9,15 @@ Requires: backend :8080 + frontend :3002 already running.
 import { test, expect } from "@playwright/test";
 
 const API = "http://localhost:8080/api/v1";
+const USERNAME = process.env.AIERP_LOGIN_USERNAME ?? "admin";
+const PASSWORD = process.env.AIERP_LOGIN_PASSWORD;
+if (!PASSWORD) throw new Error("AIERP_LOGIN_PASSWORD is required");
 
 // ── helpers ───────────────────────────────────────────────────────────
 
 async function getAuth(request: any): Promise<{ token: string; userId: number }> {
   const loginResp = await request.post(`${API}/auth/login`, {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   if (loginResp.status() !== 200) throw new Error(`Login: ${await loginResp.text()}`);
   const token = (await loginResp.json()).data.token;
@@ -38,7 +41,12 @@ async function createCustomer(request: any, token: string): Promise<number> {
 async function createSalesOrder(request: any, token: string, customerId: number): Promise<number> {
   const resp = await request.post(`${API}/sales-orders`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { customer_id: customerId, order_date: "2026-07-10", total_amount: 100000, status: "confirmed" },
+    data: {
+      customer_id: customerId,
+      order_date: "2026-07-10",
+      total_amount: 100000,
+      status: "confirmed",
+    },
   });
   if (![200, 201].includes(resp.status())) throw new Error(`SO: ${await resp.text()}`);
   return (await resp.json()).data.id;
@@ -49,7 +57,10 @@ async function dismissToasts(page: any) {
   const closeIcons = page.locator(".ant-message-notice .anticon-close");
   const count = await closeIcons.count();
   for (let i = 0; i < count; i++) {
-    await closeIcons.nth(i).click({ force: true }).catch(() => {});
+    await closeIcons
+      .nth(i)
+      .click({ force: true })
+      .catch((err) => console.warn("dismissToasts: failed to close toast", err));
   }
   await page.waitForTimeout(300);
 }
@@ -61,9 +72,9 @@ test.describe("Commission E2E lifecycle", () => {
     test.setTimeout(90000);
 
     const { token, userId } = await getAuth(request);
-    await page.context().addCookies([
-      { name: "aierp_token", value: token, domain: "localhost", path: "/" },
-    ]);
+    await page
+      .context()
+      .addCookies([{ name: "aierp_token", value: token, domain: "localhost", path: "/" }]);
     const customerId = await createCustomer(request, token);
     const soId = await createSalesOrder(request, token, customerId);
 
@@ -82,7 +93,10 @@ test.describe("Commission E2E lifecycle", () => {
     await page.waitForTimeout(200);
 
     // Submit form
-    await page.locator(".ant-drawer-footer").getByRole("button", { name: /创/ }).click({ force: true });
+    await page
+      .locator(".ant-drawer-footer")
+      .getByRole("button", { name: /创/ })
+      .click({ force: true });
     await page.waitForTimeout(1500);
     await dismissToasts(page);
 
@@ -109,9 +123,9 @@ test.describe("Commission E2E lifecycle", () => {
     test.setTimeout(90000);
 
     const { token, userId } = await getAuth(request);
-    await page.context().addCookies([
-      { name: "aierp_token", value: token, domain: "localhost", path: "/" },
-    ]);
+    await page
+      .context()
+      .addCookies([{ name: "aierp_token", value: token, domain: "localhost", path: "/" }]);
     const customerId = await createCustomer(request, token);
     const so1 = await createSalesOrder(request, token, customerId);
     const so2 = await createSalesOrder(request, token, customerId);
@@ -131,7 +145,10 @@ test.describe("Commission E2E lifecycle", () => {
       await page.getByLabel(/比例/).fill("0.03");
       await page.waitForTimeout(200);
 
-      await page.locator(".ant-drawer-footer").getByRole("button", { name: /创/ }).click({ force: true });
+      await page
+        .locator(".ant-drawer-footer")
+        .getByRole("button", { name: /创/ })
+        .click({ force: true });
       await page.waitForTimeout(1500);
       await dismissToasts(page);
     }

@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-import urllib.request, json
+import json
+import os
+import sys
+import urllib.request
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+from lib.erp_auth import get_erp_creds
+
+username, password = get_erp_creds()
 
 # Login
 req = urllib.request.Request(
     "http://localhost:8080/api/v1/auth/login",
-    data=json.dumps({"username": "admin", "password": "admin123"}).encode(),
+    data=json.dumps({"username": username, "password": password}).encode(),
     headers={"Content-Type": "application/json"},
 )
 resp = urllib.request.urlopen(req)

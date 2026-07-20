@@ -1,6 +1,11 @@
 """Verify customer list loads correctly on /customers page."""
+
 import asyncio
 from playwright.async_api import async_playwright
+
+from lib.erp_auth import get_erp_creds
+
+USERNAME, PASSWORD = get_erp_creds()
 
 
 async def main() -> None:
@@ -10,7 +15,12 @@ async def main() -> None:
         page = await ctx.new_page()
 
         console_errors: list[str] = []
-        page.on("console", lambda msg: console_errors.append(f"{msg.type}: {msg.text}") if msg.type in ("error", "warning") else None)
+        page.on(
+            "console",
+            lambda msg: console_errors.append(f"{msg.type}: {msg.text}")
+            if msg.type in ("error", "warning")
+            else None,
+        )
         api_responses: list[tuple[str, int, int]] = []
 
         async def on_response(r):
@@ -25,7 +35,7 @@ async def main() -> None:
 
         token_resp = await ctx.request.post(
             "http://localhost:8080/api/v1/auth/login",
-            data={"username": "testadmin", "password": "admin123"},
+            data={"username": USERNAME, "password": PASSWORD},
         )
         token_data = await token_resp.json()
         token = token_data["data"]["token"]
@@ -44,10 +54,16 @@ async def main() -> None:
         for url, status, size in api_responses:
             print(f"  API: {url[-80:]} → {status} ({size} bytes)")
 
-        error_toast = await page.locator(".ant-message-error, .ant-notification-notice-error").count()
+        error_toast = await page.locator(
+            ".ant-message-error, .ant-notification-notice-error"
+        ).count()
         print(f"Error toasts visible: {error_toast}")
 
-        smart_list_text = await page.locator("text=/智能客户列表/").first.inner_text() if await page.locator("text=/智能客户列表/").count() else "N/A"
+        smart_list_text = (
+            await page.locator("text=/智能客户列表/").first.inner_text()
+            if await page.locator("text=/智能客户列表/").count()
+            else "N/A"
+        )
         print(f"Smart list header: {smart_list_text!r}")
 
         await browser.close()

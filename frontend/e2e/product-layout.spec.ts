@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+const USERNAME = process.env.AIERP_LOGIN_USERNAME ?? "admin";
+const PASSWORD = process.env.AIERP_LOGIN_PASSWORD;
+if (!PASSWORD) throw new Error("AIERP_LOGIN_PASSWORD is required");
+
 test("product ledger header and fixed columns stay aligned", async ({ page }) => {
   await page.setViewportSize({ width: 1420, height: 600 });
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
 
@@ -14,7 +18,10 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
   await expect(page.locator(".product-task-button")).toHaveCount(7);
   await expect(page.locator(".product-table-panel .ant-table-tbody tr").first()).toBeVisible();
   await page.locator(".product-table-panel").evaluate((panel) => {
-    window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY, behavior: "instant" });
+    window.scrollTo({
+      top: panel.getBoundingClientRect().top + window.scrollY,
+      behavior: "instant",
+    });
   });
   await page.waitForTimeout(100);
 
@@ -27,9 +34,7 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
       ".product-table-panel .ant-table-tbody > tr",
     );
     const cells = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        ".product-table-panel .ant-table-thead > tr > th",
-      ),
+      document.querySelectorAll<HTMLElement>(".product-table-panel .ant-table-thead > tr > th"),
     );
     const scrollBody = document.querySelector<HTMLElement>(
       ".product-table-panel .ant-table-content",
@@ -37,16 +42,23 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
     const taskButtons = Array.from(document.querySelectorAll<HTMLElement>(".product-task-button"));
 
     return {
-      headerGap: headerRow && panelHeader
-        ? Math.round(headerRow.getBoundingClientRect().top - panelHeader.getBoundingClientRect().bottom)
-        : null,
-      bodyGap: headerRow && firstBodyRow
-        ? Math.round(firstBodyRow.getBoundingClientRect().top - headerRow.getBoundingClientRect().bottom)
-        : null,
+      headerGap:
+        headerRow && panelHeader
+          ? Math.round(
+              headerRow.getBoundingClientRect().top - panelHeader.getBoundingClientRect().bottom,
+            )
+          : null,
+      bodyGap:
+        headerRow && firstBodyRow
+          ? Math.round(
+              firstBodyRow.getBoundingClientRect().top - headerRow.getBoundingClientRect().bottom,
+            )
+          : null,
       headerTitles: cells.map((cell) => cell.textContent?.trim() || "").filter(Boolean),
       tableOverflow: scrollBody ? scrollBody.scrollWidth - scrollBody.clientWidth : null,
       viewportOverflow:
-        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth,
+        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) -
+        window.innerWidth,
       stickyTop: headerRow ? getComputedStyle(headerRow.firstElementChild as Element).top : null,
       taskTops: taskButtons.map((button) => Math.round(button.getBoundingClientRect().top)),
     };
@@ -66,7 +78,7 @@ test("product ledger header and fixed columns stay aligned", async ({ page }) =>
 
 test("product name opens the standalone product detail page", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
 
@@ -93,7 +105,7 @@ test("product name opens the standalone product detail page", async ({ page }) =
 
 test("product detail provides supplier relationship management", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
   const products = await page.request.get("/api/v1/products?page=1&page_size=1");
@@ -114,7 +126,7 @@ test("product detail provides supplier relationship management", async ({ page }
 
 test("product editor loads brands beyond the default first page", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
   const products = await page.request.get("/api/v1/products?page=1&page_size=1");
@@ -132,7 +144,7 @@ test("product editor loads brands beyond the default first page", async ({ page 
 
 test("product ledger supports changing rows per page", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
   await page.goto("/products", { waitUntil: "domcontentloaded" });
@@ -141,7 +153,12 @@ test("product ledger supports changing rows per page", async ({ page }) => {
   await expect(pageSizeSelect).toContainText("20 条/页");
   await pageSizeSelect.click();
   await Promise.all([
-    page.waitForResponse((response) => response.url().includes("/api/v1/products") && response.url().includes("page_size=50") && response.ok()),
+    page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/v1/products") &&
+        response.url().includes("page_size=50") &&
+        response.ok(),
+    ),
     page.getByRole("option", { name: "50 条/页" }).click(),
   ]);
   await expect(pageSizeSelect).toContainText("50 条/页");

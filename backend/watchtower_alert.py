@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
-import json, urllib.request, urllib.parse, sys
+import json
+import os
+import urllib.request
+import urllib.parse
+import sys
 
 BASE = "http://localhost:8080"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+from lib.erp_auth import get_erp_creds
+
+USERNAME, PASSWORD = get_erp_creds()
+
 
 def api(method, path, token=None, data=None):
     url = f"{BASE}{path}"
@@ -17,8 +26,11 @@ def api(method, path, token=None, data=None):
     with urllib.request.urlopen(req) as r:
         return json.loads(r.read())
 
+
 # Step 1: Login
-login = api("POST", "/api/v1/auth/login", data={"username":"admin","password":"admin123"})
+login = api(
+    "POST", "/api/v1/auth/login", data={"username": USERNAME, "password": PASSWORD}
+)
 token = login["data"]["token"]
 print(f"[1] Login OK, token: {token[:15]}...")
 
@@ -29,10 +41,14 @@ print(f"[2] Scan result: {scan}")
 
 # Step 3: Get unread alerts
 print("[3] Fetching unread alerts...")
-alerts_resp = api("GET", "/api/v1/customers/alerts?is_read=false&page_size=10", token=token)
+alerts_resp = api(
+    "GET", "/api/v1/customers/alerts?is_read=false&page_size=10", token=token
+)
 print(f"[3] Alerts response: {json.dumps(alerts_resp, ensure_ascii=False)}")
 
-alerts = alerts_resp.get("data", {}).get("alerts", []) if alerts_resp.get("data") else []
+alerts = (
+    alerts_resp.get("data", {}).get("alerts", []) if alerts_resp.get("data") else []
+)
 print(f"    Found {len(alerts)} unread alerts")
 
 if not alerts:
@@ -46,7 +62,7 @@ for cid in customer_ids:
     try:
         cust = api("GET", f"/api/v1/customers/{cid}", token=token)
         customer_names[cid] = cust.get("data", {}).get("name", f"Customer({cid})")
-    except:
+    except Exception:
         customer_names[cid] = f"Customer({cid})"
 
 # Step 5: Format and print alerts

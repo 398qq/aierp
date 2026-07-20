@@ -11,7 +11,8 @@ mkdirSync(OUT_DIR, { recursive: true });
 
 const FRONTEND = "http://localhost:3002";
 const USERNAME = process.env.AIERP_LOGIN_USERNAME ?? "admin";
-const PASSWORD = process.env.AIERP_LOGIN_PASSWORD ?? "admin123";
+const PASSWORD = process.env.AIERP_LOGIN_PASSWORD;
+if (!PASSWORD) throw new Error("AIERP_LOGIN_PASSWORD is required");
 
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({
@@ -38,9 +39,14 @@ console.log("  saved 02-dashboard.png");
 
 // Navigate to commission list
 console.log("→ /finance/commissions");
-await page.goto(`${FRONTEND}/finance/commissions`, { waitUntil: "networkidle" });
+await page.goto(`${FRONTEND}/finance/commissions`, {
+  waitUntil: "networkidle",
+});
 await page.waitForTimeout(800); // let table render
-await page.screenshot({ path: `${OUT_DIR}/03-commission-list.png`, fullPage: false });
+await page.screenshot({
+  path: `${OUT_DIR}/03-commission-list.png`,
+  fullPage: false,
+});
 console.log("  saved 03-commission-list.png");
 
 // Open the create drawer
@@ -48,7 +54,10 @@ console.log("→ open create drawer");
 try {
   await page.click('button:has-text("新建佣金")', { timeout: 3000 });
   await page.waitForTimeout(500);
-  await page.screenshot({ path: `${OUT_DIR}/04-commission-drawer.png`, fullPage: false });
+  await page.screenshot({
+    path: `${OUT_DIR}/04-commission-drawer.png`,
+    fullPage: false,
+  });
   console.log("  saved 04-commission-drawer.png");
 } catch (e) {
   console.log("  (drawer button not found, skipped)");

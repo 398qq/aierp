@@ -18,6 +18,8 @@ set -u
 # ============ 配置 ============
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"  # 找刘经理要
 TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-8103002093}"  # 刘经理
+AIERP_LOGIN_USERNAME="${AIERP_LOGIN_USERNAME:-admin}"
+: "${AIERP_LOGIN_PASSWORD:?Set AIERP_LOGIN_PASSWORD before running this script}"
 HEALTH_URL="http://localhost:8080/health/live"
 BACKUP_DIR="$HOME/date"
 LOG_DIR="$HOME/aierp/logs"
@@ -88,9 +90,13 @@ fi
 
 # 5. Watchtower 未读告警（如果 backend 还能连上）
 if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+    LOGIN_PAYLOAD=$(jq -cn \
+        --arg username "$AIERP_LOGIN_USERNAME" \
+        --arg password "$AIERP_LOGIN_PASSWORD" \
+        '{username: $username, password: $password}')
     ALERT_COUNT=$(curl -sf --max-time 5 -X POST "http://localhost:8080/api/v1/auth/login" \
         -H "Content-Type: application/json" \
-        -d '{"username":"admin","password":"admin123"}' 2>/dev/null | \
+        -d "$LOGIN_PAYLOAD" 2>/dev/null | \
         python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('token',''))" 2>/dev/null | \
         xargs -I{} curl -sf --max-time 5 \
             "http://localhost:8080/api/v1/customers/alerts?is_read=false&page_size=1" \

@@ -2,13 +2,19 @@
 set -e
 
 BASE="http://localhost:8080"
+AIERP_LOGIN_USERNAME="${AIERP_LOGIN_USERNAME:-admin}"
+: "${AIERP_LOGIN_PASSWORD:?Set AIERP_LOGIN_PASSWORD before running this script}"
+LOGIN_PAYLOAD=$(jq -cn \
+  --arg username "$AIERP_LOGIN_USERNAME" \
+  --arg password "$AIERP_LOGIN_PASSWORD" \
+  '{username: $username, password: $password}')
 
 # Step 1: Login
 LOGIN_RESP=$(curl -s -X POST "$BASE/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}')
+  -d "$LOGIN_PAYLOAD")
 TOKEN=$(echo "$LOGIN_RESP" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
-echo "TOKEN=$TOKEN"
+echo "TOKEN=${TOKEN:0:20}..."
 
 # Step 2: Trigger full scan
 echo "=== Triggering scan ==="
