@@ -34,6 +34,8 @@ from app.schemas.finance import (
     PaymentStats,
 )
 from app.services import finance_service as svc
+from app.domain.states import assert_can_transition_invoice, assert_can_transition_payment
+from app.services.state_transition_service import transition_status
 from app.services.cache_service import (
     cache_bump_version,
     cache_get_versioned,
@@ -364,9 +366,30 @@ async def replace_payment_allocations(
             or 0
         )
         if allocated >= float(invoice.amount) - 0.000001:
-            invoice.status = "paid"
+            await transition_status(
+                db,
+                invoice,
+                "paid",
+                guard=assert_can_transition_invoice,
+                aggregate_type="Invoice",
+                actor=_user["user_id"],
+                action="allocate_payment",
+            )
 
-    pay.status = "completed" if requested_total >= float(pay.amount) - 0.000001 else "partial"
+    target_status = (
+        "completed"
+        if requested_total >= float(pay.amount) - 0.000001
+        else "partial"
+    )
+    await transition_status(
+        db,
+        pay,
+        target_status,
+        guard=assert_can_transition_payment,
+        aggregate_type="PaymentRecord",
+        actor=_user["user_id"],
+        action="allocate_payment",
+    )
     await _bump_payment_caches()
     await cache_bump_version("invoices:list")
     return ok(
@@ -389,7 +412,12 @@ async def update_payment(
     pay = await svc.get_payment(db, pay_id)
     if not pay:
         return fail("回款记录不存在", 404)
-    pay = await svc.update_payment(db, pay, body.model_dump(exclude_none=True))
+    pay = await svc.update_payment(
+        db,
+        pay,
+        body.model_dump(exclude_none=True),
+        actor=_user["user_id"],
+    )
     await _bump_payment_caches()
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
     order_no = await _load_order_no(db, pay.sales_order_id)

@@ -207,21 +207,21 @@ class TestQuotationConvert:
         q = Quotation(customer_id=1, lines=[_line()])
         q.send()
         q.convert_to_order()
-        assert q.status == QuotationStatus.CONVERTED
+        assert q.status == QuotationStatus.WON
 
     def test_convert_from_accepted(self):
         q = Quotation(customer_id=1, lines=[_line()])
         q.send()
         q.accept()
         q.convert_to_order()
-        assert q.status == QuotationStatus.CONVERTED
+        assert q.status == QuotationStatus.WON
 
     def test_convert_from_draft_raises(self):
         q = Quotation(customer_id=1, lines=[_line()])
         with pytest.raises(InvalidStateTransition):
             q.convert_to_order()
 
-    def test_convert_from_converted_raises(self):
+    def test_convert_from_won_raises(self):
         q = Quotation(customer_id=1, lines=[_line()])
         q.send()
         q.convert_to_order()

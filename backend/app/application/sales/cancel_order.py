@@ -22,6 +22,8 @@ from app.domain.sales.entities import SalesOrder
 from app.domain.shared.errors import NotFoundError
 from app.models.sales import SalesOrder as SalesOrderModel
 from app.application.sales.confirm_order import to_domain_order
+from app.domain.states import assert_can_transition_sales_order
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,16 @@ class CancelSalesOrderUseCase:
         previous_status = domain_order.status
         domain_order.cancel(reason=reason)  # Raises InvalidStateTransition
 
-        orm.status = domain_order.status.value
+        await transition_status(
+            self._session,
+            orm,
+            domain_order.status.value,
+            guard=assert_can_transition_sales_order,
+            aggregate_type="SalesOrder",
+            actor=self._user_id,
+            action="cancel",
+            reason=reason,
+        )
 
         logger.info(
             "Order cancelled SO#%s by user#%s: %s → %s, reason=%r",

@@ -11,12 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.domain.shared.errors import InsufficientStockError
-from app.domain.states import assert_can_transition_delivery
+from app.domain.states import (
+    assert_can_transition_delivery,
+    assert_can_transition_payment,
+    assert_can_transition_sales_order,
+)
 from app.models.finance import PaymentRecord
 from app.models.product import Warehouse
 from app.models.sales import DeliveryNote, DeliveryNoteItem, SalesOrder, SalesOrderItem
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
+from app.services.state_transition_service import transition_status
 from app.services.inventory_service import deduct_for_delivery, lock_for_sales_order
 from app.services.sales_service._helpers import (
     _apply_customer_product_codes,
@@ -191,12 +196,23 @@ class DeliveryNoteService(BaseCRUDService):
         return note
 
     async def update_delivery_note(
-        self, db: AsyncSession, note: DeliveryNote, data: dict
+        self,
+        db: AsyncSession,
+        note: DeliveryNote,
+        data: dict,
+        actor: str | int | None = None,
     ) -> DeliveryNote:
         old_status = note.status
         new_status = data.get("status")
         if new_status and new_status != old_status:
-            assert_can_transition_delivery(old_status, new_status)
+            await transition_status(
+                db,
+                note,
+                new_status,
+                guard=assert_can_transition_delivery,
+                aggregate_type="DeliveryNote",
+                actor=actor,
+            )
         items_data = data.pop("items", None)
         items_data = await self._apply_sales_order_to_delivery_data(
             db, data, items_data
@@ -259,9 +275,23 @@ class DeliveryNoteService(BaseCRUDService):
         delivered_qty = sum(int(row[1] or 0) for row in rows)
         statuses = {str(row[0]) for row in rows}
         if ordered_qty and delivered_qty >= ordered_qty and statuses <= {"delivered", "completed"}:
-            order.status = "delivered"
+            await transition_status(
+                db,
+                order,
+                "delivered",
+                guard=assert_can_transition_sales_order,
+                aggregate_type="SalesOrder",
+                action="fulfillment_sync",
+            )
         elif delivered_qty > 0:
-            order.status = "shipped"
+            await transition_status(
+                db,
+                order,
+                "shipped",
+                guard=assert_can_transition_sales_order,
+                aggregate_type="SalesOrder",
+                action="fulfillment_sync",
+            )
 
     async def soft_delete_delivery_note(
         self, db: AsyncSession, note: DeliveryNote
@@ -312,14 +342,30 @@ class DeliveryNoteService(BaseCRUDService):
             amount=Decimal(str(amount)),
             payment_date=paid_at,
             payment_method=payment_method,
-            status="completed",
+            status="pending",
             notes=notes or f"发货单 {note.delivery_no or note.id} 签收收款",
         )
         db.add(pay)
+        await db.flush()
+        await transition_status(
+            db,
+            pay,
+            "completed",
+            guard=assert_can_transition_payment,
+            aggregate_type="PaymentRecord",
+            action="sign_and_pay",
+        )
 
         note.received_date = paid_at
         if note.status == "shipped":
-            note.status = "delivered"
+            await transition_status(
+                db,
+                note,
+                "delivered",
+                guard=assert_can_transition_delivery,
+                aggregate_type="DeliveryNote",
+                action="sign_and_pay",
+            )
 
         await db.commit()
         await db.refresh(pay)
@@ -436,9 +482,12 @@ async def create_delivery_note(
 
 
 async def update_delivery_note(
-    db: AsyncSession, note: DeliveryNote, data: dict
+    db: AsyncSession,
+    note: DeliveryNote,
+    data: dict,
+    actor: str | int | None = None,
 ) -> DeliveryNote:
-    return await delivery_note_service.update_delivery_note(db, note, data)
+    return await delivery_note_service.update_delivery_note(db, note, data, actor)
 
 
 async def _auto_deduct_delivery(db: AsyncSession, note: DeliveryNote) -> None:

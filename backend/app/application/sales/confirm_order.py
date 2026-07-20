@@ -26,6 +26,8 @@ from app.domain.sales.entities import (
 )
 from app.domain.shared.errors import NotFoundError
 from app.models.sales import SalesOrder as SalesOrderModel
+from app.domain.states import assert_can_transition_sales_order
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +92,15 @@ class ConfirmSalesOrderUseCase:
         domain_order.confirm()  # Raises InvalidStateTransition if not DRAFT
 
         # 4. Persist status change
-        orm.status = domain_order.status.value
+        await transition_status(
+            self._session,
+            orm,
+            domain_order.status.value,
+            guard=assert_can_transition_sales_order,
+            aggregate_type="SalesOrder",
+            actor=self._user_id,
+            action="confirm",
+        )
 
         logger.info(
             "Order confirmed SO#%s by user#%s: %s → %s, %d lines",

@@ -142,6 +142,8 @@ async def ar_report(
     response.headers["X-Cache"] = "MISS"
     now = datetime.now(timezone.utc)
 
+    from app.domain.states import INVOICE_OUTSTANDING_STATUSES
+
     invoices = (
         await db.execute(
             select(Invoice, Customer.name, Customer.code)
@@ -149,7 +151,7 @@ async def ar_report(
             .where(
                 Invoice.deleted_at.is_(None),
                 Customer.deleted_at.is_(None),
-                Invoice.status.in_(["sent", "overdue", "partial"]),
+                Invoice.status.in_(INVOICE_OUTSTANDING_STATUSES),
             )
         )
     ).all()

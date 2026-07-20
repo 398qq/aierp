@@ -4,6 +4,8 @@ Customer support / after-sales tickets.
 """
 
 import logging
+from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -12,8 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.domain.shared.errors import NotFoundError
+from app.domain.states import assert_can_transition_ticket
 from app.models.transaction import Ticket
 from app.schemas.common import ok
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +30,18 @@ class TicketCreate(BaseModel):
     customer_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    status: str = "open"
+    status: Literal["open"] = "open"
     priority: str = "medium"
     category: str | None = None
     assigned_to: str | None = None
     notes: str | None = None
+
+
+class TicketTransition(BaseModel):
+    target_status: Literal[
+        "open", "in_progress", "resolved", "closed", "cancelled"
+    ]
+    reason: str | None = None
 
 
 @ticket_router.get("")
@@ -105,3 +117,30 @@ async def create_ticket(
     await db.commit()
     await db.refresh(ticket)
     return ok({"id": ticket.id, "title": ticket.title})
+
+
+@ticket_router.post("/{ticket_id}/transition")
+async def transition_ticket(
+    ticket_id: int,
+    body: TicketTransition,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    ticket = await db.get(Ticket, ticket_id)
+    if ticket is None or ticket.deleted_at is not None:
+        raise NotFoundError("工单不存在")
+    await transition_status(
+        db,
+        ticket,
+        body.target_status,
+        guard=assert_can_transition_ticket,
+        aggregate_type="Ticket",
+        actor=user["user_id"],
+        reason=body.reason,
+    )
+    if body.target_status == "resolved":
+        ticket.resolved_at = datetime.now(timezone.utc)
+    elif body.target_status == "open":
+        ticket.resolved_at = None
+    await db.commit()
+    return ok({"id": ticket.id, "status": ticket.status})

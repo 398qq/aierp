@@ -31,8 +31,13 @@ from app.application.sales import (
 )
 from app.application.uow import UnitOfWork
 from app.domain.sales.quotation import Quotation, QuotationLine
+from app.domain.states import (
+    assert_can_transition_quotation,
+    assert_can_transition_sales_order,
+)
 from app.models.sales import Quotation as QuotationModel
 from app.models.sales import QuotationItem
+from app.services.state_transition_service import transition_status
 from app.schemas.common import fail, ok
 from app.services.order_release_policy import validate_order_release
 from app.services.sales_service._helpers import _apply_customer_product_codes
@@ -186,7 +191,15 @@ async def send_quotation(
     )
     domain.send()  # Raises InvalidStateTransition / BusinessRuleViolation
 
-    quote_orm.status = domain.status.value
+    await transition_status(
+        uow.session,
+        quote_orm,
+        domain.status.value,
+        guard=assert_can_transition_quotation,
+        aggregate_type="Quotation",
+        actor=user["user_id"],
+        action="send",
+    )
     for event in domain.collect_events():
         uow.track_event(event)
     return ok({"id": quote_orm.id, "status": domain.status.value})
@@ -327,7 +340,15 @@ async def convert_order_to_delivery_v2(
         )
 
     if order.status in ("pending", "draft"):
-        order.status = "confirmed"
+        await transition_status(
+            uow.session,
+            order,
+            "confirmed",
+            guard=assert_can_transition_sales_order,
+            aggregate_type="SalesOrder",
+            actor=user["user_id"],
+            action="create_delivery",
+        )
 
     await uow.session.flush()
     return ok({"id": note.id, "delivery_no": note.delivery_no})

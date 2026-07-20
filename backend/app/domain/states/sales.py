@@ -33,7 +33,7 @@ def assert_can_transition_opportunity(current: str, target: str) -> None:
 # ── Quotation ────────────────────────────────────────────────
 
 QUOTATION_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"sent", "rejected", "won"},
+    "draft": {"sent", "rejected"},
     "sent": {"accepted", "rejected", "expired", "lost", "won"},
     "accepted": {"won"},
     "rejected": set(),

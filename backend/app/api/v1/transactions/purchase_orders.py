@@ -12,13 +12,19 @@ populated by the AI restock pipeline.
 
 import logging
 from datetime import datetime, timezone
+from typing import Literal
 
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.domain.shared.errors import BusinessRuleViolation, NotFoundError
-from app.domain.states import assert_can_transition_purchase_order
-from app.models.transaction import PurchaseOrder
+from app.domain.states import (
+    assert_can_transition_goods_receipt,
+    assert_can_transition_purchase_order,
+    assert_can_transition_supplier_invoice,
+)
+from app.models.transaction import GoodsReceipt, PurchaseOrder, SupplierInvoice
 from app.schemas.common import ok
+from app.services.state_transition_service import transition_status
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
@@ -53,7 +59,7 @@ class POItemCreate(BaseModel):
 class POCreate(BaseModel):
     order_no: str | None = None
     supplier_id: int
-    status: str = "draft"
+    status: Literal["draft"] = "draft"
     sales_order_id: int | None = None
     supplier_contact: str | None = None
     payment_terms: str | None = None
@@ -440,7 +446,69 @@ class POReceive(BaseModel):
 
 
 class POTransition(BaseModel):
-    target_status: str
+    target_status: Literal[
+        "approved", "ordered", "partially_received", "received", "cancelled"
+    ]
+
+
+class GoodsReceiptTransition(BaseModel):
+    target_status: Literal["received", "inspected", "accepted", "rejected"]
+    reason: str | None = None
+
+
+class SupplierInvoiceTransition(BaseModel):
+    target_status: Literal["matched", "approved", "paid", "cancelled"]
+    reason: str | None = None
+
+
+@po_router.post("/goods-receipts/{receipt_id}/transition")
+async def transition_goods_receipt(
+    receipt_id: int,
+    body: GoodsReceiptTransition,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    receipt = await db.get(GoodsReceipt, receipt_id)
+    if receipt is None or receipt.deleted_at is not None:
+        raise NotFoundError("收货单不存在")
+    await transition_status(
+        db,
+        receipt,
+        body.target_status,
+        guard=assert_can_transition_goods_receipt,
+        aggregate_type="GoodsReceipt",
+        actor=user["user_id"],
+        reason=body.reason,
+    )
+    if body.target_status == "inspected":
+        receipt.inspected = True
+    if body.target_status in {"accepted", "rejected"}:
+        receipt.inspection_result = body.target_status
+    await db.commit()
+    return ok({"id": receipt.id, "status": receipt.status})
+
+
+@po_router.post("/supplier-invoices/{invoice_id}/transition")
+async def transition_supplier_invoice(
+    invoice_id: int,
+    body: SupplierInvoiceTransition,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    invoice = await db.get(SupplierInvoice, invoice_id)
+    if invoice is None or invoice.deleted_at is not None:
+        raise NotFoundError("供应商发票不存在")
+    await transition_status(
+        db,
+        invoice,
+        body.target_status,
+        guard=assert_can_transition_supplier_invoice,
+        aggregate_type="SupplierInvoice",
+        actor=user["user_id"],
+        reason=body.reason,
+    )
+    await db.commit()
+    return ok({"id": invoice.id, "status": invoice.status})
 
 
 @po_router.post("/{po_id}/confirm-large-order")
@@ -476,7 +544,6 @@ async def transition_purchase_order(
     ).scalar_one_or_none()
     if po is None:
         raise NotFoundError("采购订单不存在")
-    assert_can_transition_purchase_order(po.status, body.target_status)
     if body.target_status == "approved":
         if not po.items:
             raise BusinessRuleViolation("空采购订单不能审批")
@@ -517,7 +584,14 @@ async def transition_purchase_order(
     if body.target_status == "ordered":
         po.sent_at = datetime.now(timezone.utc)
         po.supplier_confirmation_status = "pending"
-    po.status = body.target_status
+    await transition_status(
+        db,
+        po,
+        body.target_status,
+        guard=assert_can_transition_purchase_order,
+        aggregate_type="PurchaseOrder",
+        actor=_user["user_id"],
+    )
     await db.commit()
     return ok({"id": po.id, "status": po.status})
 
@@ -574,8 +648,6 @@ async def receive_purchase_order(
     if po.supplier_confirmation_status != "confirmed":
         raise BusinessRuleViolation("供应商尚未完成书面确认，不能收货")
 
-    assert_can_transition_purchase_order(po.status, "received")
-
     received_items = []
     for item in po.items:
         if item.product_id and item.quantity > 0:
@@ -589,7 +661,15 @@ async def receive_purchase_order(
                     "PO receive failed PO#%s product#%s: %s", po.id, item.product_id, e
                 )
 
-    po.status = "received"
+    await transition_status(
+        db,
+        po,
+        "received",
+        guard=assert_can_transition_purchase_order,
+        aggregate_type="PurchaseOrder",
+        actor=_user["user_id"],
+        action="receive",
+    )
     await db.commit()
 
     return ok(

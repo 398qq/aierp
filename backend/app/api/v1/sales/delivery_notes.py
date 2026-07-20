@@ -191,7 +191,12 @@ async def update_delivery_note(
     note = await svc.get_delivery_note(db, note_id)
     if not note:
         return fail("发货单不存在", 404)
-    note = await svc.update_delivery_note(db, note, body.model_dump(exclude_none=True))
+    note = await svc.update_delivery_note(
+        db,
+        note,
+        body.model_dump(exclude_none=True),
+        actor=_user["user_id"],
+    )
     await _eager_load_for_response(db, note)
     return ok(serialize_delivery_note(note))
 

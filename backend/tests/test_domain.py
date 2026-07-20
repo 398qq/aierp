@@ -402,7 +402,7 @@ class TestQuotationStateMachine:
         q.send()
         q.accept()
         q.convert_to_order()
-        assert q.status == QuotationStatus.CONVERTED
+        assert q.status == QuotationStatus.WON
 
     def test_cannot_accept_draft(self):
         q = self._make_quotation()

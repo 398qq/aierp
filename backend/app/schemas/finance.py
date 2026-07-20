@@ -5,6 +5,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+PaymentStatus = Literal["pending", "partial", "completed", "overdue", "reversed"]
+InvoiceStatus = Literal["draft", "issued", "overdue", "paid", "cancelled"]
+
 
 # --- PaymentRecord ---
 
@@ -17,7 +20,7 @@ class PaymentRecordCreate(BaseModel):
     amount: float
     payment_date: str | None = None
     payment_method: str = "bank"
-    status: str = "pending"
+    status: Literal["pending"] = "pending"
     currency: str = "CNY"
     transaction_ref: str | None = None
     bank_account: str | None = None
@@ -32,7 +35,7 @@ class PaymentRecordUpdate(BaseModel):
     amount: float | None = None
     payment_date: str | None = None
     payment_method: str | None = None
-    status: str | None = None
+    status: PaymentStatus | None = None
     currency: str | None = None
     transaction_ref: str | None = None
     bank_account: str | None = None
@@ -60,7 +63,7 @@ class InvoiceCreate(BaseModel):
     tax_amount: float | None = None
     invoice_date: str | None = None
     invoice_type: str = "普通发票"
-    status: str = "draft"
+    status: Literal["draft"] = "draft"
     currency: str = "CNY"
     due_date: str | None = None
     subtotal: float | None = None
@@ -76,7 +79,7 @@ class InvoiceUpdate(BaseModel):
     tax_amount: float | None = None
     invoice_date: str | None = None
     invoice_type: str | None = None
-    status: str | None = None
+    status: InvoiceStatus | None = None
     currency: str | None = None
     due_date: str | None = None
     subtotal: float | None = None
@@ -122,9 +125,7 @@ class ContractCreate(BaseModel):
     currency: str = Field(default="CNY", min_length=3, max_length=3)
     signed_date: str | None = None
     expire_date: str | None = None
-    status: Literal[
-        "draft", "signed", "active", "expired", "terminated", "cancelled"
-    ] = "draft"
+    status: Literal["draft"] = "draft"
     file_url: str | None = None
     delivery_address: str | None = None
     delivery_terms: str | None = None

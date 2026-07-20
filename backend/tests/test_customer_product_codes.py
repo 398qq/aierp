@@ -135,6 +135,11 @@ async def test_customer_product_code_is_snapshotted_through_sales_flow(
     )
     assert quote_again.json()["data"]["items"][0]["customer_part_no"] == "BUYER-OLD-01"
 
+    sent = await async_client.put(
+        f"/api/v1/quotations/{quote['id']}/send", headers=auth_headers
+    )
+    assert sent.status_code == 200
+
     converted_order = await async_client.post(
         f"/api/v1/quotations/{quote['id']}/convert-to-order", headers=auth_headers
     )

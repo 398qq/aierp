@@ -344,7 +344,12 @@ async def update_contract(
     if not ct:
         return fail("合同不存在", 404)
     previous_status = ct.status
-    ct = await svc_update(db, ct, body.model_dump(exclude_none=True))
+    ct = await svc_update(
+        db,
+        ct,
+        body.model_dump(exclude_none=True),
+        actor=current_user["user_id"],
+    )
     await cache_bump_version("contracts:list")
     await write_audit_log(
         db,

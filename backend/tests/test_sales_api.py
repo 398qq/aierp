@@ -196,6 +196,10 @@ class TestOpportunities:
             },
         )
         quotation_id = quotation.json()["data"]["id"]
+        sent = await async_client.put(
+            f"/api/v1/quotations/{quotation_id}/send", headers=auth_headers
+        )
+        assert sent.status_code == 200
         converted = await async_client.post(
             f"/api/v1/quotations/{quotation_id}/convert-to-order",
             headers=auth_headers,
@@ -767,6 +771,10 @@ class TestQuotations:
             },
         )
         quo_id = quo.json()["data"]["id"]
+        sent = await async_client.put(
+            f"/api/v1/quotations/{quo_id}/send", headers=auth_headers
+        )
+        assert sent.status_code == 200
         resp = await async_client.post(
             f"/api/v1/quotations/{quo_id}/convert-to-order",
             headers=auth_headers,
@@ -790,14 +798,22 @@ class TestQuotations:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "status": "lost",
                 "items": [
                     {"product_name": "STATE-CONTROL", "quantity": 1, "unit_price": 10}
                 ],
             },
         )
+        quote_id = created.json()["data"]["id"]
+        await async_client.put(
+            f"/api/v1/quotations/{quote_id}/send", headers=auth_headers
+        )
+        await async_client.put(
+            f"/api/v1/quotations/{quote_id}/status",
+            headers=auth_headers,
+            json={"status": "lost"},
+        )
         response = await async_client.post(
-            f"/api/v1/quotations/{created.json()['data']['id']}/convert-to-order",
+            f"/api/v1/quotations/{quote_id}/convert-to-order",
             headers=auth_headers,
         )
         assert response.status_code == 409

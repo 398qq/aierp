@@ -20,6 +20,16 @@ PURCHASE_ORDER_TRANSITIONS: dict[str, set[str]] = {
     "cancelled": set(),
 }
 
+PURCHASE_ORDER_OPEN_STATUSES = frozenset(
+    {"draft", "approved", "ordered", "partially_received"}
+)
+PURCHASE_ORDER_EXPECTED_ARRIVAL_STATUSES = frozenset(
+    {"approved", "ordered", "partially_received"}
+)
+PURCHASE_ORDER_PAYABLE_STATUSES = frozenset(
+    {"approved", "ordered", "partially_received", "received"}
+)
+
 
 def assert_can_transition_purchase_order(current: str, target: str) -> None:
     allowed = PURCHASE_ORDER_TRANSITIONS.get(current, set())
@@ -104,7 +114,7 @@ def assert_can_transition_ticket(current: str, target: str) -> None:
 # ── Sample ───────────────────────────────────────────────────
 
 SAMPLE_TRANSITIONS: dict[str, set[str]] = {
-    "requested": {"shipped", "cancelled"},
+    "pending": {"shipped", "cancelled"},
     "shipped": {"received", "cancelled"},
     "received": {"evaluated"},
     "evaluated": set(),

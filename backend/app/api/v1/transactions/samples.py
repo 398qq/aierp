@@ -4,7 +4,8 @@ Sample products sent to customers for evaluation.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -13,8 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.domain.shared.errors import NotFoundError
+from app.domain.states import assert_can_transition_sample
 from app.models.transaction import Sample
 from app.schemas.common import ok
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +33,16 @@ class SampleCreate(BaseModel):
     apply_date: str | None = None
     shipped_date: str | None = None
     received_date: str | None = None
-    status: str = "pending"
+    status: Literal["pending"] = "pending"
     tracking_no: str | None = None
     approved_by: int | None = None
     sample_result: str | None = None
     notes: str | None = None
+
+
+class SampleTransition(BaseModel):
+    target_status: Literal["shipped", "received", "evaluated", "cancelled"]
+    reason: str | None = None
 
 
 @sample_router.get("")
@@ -109,4 +118,32 @@ async def create_sample(
     sample = Sample(**data)
     db.add(sample)
     await db.flush()
+    return ok({"id": sample.id, "status": sample.status})
+
+
+@sample_router.post("/{sample_id}/transition")
+async def transition_sample(
+    sample_id: int,
+    body: SampleTransition,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    sample = await db.get(Sample, sample_id)
+    if sample is None or sample.deleted_at is not None:
+        raise NotFoundError("样品记录不存在")
+    await transition_status(
+        db,
+        sample,
+        body.target_status,
+        guard=assert_can_transition_sample,
+        aggregate_type="Sample",
+        actor=user["user_id"],
+        reason=body.reason,
+    )
+    now = datetime.now(timezone.utc)
+    if body.target_status == "shipped" and sample.shipped_date is None:
+        sample.shipped_date = now
+    elif body.target_status == "received" and sample.received_date is None:
+        sample.received_date = now
+    await db.commit()
     return ok({"id": sample.id, "status": sample.status})

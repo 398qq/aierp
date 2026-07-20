@@ -24,6 +24,8 @@ from app.models.transaction import (
     PurchaseOrder,
     SupplierInvoice,
 )
+from app.domain.states import assert_can_transition_supplier_invoice
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -201,9 +203,24 @@ class MatchSupplierInvoiceUseCase:
 
         # If matched, mark as approved (ready for payment)
         if result.is_matched:
-            inv.status = "approved"
-        else:
-            inv.status = "pending"  # Clerk review needed
+            await transition_status(
+                self._session,
+                inv,
+                "matched",
+                guard=assert_can_transition_supplier_invoice,
+                aggregate_type="SupplierInvoice",
+                actor=self._user_id,
+                action="three_way_match",
+            )
+            await transition_status(
+                self._session,
+                inv,
+                "approved",
+                guard=assert_can_transition_supplier_invoice,
+                aggregate_type="SupplierInvoice",
+                actor=self._user_id,
+                action="auto_approve_match",
+            )
 
         logger.info(
             "3-way match for SupplierInvoice #%s: %s (PO=%s, GR=%s, inv=%s, discrepancies=%d)",

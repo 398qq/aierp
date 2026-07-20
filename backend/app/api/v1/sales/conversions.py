@@ -26,6 +26,7 @@ from app.schemas.common import fail, ok
 from app.schemas.sales import ConversionValidation, ConvertResponse
 from app.services import sales_service as svc
 from app.services.cache_service import cache_bump_version
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +61,6 @@ async def convert_quote_to_order(
     use_case = ConvertQuotationToOrderUseCase(
         uow.session,
         user_id=user["user_id"],
-        allow_legacy_draft=True,
-        final_quotation_status="won",
     )
     try:
         order = await use_case.execute(quote_id)
@@ -269,7 +268,15 @@ async def batch_confirm_orders(
         except Exception:
             failed.append({"id": oid, "error": f"状态 {order.status} 不允许确认"})
             continue
-        order.status = "confirmed"
+        await transition_status(
+            db,
+            order,
+            "confirmed",
+            guard=assert_can_transition_sales_order,
+            aggregate_type="SalesOrder",
+            actor=_user["user_id"],
+            action="batch_confirm",
+        )
         succeeded += 1
 
     await db.commit()

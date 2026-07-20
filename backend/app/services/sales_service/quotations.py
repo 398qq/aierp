@@ -15,6 +15,7 @@ from app.models.product import Product
 from app.models.sales import Inquiry, Quotation, QuotationItem, SalesOrder
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
+from app.services.state_transition_service import transition_status
 from app.services.sales_service._helpers import (
     _apply_customer_product_codes,
     _customer_search_ids,
@@ -238,10 +239,21 @@ class QuotationService(BaseCRUDService):
         return quote
 
     async def update_quotation_with_items(
-        self, db: AsyncSession, quote: Quotation, data: dict
+        self,
+        db: AsyncSession,
+        quote: Quotation,
+        data: dict,
+        actor: str | int | None = None,
     ) -> Quotation:
         if "status" in data and data["status"] != quote.status:
-            assert_can_transition_quotation(quote.status, data["status"])
+            await transition_status(
+                db,
+                quote,
+                data["status"],
+                guard=assert_can_transition_quotation,
+                aggregate_type="Quotation",
+                actor=actor,
+            )
         items_data = data.pop("items", None)
         for k, v in data.items():
             if v is not None and k != "items":
@@ -264,10 +276,20 @@ class QuotationService(BaseCRUDService):
         return quote
 
     async def update_quotation_status(
-        self, db: AsyncSession, quote: Quotation, status: str
+        self,
+        db: AsyncSession,
+        quote: Quotation,
+        status: str,
+        actor: str | int | None = None,
     ) -> Quotation:
-        assert_can_transition_quotation(quote.status, status)
-        quote.status = status
+        await transition_status(
+            db,
+            quote,
+            status,
+            guard=assert_can_transition_quotation,
+            aggregate_type="Quotation",
+            actor=actor,
+        )
         await db.commit()
         await db.refresh(quote)
         return quote
@@ -327,10 +349,19 @@ class QuotationService(BaseCRUDService):
         quote.deleted_at = datetime.now(timezone.utc)
         await db.commit()
 
-    async def send_quotation(self, db: AsyncSession, quote: Quotation) -> Quotation:
+    async def send_quotation(
+        self, db: AsyncSession, quote: Quotation, actor: str | int | None = None
+    ) -> Quotation:
         """Mark quotation as sent and trigger WeCom notification."""
-        assert_can_transition_quotation(quote.status, "sent")
-        quote.status = "sent"
+        await transition_status(
+            db,
+            quote,
+            "sent",
+            guard=assert_can_transition_quotation,
+            aggregate_type="Quotation",
+            actor=actor,
+            action="send",
+        )
         await db.commit()
         await db.refresh(quote)
         try:
@@ -502,8 +533,13 @@ async def create_quotation(
     return await quotation_service.create_quotation(db, data, items_data)
 
 
-async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Quotation:
-    return await quotation_service.update_quotation_with_items(db, quote, data)
+async def update_quotation(
+    db: AsyncSession,
+    quote: Quotation,
+    data: dict,
+    actor: str | int | None = None,
+) -> Quotation:
+    return await quotation_service.update_quotation_with_items(db, quote, data, actor)
 
 
 async def get_quotation_stats(db: AsyncSession) -> dict:
@@ -515,17 +551,22 @@ async def duplicate_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
 
 
 async def update_quotation_status(
-    db: AsyncSession, quote: Quotation, status: str
+    db: AsyncSession,
+    quote: Quotation,
+    status: str,
+    actor: str | int | None = None,
 ) -> Quotation:
-    return await quotation_service.update_quotation_status(db, quote, status)
+    return await quotation_service.update_quotation_status(db, quote, status, actor)
 
 
 async def delete_quotation(db: AsyncSession, quote: Quotation) -> None:
     await quotation_service.soft_delete_quotation(db, quote)
 
 
-async def send_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
-    return await quotation_service.send_quotation(db, quote)
+async def send_quotation(
+    db: AsyncSession, quote: Quotation, actor: str | int | None = None
+) -> Quotation:
+    return await quotation_service.send_quotation(db, quote, actor)
 
 
 async def create_quotation_from_inquiry(

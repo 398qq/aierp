@@ -334,7 +334,12 @@ async def update_sales_order(
     order = await svc.get_sales_order(db, order_id)
     if not order:
         return fail("销售订单不存在", 404)
-    order = await svc.update_sales_order(db, order, body.model_dump(exclude_none=True))
+    order = await svc.update_sales_order(
+        db,
+        order,
+        body.model_dump(exclude_none=True),
+        actor=_user["user_id"],
+    )
     await _bump_sales_order_caches()
     await attach_customer_and_quotation(db, order, type(order))
     await attach_items(db, order, SalesOrderItem, "order_id")

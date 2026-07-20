@@ -122,15 +122,15 @@ async def accounts_payable(
     from app.models.transaction import PurchaseOrder
     from app.models.product import Supplier
 
+    from app.domain.states import PURCHASE_ORDER_PAYABLE_STATUSES
+
     pos = (
         await db.execute(
             select(PurchaseOrder, Supplier.name)
             .join(Supplier, PurchaseOrder.supplier_id == Supplier.id)
             .where(
                 PurchaseOrder.deleted_at.is_(None),
-                PurchaseOrder.status.in_(
-                    ["approved", "in_transit", "partial", "received"]
-                ),
+                PurchaseOrder.status.in_(PURCHASE_ORDER_PAYABLE_STATUSES),
             )
         )
     ).all()

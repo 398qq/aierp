@@ -269,13 +269,15 @@ async def po_calendar(
 
     end = datetime.now(timezone.utc) + timedelta(days=days)
 
+    from app.domain.states import PURCHASE_ORDER_EXPECTED_ARRIVAL_STATUSES
+
     pos = (
         (
             await db.execute(
                 select(PurchaseOrder)
                 .where(
                     PurchaseOrder.deleted_at.is_(None),
-                    PurchaseOrder.status.in_(["approved", "in_transit", "partial"]),
+                    PurchaseOrder.status.in_(PURCHASE_ORDER_EXPECTED_ARRIVAL_STATUSES),
                     PurchaseOrder.expected_date.isnot(None),
                     PurchaseOrder.expected_date >= datetime.now(timezone.utc),
                     PurchaseOrder.expected_date <= end,

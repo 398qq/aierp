@@ -2,7 +2,7 @@
 
 Invoice:       draft → issued → paid | cancelled (terminal)
                issued → overdue → paid
-PaymentRecord: pending → completed | overdue
+PaymentRecord: pending → partial | completed | overdue → reversed
 Contract:      draft → signed → active → expired | terminated (terminal)
 Commission:    draft → pending_approval → approved → paid | rejected | cancelled
 """
@@ -18,6 +18,8 @@ INVOICE_TRANSITIONS: dict[str, set[str]] = {
     "paid": set(),
     "cancelled": set(),
 }
+
+INVOICE_OUTSTANDING_STATUSES = frozenset({"issued", "overdue"})
 
 
 def assert_can_transition_invoice(current: str, target: str) -> None:
@@ -35,9 +37,11 @@ def assert_can_transition_invoice(current: str, target: str) -> None:
 # ── PaymentRecord ────────────────────────────────────────────
 
 PAYMENT_TRANSITIONS: dict[str, set[str]] = {
-    "pending": {"completed", "overdue"},
-    "completed": set(),
-    "overdue": {"completed"},
+    "pending": {"partial", "completed", "overdue"},
+    "partial": {"completed", "overdue"},
+    "completed": {"reversed"},
+    "overdue": {"partial", "completed"},
+    "reversed": set(),
 }
 
 

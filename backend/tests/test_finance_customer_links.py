@@ -59,10 +59,16 @@ class TestFinanceCustomerLinks:
                     "sales_order_id": order_id,
                     "customer_id": test_customer["id"],
                     "amount": amount,
-                    "status": "issued",
                 },
             )
-            invoice_ids.append(invoice.json()["data"]["id"])
+            invoice_id = invoice.json()["data"]["id"]
+            issued = await async_client.put(
+                f"/api/v1/invoices/{invoice_id}",
+                headers=auth_headers,
+                json={"status": "issued"},
+            )
+            assert issued.status_code == 200
+            invoice_ids.append(invoice_id)
         payment = await async_client.post(
             "/api/v1/payments",
             headers=auth_headers,
@@ -223,11 +229,16 @@ class TestFinanceCustomerLinks:
                 "customer_id": test_customer["id"],
                 "delivery_note_id": dn_id,
                 "amount": 5000,
-                "status": "completed",
             },
         )
         assert resp.status_code == 200
         data = resp.json()["data"]
+        completed = await async_client.put(
+            f"/api/v1/payments/{data['id']}",
+            headers=auth_headers,
+            json={"status": "completed"},
+        )
+        assert completed.status_code == 200
         assert data["delivery_note_id"] == dn_id
         assert data["delivery_note_no"]
         assert data["sales_order_id"] == order_id
