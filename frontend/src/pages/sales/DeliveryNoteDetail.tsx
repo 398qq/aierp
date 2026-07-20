@@ -271,7 +271,8 @@ export default function DeliveryNoteDetail() {
                 size="small"
                 pagination={false}
                 columns={[
-                  { title: "产品", dataIndex: "product_name", ellipsis: true },
+                  { title: "客户料号", dataIndex: "customer_part_no", width: 170, render: (value: string | null) => value || "-" },
+                  { title: "产品", ellipsis: true, render: (_: unknown, row) => row.customer_product_name || row.product_name || "-" },
                   { title: "数量", dataIndex: "quantity", width: 90 },
                   { title: "备注", dataIndex: "notes", ellipsis: true },
                 ]}

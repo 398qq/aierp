@@ -74,6 +74,8 @@ class SalesConversionService(BaseCRUDService):
                 order_id=order.id,
                 product_id=qi.product_id,
                 product_name=qi.product_name,
+                customer_part_no=qi.customer_part_no,
+                customer_product_name=qi.customer_product_name,
                 quantity=qi.quantity,
                 unit=qi.unit,
                 unit_price=qi.unit_price,
@@ -117,6 +119,8 @@ class SalesConversionService(BaseCRUDService):
                 delivery_note_id=note.id,
                 product_id=soi.product_id,
                 product_name=soi.product_name,
+                customer_part_no=soi.customer_part_no,
+                customer_product_name=soi.customer_product_name,
                 quantity=soi.quantity,
             )
             db.add(dni)

@@ -1750,6 +1750,63 @@ class TestConversions:
         data = r.json()["data"]
         assert "delivery_no" in data
 
+    async def test_v2_contract_required_customer_blocks_delivery_without_signed_contract(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """v2 must enforce the same contract release policy as v1."""
+        updated = await async_client.put(
+            f"/api/v1/customers/{test_customer['id']}",
+            headers=auth_headers,
+            json={"contract_required": True},
+        )
+        assert updated.status_code == 200
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+
+        converted = await async_client.post(
+            f"/api/v1/sales-v2/orders/{order_id}/convert-to-delivery",
+            headers=auth_headers,
+        )
+
+        assert converted.status_code == 409
+        assert "先签合同" in converted.json()["msg"]
+
+    async def test_v2_contract_required_customer_allows_delivery_with_signed_contract(
+        self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
+    ):
+        """An order-linked signed contract releases a contract-controlled order."""
+        updated = await async_client.put(
+            f"/api/v1/customers/{test_customer['id']}",
+            headers=auth_headers,
+            json={"contract_required": True},
+        )
+        assert updated.status_code == 200
+        order_id = await self._create_order(
+            async_client, auth_headers, test_customer["id"]
+        )
+        contract = await async_client.post(
+            "/api/v1/contracts",
+            headers=auth_headers,
+            json={
+                "customer_id": test_customer["id"],
+                "sales_order_id": order_id,
+                "title": "订单签署合同",
+                "amount": 50000,
+                "signed_date": "2026-07-20",
+                "status": "signed",
+            },
+        )
+        assert contract.status_code == 200, contract.text
+
+        converted = await async_client.post(
+            f"/api/v1/sales-v2/orders/{order_id}/convert-to-delivery",
+            headers=auth_headers,
+        )
+
+        assert converted.status_code == 200, converted.text
+        assert converted.json()["data"]["delivery_no"].startswith("DN")
+
     async def test_v2_convert_delivery_to_invoice(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
     ):

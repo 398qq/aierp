@@ -19,6 +19,7 @@ from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 from app.services.inventory_service import deduct_for_delivery, lock_for_sales_order
 from app.services.sales_service._helpers import (
+    _apply_customer_product_codes,
     _customer_search_ids,
     _sales_item_ids,
 )
@@ -151,6 +152,8 @@ class DeliveryNoteService(BaseCRUDService):
                 {
                     "product_id": item.product_id,
                     "product_name": item.product_name,
+                    "customer_part_no": item.customer_part_no,
+                    "customer_product_name": item.customer_product_name,
                     "quantity": item.quantity,
                 }
                 for item in order.items
@@ -166,6 +169,10 @@ class DeliveryNoteService(BaseCRUDService):
         items_data = await self._apply_sales_order_to_delivery_data(
             db, data, items_data
         )
+        if items_data:
+            await _apply_customer_product_codes(
+                db, data.get("customer_id"), items_data
+            )
         if not data.get("delivery_no"):
             data["delivery_no"] = await generate_doc_no(
                 db, "DN", DeliveryNote, "delivery_no"
@@ -190,10 +197,22 @@ class DeliveryNoteService(BaseCRUDService):
         new_status = data.get("status")
         if new_status and new_status != old_status:
             assert_can_transition_delivery(old_status, new_status)
-        await self._apply_sales_order_to_delivery_data(db, data)
+        items_data = data.pop("items", None)
+        items_data = await self._apply_sales_order_to_delivery_data(
+            db, data, items_data
+        )
         for k, v in data.items():
             if v is not None and k != "items":
                 setattr(note, k, v)
+        if items_data is not None:
+            await _apply_customer_product_codes(
+                db, data.get("customer_id", note.customer_id), items_data
+            )
+            for item in note.items:
+                item.deleted_at = datetime.now(timezone.utc)
+            await db.flush()
+            for item in items_data:
+                db.add(DeliveryNoteItem(delivery_note_id=note.id, **item))
         await db.commit()
         await db.refresh(note)
 

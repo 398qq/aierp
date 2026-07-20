@@ -59,6 +59,19 @@ export interface Product {
   inventory_updated_at?: string | null;
 }
 
+export interface CustomerProductCode {
+  id: number;
+  customer_id: number;
+  customer_name: string | null;
+  product_id: number;
+  customer_part_no: string;
+  customer_product_name: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export interface Brand {
   id: number;
   // 基础

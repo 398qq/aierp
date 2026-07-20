@@ -62,6 +62,7 @@ import type {
   PriceRecommendation,
   ProcurementPlan,
   Product,
+  CustomerProductCode,
   Product360,
   ProductAssociation,
   ProductCustomerMatch,
@@ -149,6 +150,29 @@ export const getProductSales = (productId: number) =>
       deliveries: Record<string, unknown>[];
     }>
   >(`/products/${productId}/sales`);
+
+export const getProductCustomerCodes = (productId: number) =>
+  client.get<APIResponse<CustomerProductCode[]>>(`/products/${productId}/customer-codes`);
+
+export const createProductCustomerCode = (
+  productId: number,
+  data: {
+    customer_id: number;
+    customer_part_no: string;
+    customer_product_name?: string;
+    is_active?: boolean;
+    notes?: string;
+  },
+) => client.post<APIResponse<CustomerProductCode>>(`/products/${productId}/customer-codes`, data);
+
+export const updateProductCustomerCode = (
+  productId: number,
+  linkId: number,
+  data: Partial<Pick<CustomerProductCode, "customer_part_no" | "customer_product_name" | "is_active" | "notes">>,
+) => client.put<APIResponse<CustomerProductCode>>(`/products/${productId}/customer-codes/${linkId}`, data);
+
+export const deleteProductCustomerCode = (productId: number, linkId: number) =>
+  client.delete<APIResponse<{ deleted: boolean }>>(`/products/${productId}/customer-codes/${linkId}`);
 
 // Price Import
 export const priceImport = (

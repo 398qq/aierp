@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIERP · 专业表单配色预览</title>
+    <style>
+      :root {
+        --primary: #1d4ed8;
+        --primary-dark: #17365d;
+        --primary-soft: #edf3fa;
+        --canvas: #f5f7fa;
+        --surface: #ffffff;
+        --field: #fafbfc;
+        --text: #172033;
+        --text-secondary: #667085;
+        --border: #d8dee8;
+        --border-strong: #b8c3d1;
+        --success: #15803d;
+        --warning: #d97706;
+        --danger: #dc2626;
+        --shadow: 0 1px 3px rgb(16 42 76 / 7%);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        background: var(--canvas);
+        font: 14px/1.5 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      }
+
+      button, input, select, textarea { font: inherit; }
+
+      .topbar {
+        display: flex;
+        height: 52px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        color: #fff;
+        background: var(--primary-dark);
+        box-shadow: 0 2px 8px rgb(15 23 42 / 16%);
+      }
+
+      .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; }
+      .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid rgb(255 255 255 / 50%); border-radius: 4px; }
+      .top-meta { color: rgb(255 255 255 / 72%); font-size: 13px; }
+
+      .page { max-width: 1440px; margin: 0 auto; padding: 16px 24px 92px; }
+
+      .breadcrumb { margin-bottom: 10px; color: var(--text-secondary); font-size: 13px; }
+      .breadcrumb strong { color: var(--primary); font-weight: 500; }
+
+      .document-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding: 16px 20px;
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--primary);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .title-row { display: flex; align-items: center; gap: 10px; }
+      h1 { margin: 0; color: #102a4c; font-size: 20px; line-height: 1.4; }
+      .subtitle { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
+
+      .status { padding: 2px 9px; border: 1px solid #f2c98a; border-radius: 3px; color: #9a5700; background: #fff7e8; font-size: 12px; }
+      .document-no { color: var(--text-secondary); text-align: right; }
+      .document-no strong { display: block; margin-top: 2px; color: var(--text); font-family: ui-monospace, monospace; font-size: 15px; }
+
+      .metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 12px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); }
+      .metric { padding: 12px 16px; border-right: 1px solid var(--border); }
+      .metric:last-child { border-right: 0; }
+      .metric span { display: block; margin-bottom: 3px; color: var(--text-secondary); font-size: 12px; }
+      .metric strong { color: #102a4c; font-size: 17px; }
+      .metric strong.success { color: var(--success); }
+
+      .card { margin-bottom: 12px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); }
+      .card-head { display: flex; min-height: 42px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--primary-soft); }
+      .card-head h2 { margin: 0; color: var(--primary-dark); font-size: 14px; }
+      .card-body { padding: 16px; }
+
+      .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 16px; }
+      .field { min-width: 0; }
+      .field.span-2 { grid-column: span 2; }
+      .field.span-4 { grid-column: span 4; }
+      label { display: block; margin-bottom: 6px; color: #344054; font-size: 13px; font-weight: 500; }
+      label.required::after { content: " *"; color: var(--danger); }
+
+      input, select, textarea {
+        width: 100%;
+        min-height: 34px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        outline: none;
+        color: var(--text);
+        background: var(--field);
+        transition: border-color .15s, box-shadow .15s, background .15s;
+      }
+
+      input:focus, select:focus, textarea:focus { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 2px rgb(29 78 216 / 12%); }
+      input:disabled { color: #7b8797; background: #f0f2f5; }
+      textarea { min-height: 72px; resize: vertical; }
+      .hint { margin-top: 4px; color: var(--text-secondary); font-size: 12px; }
+
+      .btn { min-height: 32px; padding: 5px 14px; border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer; color: #344054; background: #fff; font-weight: 500; }
+      .btn:hover { border-color: var(--primary); color: var(--primary); }
+      .btn.primary { border-color: var(--primary); color: #fff; background: var(--primary); }
+      .btn.primary:hover { background: #2563eb; }
+      .btn.ghost { border-color: #9ab2d3; color: var(--primary-dark); background: #f8fbff; }
+
+      .table-wrap { overflow: auto; }
+      table { width: 100%; min-width: 820px; border-collapse: collapse; table-layout: fixed; }
+      th, td { padding: 9px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: left; }
+      th:last-child, td:last-child { border-right: 0; }
+      th { color: #344054; background: #f7f9fc; font-size: 12px; font-weight: 600; }
+      tbody tr:hover td { background: #f8fbff; }
+      .number { text-align: right; font-variant-numeric: tabular-nums; }
+      .sku { display: block; margin-top: 2px; color: var(--text-secondary); font: 11px ui-monospace, monospace; }
+      tfoot td { border-bottom: 0; background: #f7f9fc; font-weight: 600; }
+      .grand-total { color: var(--primary-dark); font-size: 16px; }
+
+      .notice { padding: 9px 12px; border: 1px solid #bad7c4; border-radius: 4px; color: #166534; background: #f0fdf4; font-size: 13px; }
+      .notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+      .actions {
+        position: fixed;
+        z-index: 10;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px max(24px, calc((100vw - 1392px) / 2));
+        border-top: 1px solid var(--border);
+        background: rgb(255 255 255 / 96%);
+        box-shadow: 0 -4px 16px rgb(16 42 76 / 9%);
+        backdrop-filter: blur(8px);
+      }
+
+      .actions-note { color: var(--text-secondary); font-size: 13px; }
+      .actions-note strong { color: var(--success); }
+      .button-group { display: flex; gap: 8px; }
+
+      @media (max-width: 900px) {
+        .page { padding-right: 12px; padding-left: 12px; }
+        .form-grid { grid-template-columns: repeat(2, 1fr); }
+        .field.span-4 { grid-column: span 2; }
+        .metrics { grid-template-columns: repeat(2, 1fr); }
+        .metric:nth-child(2) { border-right: 0; }
+        .metric:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+      }
+
+      @media (max-width: 560px) {
+        .topbar { padding: 0 14px; }
+        .top-meta, .document-no { display: none; }
+        .document-head { padding: 14px; }
+        .form-grid, .notes-grid { grid-template-columns: 1fr; }
+        .field.span-2, .field.span-4 { grid-column: span 1; }
+        .actions { align-items: stretch; flex-direction: column; gap: 8px; padding: 10px 12px; }
+        .button-group { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">AI</span><span>AIERP 业务管理系统</span></div>
+      <div class="top-meta">销售管理 · 单据中心　　管理员</div>
+    </header>
+
+    <main class="page">
+      <div class="breadcrumb">销售管理　/　销售订单　/　<strong>新建订单</strong></div>
+
+      <section class="document-head">
+        <div>
+          <div class="title-row"><h1>新建销售订单</h1><span class="status">草稿</span></div>
+          <p class="subtitle">维护客户、交付、付款及产品明细，保存后进入订单审批流程</p>
+        </div>
+        <div class="document-no">单据编号<strong>保存后自动生成</strong></div>
+      </section>
+
+      <section class="metrics">
+        <div class="metric"><span>产品行数</span><strong>2 项</strong></div>
+        <div class="metric"><span>商品总数量</span><strong>1,500 pcs</strong></div>
+        <div class="metric"><span>价税合计</span><strong>¥ 4,520.00</strong></div>
+        <div class="metric"><span>毛利预估</span><strong class="success">23.6%</strong></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>01　基本信息</h2><span class="hint">客户与单据归属</span></div>
+        <div class="card-body form-grid">
+          <div class="field"><label>单据编号</label><input value="自动生成" disabled /></div>
+          <div class="field"><label class="required">客户</label><select><option>深圳市测试客户有限公司</option><option>选择客户</option></select></div>
+          <div class="field"><label class="required">下单日期</label><input type="date" value="2026-07-20" /></div>
+          <div class="field"><label class="required">负责人</label><select><option>张销售</option><option>李经理</option></select></div>
+          <div class="field span-2"><label>客户采购单号</label><input value="CPO-20260720-0088" /></div>
+          <div class="field span-2"><label>关联报价单</label><select><option>QT202607200006 · 毫米波传感器批量报价</option></select></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>02　商务与交付</h2><span class="hint">结算条件与履约要求</span></div>
+        <div class="card-body form-grid">
+          <div class="field"><label class="required">结算币种</label><select><option>CNY 人民币</option><option>USD 美元</option></select></div>
+          <div class="field"><label class="required">付款条件</label><select><option>月结 30 天</option><option>款到发货</option></select></div>
+          <div class="field"><label>贸易条款</label><select><option>DDP</option><option>EXW</option><option>FOB</option></select></div>
+          <div class="field"><label class="required">预计交付</label><input type="date" value="2026-07-28" /></div>
+          <div class="field span-2"><label class="required">收货地址</label><input value="深圳市南山区科技园测试路 8 号 3 楼" /></div>
+          <div class="field"><label>联系人</label><input value="王先生" /></div>
+          <div class="field"><label>联系电话</label><input value="138****6688" /></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>03　产品明细</h2><button class="btn ghost">＋ 添加产品</button></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:44px">#</th><th style="width:260px">产品名称 / 规格</th><th>单位</th><th class="number">数量</th><th class="number">含税单价</th><th class="number">税率</th><th class="number">价税合计</th><th>交期 / 备注</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td><strong>毫米波传感器 QMA6101T</strong><span class="sku">SKU: TY-QMA6101T</span></td><td>pcs</td><td class="number">1,000</td><td class="number">¥ 1.13</td><td class="number">13%</td><td class="number"><strong>¥ 1,130.00</strong></td><td>2 周 · 原厂整盘</td></tr>
+              <tr><td>2</td><td><strong>工业控制芯片 MCU-GD32F303</strong><span class="sku">SKU: TY-GD32F303</span></td><td>pcs</td><td class="number">500</td><td class="number">¥ 6.78</td><td class="number">13%</td><td class="number"><strong>¥ 3,390.00</strong></td><td>现货 · 防静电包装</td></tr>
+            </tbody>
+            <tfoot><tr><td colspan="3">合计</td><td class="number">1,500</td><td colspan="2"></td><td class="number grand-total">¥ 4,520.00</td><td></td></tr></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>04　备注与内部说明</h2><span class="hint">注意对外信息边界</span></div>
+        <div class="card-body">
+          <div class="notice">当前客户授信与付款条件正常，可按月结 30 天提交审批。</div>
+          <div class="notes-grid" style="margin-top:14px">
+            <div class="field"><label>对外备注</label><textarea>原厂包装交付，送货前请提前联系收货人。</textarea><div class="hint">将显示在订单和送货单中</div></div>
+            <div class="field"><label>内部备注</label><textarea placeholder="仅内部人员可见，不进入对外打印单据"></textarea><div class="hint">可记录价格策略、风险与审批补充说明</div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="actions">
+      <div class="actions-note"><strong>✓</strong> 表单已自动保存于 13:32</div>
+      <div class="button-group"><button class="btn">取消</button><button class="btn">保存草稿</button><button class="btn primary">保存并提交</button></div>
+    </footer>
+  </body>
+</html>

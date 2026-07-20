@@ -176,7 +176,7 @@ export default function App() {
           --color-border: ${antdTheme.token.colorBorder};
           --color-canvas: ${antdTheme.token.colorBgContainer};
           --color-bg-layout: ${antdTheme.token.colorBgLayout};
-          --color-primary-bg: #eff6ff;
+          --color-primary-bg: #edf3fa;
           --radius-card: ${antdTheme.token.borderRadius}px;
           --radius-input: ${antdTheme.token.borderRadiusSM}px;
           --radius-tag: ${antdTheme.token.borderRadiusXS}px;

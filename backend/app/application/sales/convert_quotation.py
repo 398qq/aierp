@@ -165,6 +165,8 @@ class ConvertQuotationToOrderUseCase:
                     order_id=new_order_orm.id,
                     product_id=source_line.product_id,
                     product_name=line.product_name,
+                    customer_part_no=source_line.customer_part_no,
+                    customer_product_name=source_line.customer_product_name,
                     quantity=line.quantity,
                     unit=source_line.unit,
                     unit_price=line.unit_price,

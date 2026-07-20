@@ -14,16 +14,17 @@
 
 | 语义 | 色值 | 用途 |
 | --- | --- | --- |
-| Primary | `#2563eb` | 主按钮、链接、选中态、重点数据 |
-| Primary deep | `#1d4ed8` | 悬停与强调 |
+| Primary | `#1d4ed8` | 主按钮、链接、焦点边框、选中态 |
+| Primary hover | `#2563eb` | 悬停与辅助强调 |
+| Primary deep | `#17365d` | 表单分组标题、单据抬头 |
 | Primary press | `#1e40af` | 按下态 |
-| Primary background | `#eff6ff` | 选中行、弱提示背景 |
+| Primary background | `#edf3fa` | 表单分组、选中行、弱提示背景 |
 | Sider navy | `#10233f` | 主导航背景 |
 | Text | `#172033` | 标题和正文 |
-| Secondary text | `#64748b` | 辅助信息 |
-| Workspace | `#f4f7fb` | 应用工作区 |
-| Border | `#dbe3ef` | 卡片、表格和输入框边界 |
-| Success | `#16a34a` | 完成、到账、正常 |
+| Secondary text | `#667085` | 辅助信息 |
+| Workspace | `#f5f7fa` | 应用工作区 |
+| Border | `#d8dee8` | 卡片、表格和输入框边界 |
+| Success | `#15803d` | 完成、到账、正常 |
 | Warning | `#d97706` | 待处理、临期、低库存 |
 | Danger | `#dc2626` | 失败、逾期、缺货、拒绝 |
 
@@ -55,11 +56,17 @@
 
 按业务语义分组字段。必填、校验、异步状态和提交结果必须清楚。单据金额和行项目汇总保持可见。
 
+- 表单控件默认使用 `#fafbfc` 背景和 `#d8dee8` 边框，聚焦后切换为白底、`#1d4ed8` 边框与低透明度焦点环。
+- 字段标签使用 `#344054`，辅助说明使用 `#667085`，禁用内容使用 `#98a2b3`。
+- 表单分组标题使用 `#edf3fa` 背景和 `#17365d` 文字，保持业务层级清晰。
+- 校验错误使用 `#dc2626`，警告使用 `#d97706`；颜色必须与文字说明同时出现。
+- 主提交动作使用深海蓝，每个操作区只保留一个主按钮；删除、作废不作为常驻实心主按钮。
+
 ## 基础组件规范
 
 - 页面标题：`20px/700`，副标题 `12px`。
 - 正文与表格：`12–14px`，使用系统字体、苹方或微软雅黑。
-- 卡片：白底、`1px #dbe3ef` 边框、`8px` 圆角、轻阴影。
+- 卡片：白底、`1px #d8dee8` 边框、`8px` 圆角、轻阴影。
 - 按钮：`6px` 圆角；每个操作区最多一个主按钮。
 - 输入框：`6px` 圆角，聚焦使用主蓝色边框。
 - 标签：`4px` 圆角，颜色只表示确定的业务状态。
@@ -86,6 +93,7 @@
 - 应用框架：`frontend/src/layouts/MainLayout.tsx`
 - 框架样式：`frontend/src/styles/app-shell.css`
 - 运营页面通用样式：`frontend/src/styles/operational-ui.css`
+- 全局 ERP 表单样式：`frontend/src/styles/erp-form.css`
 - 通用模板：`frontend/src/ui/PageHeader.tsx`、`MetricBand.tsx`、`ModuleShell.tsx`
 
 新增页面应优先复用这些入口，不在页面内创建独立的品牌色、字体、圆角或导航体系。

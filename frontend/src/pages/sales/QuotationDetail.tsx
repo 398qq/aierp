@@ -433,7 +433,8 @@ export default function QuotationDetail() {
                   width: 220,
                   render: (value: string | null, record) => (
                     <Space direction="vertical" size={0}>
-                      <Typography.Text>{record.product_id ? `#${record.product_id} · ` : ""}{value || "-"}</Typography.Text>
+                      <Typography.Text>{record.customer_product_name || value || "-"}</Typography.Text>
+                      {record.customer_part_no && <Typography.Text copyable type="secondary">客户料号：{record.customer_part_no}</Typography.Text>}
                       {record.product_id && (
                         <Typography.Link style={{ fontSize: 12 }} onClick={() => navigate(`/products/${record.product_id}`)}>
                           查看产品资料

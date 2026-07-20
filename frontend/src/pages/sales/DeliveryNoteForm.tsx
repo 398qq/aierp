@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Typography, message } from "antd";
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { createDeliveryNote, getDeliveryNote, getSalesOrders, updateDeliveryNote } from "../../api";
+import { createDeliveryNote, getDeliveryNote, getProductCustomerCodes, getSalesOrders, updateDeliveryNote } from "../../api";
 import dayjs from "dayjs";
 import type { SalesOrder } from "../../types";
 import { CustomerSelect, ProductSelect, SalesModuleShell, shortDate } from "./salesUi";
@@ -48,6 +48,8 @@ export default function DeliveryNoteForm() {
       items: (order.items || []).map((item) => ({
         product_id: item.product_id,
         product_name: item.product_name,
+        customer_part_no: item.customer_part_no,
+        customer_product_name: item.customer_product_name,
         quantity: item.quantity,
       })),
     });
@@ -126,14 +128,30 @@ export default function DeliveryNoteForm() {
                 {fields.map(({ key, name, ...rest }) => (
                   <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline" wrap>
                     <Form.Item {...rest} name={[name, "product_name"]} hidden />
+                    <Form.Item {...rest} name={[name, "customer_product_name"]} hidden />
                     <Form.Item {...rest} name={[name, "product_id"]} label="产品" rules={[{ required: true, message: "请选择产品" }]} style={{ minWidth: 280 }}>
                       <ProductSelect
                         onProductPicked={(product) => {
                           const items = [...(form.getFieldValue("items") || [])];
                           items[name] = { ...items[name], product_name: product.name };
                           form.setFieldValue("items", items);
+                          const customerId = Number(form.getFieldValue("customer_id"));
+                          if (customerId) void getProductCustomerCodes(product.id).then((response) => {
+                            const mapping = response.data.data.find((link) => link.customer_id === customerId && link.is_active);
+                            if (!mapping) return;
+                            const currentItems = [...(form.getFieldValue("items") || [])];
+                            currentItems[name] = {
+                              ...currentItems[name],
+                              customer_part_no: currentItems[name]?.customer_part_no || mapping.customer_part_no,
+                              customer_product_name: currentItems[name]?.customer_product_name || mapping.customer_product_name,
+                            };
+                            form.setFieldValue("items", currentItems);
+                          }).catch(() => {});
                         }}
                       />
+                    </Form.Item>
+                    <Form.Item {...rest} name={[name, "customer_part_no"]} label="客户料号" style={{ minWidth: 190 }}>
+                      <Input placeholder="自动取订单快照" />
                     </Form.Item>
                     <Form.Item {...rest} name={[name, "quantity"]} label="数量"><InputNumber min={1} /></Form.Item>
                     <Button icon={<DeleteOutlined />} onClick={() => remove(name)} />

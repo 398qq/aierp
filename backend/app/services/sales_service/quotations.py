@@ -16,6 +16,7 @@ from app.models.sales import Inquiry, Quotation, QuotationItem, SalesOrder
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 from app.services.sales_service._helpers import (
+    _apply_customer_product_codes,
     _customer_search_ids,
     _normalize_quotation_items,
     _sales_item_ids,
@@ -219,6 +220,7 @@ class QuotationService(BaseCRUDService):
                 db, "QT", Quotation, "quotation_no"
             )
         normalized_items, total = _normalize_quotation_items(items_data)
+        await _apply_customer_product_codes(db, data.get("customer_id"), normalized_items)
         await _validate_quotation_products(db, normalized_items)
         if normalized_items:
             data["total_amount"] = total
@@ -250,6 +252,9 @@ class QuotationService(BaseCRUDService):
                 item.deleted_at = datetime.now(timezone.utc)
             await db.flush()
             normalized_items, total = _normalize_quotation_items(items_data)
+            await _apply_customer_product_codes(
+                db, data.get("customer_id", quote.customer_id), normalized_items
+            )
             await _validate_quotation_products(db, normalized_items)
             for item_data in normalized_items:
                 qi = QuotationItem(quotation_id=quote.id, **item_data)
@@ -297,6 +302,8 @@ class QuotationService(BaseCRUDService):
                     quotation_id=new_quote.id,
                     product_id=item.product_id,
                     product_name=item.product_name,
+                    customer_part_no=item.customer_part_no,
+                    customer_product_name=item.customer_product_name,
                     quantity=item.quantity,
                     unit=item.unit,
                     unit_price=item.unit_price,
@@ -370,6 +377,7 @@ class QuotationService(BaseCRUDService):
         total = 0.0
         if items:
             normalized_items, total = _normalize_quotation_items(items)
+            await _apply_customer_product_codes(db, cid, normalized_items)
             for item in normalized_items:
                 db.add(QuotationItem(quotation_id=quote.id, **item))
         else:
@@ -381,6 +389,7 @@ class QuotationService(BaseCRUDService):
                 )
             except Exception:
                 matched = []
+            matched_items: list[dict] = []
             for mp in matched:
                 pid = mp.get("id") or mp.get("product_id")
                 if not pid:
@@ -398,15 +407,20 @@ class QuotationService(BaseCRUDService):
                 up = mp.get("unit_price") or 0
                 tp = qty * up
                 total += tp
-                qi = QuotationItem(
-                    quotation_id=quote.id,
-                    product_id=pid,
-                    product_name=mp.get("name") or mp.get("product_name") or "",
-                    quantity=qty,
-                    unit_price=up,
-                    total_price=tp,
+                matched_items.append(
+                    {
+                        "product_id": pid,
+                        "product_name": mp.get("name")
+                        or mp.get("product_name")
+                        or "",
+                        "quantity": qty,
+                        "unit_price": up,
+                        "total_price": tp,
+                    }
                 )
-                db.add(qi)
+            await _apply_customer_product_codes(db, cid, matched_items)
+            for item in matched_items:
+                db.add(QuotationItem(quotation_id=quote.id, **item))
 
         quote.total_amount = total
         await db.commit()

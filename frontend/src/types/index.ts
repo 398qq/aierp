@@ -52,6 +52,7 @@ export type { ChurnRisk } from "./customer";
 
 // catalog.ts
 export type { Product } from "./catalog";
+export type { CustomerProductCode } from "./catalog";
 export type { Brand } from "./catalog";
 export type { Supplier } from "./catalog";
 export type { Warehouse } from "./catalog";

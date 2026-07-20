@@ -152,6 +152,8 @@ def _serialize_quotation(quote) -> dict:
                 "quotation_id": it.quotation_id,
                 "product_id": it.product_id,
                 "product_name": it.product_name,
+                "customer_part_no": it.customer_part_no,
+                "customer_product_name": it.customer_product_name,
                 "quantity": it.quantity,
                 "unit": it.unit,
                 "unit_price": float(Decimal(str(it.unit_price)))

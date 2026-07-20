@@ -10,6 +10,7 @@ from app.models.sales import SalesOrder, SalesOrderItem
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 from app.services.sales_service._helpers import (
+    _apply_customer_product_codes,
     _customer_search_ids,
     _normalize_sales_order_items,
     _sales_item_ids,
@@ -121,6 +122,7 @@ class SalesOrderService(BaseCRUDService):
         if not data.get("order_date"):
             data["order_date"] = datetime.now(timezone.utc)
         normalized_items, total = _normalize_sales_order_items(items_data)
+        await _apply_customer_product_codes(db, data.get("customer_id"), normalized_items)
         product_ids = {
             item.get("product_id")
             for item in normalized_items
@@ -169,6 +171,9 @@ class SalesOrderService(BaseCRUDService):
                 setattr(order, k, v)
         if items_data is not None:
             normalized_items, total = _normalize_sales_order_items(items_data)
+            await _apply_customer_product_codes(
+                db, data.get("customer_id", order.customer_id), normalized_items
+            )
             product_ids = {
                 item.get("product_id")
                 for item in normalized_items

@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
-import { getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
+import { getProductCustomerCodes, getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { CustomerSelect, ProductSelect, QuotationSelect, SalesModuleShell, money } from "./salesUi";
@@ -12,6 +12,8 @@ import { getSalesOrderStatusOptions, SALES_ORDER_STATUS_LABELS } from "./salesOr
 type OrderItemForm = {
   product_id?: number;
   product_name?: string;
+  customer_part_no?: string;
+  customer_product_name?: string;
   quantity?: number;
   unit_price?: number;
   total_price?: number;
@@ -292,9 +294,29 @@ export default function SalesOrderForm() {
                                     };
                                     form.setFieldValue("items", items);
                                     syncLineTotals();
+                                    const customerId = Number(form.getFieldValue("customer_id"));
+                                    if (customerId) void getProductCustomerCodes(product.id).then((response) => {
+                                      const mapping = response.data.data.find((link) => link.customer_id === customerId && link.is_active);
+                                      if (!mapping) return;
+                                      const currentItems = [...(form.getFieldValue("items") || [])] as OrderItemForm[];
+                                      currentItems[field.name] = {
+                                        ...currentItems[field.name],
+                                        customer_part_no: currentItems[field.name]?.customer_part_no || mapping.customer_part_no,
+                                        customer_product_name: currentItems[field.name]?.customer_product_name || mapping.customer_product_name || undefined,
+                                      };
+                                      form.setFieldValue("items", currentItems);
+                                    }).catch(() => {});
                                   }}
                                 />
                               </Form.Item>
+                              <Space.Compact block style={{ marginTop: 6 }}>
+                                <Form.Item name={[field.name, "customer_part_no"]} noStyle>
+                                  <Input placeholder="客户料号（自动带出，可调整）" />
+                                </Form.Item>
+                                <Form.Item name={[field.name, "customer_product_name"]} noStyle>
+                                  <Input placeholder="客户品名" />
+                                </Form.Item>
+                              </Space.Compact>
                             </>
                           ),
                         },
@@ -330,7 +352,7 @@ export default function SalesOrderForm() {
                           width: 260,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "notes"]} style={{ marginBottom: 0 }}>
-                              <Input placeholder="批次 / 交期 / 包装 / 客户料号" />
+                              <Input placeholder="批次 / 交期 / 包装等交付说明" />
                             </Form.Item>
                           ),
                         },

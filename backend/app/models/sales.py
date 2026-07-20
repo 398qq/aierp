@@ -106,6 +106,10 @@ class QuotationItem(TimestampMixin, Base):
         ForeignKey("products.id"), nullable=True
     )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    customer_part_no: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    customer_product_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
     quantity: Mapped[int] = mapped_column(default=1)
     unit_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
     total_price: Mapped[float | None] = mapped_column(DECIMAL(20, 6), nullable=True)
@@ -179,6 +183,10 @@ class SalesOrderItem(TimestampMixin, Base):
         ForeignKey("products.id"), nullable=True
     )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    customer_part_no: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    customer_product_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
     quantity: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     tax_rate: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
@@ -232,6 +240,10 @@ class DeliveryNoteItem(TimestampMixin, Base):
         ForeignKey("products.id"), nullable=True
     )
     product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    customer_part_no: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    customer_product_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
     quantity: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

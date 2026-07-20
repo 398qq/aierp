@@ -80,7 +80,7 @@ export function SalesQuotationPrint({ quote, customerName }: { quote: Quotation;
           <tbody>{quote.items.map((item, index) => (
             <tr key={item.id}>
               <td>{index + 1}</td>
-              <td><strong>{item.product_name || "-"}</strong><small>{item.product_id ? `产品 #${item.product_id}` : ""}</small></td>
+              <td><strong>{item.customer_product_name || item.product_name || "-"}</strong><small>{item.customer_part_no ? `客户料号：${item.customer_part_no}` : ""}</small></td>
               <td>{item.unit || "-"}</td>
               <td className="number">{Number(item.quantity || 0).toLocaleString("zh-CN")}</td>
               <td className="number">{amount(item.unit_price, quote.currency, 6)}</td>

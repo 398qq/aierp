@@ -5,6 +5,7 @@ import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, SwapOutlined, LinkOutlined, DollarOutlined, ProfileOutlined, NodeIndexOutlined, ApartmentOutlined, AlertOutlined, OrderedListOutlined, PieChartOutlined, SmileOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import { getProduct, getBrands, getInventory, similarProducts, productSubstitutes, embedProduct, getSuppliers, getSupplierProducts, linkSupplierProduct, updateSupplierProduct, unlinkSupplierProduct, getPricingBenchmark, getPricingRecommend, getProductProfile, normalizeProductSpecs, getProductAssociations, getProcurementOptimize, getProductLifecycle, getProductSales, recommendCustomersForProduct, getApiErrorMessage } from "../../api";
 import AttachmentPanel from "../../components/AttachmentPanel";
+import ProductCustomerCodesCard from "./ProductCustomerCodesCard";
 import type { Product, Brand, InventoryItem, Supplier, SupplierProductLink, PriceBenchmark, ProductProfile, NormalizedSpec, ProductAssociation, ProcurementPlan, LifecycleAnalysis, ProductCustomerMatch } from "../../types";
 
 const { Text, Title } = Typography;
@@ -517,6 +518,8 @@ export default function ProductDetail() {
       )}
 
       {/* Supplier Linkages */}
+      <ProductCustomerCodesCard productId={product.id} />
+
       <Card title={<><LinkOutlined /> 供应商关联 ({supplierProducts.length})</>} extra={<Space><Button icon={<PlusOutlined />} onClick={openCreateSupplierLink}>添加供应商</Button><Button icon={<PlusOutlined />} onClick={openBatchCreateSupplierLinks}>批量添加</Button></Space>} style={{ marginBottom: 16 }}>
         {supplierProducts.length > 0 ? (
           <>

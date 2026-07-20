@@ -71,6 +71,8 @@ class OpportunityResponse(BaseModel):
 class QuotationItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int = 1
     unit: str | None = None
     unit_price: float | None = None
@@ -89,6 +91,8 @@ class QuotationItemCreate(BaseModel):
 class QuotationItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int | None = None
     unit: str | None = None
     unit_price: float | None = None
@@ -109,6 +113,8 @@ class QuotationItemResponse(BaseModel):
     quotation_id: int
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = None
+    customer_product_name: str | None = None
     quantity: int
     unit: str | None = None
     unit_price: float | None = None
@@ -207,6 +213,8 @@ class QuotationResponse(BaseModel):
 class SalesOrderItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int = 1
     unit: str | None = None
     unit_price: float | None = None
@@ -219,6 +227,8 @@ class SalesOrderItemCreate(BaseModel):
 class SalesOrderItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int | None = None
     unit: str | None = None
     unit_price: float | None = None
@@ -233,6 +243,8 @@ class SalesOrderItemResponse(BaseModel):
     order_id: int
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = None
+    customer_product_name: str | None = None
     quantity: int
     unit: str | None = None
     unit_price: float | None = None
@@ -324,6 +336,8 @@ class SalesOrderResponse(BaseModel):
 class DeliveryNoteItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int = 1
     unit: str | None = None
     notes: str | None = None
@@ -332,6 +346,8 @@ class DeliveryNoteItemCreate(BaseModel):
 class DeliveryNoteItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int | None = None
     unit: str | None = None
     notes: str | None = None
@@ -342,6 +358,8 @@ class DeliveryNoteItemResponse(BaseModel):
     delivery_note_id: int
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = None
+    customer_product_name: str | None = None
     quantity: int
     unit: str | None = None
     notes: str | None = None
