@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
-import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
+import { StatusTag, UomSelect } from "../../ui";
+import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { getProductCustomerCodes, getQuotation, createQuotation, updateQuotation } from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -61,6 +61,7 @@ export default function QuotationForm() {
   const [searchParams] = useSearchParams();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [showCostColumns, setShowCostColumns] = useState(true);
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const isEdit = !!id;
   const watchedItems = Form.useWatch("items", form) as QuoteItemForm[] | undefined;
@@ -267,13 +268,20 @@ export default function QuotationForm() {
                 <Space size={8}>
                   <StatusTag tone={summary.itemCount > 0 ? "info" : "danger"}>{summary.itemCount} 行</StatusTag>
                   <StatusTag>数量 {summary.quantity}</StatusTag>
+                  <Button
+                    size="small"
+                    icon={showCostColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                    onClick={() => setShowCostColumns((value) => !value)}
+                  >
+                    {showCostColumns ? "隐藏成本" : "显示成本"}
+                  </Button>
                 </Space>
               )}
               style={{ borderColor: "#d9e2ec" }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
                 <Typography.Text type="secondary">
-                  明细行按含税成本单价自动计算未税成本、进项税、含税成本、销售毛利与毛利率。
+                  客户料号、价格税率与交付信息分列录入；成本毛利仅供内部核价，可按需隐藏。
                 </Typography.Text>
                 <Typography.Text strong>明细合计：{money(summary.amount)}</Typography.Text>
               </div>
@@ -290,43 +298,30 @@ export default function QuotationForm() {
                       summary={() => (
                         <Table.Summary fixed>
                           <Table.Summary.Row>
-                            <Table.Summary.Cell index={0}>
-                              <Typography.Text strong>合计</Typography.Text>
+                            <Table.Summary.Cell index={0} colSpan={showCostColumns ? 16 : 13}>
+                              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 24, paddingRight: 8 }}>
+                                <Typography.Text>共 <strong>{summary.itemCount}</strong> 行 / 数量 <strong>{summary.quantity}</strong></Typography.Text>
+                                {showCostColumns && <Typography.Text>含税成本 <strong>{money(summary.taxedCost)}</strong></Typography.Text>}
+                                {showCostColumns && <Typography.Text>毛利 <Typography.Text type={summary.profit < 0 ? "danger" : undefined} strong>{money(summary.profit)}</Typography.Text></Typography.Text>}
+                                {showCostColumns && <StatusTag tone={marginColor} style={{ margin: 0 }}>毛利率 {formatPercent(marginRate)}</StatusTag>}
+                                <Typography.Text strong>价税合计：{money(summary.amount)}</Typography.Text>
+                              </div>
                             </Table.Summary.Cell>
-                            <Table.Summary.Cell index={1}>
-                              <Typography.Text strong>{summary.quantity}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={2} />
-                            <Table.Summary.Cell index={3}>
-                              <Typography.Text strong>{money(summary.amount)}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={4} />
-                            <Table.Summary.Cell index={5}>
-                              <Typography.Text>{money(summary.untaxedCost)}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={6}>
-                              <Typography.Text>{money(summary.taxedCost - summary.untaxedCost)}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={7}>
-                              <Typography.Text>{money(summary.taxedCost)}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={8}>
-                              <Typography.Text type={summary.profit < 0 ? "danger" : undefined} strong>
-                                {money(summary.profit)}
-                              </Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={9}>
-                              <StatusTag tone={marginColor} style={{ margin: 0 }}>{formatPercent(marginRate)}</StatusTag>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={10} />
-                            <Table.Summary.Cell index={11} />
                           </Table.Summary.Row>
                         </Table.Summary>
                       )}
                       columns={[
                         {
-                          title: "物料 / 产品",
-                          width: 320,
+                          title: "序号",
+                          width: 56,
+                          fixed: "left",
+                          align: "center" as const,
+                          render: (_: unknown, field) => field.name + 1,
+                        },
+                        {
+                          title: "内部产品 / 物料",
+                          width: 260,
+                          fixed: "left",
                           render: (_: unknown, field) => (
                             <>
                               <Form.Item name={[field.name, "product_name"]} hidden />
@@ -363,15 +358,21 @@ export default function QuotationForm() {
                                   }}
                                 />
                               </Form.Item>
-                              <Space.Compact block style={{ marginTop: 6 }}>
-                                <Form.Item name={[field.name, "customer_part_no"]} noStyle>
-                                  <Input placeholder="客户料号（自动带出，可调整）" />
-                                </Form.Item>
-                                <Form.Item name={[field.name, "customer_product_name"]} noStyle>
-                                  <Input placeholder="客户品名" />
-                                </Form.Item>
-                              </Space.Compact>
                             </>
+                          ),
+                        },
+                        {
+                          title: "客户料号 / 客户品名",
+                          width: 220,
+                          render: (_: unknown, field) => (
+                            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                              <Form.Item name={[field.name, "customer_part_no"]} noStyle>
+                                <Input placeholder="客户料号" />
+                              </Form.Item>
+                              <Form.Item name={[field.name, "customer_product_name"]} noStyle>
+                                <Input placeholder="客户品名（可选）" />
+                              </Form.Item>
+                            </Space>
                           ),
                         },
                         {
@@ -388,7 +389,7 @@ export default function QuotationForm() {
                           width: 90,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "unit"]} style={{ marginBottom: 0 }}>
-                              <Input placeholder="件" />
+                              <UomSelect uomType="count" placeholder="件" />
                             </Form.Item>
                           ),
                         },
@@ -420,7 +421,7 @@ export default function QuotationForm() {
                           ),
                         },
                         {
-                          title: "销售额",
+                          title: "价税合计",
                           width: 140,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "total_price"]} style={{ marginBottom: 0 }}>
@@ -428,7 +429,7 @@ export default function QuotationForm() {
                             </Form.Item>
                           ),
                         },
-                        {
+                        ...(showCostColumns ? [{
                           title: "含税成本单价",
                           width: 130,
                           render: (_: unknown, field) => (
@@ -436,9 +437,9 @@ export default function QuotationForm() {
                               <InputNumber min={0} precision={4} prefix="¥" style={{ width: "100%" }} />
                             </Form.Item>
                           ),
-                        },
+                        }] : []),
                         {
-                          title: "生产日期（DATECODE）",
+                          title: "批次 / DATECODE",
                           width: 150,
                           render: (_: unknown, field) => (
                             <Form.Item name={[field.name, "datecode"]} style={{ marginBottom: 0 }}>
@@ -455,38 +456,7 @@ export default function QuotationForm() {
                             </Form.Item>
                           ),
                         },
-                        {
-                          title: "未税成本额",
-                          width: 140,
-                          render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "untaxed_cost"]} style={{ marginBottom: 0 }}>
-                              <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
-                            </Form.Item>
-                          ),
-                        },
-                        {
-                          title: "进项税额",
-                          width: 120,
-                          render: (_: unknown, field) => (
-                            <Form.Item noStyle shouldUpdate>
-                              {() => {
-                                const item = (form.getFieldValue(["items", field.name]) || {}) as QuoteItemForm;
-                                const taxAmount = toNumber(item.taxed_cost) - toNumber(item.untaxed_cost);
-                                return <Typography.Text>{money(taxAmount)}</Typography.Text>;
-                              }}
-                            </Form.Item>
-                          ),
-                        },
-                        {
-                          title: "含税成本额",
-                          width: 140,
-                          render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "taxed_cost"]} style={{ marginBottom: 0 }}>
-                              <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
-                            </Form.Item>
-                          ),
-                        },
-                        {
+                        ...(showCostColumns ? [{
                           title: "销售毛利",
                           width: 140,
                           render: (_: unknown, field) => (
@@ -512,7 +482,7 @@ export default function QuotationForm() {
                               }}
                             </Form.Item>
                           ),
-                        },
+                        }] : []),
                         {
                           title: "备注",
                           width: 220,
@@ -525,6 +495,7 @@ export default function QuotationForm() {
                         {
                           title: "",
                           width: 54,
+                          fixed: "right",
                           render: (_: unknown, field) => (
                             <Button danger type="text" icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
                           ),

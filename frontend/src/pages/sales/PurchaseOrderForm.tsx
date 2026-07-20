@@ -5,7 +5,7 @@ import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@
 import dayjs from "dayjs";
 import { createPurchaseOrder, getProducts, getPurchaseOrder, getSalesOrders, getSupplierProducts, getSuppliers, updatePurchaseOrder } from "../../api";
 import type { Product, SalesOrder, Supplier, SupplierProductLink } from "../../types";
-import { StatusTag } from "../../ui";
+import { StatusTag, UomSelect } from "../../ui";
 import { SalesModuleShell, money } from "./salesUi";
 
 type POItemForm = {
@@ -175,7 +175,7 @@ export default function PurchaseOrderForm() {
                   { title: "品牌", width: 110, render: (_v, f) => <Form.Item name={[f.name, "brand_name"]} style={{ margin: 0 }}><Input /></Form.Item> },
                   { title: "封装", width: 110, render: (_v, f) => <Form.Item name={[f.name, "package_type"]} style={{ margin: 0 }}><Input /></Form.Item> },
                   { title: "数量", width: 105, render: (_v, f) => <Form.Item name={[f.name, "quantity"]} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={1} style={{ width: "100%" }} /></Form.Item> },
-                  { title: "最小包装", width: 150, render: (_v, f) => <Space.Compact><Form.Item name={[f.name, "min_pack_qty"]} style={{ margin: 0 }}><InputNumber min={1} style={{ width: 90 }} /></Form.Item><Form.Item name={[f.name, "min_pack_unit"]} style={{ margin: 0 }}><Input placeholder="盘" style={{ width: 58 }} /></Form.Item></Space.Compact> },
+                  { title: "最小包装", width: 150, render: (_v, f) => <Space.Compact><Form.Item name={[f.name, "min_pack_qty"]} style={{ margin: 0 }}><InputNumber min={1} style={{ width: 90 }} /></Form.Item><Form.Item name={[f.name, "min_pack_unit"]} style={{ margin: 0, width: 120 }}><UomSelect uomType="package" placeholder="盘" /></Form.Item></Space.Compact> },
                   { title: "生产批次", width: 130, render: (_v, f) => <Form.Item name={[f.name, "date_code_requirement"]} rules={[{ required: true }]} style={{ margin: 0 }}><Input placeholder="不限/≥24+/2年内" /></Form.Item> },
                   { title: "含税单价", width: 120, render: (_v, f) => <Form.Item name={[f.name, "unit_price"]} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={0} precision={6} style={{ width: "100%" }} /></Form.Item> },
                   { title: "备注", width: 160, render: (_v, f) => <Form.Item name={[f.name, "notes"]} style={{ margin: 0 }}><Input /></Form.Item> },

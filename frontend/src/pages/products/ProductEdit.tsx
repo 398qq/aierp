@@ -18,6 +18,7 @@ import {
   message,
 } from "antd";
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
+import { UomSelect } from "../../ui";
 import {
   getApiErrorMessage,
   getBrands,
@@ -168,7 +169,7 @@ export default function ProductEdit() {
             <Col xs={24} md={8}><Form.Item name="owner" label="产品负责人"><Input /></Form.Item></Col>
             <Col xs={24} md={8}><Form.Item name="brand_id" label="品牌"><Select allowClear showSearch optionFilterProp="label" options={brands.map((brand) => ({ value: brand.id, label: getBrandSelectLabel(brand) }))} /></Form.Item></Col>
             <Col xs={24} md={8}><Form.Item name="category" label="分类"><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="unit" label="单位"><Input /></Form.Item></Col>
+            <Col xs={24} md={8}><Form.Item name="unit" label="单位"><UomSelect uomType="count" /></Form.Item></Col>
           </Row>
         </Card>
 
