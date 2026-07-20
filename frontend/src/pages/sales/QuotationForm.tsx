@@ -595,7 +595,7 @@ export default function QuotationForm() {
                               {
                                 title: "含税成本单价",
                                 width: 130,
-                                render: (_: unknown, field) => (
+                                render: (_: unknown, field: { name: number }) => (
                                   <Form.Item
                                     name={[field.name, "cost_price"]}
                                     style={{ marginBottom: 0 }}
@@ -634,7 +634,7 @@ export default function QuotationForm() {
                               {
                                 title: "销售毛利",
                                 width: 140,
-                                render: (_: unknown, field) => (
+                                render: (_: unknown, field: { name: number }) => (
                                   <Form.Item
                                     name={[field.name, "sales_profit"]}
                                     style={{ marginBottom: 0 }}
@@ -651,7 +651,7 @@ export default function QuotationForm() {
                               {
                                 title: "毛利率",
                                 width: 110,
-                                render: (_: unknown, field) => (
+                                render: (_: unknown, field: { name: number }) => (
                                   <Form.Item noStyle shouldUpdate>
                                     {() => {
                                       const item = (form.getFieldValue(["items", field.name]) ||
