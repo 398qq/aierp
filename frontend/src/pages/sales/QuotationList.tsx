@@ -296,8 +296,8 @@ export default function QuotationList() {
                     </div>
                     {names.length > 0 && (
                       <Space size={[3, 2]} wrap style={{ marginTop: 2 }}>
-                        {names.map((name) => <Tag key={name} style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>{name}</Tag>)}
-                        {(record.items?.length || 0) > 3 && <Tag style={{ fontSize: 11, lineHeight: "18px", margin: 0 }}>+{(record.items?.length || 0) - 3}</Tag>}
+                        {names.map((name) => <Tag key={name} style={{ fontSize: 12, lineHeight: "18px", margin: 0 }}>{name}</Tag>)}
+                        {(record.items?.length || 0) > 3 && <Tag style={{ fontSize: 12, lineHeight: "18px", margin: 0 }}>+{(record.items?.length || 0) - 3}</Tag>}
                       </Space>
                     )}
                   </Space>

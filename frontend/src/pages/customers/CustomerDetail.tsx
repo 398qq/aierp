@@ -1068,7 +1068,7 @@ function CustomerTimeline({ customerId }: { customerId: number }) {
           <div>
             <div style={{ fontWeight: 500 }}>{e.title}</div>
             <div style={{ color: "#888", fontSize: 12 }}>{e.detail}</div>
-            <div style={{ color: "#aaa", fontSize: 11, marginTop: 2 }}>
+            <div style={{ color: "#aaa", fontSize: 12, marginTop: 2 }}>
               {new Date(e.time).toLocaleString("zh-CN")}
             </div>
           </div>
@@ -1638,7 +1638,7 @@ function ChangeLogPanel({ customerId }: { customerId: number }) {
                 <Typography.Text delete>{l.old_value}</Typography.Text> → {l.new_value}
               </div>
             )}
-            <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "#aaa", marginTop: 2 }}>
               {l.created_at?.slice(0, 19)} {l.operator && `· ${l.operator}`}
             </div>
           </div>

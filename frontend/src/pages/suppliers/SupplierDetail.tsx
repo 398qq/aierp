@@ -7,6 +7,7 @@ import type { ColumnsType } from "antd/es/table";
 import { getSupplier, getSupplierProducts, linkSupplierProduct, updateSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation, getApiErrorMessage } from "../../api";
 import type { Supplier, SupplierProductLink, Product, SupplierScorecard, SupplierDelayPrediction, SupplierAlternatives, SupplierPriceVariance, SupplierNegotiation } from "../../types";
 import { erpPagination } from "../../ui/pagination";
+import { fontSize } from "../../design-tokens";
 
 const { Text } = Typography;
 
@@ -509,7 +510,7 @@ export default function SupplierDetail() {
             <Col span={8}>
               <Card size="small" type="inner" style={{ textAlign: "center" }}>
                 <Typography.Text type="secondary">预计延迟</Typography.Text>
-                <div style={{ fontSize: 28, fontWeight: "bold", marginTop: 8, color: delayPred.predicted_delay_days > 7 ? "#ff4d4f" : delayPred.predicted_delay_days > 3 ? "#faad14" : "#52c41a" }}>
+                <div style={{ fontSize: fontSize.metric, fontWeight: "bold", marginTop: 8, color: delayPred.predicted_delay_days > 7 ? "#ff4d4f" : delayPred.predicted_delay_days > 3 ? "#faad14" : "#52c41a" }}>
                   {delayPred.predicted_delay_days}<span style={{ fontSize: 14 }}> 天</span>
                 </div>
               </Card>

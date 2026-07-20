@@ -206,7 +206,7 @@ export default function CustomerDashboard() {
         .customer-dashboard-kpi-value {
           margin-top: 8px;
           color: #262626;
-          font-size: 26px;
+          font-size: var(--font-size-metric, 24px);
           font-weight: 650;
           line-height: 1;
         }

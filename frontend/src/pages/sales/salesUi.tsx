@@ -172,7 +172,7 @@ export function SalesModuleShell({
         }
         .sales-erp-flow-arrow {
           color: var(--color-border, #e3e8ee);
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
         }
         .sales-erp-metrics {
           display: grid;
@@ -189,7 +189,7 @@ export function SalesModuleShell({
         }
         .sales-erp-metric-title {
           color: var(--color-text-secondary, #6b7280);
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
           line-height: 16px;
         }
         .sales-erp-metric-value {
@@ -253,7 +253,7 @@ export function SalesModuleShell({
         }
         .sales-erp-table-card .erp-cell-secondary {
           color: var(--color-text-tertiary, #94a3b8);
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
           line-height: 1.4;
         }
         @media (max-width: 1180px) {

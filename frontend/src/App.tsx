@@ -7,7 +7,7 @@ import zhCN from "antd/locale/zh_CN";
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
-import { antdTheme } from "./design-tokens";
+import { antdTheme, fontSize, fontWeight, lineHeight } from "./design-tokens";
 import AntdOverlayGuard from "./ui/AntdOverlayGuard";
 
 class ErrorBoundary extends Component<
@@ -180,6 +180,22 @@ export default function App() {
           --radius-card: ${antdTheme.token.borderRadius}px;
           --radius-input: ${antdTheme.token.borderRadiusSM}px;
           --radius-tag: ${antdTheme.token.borderRadiusXS}px;
+          --font-size-page-title: ${fontSize.headingMd}px;
+          --font-size-section-title: ${fontSize.section}px;
+          --font-size-card-title: ${fontSize.cardTitle}px;
+          --font-size-body: ${fontSize.body}px;
+          --font-size-body-sm: ${fontSize.bodySm}px;
+          --font-size-caption: ${fontSize.caption}px;
+          --font-size-table: ${fontSize.table}px;
+          --font-size-table-header: ${fontSize.tableHeader}px;
+          --font-size-metric: ${fontSize.metric}px;
+          --font-weight-medium: ${fontWeight.medium};
+          --font-weight-semibold: ${fontWeight.semibold};
+          --font-weight-bold: ${fontWeight.bold};
+          --line-height-heading: ${lineHeight.heading};
+          --line-height-body: ${lineHeight.body};
+          --line-height-compact: ${lineHeight.compact};
+          --line-height-caption: ${lineHeight.caption};
         }
       `}</style>
         <AntdApp>

@@ -167,25 +167,25 @@ export default function CustomerDetailDrawer({
           <Card size="small" title="商务概况" styles={{ body: { padding: "8px 12px" } }}>
             <Row gutter={[8, 6]}>
               <Col span={8}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   付款条件
                 </Text>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{customer.payment_terms || "-"}</div>
               </Col>
               <Col span={8}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   币种
                 </Text>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{customer.currency || "CNY"}</div>
               </Col>
               <Col span={8}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   价格等级
                 </Text>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{customer.price_tier || "-"}</div>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   信用等级
                 </Text>
                 <div>
@@ -200,7 +200,7 @@ export default function CustomerDetailDrawer({
                 </div>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   贸易条款
                 </Text>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>
@@ -223,25 +223,25 @@ export default function CustomerDetailDrawer({
           >
             <Row gutter={[8, 4]}>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   税号
                 </Text>
                 <div style={{ fontSize: 13 }}>{customer.tax_id || "-"}</div>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   发票抬头
                 </Text>
                 <div style={{ fontSize: 13 }}>{customer.invoice_title || "-"}</div>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   开户行
                 </Text>
                 <div style={{ fontSize: 13 }}>{customer.bank_name || "-"}</div>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 11 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   银行账号
                 </Text>
                 <div style={{ fontSize: 13 }}>{customer.bank_account || "-"}</div>

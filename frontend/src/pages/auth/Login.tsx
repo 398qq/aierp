@@ -91,7 +91,7 @@ export default function Login() {
         }
 
         .login-logo-sub {
-          font-size: 10px;
+          font-size: var(--font-size-caption, 12px);
           font-weight: 400;
           color: rgba(255,255,255,0.32);
           letter-spacing: 0.14em;
@@ -131,7 +131,7 @@ export default function Login() {
         }
 
         .login-brand-footer {
-          font-size: 10px;
+          font-size: var(--font-size-caption, 12px);
           color: rgba(255,255,255,0.16);
           letter-spacing: 0.04em;
         }
@@ -152,7 +152,7 @@ export default function Login() {
         }
 
         .login-form-heading {
-          font-size: 10px;
+          font-size: var(--font-size-caption, 12px);
           font-weight: 500;
           letter-spacing: 0.14em;
           text-transform: uppercase;
@@ -202,7 +202,7 @@ export default function Login() {
         }
 
         .login-form .ant-form-item-label > label {
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
           font-weight: 400;
           color: #6B6B6B;
           letter-spacing: 0.02em;
@@ -302,7 +302,7 @@ export default function Login() {
 
         .login-form-footer {
           margin-top: 56px;
-          font-size: 10px;
+          font-size: var(--font-size-caption, 12px);
           color: rgba(107,107,107,0.38);
           text-align: center;
           letter-spacing: 0.04em;
