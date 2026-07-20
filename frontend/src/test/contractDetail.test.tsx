@@ -92,6 +92,7 @@ describe("ContractDetail", () => {
     await waitForContent();
 
     const printable = screen.getByTestId("sales-contract-print");
+    expect(printable.parentElement).toBe(document.body);
     expect(within(printable).getByText("销售合同")).toBeInTheDocument();
     expect(within(printable).getAllByText("CT-2026-001").length).toBeGreaterThan(0);
     expect(within(printable).getAllByText("测试客户").length).toBeGreaterThan(0);

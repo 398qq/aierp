@@ -1,4 +1,5 @@
 import type { Contract, SalesOrder } from "../../types";
+import { SalesPrintPortal } from "./SalesPrintPortal";
 import "./salesDocumentPrint.css";
 
 const SELLER_NAME = "深圳天允电子有限公司";
@@ -13,7 +14,7 @@ function money(value: number | null | undefined, currency = "CNY") {
 export function SalesContractPrint({ contract, order, customerName }: { contract: Contract; order: SalesOrder | null; customerName: string }) {
   const buyer = customerName || order?.customer_name || `客户 #${contract.customer_id}`;
   return (
-    <section className="sales-document-print" data-testid="sales-contract-print" aria-label="销售合同打印单据">
+    <SalesPrintPortal><section className="sales-document-print" data-testid="sales-contract-print" aria-label="销售合同打印单据">
       {contract.status === "draft" && <div className="sales-print-watermark">草稿 · 非正式合同</div>}
       {contract.status === "terminated" && <div className="sales-print-watermark sales-print-watermark-danger">已终止</div>}
       <header className="sales-print-header">
@@ -50,6 +51,6 @@ export function SalesContractPrint({ contract, order, customerName }: { contract
 
       <section className="sales-print-signatures"><div><h3>甲方（采购方）</h3><strong>{buyer}</strong><p>授权代表：________________</p><p>签章：____________________</p><p>日期：____年__月__日</p></div><div><h3>乙方（销售方）</h3><strong>{SELLER_NAME}</strong><p>授权代表：________________</p><p>签章：____________________</p><p>日期：____年__月__日</p></div></section>
       <footer className="sales-print-footer"><span>{contract.contract_no || `CT-${contract.id}`}</span><span>销售合同 · ERP 系统生成</span><span>合同正文</span></footer>
-    </section>
+    </section></SalesPrintPortal>
   );
 }

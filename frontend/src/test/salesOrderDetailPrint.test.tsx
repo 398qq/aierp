@@ -73,6 +73,7 @@ describe("SalesOrderDetail printing", () => {
     );
 
     const printable = await screen.findByTestId("sales-order-print");
+    expect(printable.parentElement).toBe(document.body);
     expect(within(printable).getByText("销售订单")).toBeInTheDocument();
     expect(within(printable).getAllByText("SO202607180008").length).toBeGreaterThan(0);
     expect(within(printable).getAllByText("深圳市测试客户有限公司").length).toBeGreaterThan(0);

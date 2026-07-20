@@ -11,6 +11,7 @@ import {
   EyeInvisibleOutlined,
   EyeOutlined,
   FileProtectOutlined,
+  PrinterOutlined,
   SendOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
@@ -20,6 +21,7 @@ import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation, QuotationItem } from "../../types";
 import { CustomerLink, ErpStatusTimeline, MetricBand, OpportunityLink, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import { SalesQuotationPrint } from "./SalesQuotationPrint";
 
 const getDueMeta = (validUntil?: string | null, status?: string) => {
   if (!validUntil || status === "won" || status === "lost") return { text: "-", color: "default", risk: false };
@@ -188,6 +190,7 @@ export default function QuotationDetail() {
         </>
       )}
     >
+      <SalesQuotationPrint quote={quote} customerName={customerName} />
       <MetricBand
         items={[
           { title: "价税合计", value: quote.total_amount || 0, prefix: "¥", precision: 2 },
@@ -262,6 +265,7 @@ export default function QuotationDetail() {
           }}>
             智能PDF
           </Button>
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印报价单</Button>
           {!isCustomerView && quote.status === "draft" ? <Button icon={<FileProtectOutlined />} onClick={async () => {
             try {
               await client.post("/approvals/submit", { doc_type: "quotation", doc_id: quote.id });

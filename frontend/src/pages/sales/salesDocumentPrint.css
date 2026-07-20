@@ -1,12 +1,11 @@
 .sales-document-print { display: none; }
 
 @media print {
-  @page { size: A4 landscape; margin: 9mm; }
-  html, body { background: #fff !important; }
-  body * { visibility: hidden !important; }
-  .sales-document-print, .sales-document-print * { visibility: visible !important; }
+  @page { size: A4 landscape; margin: 12mm 0; }
+  html, body { height: auto !important; background: #fff !important; }
+  body > *:not(.sales-document-print) { display: none !important; }
   .sales-document-print {
-    display: block !important; position: absolute; inset: 0; width: 100%; color: #172033; background: #fff;
+    display: block !important; position: static; box-sizing: border-box; width: calc(100% - 24mm); margin: 0 12mm; color: #172033; background: #fff;
     font: 8.5pt/1.45 "Microsoft YaHei", "PingFang SC", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .sales-print-watermark { position: fixed; z-index: 0; top: 70mm; left: 70mm; transform: rotate(-24deg); color: rgba(148,163,184,.14); font-size: 40pt; font-weight: 800; letter-spacing: 5px; }
@@ -40,6 +39,15 @@
   .sales-print-table th:nth-child(3) { width: 14mm; } .sales-print-table th:nth-child(4) { width: 20mm; }
   .sales-print-table th:nth-child(5), .sales-print-table th:nth-child(8) { width: 27mm; }
   .sales-print-table th:nth-child(6), .sales-print-table th:nth-child(7) { width: 16mm; }
+  .sales-print-table tbody tr:nth-child(even) td { background: #f7f9fc !important; }
+  .sales-print-table thead { display: table-header-group; }
+  .sales-print-table tfoot { display: table-row-group; }
+  .sales-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .sales-print-table.quotation-items th:nth-child(2) { width: 38mm; }
+  .sales-print-table.quotation-items th:nth-child(5), .sales-print-table.quotation-items th:nth-child(9) { width: 25mm; }
+  .sales-print-table.quotation-items th:nth-child(6), .sales-print-table.quotation-items th:nth-child(7) { width: 20mm; }
+  .sales-print-table.quotation-items th:nth-child(8) { width: 15mm; }
+  .sales-print-table.quotation-items th:nth-child(10) { width: 28mm; }
   .sales-print-table small { display: block; margin-top: .5mm; color: #64748b; }
   .sales-print-table .number { text-align: right; white-space: nowrap; }
   .sales-print-table tfoot td { background: #edf2f7 !important; }
@@ -54,5 +62,5 @@
   .sales-print-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 5mm; break-inside: avoid; }
   .sales-print-signatures > div { min-height: 28mm; padding: 2mm 3mm; border-top: 2px solid #17365d; background: linear-gradient(180deg, #f4f7fb 0, #fff 35%) !important; }
   .sales-print-signatures h3 { margin: 0 0 1mm; color: #17365d; font-size: 9pt; } .sales-print-signatures p { display: inline-block; width: 32%; margin: 5mm 0 0; }
-  .sales-print-footer { display: flex; justify-content: space-between; margin-top: 3mm; padding-top: 1.5mm; border-top: 1px solid #94a3b8; color: #64748b; font-size: 6.5pt; }
+  .sales-print-footer { position: fixed; z-index: 2; right: 12mm; bottom: 0; left: 12mm; display: flex; justify-content: space-between; margin: 0; padding-top: 1.5mm; border-top: 1px solid #94a3b8; color: #64748b; font-size: 6.5pt; }
 }

@@ -1,4 +1,5 @@
 import type { SalesOrder } from "../../types";
+import { SalesPrintPortal } from "./SalesPrintPortal";
 import "./salesDocumentPrint.css";
 
 const SELLER_NAME = "深圳天允电子有限公司";
@@ -33,7 +34,7 @@ export function SalesOrderPrint({ order }: { order: SalesOrder }) {
   const tax = Math.max(Number(order.total_amount || 0) - untaxed, 0);
 
   return (
-    <section className="sales-document-print" data-testid="sales-order-print" aria-label="销售订单打印单据">
+    <SalesPrintPortal><section className="sales-document-print" data-testid="sales-order-print" aria-label="销售订单打印单据">
       {order.status === "draft" && <div className="sales-print-watermark">草稿 · 非正式订单</div>}
       {order.status === "cancelled" && <div className="sales-print-watermark sales-print-watermark-danger">已取消</div>}
 
@@ -108,6 +109,6 @@ export function SalesOrderPrint({ order }: { order: SalesOrder }) {
         <div><h3>乙方（销售方）</h3><strong>{SELLER_NAME}</strong><p>授权代表：________________</p><p>签章：____________________</p><p>日期：____年__月__日</p></div>
       </section>
       <footer className="sales-print-footer"><span>{order.order_no || `SO-${order.id}`}</span><span>销售订单 · ERP 系统生成</span><span>第 1 页</span></footer>
-    </section>
+    </section></SalesPrintPortal>
   );
 }
