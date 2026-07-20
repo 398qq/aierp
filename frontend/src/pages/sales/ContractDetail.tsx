@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Progress, Space, Spin, Table, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, AuditOutlined, EditOutlined } from "@ant-design/icons";
-import { getContract, getSalesOrder, getSalesOrderBusinessChain } from "../../api";
+import { ArrowLeftOutlined, AuditOutlined, EditOutlined, PrinterOutlined } from "@ant-design/icons";
+import { getContract, getCustomer, getSalesOrder, getSalesOrderBusinessChain } from "../../api";
 import type { Contract, SalesOrder, SalesOrderBusinessChain } from "../../types";
 import { CustomerLink, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import { SalesContractPrint } from "./SalesContractPrint";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" },
@@ -30,6 +31,7 @@ export default function ContractDetail() {
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<SalesOrder | null>(null);
   const [chain, setChain] = useState<SalesOrderBusinessChain | null>(null);
+  const [customerName, setCustomerName] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -42,6 +44,9 @@ export default function ContractDetail() {
           return;
         }
         setCt(contract);
+        getCustomer(contract.customer_id)
+          .then((customerResult) => setCustomerName(customerResult.data.data?.name || ""))
+          .catch(() => setCustomerName(""));
         if (contract.sales_order_id) {
           const [orderResult, chainResult] = await Promise.allSettled([
             getSalesOrder(contract.sales_order_id),
@@ -91,6 +96,7 @@ export default function ContractDetail() {
         </>
       )}
     >
+      <SalesContractPrint contract={ct} order={order} customerName={customerName} />
       <MetricBand
         items={[
           { title: "合同金额", value: ct.amount || 0, prefix: "¥", precision: 2 },
@@ -105,6 +111,7 @@ export default function ContractDetail() {
         <Space wrap>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/contracts")}>返回列表</Button>
           <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/contracts/${ct.id}/edit`)}>编辑合同</Button>
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印销售合同</Button>
         </Space>
       </Card>
 

@@ -1,0 +1,58 @@
+.sales-document-print { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 9mm; }
+  html, body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  .sales-document-print, .sales-document-print * { visibility: visible !important; }
+  .sales-document-print {
+    display: block !important; position: absolute; inset: 0; width: 100%; color: #172033; background: #fff;
+    font: 8.5pt/1.45 "Microsoft YaHei", "PingFang SC", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .sales-print-watermark { position: fixed; z-index: 0; top: 70mm; left: 70mm; transform: rotate(-24deg); color: rgba(148,163,184,.14); font-size: 40pt; font-weight: 800; letter-spacing: 5px; }
+  .sales-print-watermark-danger { color: rgba(220,38,38,.13); }
+  .sales-print-header { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1.2fr 1fr; align-items: center; min-height: 20mm; padding: 3mm 0; border-top: 3px solid #17365d; border-bottom: 1px solid #17365d; }
+  .sales-print-brand strong, .sales-print-brand span { display: block; }
+  .sales-print-brand strong { color: #17365d; font-size: 12pt; }
+  .sales-print-brand span { margin-top: 1mm; color: #64748b; font-size: 6.8pt; letter-spacing: 1px; }
+  .sales-print-title { text-align: center; }
+  .sales-print-title h1 { margin: 0; color: #102a4c; font-size: 21pt; letter-spacing: 8px; }
+  .sales-print-title span { color: #475569; font-size: 7pt; letter-spacing: 1.5px; }
+  .sales-print-control { display: grid; grid-template-columns: 20mm 1fr; justify-self: end; min-width: 65mm; border: 1px solid #7f8da1; font-size: 7.5pt; }
+  .sales-print-control span, .sales-print-control strong { padding: 1mm 1.5mm; border-bottom: 1px solid #c3ccd7; }
+  .sales-print-control span:nth-last-child(-n+2), .sales-print-control strong:nth-last-child(-n+2) { border-bottom: 0; }
+  .sales-print-control span, .sales-print-label, .sales-print-meta span { background: #eaf0f7 !important; color: #334155; font-weight: 600; }
+  .sales-print-section { position: relative; z-index: 1; margin-top: 3mm; break-inside: avoid; }
+  .sales-print-section > h2 { display: flex; align-items: center; gap: 2mm; margin: 0 0 1.5mm; color: #17365d; font-size: 9pt; letter-spacing: .5px; }
+  .sales-print-section > h2 > span { display: inline-grid; place-items: center; width: 7mm; height: 5mm; color: #fff; background: #17365d !important; font-size: 7pt; }
+  .sales-print-party-grid { display: grid; grid-template-columns: 25mm 1fr 25mm 1fr; border-top: 1px solid #7f8da1; border-left: 1px solid #7f8da1; }
+  .sales-print-party-grid > div { display: flex; min-height: 7mm; align-items: center; padding: 1mm 2mm; border-right: 1px solid #7f8da1; border-bottom: 1px solid #7f8da1; }
+  .sales-print-party-name { color: #102a4c; font-size: 9pt; font-weight: 700; }
+  .sales-print-meta { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #7f8da1; border-left: 1px solid #7f8da1; }
+  .sales-print-meta > div { display: flex; min-height: 7mm; align-items: center; border-right: 1px solid #7f8da1; border-bottom: 1px solid #7f8da1; }
+  .sales-print-meta > div.wide { grid-column: span 2; }
+  .sales-print-meta span { align-self: stretch; display: flex; flex: 0 0 22mm; align-items: center; padding: 0 1.5mm; }
+  .sales-print-meta strong { padding: 0 1.5mm; }
+  .sales-print-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 7.5pt; }
+  .sales-print-table th, .sales-print-table td { padding: 1.3mm; border: 1px solid #6f7d90; vertical-align: middle; overflow-wrap: anywhere; }
+  .sales-print-table th { color: #fff; background: #17365d !important; text-align: left; }
+  .sales-print-table th:first-child { width: 7mm; } .sales-print-table th:nth-child(2) { width: 45mm; }
+  .sales-print-table th:nth-child(3) { width: 14mm; } .sales-print-table th:nth-child(4) { width: 20mm; }
+  .sales-print-table th:nth-child(5), .sales-print-table th:nth-child(8) { width: 27mm; }
+  .sales-print-table th:nth-child(6), .sales-print-table th:nth-child(7) { width: 16mm; }
+  .sales-print-table small { display: block; margin-top: .5mm; color: #64748b; }
+  .sales-print-table .number { text-align: right; white-space: nowrap; }
+  .sales-print-table tfoot td { background: #edf2f7 !important; }
+  .sales-print-totals { display: grid; grid-template-columns: repeat(3, 42mm); justify-content: end; }
+  .sales-print-totals > div { display: flex; justify-content: space-between; padding: 1.5mm 2mm; border: 1px solid #7f8da1; border-top: 0; }
+  .sales-print-totals .grand { color: #fff; background: #17365d !important; font-size: 9pt; }
+  .sales-print-terms ol { margin: 0; padding-left: 6mm; } .sales-print-terms p { margin: 1.5mm 0 0; padding: 1.5mm 2mm; background: #f8fafc !important; }
+  .sales-print-clauses { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #7f8da1; border-left: 1px solid #7f8da1; }
+  .sales-print-clauses article { min-height: 14mm; padding: 2mm; border-right: 1px solid #7f8da1; border-bottom: 1px solid #7f8da1; }
+  .sales-print-clauses article.wide { grid-column: span 2; } .sales-print-clauses h3 { margin: 0 0 1mm; color: #17365d; font-size: 8pt; } .sales-print-clauses p { margin: 0; }
+  .sales-print-empty { padding: 4mm; border: 1px solid #7f8da1; color: #475569; text-align: center; }
+  .sales-print-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 5mm; break-inside: avoid; }
+  .sales-print-signatures > div { min-height: 28mm; padding: 2mm 3mm; border-top: 2px solid #17365d; background: linear-gradient(180deg, #f4f7fb 0, #fff 35%) !important; }
+  .sales-print-signatures h3 { margin: 0 0 1mm; color: #17365d; font-size: 9pt; } .sales-print-signatures p { display: inline-block; width: 32%; margin: 5mm 0 0; }
+  .sales-print-footer { display: flex; justify-content: space-between; margin-top: 3mm; padding-top: 1.5mm; border-top: 1px solid #94a3b8; color: #64748b; font-size: 6.5pt; }
+}

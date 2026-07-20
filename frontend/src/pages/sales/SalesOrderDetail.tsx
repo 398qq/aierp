@@ -9,12 +9,14 @@ import {
   EditOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
+  PrinterOutlined,
 } from "@ant-design/icons";
 import { getPayments, getSalesOrder, getSalesOrderBusinessChain, convertSalesOrderToDelivery, updateSalesOrder, downloadSalesOrderPDF, getApiErrorMessage } from "../../api";
 import type { SalesOrderPDFOptions } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { SalesOrder, SalesOrderBusinessChain, SalesOrderItem } from "../../types";
 import { CustomerLink, ErpExportButton, ErpStatusTimeline, MetricBand, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import { SalesOrderPrint } from "./SalesOrderPrint";
 
 const STATUS_STEPS = [
   { key: "pending", label: "待确认" },
@@ -168,6 +170,7 @@ export default function SalesOrderDetail() {
         </>
       )}
     >
+      <SalesOrderPrint order={order} />
       <MetricBand
         items={[
           { title: "价税合计", value: order.total_amount || 0, prefix: "¥", precision: 2 },
@@ -205,6 +208,7 @@ export default function SalesOrderDetail() {
             转发货单
           </Button>
           <Button icon={<DownloadOutlined />} onClick={() => setPdfOpen(true)}>智能PDF</Button>
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印销售订单</Button>
         </Space>
       </Card>
 

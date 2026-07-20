@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ContractDetail from "../pages/sales/ContractDetail";
@@ -49,6 +49,7 @@ async function waitForContent() {
 describe("ContractDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("print", vi.fn());
   });
 
   afterEach(() => {
@@ -83,14 +84,32 @@ describe("ContractDetail", () => {
     expect(editButtons.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("prints a formal sales contract from the detail page", async () => {
+    renderContractDetail(contract({
+      payment_terms: "合同签署后30日内付款",
+      delivery_terms: "送货至客户指定地点",
+    }));
+    await waitForContent();
+
+    const printable = screen.getByTestId("sales-contract-print");
+    expect(within(printable).getByText("销售合同")).toBeInTheDocument();
+    expect(within(printable).getAllByText("CT-2026-001").length).toBeGreaterThan(0);
+    expect(within(printable).getAllByText("测试客户").length).toBeGreaterThan(0);
+    expect(within(printable).getByText("合同签署后30日内付款")).toBeInTheDocument();
+    expect(window.print).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /打印销售合同/ }));
+    await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
+  });
+
   it("renders contract info card with details", async () => {
     renderContractDetail(contract());
     await waitForContent();
-    expect(screen.getByText("合同信息")).toBeInTheDocument();
+    expect(screen.getAllByText("合同信息").length).toBeGreaterThanOrEqual(1);
     // Title appears in info card and possibly elsewhere
     const titles = screen.getAllByText("2026年度框架采购合同");
     expect(titles.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("年度框架合同")).toBeInTheDocument();
+    expect(screen.getAllByText("年度框架合同").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders sidebar with 合同摘要, 状态流转, 下一步动作", async () => {
