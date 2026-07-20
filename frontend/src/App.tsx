@@ -7,7 +7,7 @@ import zhCN from "antd/locale/zh_CN";
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
-import { antdTheme, fontSize, fontWeight, lineHeight } from "./design-tokens";
+import { antdTheme, fontSize, fontWeight, lineHeight, typography } from "./design-tokens";
 import AntdOverlayGuard from "./ui/AntdOverlayGuard";
 
 class ErrorBoundary extends Component<
@@ -196,6 +196,28 @@ export default function App() {
           --line-height-body: ${lineHeight.body};
           --line-height-compact: ${lineHeight.compact};
           --line-height-caption: ${lineHeight.caption};
+          --type-report-size: ${typography.reportTitle.fontSize}px;
+          --type-report-line: ${typography.reportTitle.lineHeight}px;
+          --type-page-size: ${typography.pageTitle.fontSize}px;
+          --type-page-line: ${typography.pageTitle.lineHeight}px;
+          --type-subsection-size: ${typography.subsectionTitle.fontSize}px;
+          --type-subsection-line: ${typography.subsectionTitle.lineHeight}px;
+          --type-section-size: ${typography.sectionTitle.fontSize}px;
+          --type-section-line: ${typography.sectionTitle.lineHeight}px;
+          --type-card-size: ${typography.cardTitle.fontSize}px;
+          --type-card-line: ${typography.cardTitle.lineHeight}px;
+          --type-body-size: ${typography.body.fontSize}px;
+          --type-body-line: ${typography.body.lineHeight}px;
+          --type-support-size: ${typography.supporting.fontSize}px;
+          --type-support-line: ${typography.supporting.lineHeight}px;
+          --type-table-size: ${typography.table.fontSize}px;
+          --type-table-line: ${typography.table.lineHeight}px;
+          --type-table-header-size: ${typography.tableHeader.fontSize}px;
+          --type-table-header-line: ${typography.tableHeader.lineHeight}px;
+          --type-caption-size: ${typography.caption.fontSize}px;
+          --type-caption-line: ${typography.caption.lineHeight}px;
+          --type-metric-size: ${typography.metric.fontSize}px;
+          --type-metric-line: ${typography.metric.lineHeight}px;
         }
       `}</style>
         <AntdApp>

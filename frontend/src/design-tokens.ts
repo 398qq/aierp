@@ -114,14 +114,14 @@ export const fontSize = {
   headingMd: 20,
   headingSm: 18,
   section: 16,
-  cardTitle: 14,
+  cardTitle: 15,
   bodyLg: 16,
   bodyMd: 15,
   body: 14,
   bodySm: 13,
   caption: 12,
-  table: 13,
-  tableHeader: 12,
+  table: 14,
+  tableHeader: 13,
   metric: 24,
   numeric: 14,
 } as const;
@@ -139,6 +139,28 @@ export const fontWeight = {
   medium: 500,
   semibold: 600,
   bold: 700,
+} as const;
+
+/**
+ * Strict operational text roles. Components should use a role instead of
+ * inventing a size/weight/line-height combination locally.
+ */
+export const typography = {
+  reportTitle: { fontSize: 24, lineHeight: 32, fontWeight: fontWeight.bold },
+  pageTitle: { fontSize: 20, lineHeight: 28, fontWeight: fontWeight.bold },
+  subsectionTitle: { fontSize: 18, lineHeight: 26, fontWeight: fontWeight.semibold },
+  sectionTitle: { fontSize: 16, lineHeight: 24, fontWeight: fontWeight.semibold },
+  cardTitle: { fontSize: 15, lineHeight: 22, fontWeight: fontWeight.semibold },
+  body: { fontSize: 14, lineHeight: 22, fontWeight: fontWeight.regular },
+  bodyEmphasis: { fontSize: 14, lineHeight: 22, fontWeight: fontWeight.medium },
+  supporting: { fontSize: 13, lineHeight: 20, fontWeight: fontWeight.regular },
+  table: { fontSize: 14, lineHeight: 20, fontWeight: fontWeight.regular },
+  tableHeader: { fontSize: 13, lineHeight: 20, fontWeight: fontWeight.semibold },
+  formLabel: { fontSize: 13, lineHeight: 20, fontWeight: fontWeight.medium },
+  action: { fontSize: 14, lineHeight: 20, fontWeight: fontWeight.medium },
+  caption: { fontSize: 12, lineHeight: 18, fontWeight: fontWeight.regular },
+  status: { fontSize: 12, lineHeight: 20, fontWeight: fontWeight.medium },
+  metric: { fontSize: 24, lineHeight: 32, fontWeight: fontWeight.bold },
 } as const;
 
 export const fontFeature = {
@@ -271,7 +293,7 @@ export const antdTheme = {
       cellPaddingInline: 10,
       cellFontSize: fontSize.table,
       cellFontSizeMD: fontSize.table,
-      cellFontSizeSM: fontSize.caption,
+      cellFontSizeSM: fontSize.table,
       headerFilterHoverBg: "#e8edf4",
     },
     Button: {
@@ -327,6 +349,16 @@ export const antdTheme = {
     },
     Card: {
       borderRadiusLG: radius.card,
+      headerFontSize: fontSize.cardTitle,
+      headerFontSizeSM: fontSize.cardTitle,
+    },
+    Modal: {
+      titleFontSize: fontSize.section,
+      titleLineHeight: typography.sectionTitle.lineHeight,
+    },
+    Statistic: {
+      contentFontSize: fontSize.metric,
+      titleFontSize: fontSize.bodySm,
     },
   },
 } as const;

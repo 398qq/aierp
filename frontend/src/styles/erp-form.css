@@ -17,7 +17,8 @@
 .ant-modal .ant-form-item-label > label,
 .ant-drawer .ant-form-item-label > label {
   color: #344054;
-  font-size: 13px;
+  font-size: var(--type-support-size, 13px);
+  line-height: var(--type-support-line, 20px);
   font-weight: 500;
 }
 
@@ -34,8 +35,8 @@
 .ant-drawer .ant-form-item-extra,
 .ant-drawer .ant-form-item-explain {
   margin-top: 3px;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--type-caption-size, 12px);
+  line-height: var(--type-caption-line, 18px);
 }
 
 .erp-app-content .ant-form .ant-input,
@@ -162,7 +163,7 @@
 .ant-modal .ant-form .ant-divider-inner-text,
 .ant-drawer .ant-form .ant-divider-inner-text {
   color: #17365d;
-  font-size: 13px;
+  font-size: var(--type-section-size, 16px);
   font-weight: 600;
 }
 

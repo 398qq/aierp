@@ -1,8 +1,9 @@
 /*
  * AIERP operational typography
  *
- * Screen hierarchy: 24 report heading / 20 page title / 16 section title /
- * 14 body and controls / 13 dense table rows / 12 captions and table headers.
+ * Role hierarchy: 24 report / 20 page / 18 subsection / 16 section / 15 card /
+ * 14 body, controls and table data / 13 supporting copy and table headers /
+ * 12 captions and status labels only.
  * Printed business documents own their point-based typography and are excluded.
  */
 
@@ -12,8 +13,8 @@ body,
   color: var(--color-text, #172033);
   font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  font-size: var(--font-size-body, 14px);
-  line-height: var(--line-height-body, 1.5715);
+  font-size: var(--type-body-size, 14px);
+  line-height: var(--type-body-line, 22px);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -23,8 +24,9 @@ body,
 .ant-modal h1,
 .ant-drawer h1,
 .erp-app-content .ant-typography-h1 {
-  font-size: 24px;
-  line-height: var(--line-height-heading, 1.35);
+  font-size: var(--type-report-size, 24px);
+  font-weight: var(--font-weight-bold, 700);
+  line-height: var(--type-report-line, 32px);
 }
 
 .erp-app-content h2,
@@ -32,16 +34,19 @@ body,
 .ant-drawer h2,
 .erp-app-content .ant-typography-h2,
 .erp-page-header-title {
-  font-size: var(--font-size-page-title, 20px);
-  line-height: var(--line-height-heading, 1.35);
+  font-size: var(--type-page-size, 20px);
+  font-weight: var(--font-weight-bold, 700);
+  line-height: var(--type-page-line, 28px);
+  letter-spacing: -0.01em;
 }
 
 .erp-app-content h3,
 .ant-modal h3,
 .ant-drawer h3,
 .erp-app-content .ant-typography-h3 {
-  font-size: 18px;
-  line-height: var(--line-height-heading, 1.35);
+  font-size: var(--type-subsection-size, 18px);
+  font-weight: var(--font-weight-semibold, 600);
+  line-height: var(--type-subsection-line, 26px);
 }
 
 .erp-app-content h4,
@@ -49,16 +54,18 @@ body,
 .ant-drawer h4,
 .erp-app-content .ant-typography-h4,
 .erp-module-heading .ant-typography {
-  font-size: var(--font-size-section-title, 16px);
-  line-height: var(--line-height-heading, 1.35);
+  font-size: var(--type-section-size, 16px);
+  font-weight: var(--font-weight-semibold, 600);
+  line-height: var(--type-section-line, 24px);
 }
 
 .erp-app-content h5,
 .ant-modal h5,
 .ant-drawer h5,
 .erp-app-content .ant-typography-h5 {
-  font-size: var(--font-size-card-title, 14px);
-  line-height: var(--line-height-heading, 1.35);
+  font-size: var(--type-card-size, 15px);
+  font-weight: var(--font-weight-semibold, 600);
+  line-height: var(--type-card-line, 22px);
 }
 
 /* Core operational copy and controls. */
@@ -69,8 +76,8 @@ body,
 .ant-dropdown,
 .ant-notification,
 .ant-message {
-  font-size: var(--font-size-body, 14px);
-  line-height: var(--line-height-body, 1.5715);
+  font-size: var(--type-body-size, 14px);
+  line-height: var(--type-body-line, 22px);
 }
 
 .erp-app-content .ant-btn,
@@ -90,21 +97,30 @@ body,
 .ant-drawer .ant-input-number-input,
 .ant-drawer .ant-picker,
 .ant-drawer .ant-select {
-  font-size: var(--font-size-body, 14px);
+  font-size: var(--type-body-size, 14px);
+  line-height: 20px;
+}
+
+.erp-app-content .ant-btn,
+.ant-modal .ant-btn,
+.ant-drawer .ant-btn,
+.erp-app-content .ant-tabs-tab {
+  font-weight: var(--font-weight-medium, 500);
 }
 
 .erp-app-content .ant-card-head-title,
 .ant-modal-title,
 .ant-drawer-title,
 .ant-popover-title {
-  font-size: var(--font-size-card-title, 14px);
+  font-size: var(--type-card-size, 15px);
   font-weight: var(--font-weight-semibold, 600);
-  line-height: var(--line-height-compact, 1.45);
+  line-height: var(--type-card-line, 22px);
 }
 
 .ant-modal-title,
 .ant-drawer-title {
   font-size: var(--font-size-section-title, 16px);
+  line-height: var(--type-section-line, 24px);
 }
 
 .erp-app-content .ant-form-item-label > label,
@@ -113,8 +129,9 @@ body,
 .erp-app-content .ant-descriptions-item-label,
 .ant-modal .ant-descriptions-item-label,
 .ant-drawer .ant-descriptions-item-label {
-  font-size: var(--font-size-body-sm, 13px);
-  line-height: var(--line-height-compact, 1.45);
+  font-size: var(--type-support-size, 13px);
+  font-weight: var(--font-weight-medium, 500);
+  line-height: var(--type-support-line, 20px);
 }
 
 .erp-app-content .ant-form-item-extra,
@@ -122,29 +139,41 @@ body,
 .ant-modal .ant-form-item-extra,
 .ant-modal .ant-form-item-explain,
 .ant-drawer .ant-form-item-extra,
-.ant-drawer .ant-form-item-explain,
+.ant-drawer .ant-form-item-explain {
+  font-size: var(--type-caption-size, 12px);
+  line-height: var(--type-caption-line, 18px);
+}
+
 .erp-page-header-description,
-.erp-module-eyebrow,
 .erp-metric-label,
 .erp-metric-suffix,
 .erp-app-content .ant-typography-secondary {
-  font-size: var(--font-size-caption, 12px);
-  line-height: var(--line-height-caption, 1.5);
+  font-size: var(--type-support-size, 13px);
+  line-height: var(--type-support-line, 20px);
+}
+
+.erp-module-eyebrow {
+  font-size: var(--type-caption-size, 12px);
+  line-height: var(--type-caption-line, 18px);
 }
 
 /* Dense ledgers remain compact without dropping below readable sizes. */
 .erp-app-content .ant-table-thead > tr > th,
 .erp-app-content .erp-table .ant-table-thead > tr > th {
-  font-size: var(--font-size-table-header, 12px) !important;
+  padding-block: 8px !important;
+  font-size: var(--type-table-header-size, 13px) !important;
   font-weight: var(--font-weight-semibold, 600) !important;
-  line-height: var(--line-height-compact, 1.45) !important;
+  line-height: var(--type-table-header-line, 20px) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
 }
 
 .erp-app-content .ant-table-tbody > tr > td,
 .erp-app-content .erp-table .ant-table-tbody > tr > td,
 .erp-app-content .ant-table-summary > tr > td {
-  font-size: var(--font-size-table, 13px) !important;
-  line-height: var(--line-height-compact, 1.45) !important;
+  padding-block: 9px !important;
+  font-size: var(--type-table-size, 14px) !important;
+  line-height: var(--type-table-line, 20px) !important;
   font-variant-numeric: tabular-nums;
 }
 
@@ -156,29 +185,40 @@ body,
 .ant-dropdown-menu,
 .ant-select-dropdown,
 .ant-picker-dropdown {
-  font-size: var(--font-size-body-sm, 13px);
+  font-size: var(--type-body-size, 14px);
+  line-height: var(--type-body-line, 22px);
 }
 
 .erp-app-content .ant-tag,
 .erp-app-content .ant-badge-status-text,
 .ant-modal .ant-tag,
 .ant-drawer .ant-tag {
-  font-size: var(--font-size-caption, 12px);
-  line-height: 20px;
+  font-size: var(--type-caption-size, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  line-height: var(--type-caption-line, 18px);
 }
 
 .erp-metric-value,
 .erp-app-content .ant-statistic-content {
-  font-size: var(--font-size-metric, 24px);
+  font-size: var(--type-metric-size, 24px);
   font-weight: var(--font-weight-bold, 700);
-  line-height: var(--line-height-heading, 1.35);
+  line-height: var(--type-metric-line, 32px);
   font-variant-numeric: tabular-nums;
 }
 
 .erp-app-content .ant-statistic-title {
-  font-size: var(--font-size-body-sm, 13px);
-  line-height: var(--line-height-compact, 1.45);
+  font-size: var(--type-support-size, 13px);
+  line-height: var(--type-support-line, 20px);
 }
+
+/* Explicit roles for custom, non-Ant content. */
+.erp-type-page { font-size: var(--type-page-size, 20px); font-weight: 700; line-height: var(--type-page-line, 28px); }
+.erp-type-section { font-size: var(--type-section-size, 16px); font-weight: 600; line-height: var(--type-section-line, 24px); }
+.erp-type-card { font-size: var(--type-card-size, 15px); font-weight: 600; line-height: var(--type-card-line, 22px); }
+.erp-type-body { font-size: var(--type-body-size, 14px); font-weight: 400; line-height: var(--type-body-line, 22px); }
+.erp-type-support { font-size: var(--type-support-size, 13px); font-weight: 400; line-height: var(--type-support-line, 20px); }
+.erp-type-caption { font-size: var(--type-caption-size, 12px); font-weight: 400; line-height: var(--type-caption-line, 18px); }
+.erp-type-number { font-variant-numeric: tabular-nums; }
 
 /* Business identifiers, quantities and money align predictably. */
 .erp-app-content code,

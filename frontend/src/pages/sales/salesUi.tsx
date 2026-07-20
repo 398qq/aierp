@@ -114,7 +114,7 @@ export function SalesModuleShell({
           margin: 0;
           color: var(--color-text, #111827);
           font-size: 17px;
-          font-weight: 650;
+          font-weight: 600;
           line-height: 24px;
         }
         .sales-erp-subtitle {
@@ -196,7 +196,7 @@ export function SalesModuleShell({
           margin-top: 4px;
           color: var(--color-text, #111827);
           font-size: 18px;
-          font-weight: 650;
+          font-weight: 600;
           line-height: 1;
         }
         .sales-erp-toolbar.ant-card-small > .ant-card-body {
