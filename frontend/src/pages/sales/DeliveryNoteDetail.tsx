@@ -24,6 +24,7 @@ import {
   DollarOutlined,
   EditOutlined,
   FileTextOutlined,
+  PrinterOutlined,
   SwapOutlined,
 } from "@ant-design/icons";
 import {
@@ -37,6 +38,7 @@ import {
 } from "../../api";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { DeliveryNote, PaymentRecord } from "../../types";
+import { DeliveryNotePrint } from "./DeliveryNotePrint";
 import {
   CustomerLink,
   ErpStatusTimeline,
@@ -123,6 +125,9 @@ export default function DeliveryNoteDetail() {
             onClick={() => navigate(`/sales/delivery-notes/${note.id}/edit`)}
           >
             编辑
+          </Button>
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+            打印送货单
           </Button>
           {note.status === "pending" ? (
             <Button
@@ -224,6 +229,7 @@ export default function DeliveryNoteDetail() {
         </>
       }
     >
+      <DeliveryNotePrint note={note} />
       <MetricBand
         items={[
           { title: "产品行数", value: itemSummary.count, suffix: "项" },

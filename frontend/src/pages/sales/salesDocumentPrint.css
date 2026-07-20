@@ -48,6 +48,10 @@
   .sales-print-table.quotation-items th:nth-child(6), .sales-print-table.quotation-items th:nth-child(7) { width: 20mm; }
   .sales-print-table.quotation-items th:nth-child(8) { width: 15mm; }
   .sales-print-table.quotation-items th:nth-child(10) { width: 28mm; }
+  .sales-print-table.delivery-items th:nth-child(2) { width: auto; }
+  .sales-print-table.delivery-items th:nth-child(3) { width: 20mm; }
+  .sales-print-table.delivery-items th:nth-child(4) { width: 32mm; }
+  .sales-print-table.delivery-items th:nth-child(5) { width: 65mm; }
   .sales-print-table small { display: block; margin-top: .5mm; color: #64748b; }
   .sales-print-table .number { text-align: right; white-space: nowrap; }
   .sales-print-table tfoot td { background: #edf2f7 !important; }
