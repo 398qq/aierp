@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # 不要初始化 CodeQL: github/codeql-action/init 会自动选最新 actions
       - name: Initialize CodeQL
