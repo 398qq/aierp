@@ -24,6 +24,12 @@ import {
   Statistic,
   Row,
   Col,
+  Button,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  message as antMessage,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
@@ -154,6 +160,67 @@ export default function BatchTraceability() {
     };
   }, [batchId]);
 
+  // ── Action state (Transfer / Split / Merge) ───────────────────────
+  const [actionModal, setActionModal] = useState<"transfer" | "split" | "merge" | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [transferForm] = Form.useForm();
+  const [splitForm] = Form.useForm();
+  const [mergeForm] = Form.useForm();
+
+  const reload = async () => {
+    try {
+      const resp = await client.get<{ data: TraceabilityResponse }>(
+        `/inventory/batches/${batchId}/traceability`,
+      );
+      setData(resp.data.data);
+    } catch {
+      // ignore — keep prior data
+    }
+  };
+
+  const handleAction = async (
+    kind: "transfer" | "split" | "merge",
+    payload: Record<string, unknown>,
+  ) => {
+    setActionLoading(true);
+    try {
+      const url =
+        kind === "transfer"
+          ? `/inventory/batches/${batchId}/transfer`
+          : kind === "split"
+          ? `/inventory/batches/${batchId}/split`
+          : `/inventory/batches/merge`;
+      const resp = await client.post<{ code: number; data: unknown; msg?: string }>(
+        url,
+        payload,
+      );
+      if (resp.data.code === 200) {
+        antMessage.success(
+          kind === "transfer"
+            ? "调拨成功"
+            : kind === "split"
+            ? "拆分成功"
+            : "合并成功",
+        );
+        setActionModal(null);
+        transferForm.resetFields();
+        splitForm.resetFields();
+        mergeForm.resetFields();
+        await reload();
+      } else {
+        antMessage.error(resp.data.msg || "操作失败");
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { msg?: string } } }).response?.data?.msg
+          : undefined;
+      antMessage.error(msg || "请求失败");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: "center" }}>
@@ -276,6 +343,13 @@ export default function BatchTraceability() {
     <div style={{ padding: 24 }}>
       <Space style={{ marginBottom: 16 }}>
         <Link to="/warehouse/inventory-batches">← 返回批次列表</Link>
+        <span style={{ flex: 1 }} />
+        <Button onClick={() => setActionModal("transfer")}>调拨</Button>
+        <Button onClick={() => setActionModal("split")}>拆分</Button>
+        <Button onClick={() => setActionModal("merge")}>合并</Button>
+        <Link to={`/inventory/batches/${batchId}/recall`}>
+          <Button danger>召回</Button>
+        </Link>
       </Space>
 
       {/* Batch header */}
@@ -424,13 +498,97 @@ export default function BatchTraceability() {
           </>
         )}
       </Card>
+        {/* Action modals: Transfer / Split / Merge */}
+        <Modal
+          title="调拨批次"
+          open={actionModal === "transfer"}
+          onCancel={() => { setActionModal(null); transferForm.resetFields(); }}
+          confirmLoading={actionLoading}
+          onOk={() => transferForm.submit()}
+          okText="确认调拨"
+        >
+          <Form
+            form={transferForm}
+            layout="vertical"
+            onFinish={(v: { dst_warehouse_id: number; quantity: number; reason: string }) =>
+              handleAction("transfer", { dst_warehouse_id: v.dst_warehouse_id, quantity: v.quantity, reason: v.reason })
+            }
+          >
+            <Form.Item name="dst_warehouse_id" label="目标仓库 ID" rules={[{ required: true, message: "必填" }]}>
+              <InputNumber min={1} style={{ width: "100%" }} placeholder="如 2" />
+            </Form.Item>
+            <Form.Item name="quantity" label="数量" rules={[{ required: true, message: "必填" }]}>
+              <InputNumber min={1} style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="reason" label="原因" rules={[{ required: true, min: 1, message: "必填" }]}>
+              <Input.TextArea rows={2} placeholder="如 调拨到上海仓" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="拆分批次"
+          open={actionModal === "split"}
+          onCancel={() => { setActionModal(null); splitForm.resetFields(); }}
+          confirmLoading={actionLoading}
+          onOk={() => splitForm.submit()}
+          okText="确认拆分"
+        >
+          <Form
+            form={splitForm}
+            layout="vertical"
+            onFinish={(v: { quantity: number; new_batch_no?: string; reason: string }) =>
+              handleAction("split", { quantity: v.quantity, new_batch_no: v.new_batch_no || undefined, reason: v.reason })
+            }
+          >
+            <Form.Item name="quantity" label="拆分数量" rules={[{ required: true, message: "必填" }]}>
+              <InputNumber min={1} style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="new_batch_no" label="新批次号（可选）">
+              <Input placeholder="省略时自动 -S1, -S2..." />
+            </Form.Item>
+            <Form.Item name="reason" label="原因" rules={[{ required: true, min: 1, message: "必填" }]}>
+              <Input.TextArea rows={2} placeholder="如 拆分给 VIP 客户" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="合并批次"
+          open={actionModal === "merge"}
+          onCancel={() => { setActionModal(null); mergeForm.resetFields(); }}
+          confirmLoading={actionLoading}
+          onOk={() => mergeForm.submit()}
+          okText="确认合并"
+        >
+          <Form
+            form={mergeForm}
+            layout="vertical"
+            onFinish={(v: { batch_ids: string; reason: string }) =>
+              handleAction("merge", {
+                batch_ids: v.batch_ids.split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !Number.isNaN(n)),
+                reason: v.reason,
+              })
+            }
+          >
+            <Form.Item name="batch_ids" label="要合并的批次 ID（逗号分隔，含本批次 ≥2 个）" rules={[{ required: true, message: "必填" }]}>
+              <Input placeholder={`如 ${batchId},456,789`} />
+            </Form.Item>
+            <Form.Item name="reason" label="原因" rules={[{ required: true, min: 1, message: "必填" }]}>
+              <Input.TextArea rows={2} placeholder="如 清理重复批次" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
     </div>
-  );
+          );
 }
 
 function isExpired(expiryDate: string): boolean {
   return new Date(expiryDate) < new Date();
 }
+
+
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "-";
