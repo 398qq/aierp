@@ -58,7 +58,7 @@ class Counter:
 
                 for collector in list(_REG._collector_to_names.keys()):  # type: ignore[attr-defined]
                     if name in _REG._names_to_collectors:  # type: ignore[attr-defined]
-                        self._prom = _REG._names_to_collectors[name]  # type: ignore[attr-defined]
+                        self._prom = _REG._names_to_collectors[name]  # type: ignore[attr-defined,assignment]
                         break
 
     def inc(self, amount: float = 1.0, **label_values) -> None:
