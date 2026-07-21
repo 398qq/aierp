@@ -130,6 +130,7 @@ const ProfitLoss = lazy(() => import("./pages/finance/ProfitLoss"));
 const CommissionList = lazy(() => import("./pages/finance/CommissionList"));
 const CommissionSchemeList = lazy(() => import("./pages/finance/CommissionSchemeList"));
 const AuditLogViewer = lazy(() => import("./pages/system/AuditLogViewer"));
+const UomsList = lazy(() => import("./pages/system/UomsList"));
 const ReportAP = lazy(() => import("./pages/reports/ReportAP"));
 const ImportExport = lazy(() => import("./pages/import-export/index"));
 
@@ -565,6 +566,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <AuditLogList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/uoms"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <UomsList />
                     </Suspense>
                   }
                 />

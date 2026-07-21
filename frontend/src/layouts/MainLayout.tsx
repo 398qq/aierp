@@ -233,6 +233,7 @@ export default function MainLayout() {
       children: [
         { key: "/system/users", icon: <TeamOutlined />, label: "用户管理" },
         { key: "/system/roles", icon: <TeamOutlined />, label: "角色权限" },
+        { key: "/system/uoms", icon: <ShopOutlined />, label: "计量单位" },
         { key: "/system/audit-logs", icon: <FileTextOutlined />, label: "审计日志" },
         { key: "/data/import-export", icon: <SwapOutlined />, label: "导入与导出" },
         { key: "/settings", icon: <SettingOutlined />, label: "系统设置" },
