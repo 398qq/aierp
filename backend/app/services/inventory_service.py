@@ -3,6 +3,7 @@
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -302,6 +303,9 @@ async def deduct_for_delivery(
 
     Uses InventoryRepository for concurrency-safe deduct. Raises
     InsufficientStockError if physical stock is insufficient.
+
+    Also performs batch allocation (LCFO) and returns the COGS computed from
+    actual batch costs, so callers can persist cost_amount on SalesOrderItem.
     """
     repo = InventoryRepository(db)
     inv = await repo.get(product_id, warehouse_id)
@@ -327,12 +331,43 @@ async def deduct_for_delivery(
         + (f" (释放锁定{release_qty})" if release_qty > 0 else ""),
     )
     db.add(txn)
+
+    # ── Batch allocation (LCFO) + COGS ────────────────────────────────────
+    from app.services.inventory_batch_service import inventory_batch_service
+
+    alloc_result = await inventory_batch_service.allocate_for_delivery(
+        db,
+        product_id=product_id,
+        warehouse_id=warehouse_id,
+        quantity=quantity,
+        strategy="lowest_cost_first",
+    )
+    total_cogs = Decimal("0")
+    if alloc_result.allocations:
+        total_cogs = await inventory_batch_service.commit_deduction(
+            db,
+            alloc_result.allocations,
+            reference_type="delivery_note" if delivery_id else None,
+            reference_id=delivery_id,
+        )
+
     await db.flush()
     return {
         "product_id": product_id,
         "before": before,
         "after": after,
         "transaction_id": txn.id,
+        "total_cogs": float(total_cogs.quantize(Decimal("0.01"))),
+        "weighted_unit_cost": float(alloc_result.weighted_unit_cost),
+        "allocations": [
+            {
+                "batch_id": a.batch_id,
+                "batch_no": a.batch_no,
+                "quantity": a.quantity,
+                "unit_cost": a.unit_cost,
+            }
+            for a in alloc_result.allocations
+        ],
     }
 
 

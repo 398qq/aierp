@@ -271,11 +271,23 @@ class InventoryBatchService:
         self,
         db: AsyncSession,
         allocations: List[BatchAllocation],
+        *,
+        reference_type: str | None = None,
+        reference_id: int | None = None,
     ) -> Decimal:
         """Persist batch deductions after delivery is confirmed.
 
-        Updates each batch's quantity and status. Returns total COGS.
+        Updates each batch's quantity and status. Writes per-batch
+        InventoryTransaction rows so downstream traceability can resolve
+        "this batch was consumed by which delivery". Returns total COGS.
+
+        Args:
+            reference_type: e.g. 'delivery_note' (used to filter traceability queries).
+            reference_id: ID of the source document (e.g. delivery note id).
         """
+        # Local import to avoid circular deps at module load.
+        from app.models.product import InventoryTransaction
+
         total_cogs = Decimal("0")
         for alloc in allocations:
             if alloc.batch_id is None:
@@ -292,6 +304,18 @@ class InventoryBatchService:
 
             line_cogs = Decimal(str(alloc.quantity)) * Decimal(str(alloc.unit_cost))
             total_cogs += line_cogs
+
+            # Stage 18: write per-batch stock_out transaction for traceability.
+            txn = InventoryTransaction(
+                product_id=batch.product_id,
+                warehouse_id=batch.warehouse_id,
+                type="stock_out",
+                quantity=-alloc.quantity,
+                reference_type=reference_type,
+                reference_id=reference_id,
+                batch_id=alloc.batch_id,
+            )
+            db.add(txn)
 
         await db.flush()
         logger.info(

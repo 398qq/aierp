@@ -397,6 +397,10 @@ class InventoryTransaction(TimestampMixin, Base):
         String(50), nullable=True
     )  # purchase, sales_order, manual
     reference_id: Mapped[int | None] = mapped_column(nullable=True)
+    # Stage 18: per-batch traceability — nullable for historical transactions.
+    batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("inventory_batches.id"), nullable=True, index=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

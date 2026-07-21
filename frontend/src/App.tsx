@@ -109,6 +109,7 @@ const UserList = lazy(() => import("./pages/system/users/UserList"));
 const WarehouseList = lazy(() => import("./pages/warehouse/WarehouseList"));
 const InventoryLedger = lazy(() => import("./pages/warehouse/InventoryLedger"));
 const InventoryBatches = lazy(() => import("./pages/warehouse/InventoryBatches"));
+const BatchTraceability = lazy(() => import("./pages/warehouse/BatchTraceability"));
 const WarehouseIndex = lazy(() => import("./pages/warehouse/index"));
 const TicketList = lazy(() => import("./pages/tickets/TicketList"));
 const TicketForm = lazy(() => import("./pages/tickets/TicketForm"));
@@ -518,6 +519,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <InventoryBatches />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/inventory/batches/:id/traceability"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BatchTraceability />
                     </Suspense>
                   }
                 />

@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.schemas.common import fail, ok
+from app.services.batch_traceability_service import batch_traceability_service
 from app.services.inventory_batch_service import inventory_batch_service
 
 router = APIRouter(prefix="/inventory", tags=["inventory-batch"])
@@ -75,6 +76,28 @@ async def get_batch(
         if b["id"] == batch_id:
             return ok(b)
     return fail("Batch not found", 404)
+
+
+# ── Batch Traceability ─────────────────────────────────────────────────────
+
+
+@router.get("/batches/{batch_id}/traceability")
+async def get_batch_traceability(
+    batch_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Bidirectional traceability for a single batch.
+
+    Returns upstream (supplier + POs + stock_in records) and downstream
+    (delivery notes + sales orders + customers that consumed qty from this
+    batch). Requires InventoryTransaction.batch_id to be populated by
+    commit_deduction (Stage 18+).
+    """
+    result = await batch_traceability_service.get_traceability(db, batch_id)
+    if result is None:
+        return fail("Batch not found", 404)
+    return ok(result)
 
 
 # ── Pre-flight allocation ────────────────────────────────────────────────
