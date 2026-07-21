@@ -68,6 +68,7 @@ const BrandDetail = lazy(() => import("./pages/brands/BrandDetail"));
 const BrandEdit = lazy(() => import("./pages/brands/BrandEdit"));
 const InventoryList = lazy(() => import("./pages/inventory/index"));
 const BatchExpiring = lazy(() => import("./pages/inventory/BatchExpiring"));
+const BatchRecall = lazy(() => import("./pages/inventory/BatchRecall"));
 const Settings = lazy(() => import("./pages/settings/index"));
 const AIChat = lazy(() => import("./pages/ai/Chat"));
 const OpportunityList = lazy(() => import("./pages/sales/OpportunityList"));
@@ -496,6 +497,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <BatchExpiring />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/inventory/batches/:id/recall"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BatchRecall />
                     </Suspense>
                   }
                 />

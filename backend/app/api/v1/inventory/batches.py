@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.schemas.batch_recall import RecallRequest
 from app.schemas.common import fail, ok
+from app.services.batch_recall_service import (
+    BatchRecallError,
+    batch_recall_service,
+)
 from app.services.batch_traceability_service import batch_traceability_service
 from app.services.expiry_alert_service import expiry_alert_service
 from app.services.inventory_batch_service import inventory_batch_service
@@ -154,6 +159,46 @@ async def get_expiring_summary(
         db, warehouse_id=warehouse_id
     )
     return ok(summary)
+
+
+# ── Batch Recall ─────────────────────────────────────────────────────
+
+
+@router.get("/batches/{batch_id}/recall-impact")
+async def get_recall_impact(
+    batch_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """预览召回影响：受影响客户 + 发货记录。
+
+    召回前必看 — 列出"这批货已经发给了谁、发了几件"。
+    """
+    impact = await batch_recall_service.get_impact(db, batch_id)
+    if impact is None:
+        return fail("Batch not found", 404)
+    return ok(impact)
+
+
+@router.post("/batches/{batch_id}/recall")
+async def recall_batch(
+    batch_id: int,
+    body: RecallRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """执行召回：标记 status=recalled + 冻结剩余库存。
+
+    幂等保护：已 recalled 的批次再次召回返回 400。
+    """
+    actor = body.actor or user.get("username", "unknown")
+    try:
+        result = await batch_recall_service.recall_batch(
+            db, batch_id, reason=body.reason, actor=actor
+        )
+    except BatchRecallError as e:
+        return fail(str(e), 400)
+    return ok(result)
 
 
 # ── Pre-flight allocation ────────────────────────────────────────────────
