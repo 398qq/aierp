@@ -90,57 +90,78 @@ class ExpiryAlertService:
 
         result: dict[str, list[dict[str, Any]]] = {b: [] for b in buckets}
 
-        for bucket_name in buckets:
-            bucket = BUCKETS[bucket_name]
-            window_start = now + timedelta(days=bucket.days_min)
-            window_end = now + timedelta(days=bucket.days_max)
+        # Stage 19 P1 #2: collapse the 4-bucket loop into a single query with
+        # a CASE-WHEN bucket label, then group in Python. Replaces 4 DB
+        # roundtrips with 1 (4x latency win on cold connections).
+        from sqlalchemy import case  # local import keeps top tidy
 
-            stmt = (
-                select(InventoryBatchORM)
-                .where(
-                    and_(
-                        InventoryBatchORM.expiry_date.is_not(None),
-                        InventoryBatchORM.expiry_date >= window_start,
-                        InventoryBatchORM.expiry_date <= window_end,
-                        InventoryBatchORM.quantity > 0,
-                        InventoryBatchORM.status.notin_(["consumed", "recalled"]),
-                    )
+        bucket_expr = case(
+            (InventoryBatchORM.expiry_date < now, EXPIRED),
+            (
+                InventoryBatchORM.expiry_date <= now + timedelta(days=7),
+                BUCKET_7D,
+            ),
+            (
+                InventoryBatchORM.expiry_date <= now + timedelta(days=30),
+                BUCKET_30D,
+            ),
+            (
+                InventoryBatchORM.expiry_date <= now + timedelta(days=90),
+                BUCKET_90D,
+            ),
+            else_=None,
+        ).label("bucket")
+
+        # Wide outer window: from deepest expired through 90d ahead.
+        stmt = (
+            select(InventoryBatchORM, bucket_expr)
+            .where(
+                and_(
+                    InventoryBatchORM.expiry_date.is_not(None),
+                    InventoryBatchORM.expiry_date
+                    >= now + timedelta(days=BUCKETS[EXPIRED].days_min),
+                    InventoryBatchORM.expiry_date
+                    <= now + timedelta(days=BUCKETS[BUCKET_90D].days_max),
+                    InventoryBatchORM.quantity > 0,
+                    InventoryBatchORM.status.notin_(["consumed", "recalled"]),
                 )
-                .order_by(InventoryBatchORM.expiry_date.asc())
-                .limit(limit_per_bucket)
             )
-            if warehouse_id is not None:
-                stmt = stmt.where(InventoryBatchORM.warehouse_id == warehouse_id)
+            .order_by(InventoryBatchORM.expiry_date.asc())
+        )
+        if warehouse_id is not None:
+            stmt = stmt.where(InventoryBatchORM.warehouse_id == warehouse_id)
 
-            rows = (await db.execute(stmt)).scalars().all()
-            today = now.date()
-            for batch in rows:
-                # Calendar-day diff (not raw timedelta.days) so the value is
-                # stable across clock drift — e.g. expiry 3 days ago is -3
-                # even if we run scan 5s after creation.
-                expiry_py = cast(datetime | None, batch.expiry_date)
-                days_until = (
-                    (expiry_py.date() - today).days if expiry_py else None
-                )
-                result[bucket_name].append(
-                    {
-                        "id": batch.id,
-                        "batch_no": batch.batch_no,
-                        "product_id": batch.product_id,
-                        "warehouse_id": batch.warehouse_id,
-                        "quantity": batch.quantity,
-                        "unit_cost": float(batch.unit_cost or 0),
-                        "expiry_date": _iso(batch.expiry_date),
-                        "received_date": _iso(batch.received_date),
-                        "msl_level": batch.msl_level,
-                        "rohs_compliant": batch.rohs_compliant,
-                        "status": batch.status,
-                        "days_until_expiry": days_until,
-                    }
-                )
+        rows = (await db.execute(stmt)).all()
+        today = now.date()
+        for batch, bucket_name in rows:
+            if bucket_name is None or bucket_name not in result:
+                continue
+            if len(result[bucket_name]) >= limit_per_bucket:
+                continue
+            # Calendar-day diff (stable under clock drift).
+            expiry_py = cast(datetime | None, batch.expiry_date)
+            days_until = (
+                (expiry_py.date() - today).days if expiry_py else None
+            )
+            result[bucket_name].append(
+                {
+                    "id": batch.id,
+                    "batch_no": batch.batch_no,
+                    "product_id": batch.product_id,
+                    "warehouse_id": batch.warehouse_id,
+                    "quantity": batch.quantity,
+                    "unit_cost": float(batch.unit_cost or 0),
+                    "expiry_date": _iso(batch.expiry_date),
+                    "received_date": _iso(batch.received_date),
+                    "msl_level": batch.msl_level,
+                    "rohs_compliant": batch.rohs_compliant,
+                    "status": batch.status,
+                    "days_until_expiry": days_until,
+                }
+            )
 
         logger.info(
-            "Expiry scan complete: buckets=%s, totals=%s",
+            "Expiry scan (1-query)Expiry scan complete: buckets=%s, totals=%s",
             buckets,
             {b: len(v) for b, v in result.items()},
         )
