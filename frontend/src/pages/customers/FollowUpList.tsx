@@ -3,7 +3,7 @@
  * 路由: /customers/:customerId/follow-ups
  */
 import { useEffect, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
+
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
 import { StatusTag } from "../../ui";
@@ -168,7 +168,7 @@ export default function FollowUpList() {
   };
 
   const closeReschedule = () => {
-    flushSync(() => setReschedulePickerOpen(false));
+    setReschedulePickerOpen(false);
     setRescheduleOpen(false);
   };
 
@@ -177,7 +177,7 @@ export default function FollowUpList() {
       message.warning("请选择新的跟进时间");
       return;
     }
-    flushSync(() => setReschedulePickerOpen(false));
+    setReschedulePickerOpen(false);
     setRescheduling(true);
     try {
       await updateFollowUp(custId, rescheduleRecord.id, {
@@ -185,7 +185,7 @@ export default function FollowUpList() {
         planned_at: rescheduleAt.format("YYYY-MM-DD HH:mm:ss"),
       });
       message.success("跟进时间已更新");
-      flushSync(() => setRescheduling(false));
+      setRescheduling(false);
       closeReschedule();
       load({ silent: true });
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进时间失败")); } finally {
@@ -265,7 +265,7 @@ export default function FollowUpList() {
       }
       await updateFollowUp(custId, updateRecord.id, payload);
       message.success("跟进已更新");
-      flushSync(() => setUpdating(false));
+      setUpdating(false);
       closeUpdate();
       load({ silent: true });
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进失败")); } finally {

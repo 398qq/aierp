@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
+
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   App,
@@ -199,22 +199,17 @@ export default function CustomerDetail() {
       setError(null);
     }
     try {
-      const [custResp, contactsResp, followUpsResp, tagsResp] = await Promise.all([
+      const [custResp, contactsResp, followUpsResp, tagsResp] = await Promise.allSettled([
         getCustomer(customerId),
         getContacts(customerId),
         getFollowUps(customerId),
         getCustomerTags(customerId),
       ]);
-      setCustomer(custResp.data.data as Customer);
-      setContacts((contactsResp.data.data as Contact[]) || []);
-      setFollowUps((followUpsResp.data.data as FollowUp[]) || []);
-      setCustomerTags((tagsResp.data.data as TagType[]) || []);
-    } catch (e: unknown) {
-      if (silent) {
-        message.error(getApiErrorMessage(e, "刷新客户数据失败"));
-      } else {
-        setError((e as Error).message || "加载失败");
-      }
+      if (custResp.status === "fulfilled") setCustomer(custResp.value.data.data as Customer);
+      else if (!silent) setError("加载客户信息失败");
+      if (contactsResp.status === "fulfilled") setContacts((contactsResp.value.data.data as Contact[]) || []);
+      if (followUpsResp.status === "fulfilled") setFollowUps((followUpsResp.value.data.data as FollowUp[]) || []);
+      if (tagsResp.status === "fulfilled") setCustomerTags((tagsResp.value.data.data as TagType[]) || []);
     } finally {
       if (!silent) {
         setLoading(false);
@@ -1271,7 +1266,7 @@ function FollowUpFormModal({
         message.success("跟进记录新增成功");
       }
       form.resetFields();
-      flushSync(() => setLoading(false));
+      setLoading(false);
       onSaved();
     } catch (e: unknown) {
       message.error(getApiErrorMessage(e, "保存失败"));

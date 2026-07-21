@@ -12,7 +12,7 @@ class TestBatchConvertToInvoice:
             headers=auth_headers,
             json={
                 "customer_id": customer_id,
-                "status": "confirmed",
+                "status": "pending",
                 "total_amount": 10000,
                 "items": [
                     {"product_name": "Batch-Test", "quantity": 2, "unit_price": 5000}

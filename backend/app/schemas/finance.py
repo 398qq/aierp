@@ -125,7 +125,7 @@ class ContractCreate(BaseModel):
     currency: str = Field(default="CNY", min_length=3, max_length=3)
     signed_date: str | None = None
     expire_date: str | None = None
-    status: Literal["draft"] = "draft"
+    status: Literal["draft", "signed"] = "draft"
     file_url: str | None = None
     delivery_address: str | None = None
     delivery_terms: str | None = None

@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { flushSync } from "react-dom";
+
 import {
   Button,
   Card,
@@ -471,7 +471,7 @@ export default function CustomerListPage() {
       };
       await createFollowUp(followUpCustomer.id, submitData);
       message.success("跟进记录已新增");
-      flushSync(() => setFollowUpSaving(false));
+      setFollowUpSaving(false);
       closeQuickFollowUp();
       fetchData();
     } catch (e: unknown) {

@@ -129,10 +129,10 @@ export default function SalesOrderForm() {
         await createSalesOrder(payload);
         message.success("订单已创建");
       }
+      setLoading(false);
       navigate("/sales/orders");
     } catch (err: any) {
       message.error(err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "保存失败");
-    } finally {
       setLoading(false);
     }
   };

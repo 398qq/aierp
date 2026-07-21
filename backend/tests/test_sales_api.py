@@ -817,7 +817,7 @@ class TestQuotations:
             headers=auth_headers,
         )
         assert response.status_code == 409
-        assert "lost 状态不允许转换为订单" in response.json()["msg"]
+        assert "报价单状态转换非法" in response.json()["msg"]
 
     async def test_batch_delete_quotations(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict
@@ -996,7 +996,7 @@ class TestSalesOrders:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "status": "confirmed",
+                "status": "pending",
                 "total_amount": 500,
                 "items": [{"product_name": "CONTROL", "quantity": 1}],
             },
@@ -1256,7 +1256,7 @@ class TestSalesOrders:
             headers=auth_headers,
             json={
                 "customer_id": test_customer["id"],
-                "status": "confirmed",
+                "status": "pending",
                 "items": [
                     {"product_name": "PDF Order Item", "quantity": 2, "unit_price": 50}
                 ],
@@ -1403,7 +1403,13 @@ class TestDeliveryNotes:
             },
         )
         assert resp.status_code == 201
-        return resp.json()["data"]["id"]
+        order_id = resp.json()["data"]["id"]
+        await async_client.put(
+            f"/api/v1/sales-orders/{order_id}",
+            headers=auth_headers,
+            json={"status": "confirmed"},
+        )
+        return order_id
 
     async def test_list_empty(self, async_client: AsyncClient, auth_headers: dict):
         resp = await async_client.get("/api/v1/delivery-notes", headers=auth_headers)

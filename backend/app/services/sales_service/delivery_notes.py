@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.domain.shared.errors import InsufficientStockError
 from app.domain.states import (
+    SALES_ORDER_TRANSITIONS,
     assert_can_transition_delivery,
     assert_can_transition_payment,
     assert_can_transition_sales_order,
@@ -274,24 +275,31 @@ class DeliveryNoteService(BaseCRUDService):
         ).all()
         delivered_qty = sum(int(row[1] or 0) for row in rows)
         statuses = {str(row[0]) for row in rows}
-        if ordered_qty and delivered_qty >= ordered_qty and statuses <= {"delivered", "completed"}:
+        fully_delivered = bool(
+            ordered_qty and delivered_qty >= ordered_qty and statuses <= {"delivered", "completed"}
+        )
+        if not delivered_qty:
+            return
+        current = str(order.status)
+        while True:
+            allowed = SALES_ORDER_TRANSITIONS.get(current, set())
+            if not allowed:
+                return
+            if fully_delivered and "delivered" in allowed:
+                target = "delivered"
+            elif "shipped" in allowed:
+                target = "shipped"
+            else:
+                return
             await transition_status(
                 db,
                 order,
-                "delivered",
+                target,
                 guard=assert_can_transition_sales_order,
                 aggregate_type="SalesOrder",
                 action="fulfillment_sync",
             )
-        elif delivered_qty > 0:
-            await transition_status(
-                db,
-                order,
-                "shipped",
-                guard=assert_can_transition_sales_order,
-                aggregate_type="SalesOrder",
-                action="fulfillment_sync",
-            )
+            current = target
 
     async def soft_delete_delivery_note(
         self, db: AsyncSession, note: DeliveryNote

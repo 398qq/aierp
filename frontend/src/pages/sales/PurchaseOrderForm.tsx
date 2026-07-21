@@ -176,12 +176,12 @@ export default function PurchaseOrderForm() {
                   { title: "封装", width: 110, render: (_v, f) => <Form.Item name={[f.name, "package_type"]} style={{ margin: 0 }}><Input /></Form.Item> },
                   { title: "数量", width: 105, render: (_v, f) => <Form.Item name={[f.name, "quantity"]} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={1} style={{ width: "100%" }} /></Form.Item> },
                   { title: "最小包装", width: 150, render: (_v, f) => <Space.Compact><Form.Item name={[f.name, "min_pack_qty"]} style={{ margin: 0 }}><InputNumber min={1} style={{ width: 90 }} /></Form.Item><Form.Item name={[f.name, "min_pack_unit"]} style={{ margin: 0, width: 120 }}><UomSelect uomType="package" placeholder="盘" /></Form.Item></Space.Compact> },
-                  { title: "生产批次", width: 130, render: (_v, f) => <Form.Item name={[f.name, "date_code_requirement"]} rules={[{ required: true }]} style={{ margin: 0 }}><Input placeholder="不限/≥24+/2年内" /></Form.Item> },
+                  { title: "生产批次", width: 130, render: (_v, f) => <Form.Item name={[f.name, "date_code_requirement"]} rules={[{ required: true }, { pattern: /^(?!不限$)/, message: "不能为不限" }]} style={{ margin: 0 }}><Input placeholder="≥24+/2年内" /></Form.Item> },
                   { title: "含税单价", width: 120, render: (_v, f) => <Form.Item name={[f.name, "unit_price"]} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={0} precision={6} style={{ width: "100%" }} /></Form.Item> },
                   { title: "备注", width: 160, render: (_v, f) => <Form.Item name={[f.name, "notes"]} style={{ margin: 0 }}><Input /></Form.Item> },
                   { title: "", width: 45, fixed: "right", render: (_v, f) => <Button danger type="text" icon={<DeleteOutlined />} disabled={fields.length === 1} onClick={() => remove(f.name)} /> },
                 ]} />
-                <Button type="dashed" icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => add({ quantity: 1, unit: "pcs", tax_rate: taxRate, date_code_requirement: "不限", unit_price: 0 })}>添加明细</Button>
+                <Button type="dashed" icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => add({ quantity: 1, unit: "pcs", tax_rate: taxRate, date_code_requirement: "", unit_price: 0 })}>添加明细</Button>
               </>}</Form.List>
             </Card>
           </Space>

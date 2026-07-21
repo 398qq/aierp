@@ -72,10 +72,10 @@ export default function OpportunityForm() {
         await createOpportunity(payload);
         message.success("商机已创建");
       }
+      setLoading(false);
       navigate("/sales/opportunities");
     } catch (err: any) {
       message.error(err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "保存失败");
-    } finally {
       setLoading(false);
     }
   };
