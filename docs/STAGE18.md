@@ -1,194 +1,235 @@
-# Stage 18 — Dependabot 9 PR 批量修 (收尾 + Day 2 清理)
+# Stage 18 — Production Batch Management
 
-*Date: 2026-06-13 (Sat 18:04) — 2026-06-14 (Sun 13:50)*
-*Theme: 把 Stage 17 留的 9 个 fail dependabot PR 修通合, 顺手把 passlib / github-actions 两个债清掉*
-
----
-
-## 🎯 收尾时拍板 (2026-06-14 13:50)
-
-| # | 待办 | 状态 | 备注 |
-|---|------|------|------|
-| 1 | 9 个 dependabot PR 修通合 | **9/9 ✅ all merged** | #8 pytest 9 + 5 dev/runtime merged as PR #32 (pytest-asyncio 1.x 留 Stage 19 follow-up) |
-| 2 | passlib 从 `requirements.txt` 删掉 | **✅ 已 done (PR #28)** | `bcrypt>=5.0,<6.0` 直接上, 23/23 auth tests pass |
-| 3 | Dependabot github-actions ecosystem 关 | **✅ 本次 commit** | Node 20 EOL 撞 + 噪音大 + 3 个 action 手动 bump 效率更高 |
-| 4 | CEO 手动 rotate GitHub PAT (Stage 17 留) | **⏳ CEO 待办** | 1+ 月 URL 暴露, 安全债, GitHub UI 操作 5 min |
-| 5 | Node 20 → 22 (Stage 17 留) | **⏳ Stage 19+** | 9/16/2026 GitHub Actions 强制 Node 24, 提前 1 个月做最稳 |
-| 6 | `actions/checkout v4→v6` / `setup-node v4→v6` | **⏳ 跟 Node 22 一起** | 单独 bump 不解决 Node 22 问题 |
+**Last Updated**: 2026-07-21
+**Commits**: f8685e6e (P0) · a52d3238 (P1) · 55b1d17a (P2) · fc12f982 (P3) · af70e00b (P4) · e06b5280 (P5)
+**Tests**: 61 / 61 ✅ (6 + 10 + 8 + 6 + 11 + 20)
+**Lint**: ruff ✅ · mypy ✅ · frontend typecheck ✅
 
 ---
 
-## 📊 9 PR 全景 (vs Stage 18 计划)
+## Why this exists
 
-| PR | 标题 | master commit | 状态 | 难度 (估) | 实际 |
-|---|---|---|---|---|---|
-| **#11** | reportlab 4.2 → 4.5.1 | 57ea848e (#24) | ✅ | 🟢 15 min | 15 min |
-| **#13** | python-multipart 0.0.22 → 0.0.32 | cc6b22bc (#25) | ✅ | 🟢 15 min | 15 min |
-| **#15** | uvicorn 0.34 → 0.49 | 5644f952 (#26) | ✅ | 🟢 15 min | 15 min |
-| **#9** | pyjwt 2.10.1 → 2.13 | a1b27151 (#27) | ✅ | 🟢 15 min | 15 min |
-| **#10** | bcrypt 4 → 5 + 弃 passlib | e2097fc5 (#28) | ✅ | 🟠 30-60 min | 35 min |
-| **#14** | fastapi 0.118 → 0.136 | c890fcee (#29) | ✅ | 🟠 30-60 min | 25 min |
-| **#6** | 13 patch+minor (pydantic, sqlalchemy, ...) | 501e3ecf (#30) | ✅ | 🟡 1-2 hr | 90 min |
-| **#12** | starlette 0.49 → 1.3 (0.x → 1.x) | b58f9380 (#31) | ✅ | 🔴 1-2 hr | 50 min |
-| **#8** | pytest 8→9 + gunicorn 23→26 + redis 5→8 + cachetools 5→7 | e35e7087 (#32) | ✅ | 🔴 2-3 hr | pytest-asyncio 1.x breaking 留 Stage 19 修 |
+A `batch_no` in a real ERP isn't a row — it's a *lineage* spanning warehouses, suppliers, customers, expiry dates, and recall history. The old code only had `InventoryBatchORM` (a row) and `deduct_for_delivery` (a quantity subtracter). No way to answer:
 
-**总实际**: **9/9 全完成**, 平均比计划快 20% (方法论跑通后批量复用)
+- *Where did this batch go?* (recall / warranty / cross-warehouse audit)
+- *Which customers are affected if we recall this batch?*
+- *When does this batch expire — and who needs to know?*
+- *Can we move 50 pcs to the Shanghai warehouse?*
+- *Two operators accidentally created the same batch — can we merge them?*
+
+Stage 18 answers all five.
 
 ---
 
-## 🟢 已完成 8 PR 摘要
+## Architecture
 
-### #11 / #13 / #15 / #9 (🟢 patch+minor 4 件套)
-- 流程: reopen dependabot PR → rebase onto master → push → admin-merge
-- 0 code change, 全靠 master 上累积的 lint/test 修复承接
-- 平均 15 min/PR
+```
+   ┌──────────────┐
+   │ Supplier PO  │
+   └──────┬───────┘
+          │ receive
+          ▼
+   ┌──────────────────┐         InventoryTransaction
+   │ InventoryBatchORM│ ──FK──▶ (product_id, warehouse_id,
+   │   - batch_no      │         reference_id, **batch_id**, qty)
+   │   - warehouse_id  │
+   │   - quantity      │         ▲       ▲
+   │   - expiry_date   │         │       │
+   │   - status        │         │       │ (type='transfer'|'adjust'|
+   │   - batch_id FK ──│─────────┘       │  'stock_in'|'stock_out')
+   └──────────────────┘                 │
+          ▲                              │
+          │ (find-or-create by            │ (every stock movement
+          │  product+warehouse+batch_no)  │  carries batch_id)
+          │                              │
+   ┌──────┴──────┐  transfer   ┌─────────┴──────────┐
+   │ Warehouse A │ ◀──────────▶ │ Warehouse B       │
+   └─────────────┘             └────────────────────┘
+```
 
-### #10 bcrypt 5 + 弃 passlib (🟠 中)
-- bcrypt 5 移除 `__about__.__version__` + 改 72-byte 行为 (raise ValueError 不再 silent truncate)
-- passlib 1.7.4 + bcrypt 5 **不兼容** (passlib detect_wrap_bug 调 bcrypt 5 自己 raise)
-- 修法: 弃 passlib, 直接用 bcrypt
-  - `hash_password` → `bcrypt.gensalt + bcrypt.hashpw`
-  - `verify_password` → `bcrypt.checkpw` (truncate 72 bytes 兼容旧 hash)
-  - 加 `_truncate_bcrypt_secret` helper (UTF-8 boundary safe)
-- 23/23 auth tests pass (含 test_too_long_password_rejected, test_login_success)
-- 旧 `$2b$12$...` hash 仍可 verify (bcrypt 5 兼容 2a/2b/2y prefix)
-
-### #14 fastapi 0.118 → 0.136 (🟠 中)
-- 18 minor versions, OpenAPI / Depends 微调
-- 0 endpoint 改, 0 test fail
-- 25 min (基本就是 rebase + 测)
-
-### #6 13 patch+minor (🟡 中)
-- pydantic 2.11→2.13, sqlalchemy 2.0.40→2.0.50, pydantic-settings 2.9→2.14, alembic 1.15→1.18,
-  apscheduler 3.11.0→3.11.2, pgvector 0.4.0→0.4.2, tenacity 9.1.2→9.1.4, ...
-- locust 跳过 (perf-only), rapidocr-3.8.2 跳过 (transitive conflict)
-- ruff 修了一批新 deprecation 警告 (~15 行, 都是 F401 unused import)
-- 90 min (大半是 ruff 修)
-
-### #12 starlette 0.49 → 1.3 (🔴 高, 实际 🟠)
-- starlette 1.0 重写 internal middleware/routing
-- 计划估 1-2 hr, 实际 50 min
-- 0 endpoint 改 (fastapi 0.136 兼容层吸收了 starlette 1.x API diff)
-- 0 test fail
-- 经验: starlette 0→1 的 breaking change 大多被 fastapi 0.136 包装, 自己代码没碰到
-
-### #8 pytest 9 + 5 dev/runtime (🔴 高, 最难的 1 个)
-- pytest 8.3 → 9.0.3
-- pytest-asyncio 0.24 → **1.3.0** (大改: event loop scope handling 改)
-- pytest-cov 5.0 → 7.1
-- gunicorn 23.0 → 26.0
-- redis (redis-py) 5.2.1 → 8.0.0
-- cachetools 5.5 → 7.1.4
-- 单 file 测全 pass (50/50 + 23/23 + 61/61 = 134/134)
-- 已知问题: pytest-asyncio 1.x 跨 file batch 跑时 event loop scope 卡
-  - 0.x: 每个 test 独立 event loop (auto mode)
-  - 1.x: 严格 per-test loop scope, session-scope engine + function-scope fixture chain 跨 file 可能 hang
-  - 修法 (Stage 19): `asyncio_default_test_loop_scope = session` 或拆 fixture scope
-  - 影响: 不阻塞 CI 全量跑 (我们用单 file 跑覆盖), 但本地产测 batch 跑会卡
+**The pivotal change**: every `InventoryTransaction` now carries `batch_id`. One column, one index, one FK — and every downstream query (traceability, expiry, recall) suddenly becomes *batch-precise* instead of *product-warehouse-precise*.
 
 ---
 
-## 🛠 流程方法论 (Stage 17 admin-merge.sh 复用验证)
+## P0 — 批次追溯 (Batch Traceability) · `f8685e6e`
 
-每个 PR 走流程:
-1. `PATCH /pulls/{N}` `state: open` (reopen)
-2. `git fetch origin pull/{N}/head:pr-{N}`
-3. `git checkout -b stage18-pr-{N} origin/master`
-4. `git rebase origin/master`
-5. 测: `cd backend && pip install -r requirements.txt -r requirements-dev.txt && pytest tests/ && ruff check .`
-6. 失败 → 修 code/lockfile
-7. `git push origin stage18-pr-{N}`
-8. 关原 dependabot PR, **开新 PR** `stage18-pr-{N} → master`
-9. CI 跑 → `admin-merge.sh` 一键合
+**Problem**: Given a `batch_id`, who did this batch go to? And where did it come from?
 
-**Stage 18 验证**:
-- 8 个 backend PR 全走通
-- 0 CI 翻车
-- 0 BP 弱化窗口
-- admin-merge.sh restore_bp retry 救了一次 (代理偶尔 502, f89e66f4 修)
+**Solution**: `BatchTraceabilityService.get_traceability(db, batch_id)` returns:
 
----
+```python
+{
+  "batch":      {"id": 1, "batch_no": "B2026-001", "expiry_date": ...},
+  "upstream":   {"supplier": {...}, "purchase_orders": [...], "stock_in_records": [...]},
+  "downstream": {"customers": [...], "deliveries": [...], "total_quantity_consumed": 70},
+}
+```
 
-## 🔒 关键决策 (Stage 18 收尾记录)
+- **Upstream**: `InventoryTransaction` WHERE `batch_id=X AND type='stock_in'` + supplier lookup
+- **Downstream**: `stock_out` txns joined to `DeliveryNote` → `SalesOrder` → `Customer` (distinct)
 
-### D1: 弃 passlib ✅
-- **理由**: passlib 1.7.4 archived (last release 2020), 跟 bcrypt 5+ 不兼容
-- **替代**: bcrypt direct, 23 行 code (security.py)
-- **风险**: 旧 hash 兼容 (✅ bcrypt 5 认 2a/2b/2y prefix)
-- **测试**: 23/23 auth tests pass
-- **决策人**: Claude + CEO 接受 (默认走"弃 passlib"路径)
-
-### D2: 关 dependabot github-actions ✅ (本 commit)
-- **理由**:
-  1. Node 20 → 22 升级没做之前, dependabot auto-bump `actions/*` 100% 撞 Node 20 EOL
-  2. Stage 18 9 PR 全是 backend/frontend deps, 0 个 actions — 关掉减噪音
-  3. workflows 只 3 个 action (checkout / setup-node / setup-python), 手动 bump 比 weekly auto-PR 高效
-- **重启条件**: Node 22+ 切完, uncomment 即可
-- **风险**: 无 — workflows 不会自己爆, 我们自己控
-- **决策人**: Claude (一次性, 可逆)
-
-### D3: pytest 9 推迟到 Stage 19
-- **理由**: 6 major, 风险高, Stage 18 已 8/9 (远程 9/9), 不必赶 Day 2
-- **代价**: 1-2 周 (Stage 19 Day 1 处理)
-- **决策人**: CEO (默认接受"等 Stage 19")
+**API**: `GET /api/v1/inventory/batches/{batch_id}/traceability`
+**Frontend**: `/inventory/batches/:id/traceability` — dual-column layout (upstream | downstream)
+**Migration**: `0018_inventory_transaction_batch_id` (FK + index)
 
 ---
 
-## 🚨 Risk Register (关闭/继续)
+## P1 — 有效期预警 (Expiry Alert) · `a52d3238`
 
-| Risk | 状态 | 备注 |
+**Problem**: 30 days before a batch expires, someone should know.
+
+**Solution**: `ExpiryAlertService.scan()` 4-bucket classification:
+- `expired` (days ≤ 0) — critical
+- `7d` (1–7 days) — high
+- `30d` (8–30 days) — medium
+- `90d` (31–90 days) — low
+
+Calendar-day diff (not `timedelta.days` which truncates to −∞), warehouse filter, batch_no, quantity, unit_cost surfaced. Excludes `status in (consumed, recalled) AND qty <= 0`.
+
+**APIs**:
+- `GET /inventory/batches/expiring?buckets=expired,7d&warehouse_id=X`
+- `GET /inventory/batches/expiring/summary`
+
+**Frontend**: `/inventory/expiring` — 4 tabbed tables, severity-colored stat cards
+
+---
+
+## P2 — 召回流程 (Recall) · `55b1d17a`
+
+**Problem**: Supplier issues a recall. We need to (1) know which customers are affected *before* pulling the trigger, (2) freeze the batch, (3) audit.
+
+**Solution**: `BatchRecallService`:
+- `get_impact(db, batch_id)` — reuses traceability, returns affected customers + deliveries
+- `recall_batch(db, batch_id, reason, actor)` — sets `status=recalled`, `locked_quantity >= remaining` (freeze), rejects double-recall (idempotent), empty reason, non-`available` status
+
+**APIs**:
+- `GET /inventory/batches/{batch_id}/recall-impact` — preview
+- `POST /inventory/batches/{batch_id}/recall` body=`{reason, actor?}`
+
+**Frontend**: `/inventory/batches/:id/recall` — 2-step wizard (impact preview → reason form)
+
+---
+
+## P3 — 有效期定时 job (Expiry Scheduled Job) · `fc12f982`
+
+**Problem**: P1 gives you the data. P3 makes sure someone actually looks at it.
+
+**Solution**: `_check_batch_expiry` in `app/jobs/scheduler.py`, registered as `interval 24h`. Mirrors `_check_contract_expiry` pattern:
+- Calls `expiry_alert_service.scan(buckets=["expired", "7d"])`
+- One `NotificationService.create_notification()` per affected batch
+- Only `expired` + `7d` (not `30d`/`90d` — those are weekly-bucket candidates for a separate job)
+- Admin user (`user_id=1`) for now; TODO: per-warehouse routing
+
+**Scheduler total**: 12 jobs.
+
+---
+
+## P4 — 批次调拨 (Batch Transfer) · `af70e00b`
+
+**Problem**: Move 50 pcs from Shenzhen warehouse to Shanghai warehouse, preserving the batch lineage.
+
+**Solution**: `BatchTransferService.transfer_batch()`:
+- Decrement `src.batch.quantity` (mark `consumed` if 0)
+- Find-or-create `dst` batch (same `product_id` + `batch_no`, new `warehouse_id`); inherit `unit_cost` / `expiry_date` / `supplier_id` / `msl_level` / `cert`
+- Write **paired** `InventoryTransaction` rows: `src stock_out` + `dst stock_in`, both `type='transfer'`, both `batch_id` (src.id and dst.id respectively)
+- Validations: qty > 0, dst exists, dst != src, `available` (= qty − locked) sufficient, `status='available'`
+
+**API**: `POST /inventory/batches/{batch_id}/transfer` body=`{dst_warehouse_id, quantity, reason, actor?}`
+
+---
+
+## P5 — 批次间调拨 merge/split · `e06b5280`
+
+**Problem**: (1) Two batches accidentally created — merge them. (2) Need to split a batch for different customers / packaging.
+
+### `BatchMergeService.merge_batches()`
+
+- All batches must share `product_id` + `warehouse_id` (batch_nos **may differ** — unique constraint already prevents same-key duplicates)
+- Survivor = lowest id (oldest); others marked `status=consumed, qty=0` (keep ids for traceability history)
+- Survivor's `quantity = sum`, `unit_cost = weighted average`, `expiry_date = earliest`
+- **20 tests** including 3-batch weighted-cost (10×5 + 20×10 + 30×15 = 700 → 11.67) and different-batch-no merge
+
+### `BatchSplitService.split_batch()`
+
+- `0 < quantity < src.quantity` (equal = transfer, not split)
+- New `batch_no` auto-generated as `{src}-S1` (collision-checked, increments to `-S2`, `-S3`...)
+- New batch inherits all quality attrs (cert, msl, expiry, supplier)
+- Source `quantity -= qty`; new batch `quantity = qty`
+- **12 tests** including auto-number collision, explicit batch_no, src-consumed-at-zero
+
+**APIs**:
+- `POST /inventory/batches/merge` body=`{batch_ids: [≥2], reason, actor?}`
+- `POST /inventory/batches/{batch_id}/split` body=`{quantity, new_batch_no?, reason, actor?}`
+
+---
+
+## Test statistics
+
+| Module | Tests | Coverage focus |
 |---|---|---|
-| **passlib + bcrypt 5** | ✅ 关闭 | 已弃 passlib, bcrypt direct |
-| **starlette 0→1** | ✅ 关闭 | fastapi 0.136 兼容层吸收 |
-| **frontend lockfile 同步** | ✅ 关闭 | master 上 npm install lockfile 跟 backend 一起 bump OK |
-| **fastapi 0.118→0.136** | ✅ 关闭 | 0 endpoint 改 |
-| **uvicorn 0.34→0.49** | ✅ 关闭 | 0 break |
-| **gunicorn 23→26** | ✅ 关闭 (#32) | 0 break |
-| **cachetools 5→7** | ✅ 关闭 (#32) | 0 break |
-| **redis 5→8** | ✅ 关闭 (#32) | 单 file 测 OK, batch 跑需观察 |
-| **pytest 9 fixture API** | 🟡 Stage 19 | pytest-asyncio 1.x 跨 file event loop scope 修 |
-| **Node 20 EOL (9/16/2026)** | 🟡 Stage 19+ | 提前 1 月做 |
-| **actions/* Node 22 要求** | 🟡 Stage 19+ | 跟 Node 升级一起 |
-| **PAT URL 暴露** | 🔴 CEO 必做 | 5 min, GitHub UI |
+| `test_batch_traceability.py` | 6 | core / upstream / downstream / multi-customer / empty / missing |
+| `test_expiry_alert.py` | 10 | empty / expired / 7d / 30d boundary / status filter / warehouse / null expiry / invalid bucket / summary |
+| `test_batch_recall.py` | 8 | impact missing/with-customers / status + freeze / no-double-freeze / idempotency / empty reason / missing / multi-customer |
+| `test_batch_expiry_job.py` | 6 | empty / expired / 7d / skip 30d+90d / mixed / consumed |
+| `test_batch_transfer.py` | 11 | new-dst / append / paired-txns / consumed-at-zero / qty≤0 / empty reason / same-wh / unknown dst / unknown batch / insufficient / non-available |
+| `test_batch_merge_split.py` | 20 | merge 9 + split 11 (consolidate / audit-txns / weighted-cost / diff-batch-nos / auto-number / collision / explicit-no / src-consumed-at-zero / etc.) |
+| **Total** | **61** | ✅ |
 
 ---
 
-## 📈 Stage 18 成就
+## Cumulative git history (Stage 18 + misc)
 
-| 维度 | 数 |
-|---|---|
-| Dependabot PR 修通 | 9/9 backend + 1 frontend (#7) = 10/10 created, **9/9 backend + 1/1 frontend merged** |
-| Backend deps bump | 8 个 PR (1 frontend, 7 backend) |
-| Major 升级 | 2 (bcrypt 4→5, starlette 0→1) |
-| Minor 升级 | 1 (fastapi 0.118→0.136) |
-| Patch + group minor | 5 (#11/#13/#15/#9 + #6 13 包) |
-| 代码行净变化 | +50 / -13 (security.py 弃 passlib) |
-| Token 安全 | 0 进展 (CEO 手动待办) |
-| Stage 18 总耗时 | ~6 hr (18:04 Sat → 00:38 Sun) |
-| 18 stages 总 | ~70 commits, 18 docs, 10 scripts |
-
-**Stage 18 核心**: **"dependabot 修通 + 顺手清两个债"** — 9 PR 全跑通, 0 BP 弱化窗口, passlib 永久删, github-actions 噪音关闭。这是"周更可信任"的里程碑。
+```
+e06b5280  feat(batch): 批次间调拨 - merge/split (P5)
+af70e00b  feat(batch): 批次调拨 - 同/跨仓库 (P4)
+fc12f982  feat(batch): 有效期定时 job 通知 (P3)
+55b1d17a  feat(batch): 召回流程 (P2)
+a52d3238  feat(batch): 有效期预警 (P1)
+f8685e6e  feat(batch): 批次追溯 (P0)
+96d27f39  chore: 阶段 0 杂项修复
+373c23ee  feat(bot): Telegram code-expert bot 集成
+937284ea  fix: 销售单与报价单列表拆分为单号和客户名称独立列
+```
 
 ---
 
-## 🔗 关联文档
+## Known limitations & future work
 
-- `docs/STAGE17.md` — Stage 17 admin-merge 脚本化 + token 移出 URL
-- `docs/STAGE17-DAY2.md` — Node 升级 + Dependabot 清理 + 流程加固
-- `docs/STAGE18.md` (a8d390ea 旧版, 计划 doc) — 9 PR 修通计划
-- `docs/STAGE18.md` (本文件) — 9 PR 修通后 + Day 2 清理
-- `scripts/admin-merge.sh` — 端到端 PR 合并脚本 (Stage 17 创, Stage 18 复用 9 次)
-- `scripts/setup-credentials.sh` — PAT 写入 credential helper (CEO rotate 时跑)
+| Item | Severity | Notes |
+|---|---|---|
+| `_check_batch_expiry` hardcodes `user_id=1` (admin) | 🟡 Medium | Should route to warehouse managers; need a `user_warehouses` mapping table |
+| 30d / 90d bucket notifications not wired to scheduler | 🟢 Low | P3 only fires on `expired` + `7d`; add a weekly job for the other two |
+| Recall notifications not auto-sent | 🟡 Medium | P2 returns the impact; the API caller must call `notification_service.create_notification` per affected customer |
+| Transfer / merge / split frontend buttons | 🟢 Low | APIs exist; InventoryBatches page needs action buttons |
+| Batch `product_id + batch_no` uniqueness across warehouses is a *logical* invariant; model currently allows same-key across warehouses (correct) but `merge_batches` rejects the impossible case explicitly | 🟢 Trivial | Documented in service docstring |
+| `InventoryTransaction.reference_id` for transfer / merge / split is `None` | 🟢 Low | Currently linked via `notes` + `reference_type`; could add a `Transfer` / `Merge` / `Split` record table for full audit |
 
 ---
 
-## 🆕 留 Stage 19
+## API quick-reference (all under `/api/v1`)
 
-| 优先级 | 任务 | 估时 | 备注 |
-|---|---|---|---|
-| 🔴 | CEO 手动 rotate GitHub PAT | 5 min | Stage 17 留, 等了 2 周 |
-| 🟠 | pytest-asyncio 1.x event loop scope 修 (跨 file batch 跑) | 1-2 hr | `asyncio_default_test_loop_scope = session` 或拆 fixture scope |
-| 🟠 | Node 20 → 22 (避开 9/16/2026 EOL) | 30 min | 同步 bump actions/checkout v4→v6, setup-node v4→v6 |
-| 🟡 | 重新 enable dependabot github-actions (Node 22 后) | 1 min | uncomment 那段 block |
-| 🟡 | ruff 0.7.4 → 0.13+ (等 Stage 19 集中做) | 30 min | Stage 18 12 patch+minor 撞了一堆 ruff warning |
-| 🟢 | `rollup-plugin-visualizer@7` (Node 22 后) | (跟 Node 22) | 之前被 Node 20 挡 |
+```
+# P0 追溯
+GET    /inventory/batches/{batch_id}/traceability
+
+# P1 预警
+GET    /inventory/batches/expiring?buckets=expired,7d,30d,90d&warehouse_id=X
+GET    /inventory/batches/expiring/summary?warehouse_id=X
+
+# P2 召回
+GET    /inventory/batches/{batch_id}/recall-impact
+POST   /inventory/batches/{batch_id}/recall      {reason, actor?}
+
+# P4 调拨
+POST   /inventory/batches/{batch_id}/transfer    {dst_warehouse_id, quantity, reason, actor?}
+
+# P5 merge / split
+POST   /inventory/batches/merge                  {batch_ids: [≥2], reason, actor?}
+POST   /inventory/batches/{batch_id}/split       {quantity, new_batch_no?, reason, actor?}
+```
+
+## Frontend pages
+
+- `/inventory/expiring` — 4-bucket expiry dashboard
+- `/inventory/batches/:id/traceability` — upstream / downstream timeline
+- `/inventory/batches/:id/recall` — 2-step recall wizard
