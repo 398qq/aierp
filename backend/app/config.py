@@ -31,9 +31,18 @@ class Settings(BaseSettings):
     AI_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
     AI_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
     AI_FOLLOWUP_MODEL: str = ""
+    AI_CODE_MODEL: str = "MiniMax-M3"
     AI_EMBEDDING_MODEL: str = "BAAI/bge-large-zh-v1.5"
 
     CORS_ORIGINS: str = "http://localhost:3002,http://localhost:5173"
+
+    # Telegram bot (Stage 8 Day 4 + code-expert inbound handler)
+    # Consumed by app.services.telegram_notifier (outbound) and
+    # app.services.telegram_bot_handler (inbound polling).
+    # TELEGRAM_DISABLED='1' silences outbound + skips inbound polling.
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_DISABLED: str = "0"
 
     @model_validator(mode="after")
     def validate_secrets(self) -> "Settings":

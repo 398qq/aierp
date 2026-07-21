@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from importlib import import_module
+import asyncio
 import time
 
 from fastapi import FastAPI
@@ -74,9 +75,20 @@ async def lifespan(app: FastAPI):
     from app.jobs.scheduler import start, shutdown
 
     start()
+
+    # Telegram code-expert bot — inbound polling loop
+    from app.services.telegram_bot_handler import run_polling_loop
+
+    bot_task = asyncio.create_task(run_polling_loop(), name="telegram-code-bot")
+
     try:
         yield
     finally:
+        bot_task.cancel()
+        try:
+            await bot_task
+        except asyncio.CancelledError:
+            pass
         shutdown()
 
 
