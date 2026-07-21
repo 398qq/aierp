@@ -21,7 +21,7 @@ async def _create_sales_order(
             "customer_id": customer_id,
             "order_date": "2026-07-01",
             "total_amount": 100000,
-            "status": "confirmed",
+            "status": "pending",
         },
     )
     assert resp.status_code in (200, 201), f"create sales order failed: {resp.text}"
