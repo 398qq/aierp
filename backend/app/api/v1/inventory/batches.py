@@ -17,6 +17,7 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.schemas.common import fail, ok
 from app.services.batch_traceability_service import batch_traceability_service
+from app.services.expiry_alert_service import expiry_alert_service
 from app.services.inventory_batch_service import inventory_batch_service
 
 router = APIRouter(prefix="/inventory", tags=["inventory-batch"])
@@ -98,6 +99,61 @@ async def get_batch_traceability(
     if result is None:
         return fail("Batch not found", 404)
     return ok(result)
+
+
+# ── Expiry Alert ─────────────────────────────────────────────────────
+
+
+@router.get("/batches/expiring")
+async def get_expiring_batches(
+    buckets: str | None = Query(
+        None,
+        description=(
+            "逗号分隔的 bucket 列表: expired,7d,30d,90d。默认全部。"
+        ),
+    ),
+    warehouse_id: int | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """扫描即将过期 / 已过期的批次,按时间桶分类。
+
+    Buckets:
+      - expired  (expiry_date < today)
+      - 7d       (within next 7 days)
+      - 30d      (within next 8–30 days)
+      - 90d      (within next 31–90 days)
+
+    排除 status=consumed/recalled 且 quantity<=0 的批次。
+    """
+    bucket_list: list[str] | None = None
+    if buckets:
+        bucket_list = [b.strip() for b in buckets.split(",") if b.strip()]
+    try:
+        result = await expiry_alert_service.scan(
+            db,
+            buckets=bucket_list,
+            warehouse_id=warehouse_id,
+            limit_per_bucket=limit,
+        )
+    except ValueError as e:
+        return fail(str(e), 400)
+    total = sum(len(v) for v in result.values())
+    return ok({"buckets": result, "total": total})
+
+
+@router.get("/batches/expiring/summary")
+async def get_expiring_summary(
+    warehouse_id: int | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Dashboard widget 概要 — 每个 bucket 的计数 + total。"""
+    summary = await expiry_alert_service.get_summary(
+        db, warehouse_id=warehouse_id
+    )
+    return ok(summary)
 
 
 # ── Pre-flight allocation ────────────────────────────────────────────────

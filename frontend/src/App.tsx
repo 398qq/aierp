@@ -67,6 +67,7 @@ const BrandDashboard = lazy(() => import("./pages/brands/BrandDashboard"));
 const BrandDetail = lazy(() => import("./pages/brands/BrandDetail"));
 const BrandEdit = lazy(() => import("./pages/brands/BrandEdit"));
 const InventoryList = lazy(() => import("./pages/inventory/index"));
+const BatchExpiring = lazy(() => import("./pages/inventory/BatchExpiring"));
 const Settings = lazy(() => import("./pages/settings/index"));
 const AIChat = lazy(() => import("./pages/ai/Chat"));
 const OpportunityList = lazy(() => import("./pages/sales/OpportunityList"));
@@ -487,6 +488,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <InventoryList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/inventory/expiring"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BatchExpiring />
                     </Suspense>
                   }
                 />
