@@ -40,7 +40,7 @@ jobs:
 
       # 不要初始化 CodeQL: github/codeql-action/init 会自动选最新 actions
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -52,7 +52,7 @@ jobs:
 
       # Perform CodeQL Analysis (v3 analyze step auto-uploads SARIF)
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
       # (Stage 16 Day 3 fix: 去掉单独的 upload-sarif step — analyze 已自动 upload,
