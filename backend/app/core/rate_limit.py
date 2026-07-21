@@ -78,7 +78,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_ip = self._client_ip(request)
-        key = f"{RATE_LIMIT_KEY_PREFIX}{client_ip}"
+        # Stage 19 P2 #1: prefer per-user key when authenticated; fall back to
+        # per-IP. Authenticated abusers behind a shared NAT no longer bypass.
+        user_key = self._user_id(request)
+        if user_key is not None:
+            key = f"{RATE_LIMIT_KEY_PREFIX}u:{user_key}"
+        else:
+            key = f"{RATE_LIMIT_KEY_PREFIX}ip:{client_ip}"
 
         r = await _get_redis()
         if r is None:
@@ -129,3 +135,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if forwarded:
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
+
+    @staticmethod
+    def _user_id(request: Request) -> int | None:
+        """Return authenticated user id from request.state (set by get_current_user).
+
+        Cheap path: look at ``request.state.user_id``. Returns None for
+        unauthenticated requests, so the middleware falls back to per-IP.
+        """
+        state = getattr(request, "state", None)
+        if state is None:
+            return None
+        uid = getattr(state, "user_id", None)
+        if isinstance(uid, int):
+            return uid
+        return None
