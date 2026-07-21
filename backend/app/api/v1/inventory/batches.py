@@ -16,11 +16,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.schemas.batch_recall import RecallRequest
+from app.schemas.batch_merge_split import MergeRequest, SplitRequest
 from app.schemas.batch_transfer import TransferRequest
 from app.schemas.common import fail, ok
+from app.services.batch_merge_service import (
+    BatchMergeError,
+    batch_merge_service,
+)
 from app.services.batch_recall_service import (
     BatchRecallError,
     batch_recall_service,
+)
+from app.services.batch_split_service import (
+    BatchSplitError,
+    batch_split_service,
 )
 from app.services.batch_traceability_service import batch_traceability_service
 from app.services.batch_transfer_service import (
@@ -233,6 +242,61 @@ async def transfer_batch(
             actor=actor,
         )
     except BatchTransferError as e:
+        return fail(str(e), 400)
+    return ok(result)
+
+
+# ── Batch Merge / Split ────────────────────────────────────────────
+
+
+@router.post("/batches/merge")
+async def merge_batches(
+    body: MergeRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """合并多个同 product+batch_no+warehouse 的批次为一个。
+
+    - 最老的批次（最小 id）保留为 survivor
+    - 其余标记 status=consumed, qty=0（保留 id 以供追溯）
+    - survivor.quantity = 总和，unit_cost = 按 qty 加权平均
+    - 写 audit InventoryTransaction (type=adjust)
+    """
+    actor = body.actor or user.get("username", "unknown")
+    try:
+        result = await batch_merge_service.merge_batches(
+            db, body.batch_ids, reason=body.reason, actor=actor
+        )
+    except BatchMergeError as e:
+        return fail(str(e), 400)
+    return ok(result)
+
+
+@router.post("/batches/{batch_id}/split")
+async def split_batch(
+    batch_id: int,
+    body: SplitRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """把一个批次按数量拆分为两个。
+
+    - 原 batch 减 quantity
+    - 新 batch (同 product/warehouse, 新 batch_no) 创建，qty=quantity
+    - new_batch_no 省略时自动生成 -S1, -S2...
+    - 写 audit InventoryTransaction (type=adjust)
+    """
+    actor = body.actor or user.get("username", "unknown")
+    try:
+        result = await batch_split_service.split_batch(
+            db,
+            batch_id,
+            quantity=body.quantity,
+            new_batch_no=body.new_batch_no,
+            reason=body.reason,
+            actor=actor,
+        )
+    except BatchSplitError as e:
         return fail(str(e), 400)
     return ok(result)
 
