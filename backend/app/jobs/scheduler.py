@@ -557,6 +557,59 @@ async def _run_customer_status_job():
         logger.error(f"scheduler: customer_status_job failed: {e}")
 
 
+async def _check_batch_expiry():
+    """Alert warehouse managers about expiring/expired inventory batches.
+
+    Mirrors ``_check_contract_expiry`` pattern. Scans Stage 2's expiry
+    buckets via :func:`expiry_alert_service.scan` and creates one
+    notification per affected batch. Only the most urgent buckets
+    (expired + 7d) are notified today — 30d/90d can become a separate
+    job if earlier warnings are needed.
+
+    Dedup note: no explicit dedup. Job runs daily, so one notification
+    per batch per day. If the job is moved to a higher frequency, add
+    a "last 23h" check on (related_id, type) to avoid spam.
+    """
+    try:
+        from app.services.expiry_alert_service import expiry_alert_service
+        from app.services.notification_service import create_notification
+
+        async with async_session() as db:
+            # expired + 7d only — most urgent buckets
+            scan_result = await expiry_alert_service.scan(
+                db, buckets=["expired", "7d"], limit_per_bucket=100
+            )
+            notified = 0
+            for bucket_name in ("expired", "7d"):
+                for batch in scan_result.get(bucket_name, []):
+                    days = batch["days_until_expiry"] or 0
+                    if days <= 0:
+                        title = f"批次 {batch['batch_no']} 已过期 {abs(days)} 天"
+                    else:
+                        title = f"批次 {batch['batch_no']} {days} 天内到期"
+                    content = (
+                        f"产品 ID: {batch['product_id']} | "
+                        f"剩余: {batch['quantity']} | "
+                        f"有效期: {batch['expiry_date']}"
+                    )
+                    await create_notification(
+                        db,
+                        user_id=1,  # admin (TODO: per-warehouse routing)
+                        type="batch_expiry_warning",
+                        title=title,
+                        content=content,
+                        related_id=batch["id"],
+                    )
+                    notified += 1
+            if notified:
+                logger.info(
+                    "scheduler: batch_expiry notified %d batches (expired+7d)",
+                    notified,
+                )
+    except Exception as e:
+        logger.error(f"scheduler: check_batch_expiry failed: {e}")
+
+
 # ============================================================
 # Startup / Shutdown
 # ============================================================
@@ -643,8 +696,15 @@ def start():
         id="auto_expire_schemes",
         misfire_grace_time=3600,
     )
+    scheduler.add_job(
+        _check_batch_expiry,
+        "interval",
+        hours=24,
+        id="check_batch_expiry",
+        misfire_grace_time=600,
+    )
     scheduler.start()
-    logger.info("Scheduler started with 11 jobs")
+    logger.info("Scheduler started with 12 jobs")
 
 
 def shutdown():
