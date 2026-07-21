@@ -267,42 +267,24 @@ export default function QuotationList() {
               render: (_: unknown, __: Quotation, index: number) => (page - 1) * 20 + index + 1,
             },
             {
-              title: "报价单",
+              title: "报价单号",
               dataIndex: "quotation_no",
               fixed: "left",
-              minWidth: 280,
-              render: (value: string | null, record: Quotation) => {
-                const names = (record.items || []).map((item) => item.product_name).filter(Boolean).slice(0, 3);
-                return (
-                  <Space direction="vertical" size={2}>
-                    <div>
-                      <div className="erp-cell-primary">
-                        <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
-                          {value || record.title || `#${record.id}`}
-                        </Typography.Link>
-                      </div>
-                      <div className="erp-cell-secondary">
-                        <Space size={6} wrap>
-                          {record.customer_name
-                            ? (
-                              <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>
-                                {record.customer_name}
-                              </Typography.Link>
-                            )
-                            : <CustomerLink id={record.customer_id} />}
-                          {record.title && value && <span>{record.title}</span>}
-                        </Space>
-                      </div>
-                    </div>
-                    {names.length > 0 && (
-                      <Space size={[3, 2]} wrap style={{ marginTop: 2 }}>
-                        {names.map((name) => <Tag key={name} style={{ fontSize: 12, lineHeight: "18px", margin: 0 }}>{name}</Tag>)}
-                        {(record.items?.length || 0) > 3 && <Tag style={{ fontSize: 12, lineHeight: "18px", margin: 0 }}>+{(record.items?.length || 0) - 3}</Tag>}
-                      </Space>
-                    )}
-                  </Space>
-                );
-              },
+              width: 160,
+              render: (value: string | null, record: Quotation) => (
+                <Typography.Link strong onClick={() => navigate(`/sales/quotations/${record.id}`)}>
+                  {value || record.title || `#${record.id}`}
+                </Typography.Link>
+              ),
+            },
+            {
+              title: "客户名称",
+              dataIndex: "customer_name",
+              width: 160,
+              render: (value: string | null, record: Quotation) =>
+                value
+                  ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{value}</Typography.Link>
+                  : <CustomerLink id={record.customer_id} />,
             },
             { title: "金额", dataIndex: "total_amount", width: 120, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
             {

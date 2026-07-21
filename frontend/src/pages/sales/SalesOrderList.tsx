@@ -207,25 +207,24 @@ export default function SalesOrderList() {
           columns={[
             { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: SalesOrder, index: number) => (page - 1) * 20 + index + 1 },
             {
-              title: "订单",
+              title: "单号",
               dataIndex: "order_no",
               fixed: "left",
-              minWidth: 220,
+              width: 160,
               render: (value: string | null, record: SalesOrder) => (
-                <div>
-                  <div className="erp-cell-primary">
-                    <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>{value || `#${record.id}`}</Typography.Link>
-                  </div>
-                  <div className="erp-cell-secondary">
-                    <Space size={8}>
-                      {record.customer_name
-                        ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{record.customer_name}</Typography.Link>
-                        : <CustomerLink id={record.customer_id} />}
-                      <span>产品行 {record.items?.length || 0}</span>
-                    </Space>
-                  </div>
-                </div>
+                <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>
+                  {value || `#${record.id}`}
+                </Typography.Link>
               ),
+            },
+            {
+              title: "客户名称",
+              dataIndex: "customer_name",
+              width: 160,
+              render: (value: string | null, record: SalesOrder) =>
+                value
+                  ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{value}</Typography.Link>
+                  : <CustomerLink id={record.customer_id} />,
             },
             { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
             {
