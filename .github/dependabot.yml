@@ -58,30 +58,18 @@ updates:
         update-types:
           - "major"
 
-  # ──────────────────────────────────────────────────────────────────
-  # GitHub Actions ecosystem — DISABLED (Stage 18 Day 2, 2026-06-14)
-  # ──────────────────────────────────────────────────────────────────
-  # 原因:
-  #   1. Stage 17 验出 dependabot github-actions PR 大概率撞 Node 20 EOL
-  #      (rollup-plugin-visualizer@7 要求 Node ≥22, 我们跑 Node 20)
-  #   2. Stage 18 9 个 dependabot PR 全部跟 actions 无关 — 关掉减少噪音
-  #   3. Workflows 版本号只 3 个 (checkout / setup-node / setup-python),
-  #      Node 22 升级后手动 bump 比每周 auto-PR 效率高
-  #
-  # 重启条件: Node 22+ 切完, 跑:
-  #   cp .github/dependabot.yml.bak .github/dependabot.yml
-  #   (或直接重新 uncomment 这块)
-  # ──────────────────────────────────────────────────────────────────
-  #  - package-ecosystem: "github-actions"
-  #    directory: "/"
-  #    schedule:
-  #      interval: "weekly"
-  #      day: "monday"
-  #      time: "09:00"
-  #      timezone: "Asia/Shanghai"
-  #    commit-message:
-  #      prefix: "ci(actions)"
-  #    labels:
-  #      - "dependencies"
-  #      - "ci"
-  #    open-pull-requests-limit: 5
+  # GitHub Actions ecosystem — RE-ENABLED (Stage 19, 2026-07-21)
+  # Node 22 upgrade complete, safe to auto-bump actions/* now.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    commit-message:
+      prefix: "ci(actions)"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 5
