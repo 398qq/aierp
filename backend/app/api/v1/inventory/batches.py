@@ -16,12 +16,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.schemas.batch_recall import RecallRequest
+from app.schemas.batch_transfer import TransferRequest
 from app.schemas.common import fail, ok
 from app.services.batch_recall_service import (
     BatchRecallError,
     batch_recall_service,
 )
 from app.services.batch_traceability_service import batch_traceability_service
+from app.services.batch_transfer_service import (
+    BatchTransferError,
+    batch_transfer_service,
+)
 from app.services.expiry_alert_service import expiry_alert_service
 from app.services.inventory_batch_service import inventory_batch_service
 
@@ -197,6 +202,37 @@ async def recall_batch(
             db, batch_id, reason=body.reason, actor=actor
         )
     except BatchRecallError as e:
+        return fail(str(e), 400)
+    return ok(result)
+
+
+# ── Batch Transfer ─────────────────────────────────────────────────
+
+
+@router.post("/batches/{batch_id}/transfer")
+async def transfer_batch(
+    batch_id: int,
+    body: TransferRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """调拨批次库存到另一个仓库。
+
+    语义：批次号不变（保留追溯链），库存从源仓库减、从目标仓库加。
+    - 目标仓库已有同 batch_no → 累加到现有 batch
+    - 目标仓库没有 → 新建 batch（继承 unit_cost / expiry / supplier 等）
+    """
+    actor = body.actor or user.get("username", "unknown")
+    try:
+        result = await batch_transfer_service.transfer_batch(
+            db,
+            batch_id,
+            dst_warehouse_id=body.dst_warehouse_id,
+            quantity=body.quantity,
+            reason=body.reason,
+            actor=actor,
+        )
+    except BatchTransferError as e:
         return fail(str(e), 400)
     return ok(result)
 
