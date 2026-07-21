@@ -425,7 +425,7 @@ def generate_quotation_pdf(
                 [
                     "序号",
                     "产品 / 型号",
-                    "生产日期（DATECODE）",
+                    "生产日期（D/C）",
                     "交期",
                     "数量",
                     "含税单价",
@@ -454,7 +454,7 @@ def generate_quotation_pdf(
                 [
                     "序号",
                     "产品 / 型号",
-                    "生产日期（DATECODE）",
+                    "生产日期（D/C）",
                     "交期",
                     "数量",
                     "含税单价",
@@ -478,7 +478,16 @@ def generate_quotation_pdf(
             amount_cols = (4, 8)
         elif opts["show_line_hints"]:
             table_data = [
-                ["序号", "产品 / 型号", "生产日期（DATECODE）", "交期", "数量", "含税单价", "销售额", "智能提示"]
+                [
+                    "序号",
+                    "产品 / 型号",
+                    "生产日期（D/C）",
+                    "交期",
+                    "数量",
+                    "含税单价",
+                    "销售额",
+                    "智能提示",
+                ]
             ]
             col_widths = [
                 content_width * 0.06,
@@ -493,7 +502,17 @@ def generate_quotation_pdf(
             hint_col = 7
             amount_cols = (4, 6)
         else:
-            table_data = [["序号", "产品 / 型号", "生产日期（DATECODE）", "交期", "数量", "含税单价", "销售额"]]
+            table_data = [
+                [
+                    "序号",
+                    "产品 / 型号",
+                    "生产日期（D/C）",
+                    "交期",
+                    "数量",
+                    "含税单价",
+                    "销售额",
+                ]
+            ]
             col_widths = [
                 content_width * 0.06,
                 content_width * 0.34,

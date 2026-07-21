@@ -71,8 +71,8 @@ class TestQuotationStateMachine:
     def test_draft_to_sent(self):
         assert_ok("draft", "sent", assert_can_transition_quotation)
 
-    def test_draft_to_won(self):
-        assert_ok("draft", "won", assert_can_transition_quotation)
+    def test_draft_cannot_skip_send_and_jump_to_won(self):
+        assert_blocked("draft", "won", assert_can_transition_quotation)
 
     def test_draft_to_rejected(self):
         assert_ok("draft", "rejected", assert_can_transition_quotation)

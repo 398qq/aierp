@@ -15,7 +15,9 @@ from app.models.product import Product
 from app.models.sales import Inquiry, Quotation, QuotationItem, SalesOrder
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
+from app.services.state_transition_service import transition_status
 from app.services.sales_service._helpers import (
+    _apply_customer_product_codes,
     _customer_search_ids,
     _normalize_quotation_items,
     _sales_item_ids,
@@ -219,6 +221,7 @@ class QuotationService(BaseCRUDService):
                 db, "QT", Quotation, "quotation_no"
             )
         normalized_items, total = _normalize_quotation_items(items_data)
+        await _apply_customer_product_codes(db, data.get("customer_id"), normalized_items)
         await _validate_quotation_products(db, normalized_items)
         if normalized_items:
             data["total_amount"] = total
@@ -236,10 +239,21 @@ class QuotationService(BaseCRUDService):
         return quote
 
     async def update_quotation_with_items(
-        self, db: AsyncSession, quote: Quotation, data: dict
+        self,
+        db: AsyncSession,
+        quote: Quotation,
+        data: dict,
+        actor: str | int | None = None,
     ) -> Quotation:
         if "status" in data and data["status"] != quote.status:
-            assert_can_transition_quotation(quote.status, data["status"])
+            await transition_status(
+                db,
+                quote,
+                data["status"],
+                guard=assert_can_transition_quotation,
+                aggregate_type="Quotation",
+                actor=actor,
+            )
         items_data = data.pop("items", None)
         for k, v in data.items():
             if v is not None and k != "items":
@@ -250,6 +264,9 @@ class QuotationService(BaseCRUDService):
                 item.deleted_at = datetime.now(timezone.utc)
             await db.flush()
             normalized_items, total = _normalize_quotation_items(items_data)
+            await _apply_customer_product_codes(
+                db, data.get("customer_id", quote.customer_id), normalized_items
+            )
             await _validate_quotation_products(db, normalized_items)
             for item_data in normalized_items:
                 qi = QuotationItem(quotation_id=quote.id, **item_data)
@@ -259,10 +276,20 @@ class QuotationService(BaseCRUDService):
         return quote
 
     async def update_quotation_status(
-        self, db: AsyncSession, quote: Quotation, status: str
+        self,
+        db: AsyncSession,
+        quote: Quotation,
+        status: str,
+        actor: str | int | None = None,
     ) -> Quotation:
-        assert_can_transition_quotation(quote.status, status)
-        quote.status = status
+        await transition_status(
+            db,
+            quote,
+            status,
+            guard=assert_can_transition_quotation,
+            aggregate_type="Quotation",
+            actor=actor,
+        )
         await db.commit()
         await db.refresh(quote)
         return quote
@@ -297,6 +324,8 @@ class QuotationService(BaseCRUDService):
                     quotation_id=new_quote.id,
                     product_id=item.product_id,
                     product_name=item.product_name,
+                    customer_part_no=item.customer_part_no,
+                    customer_product_name=item.customer_product_name,
                     quantity=item.quantity,
                     unit=item.unit,
                     unit_price=item.unit_price,
@@ -320,10 +349,19 @@ class QuotationService(BaseCRUDService):
         quote.deleted_at = datetime.now(timezone.utc)
         await db.commit()
 
-    async def send_quotation(self, db: AsyncSession, quote: Quotation) -> Quotation:
+    async def send_quotation(
+        self, db: AsyncSession, quote: Quotation, actor: str | int | None = None
+    ) -> Quotation:
         """Mark quotation as sent and trigger WeCom notification."""
-        assert_can_transition_quotation(quote.status, "sent")
-        quote.status = "sent"
+        await transition_status(
+            db,
+            quote,
+            "sent",
+            guard=assert_can_transition_quotation,
+            aggregate_type="Quotation",
+            actor=actor,
+            action="send",
+        )
         await db.commit()
         await db.refresh(quote)
         try:
@@ -370,6 +408,7 @@ class QuotationService(BaseCRUDService):
         total = 0.0
         if items:
             normalized_items, total = _normalize_quotation_items(items)
+            await _apply_customer_product_codes(db, cid, normalized_items)
             for item in normalized_items:
                 db.add(QuotationItem(quotation_id=quote.id, **item))
         else:
@@ -381,6 +420,7 @@ class QuotationService(BaseCRUDService):
                 )
             except Exception:
                 matched = []
+            matched_items: list[dict] = []
             for mp in matched:
                 pid = mp.get("id") or mp.get("product_id")
                 if not pid:
@@ -398,15 +438,20 @@ class QuotationService(BaseCRUDService):
                 up = mp.get("unit_price") or 0
                 tp = qty * up
                 total += tp
-                qi = QuotationItem(
-                    quotation_id=quote.id,
-                    product_id=pid,
-                    product_name=mp.get("name") or mp.get("product_name") or "",
-                    quantity=qty,
-                    unit_price=up,
-                    total_price=tp,
+                matched_items.append(
+                    {
+                        "product_id": pid,
+                        "product_name": mp.get("name")
+                        or mp.get("product_name")
+                        or "",
+                        "quantity": qty,
+                        "unit_price": up,
+                        "total_price": tp,
+                    }
                 )
-                db.add(qi)
+            await _apply_customer_product_codes(db, cid, matched_items)
+            for item in matched_items:
+                db.add(QuotationItem(quotation_id=quote.id, **item))
 
         quote.total_amount = total
         await db.commit()
@@ -488,8 +533,13 @@ async def create_quotation(
     return await quotation_service.create_quotation(db, data, items_data)
 
 
-async def update_quotation(db: AsyncSession, quote: Quotation, data: dict) -> Quotation:
-    return await quotation_service.update_quotation_with_items(db, quote, data)
+async def update_quotation(
+    db: AsyncSession,
+    quote: Quotation,
+    data: dict,
+    actor: str | int | None = None,
+) -> Quotation:
+    return await quotation_service.update_quotation_with_items(db, quote, data, actor)
 
 
 async def get_quotation_stats(db: AsyncSession) -> dict:
@@ -501,17 +551,22 @@ async def duplicate_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
 
 
 async def update_quotation_status(
-    db: AsyncSession, quote: Quotation, status: str
+    db: AsyncSession,
+    quote: Quotation,
+    status: str,
+    actor: str | int | None = None,
 ) -> Quotation:
-    return await quotation_service.update_quotation_status(db, quote, status)
+    return await quotation_service.update_quotation_status(db, quote, status, actor)
 
 
 async def delete_quotation(db: AsyncSession, quote: Quotation) -> None:
     await quotation_service.soft_delete_quotation(db, quote)
 
 
-async def send_quotation(db: AsyncSession, quote: Quotation) -> Quotation:
-    return await quotation_service.send_quotation(db, quote)
+async def send_quotation(
+    db: AsyncSession, quote: Quotation, actor: str | int | None = None
+) -> Quotation:
+    return await quotation_service.send_quotation(db, quote, actor)
 
 
 async def create_quotation_from_inquiry(

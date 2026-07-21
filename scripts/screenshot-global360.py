@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """Screenshot the Global 360 dashboard."""
-import os
+
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 OUT_DIR = Path("/home/ttdiy/aierp/docs/screenshots")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 FRONTEND = "http://localhost:3002"
-USERNAME = os.getenv("AIERP_LOGIN_USERNAME", "admin")
-PASSWORD = os.getenv("AIERP_LOGIN_PASSWORD", "admin123")
+from lib.erp_auth import get_erp_creds
+
+USERNAME, PASSWORD = get_erp_creds()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    ctx = browser.new_context(viewport={"width": 1440, "height": 900}, device_scale_factor=2, locale="zh-CN")
+    ctx = browser.new_context(
+        viewport={"width": 1440, "height": 900}, device_scale_factor=2, locale="zh-CN"
+    )
     page = ctx.new_page()
 
     page.goto(f"{FRONTEND}/login", wait_until="networkidle")

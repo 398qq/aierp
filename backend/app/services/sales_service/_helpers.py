@@ -3,10 +3,47 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.customer import Customer
+from app.models.product import CustomerProductCode
 
 logger = logging.getLogger(__name__)
+
+
+async def _apply_customer_product_codes(
+    db: AsyncSession,
+    customer_id: int | None,
+    items: list[dict],
+) -> list[dict]:
+    """Fill missing customer-facing identities without overwriting snapshots."""
+    product_ids = {
+        int(item["product_id"])
+        for item in items
+        if item.get("product_id") is not None
+    }
+    if not customer_id or not product_ids:
+        return items
+    rows = (
+        await db.scalars(
+            select(CustomerProductCode).where(
+                CustomerProductCode.customer_id == customer_id,
+                CustomerProductCode.product_id.in_(product_ids),
+                CustomerProductCode.is_active.is_(True),
+                CustomerProductCode.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    mapping = {row.product_id: row for row in rows}
+    for item in items:
+        link = mapping.get(item.get("product_id"))
+        if link is None:
+            continue
+        if not item.get("customer_part_no"):
+            item["customer_part_no"] = link.customer_part_no
+        if not item.get("customer_product_name"):
+            item["customer_product_name"] = link.customer_product_name
+    return items
 
 
 def _customer_search_ids(q: str):
@@ -25,9 +62,13 @@ def _customer_search_ids(q: str):
 
 def _sales_item_ids(item_model, parent_col, text_col, q: str):
     pattern = f"%{q}%"
+    customer_part_no = getattr(item_model, "customer_part_no", None)
+    text_filter = text_col.ilike(pattern)
+    if customer_part_no is not None:
+        text_filter = or_(text_filter, customer_part_no.ilike(pattern))
     return select(parent_col).where(
         item_model.deleted_at.is_(None),
-        text_col.ilike(pattern),
+        text_filter,
     )
 
 

@@ -98,7 +98,7 @@ export function useProductTableColumns({
               {text}
             </button>
             {r.lifecycle_status && (
-              <div style={{ fontSize: 11, color: "#8c8c8c", marginTop: 1 }}>
+              <div style={{ fontSize: 12, color: "#8c8c8c", marginTop: 1 }}>
                 <StatusTag tone={lifecycleTone[r.lifecycle_status] || "info"}>
                   {r.lifecycle_status === "active"
                     ? "量产"
@@ -192,7 +192,7 @@ export function useProductTableColumns({
               <WarningFilled style={{ color: "#faad14", fontSize: 14 }} title="ESD" />
             )}
             {r.msl_level && (
-              <span style={{ fontSize: 11, color: "#595959", fontWeight: 600 }}>{r.msl_level}</span>
+              <span style={{ fontSize: 12, color: "#595959", fontWeight: 600 }}>{r.msl_level}</span>
             )}
           </span>
         ),

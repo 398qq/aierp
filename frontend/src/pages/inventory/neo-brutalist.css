@@ -180,7 +180,7 @@
 
 .nb-kpi-label {
   font-family: var(--nb-font-mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -208,7 +208,7 @@
 }
 .nb-stock-bar-label {
   font-family: var(--nb-font-mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -247,7 +247,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--nb-font-mono);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
@@ -313,7 +313,7 @@
 .nb-btn--success { background: var(--nb-green);  color: var(--nb-white); border-color: var(--nb-border); }
 .nb-btn--small {
   padding: 6px 14px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   box-shadow: 3px 3px 0 var(--nb-shadow);
 }
 
@@ -325,7 +325,7 @@
   align-items: center;
   padding: 3px 10px;
   font-family: var(--nb-font-mono);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -369,7 +369,7 @@
   background: var(--nb-border) !important;
   color: var(--nb-white) !important;
   font-family: var(--nb-font-mono);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -441,7 +441,7 @@
   background: var(--nb-border) !important;
   color: var(--nb-white) !important;
   font-family: var(--nb-font-mono);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;

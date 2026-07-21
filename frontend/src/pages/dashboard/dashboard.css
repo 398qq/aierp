@@ -19,7 +19,7 @@
 
 .dashboard-hero h2 {
   margin: 3px 0 2px;
-  font-size: 26px;
+  font-size: var(--font-size-page-title, 20px);
   line-height: 1.25;
 }
 
@@ -107,7 +107,7 @@
   overflow: hidden;
   margin-bottom: 2px;
   color: #111827;
-  font-size: clamp(20px, 1.6vw, 26px);
+  font-size: var(--font-size-metric, 24px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.025em;
@@ -233,7 +233,7 @@
 .dashboard-activity-time {
   margin-top: 3px;
   color: #94a3b8;
-  font-size: 11px;
+  font-size: var(--font-size-caption, 12px);
 }
 
 .dashboard-report-panel {
@@ -395,13 +395,13 @@
   display: flex;
   flex-direction: column;
   color: #111827;
-  font-size: 28px;
+  font-size: var(--font-size-metric, 24px);
   font-weight: 700;
 }
 
 .dashboard-health-score small {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--font-size-caption, 12px);
   font-weight: 400;
 }
 

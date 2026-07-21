@@ -76,7 +76,7 @@ class TestConvertQuotationToOrderUseCase:
         assert len(domain_order.lines) == 2
         assert domain_order.total == 800  # 5*100 + 3*100
 
-    async def test_convert_marks_quotation_as_converted(
+    async def test_convert_marks_quotation_as_won(
         self, factory, accepted_quotation
     ):
         quotation_id, _, _ = accepted_quotation
@@ -93,7 +93,7 @@ class TestConvertQuotationToOrderUseCase:
                     select(Quotation).where(Quotation.id == quotation_id)
                 )
             ).scalar_one()
-            assert quote.status == "converted"
+            assert quote.status == "won"
 
     async def test_convert_nonexistent_raises_not_found(self, factory):
         async with factory() as session:
@@ -127,7 +127,7 @@ class TestConvertQuotationToOrderUseCase:
             assert order.order_no is not None
             assert order.order_no.startswith("SO")
 
-    async def test_legacy_adapter_can_keep_won_status(self, factory, accepted_quotation):
+    async def test_adapter_persists_canonical_won_status(self, factory, accepted_quotation):
         quotation_id, _, _ = accepted_quotation
         async with factory() as session:
             use_case = ConvertQuotationToOrderUseCase(

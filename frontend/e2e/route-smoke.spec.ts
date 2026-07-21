@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+const USERNAME = process.env.AIERP_LOGIN_USERNAME ?? "admin";
+const PASSWORD = process.env.AIERP_LOGIN_PASSWORD;
+if (!PASSWORD) throw new Error("AIERP_LOGIN_PASSWORD is required");
+
 const routes = [
   "/",
   "/dashboard/global360",
@@ -56,7 +60,7 @@ test("all operational routes render without runtime or server errors", async ({ 
   test.setTimeout(180_000);
 
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
 
@@ -65,11 +69,10 @@ test("all operational routes render without runtime or server errors", async ({ 
 
   page.on("pageerror", (error) => failures.push(`${activeRoute} pageerror: ${error.message}`));
   page.on("requestfailed", (request) => {
-    if (
-      request.url().includes("/api/v1/") &&
-      request.failure()?.errorText !== "net::ERR_ABORTED"
-    ) {
-      failures.push(`${activeRoute} request failed: ${request.url()} (${request.failure()?.errorText})`);
+    if (request.url().includes("/api/v1/") && request.failure()?.errorText !== "net::ERR_ABORTED") {
+      failures.push(
+        `${activeRoute} request failed: ${request.url()} (${request.failure()?.errorText})`,
+      );
     }
   });
   page.on("response", (response) => {
@@ -83,13 +86,24 @@ test("all operational routes render without runtime or server errors", async ({ 
     const response = await page.goto(route, { waitUntil: "domcontentloaded" });
     if (!response?.ok()) failures.push(`${route} document status: ${response?.status() ?? "none"}`);
 
-    await page.locator(".erp-app-content").waitFor({ state: "visible", timeout: 10_000 }).catch(() => {
-      failures.push(`${route} app content is not visible`);
-    });
+    await page
+      .locator(".erp-app-content")
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .catch(() => {
+        failures.push(`${route} app content is not visible`);
+      });
     await page.waitForTimeout(300);
 
-    if (await page.getByText("页面加载异常", { exact: true }).isVisible().catch(() => false)) {
-      const detail = await page.locator(".ant-result-subtitle").textContent().catch(() => "unknown error");
+    if (
+      await page
+        .getByText("页面加载异常", { exact: true })
+        .isVisible()
+        .catch(() => false)
+    ) {
+      const detail = await page
+        .locator(".ant-result-subtitle")
+        .textContent()
+        .catch(() => "unknown error");
       failures.push(`${route} error boundary: ${detail}`);
     }
   }
@@ -97,12 +111,14 @@ test("all operational routes render without runtime or server errors", async ({ 
   expect(failures, failures.join("\n")).toEqual([]);
 });
 
-test("core mobile routes stay within the viewport and keep navigation operable", async ({ page }) => {
+test("core mobile routes stay within the viewport and keep navigation operable", async ({
+  page,
+}) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
 
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
 
@@ -138,12 +154,20 @@ test("core mobile routes stay within the viewport and keep navigation operable",
     await expect(page.locator(".erp-app-content")).toBeVisible();
     await page.waitForTimeout(300);
 
-    const viewportOverflow = await page.evaluate(() =>
-      Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth,
+    const viewportOverflow = await page.evaluate(
+      () =>
+        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) -
+        window.innerWidth,
     );
-    if (viewportOverflow > 2) failures.push(`${route} horizontal viewport overflow: ${viewportOverflow}px`);
+    if (viewportOverflow > 2)
+      failures.push(`${route} horizontal viewport overflow: ${viewportOverflow}px`);
 
-    if (await page.getByText("页面加载异常", { exact: true }).isVisible().catch(() => false)) {
+    if (
+      await page
+        .getByText("页面加载异常", { exact: true })
+        .isVisible()
+        .catch(() => false)
+    ) {
       failures.push(`${route} error boundary is visible`);
     }
   }

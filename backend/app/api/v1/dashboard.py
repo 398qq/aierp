@@ -432,11 +432,13 @@ async def dashboard_kpi(
     ).scalar() or 0
 
     # Pending purchase orders
+    from app.domain.states import INVOICE_OUTSTANDING_STATUSES, PURCHASE_ORDER_OPEN_STATUSES
+
     pending_pos = (
         await db.execute(
             select(func.count(PurchaseOrder.id)).where(
                 PurchaseOrder.deleted_at.is_(None),
-                PurchaseOrder.status.in_(["draft", "submitted", "approved"]),
+                PurchaseOrder.status.in_(PURCHASE_ORDER_OPEN_STATUSES),
             )
         )
     ).scalar() or 0
@@ -446,7 +448,7 @@ async def dashboard_kpi(
         await db.execute(
             select(func.coalesce(func.sum(Invoice.amount), 0)).where(
                 Invoice.deleted_at.is_(None),
-                Invoice.status.in_(["sent", "overdue", "partial"]),
+                Invoice.status.in_(INVOICE_OUTSTANDING_STATUSES),
             )
         )
     ).scalar() or 0

@@ -125,7 +125,7 @@ class TestDeliveryNoteReceipt:
         )
         note.ship()
         note.confirm_receipt()
-        assert note.status == DeliveryStatus.RECEIVED
+        assert note.status == DeliveryStatus.DELIVERED
         assert note.received_date is not None
 
     def test_confirm_receipt_from_draft_raises(self):

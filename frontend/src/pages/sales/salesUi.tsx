@@ -114,7 +114,7 @@ export function SalesModuleShell({
           margin: 0;
           color: var(--color-text, #111827);
           font-size: 17px;
-          font-weight: 650;
+          font-weight: 600;
           line-height: 24px;
         }
         .sales-erp-subtitle {
@@ -172,7 +172,7 @@ export function SalesModuleShell({
         }
         .sales-erp-flow-arrow {
           color: var(--color-border, #e3e8ee);
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
         }
         .sales-erp-metrics {
           display: grid;
@@ -189,14 +189,14 @@ export function SalesModuleShell({
         }
         .sales-erp-metric-title {
           color: var(--color-text-secondary, #6b7280);
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
           line-height: 16px;
         }
         .sales-erp-metric-value {
           margin-top: 4px;
           color: var(--color-text, #111827);
           font-size: 18px;
-          font-weight: 650;
+          font-weight: 600;
           line-height: 1;
         }
         .sales-erp-toolbar.ant-card-small > .ant-card-body {
@@ -253,7 +253,7 @@ export function SalesModuleShell({
         }
         .sales-erp-table-card .erp-cell-secondary {
           color: var(--color-text-tertiary, #94a3b8);
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
           line-height: 1.4;
         }
         @media (max-width: 1180px) {

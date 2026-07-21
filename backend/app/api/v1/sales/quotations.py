@@ -152,6 +152,8 @@ def _serialize_quotation(quote) -> dict:
                 "quotation_id": it.quotation_id,
                 "product_id": it.product_id,
                 "product_name": it.product_name,
+                "customer_part_no": it.customer_part_no,
+                "customer_product_name": it.customer_product_name,
                 "quantity": it.quantity,
                 "unit": it.unit,
                 "unit_price": float(Decimal(str(it.unit_price)))
@@ -371,7 +373,9 @@ async def update_quotation_status(
     if not quote:
         return fail("报价单不存在", 404)
     try:
-        quote = await svc.update_quotation_status(db, quote, body.status)
+        quote = await svc.update_quotation_status(
+            db, quote, body.status, actor=_user["user_id"]
+        )
     except ValueError as e:
         return fail(str(e), 400)
     await _bump_quotation_caches()
@@ -476,7 +480,7 @@ async def update_quotation(
     data = body.model_dump(exclude_none=True)
     if body.items is not None:
         data["items"] = body.items
-    quote = await svc.update_quotation(db, quote, data)
+    quote = await svc.update_quotation(db, quote, data, actor=_user["user_id"])
     from app.services.sales_ai_pipeline import after_quotation_save
 
     after_quotation_save(quote.id)
@@ -521,7 +525,7 @@ async def send_quotation(
     quote = await svc.get_quotation(db, quote_id)
     if not quote:
         return fail("报价单不存在", 404)
-    quote = await svc.send_quotation(db, quote)
+    quote = await svc.send_quotation(db, quote, actor=_user["user_id"])
     await _bump_quotation_caches()
     return ok(await _reload_quotation_for_serialize(db, quote.id))
 

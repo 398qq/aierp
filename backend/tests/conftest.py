@@ -116,9 +116,7 @@ async def engine():
         schema = _test_schema_name()
         await _create_postgres_test_schema(schema)
         ext["poolclass"] = NullPool
-        ext["connect_args"] = {
-            "server_settings": {"search_path": f"{schema},public"}
-        }
+        ext["connect_args"] = {"server_settings": {"search_path": f"{schema},public"}}
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, **ext)
     try:
         yield engine
@@ -277,7 +275,7 @@ async def test_admin(db_session) -> dict:
     from app.models.user import User
     from app.models.rbac import Role
 
-    password = "admin123"
+    password = "test-admin-password"
     admin = User(username="adminuser", password=hash_password(password), role="admin")
     db_session.add(admin)
     await db_session.flush()

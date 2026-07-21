@@ -212,7 +212,7 @@ def test_reverse_completed_works():
 
 def test_cannot_reverse_pending():
     pay = _make_payment()
-    with pytest.raises(InvalidStateTransition, match="状态不可冲销"):
+    with pytest.raises(InvalidStateTransition, match="pending → reversed"):
         pay.reverse("refund")
 
 

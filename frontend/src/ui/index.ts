@@ -46,3 +46,5 @@ export { useColumnResize } from "./useColumnResize";
 
 export { ModuleShell } from "./ModuleShell";
 export type { ModuleShellProps, ModuleNavItem } from "./ModuleShell";
+
+export { UomSelect } from "./UomSelect";

@@ -20,31 +20,17 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from app.domain.shared.errors import (
-    BusinessRuleViolation,
-    InvalidStateTransition,
-)
+from app.domain.shared.errors import BusinessRuleViolation
 from app.domain.sales.events import PaymentReceived
+from app.domain.states.finance import assert_can_transition_payment
 
 
 class PaymentStatus(str, Enum):
     PENDING = "pending"
+    PARTIAL = "partial"
     COMPLETED = "completed"
     OVERDUE = "overdue"
     REVERSED = "reversed"
-
-
-_PAYMENT_TRANSITIONS: dict[PaymentStatus, set[PaymentStatus]] = {
-    PaymentStatus.PENDING: {
-        PaymentStatus.COMPLETED,
-        PaymentStatus.OVERDUE,
-    },
-    PaymentStatus.OVERDUE: {
-        PaymentStatus.COMPLETED,
-    },
-    PaymentStatus.COMPLETED: set(),  # terminal (use reverse for refunds)
-    PaymentStatus.REVERSED: set(),  # terminal
-}
 
 
 @dataclass
@@ -78,11 +64,7 @@ class PaymentRecord:
             self.created_at = datetime.now(timezone.utc)
 
     def _check_transition(self, target: PaymentStatus) -> None:
-        allowed = _PAYMENT_TRANSITIONS.get(self.status, set())
-        if target not in allowed:
-            raise InvalidStateTransition(
-                f"付款 {self.id}: {self.status.value} → {target.value} 不允许"
-            )
+        assert_can_transition_payment(self.status.value, target.value)
 
     def complete(self) -> None:
         """Mark payment as completed (money received) → COMPLETED.
@@ -121,10 +103,7 @@ class PaymentRecord:
         Stage 2: implemented but not wired up to invoice reconciliation
         (would need negative payment record support).
         """
-        if self.status != PaymentStatus.COMPLETED:
-            raise InvalidStateTransition(
-                f"付款 {self.id}: {self.status.value} 状态不可冲销"
-            )
+        self._check_transition(PaymentStatus.REVERSED)
         if not reason or not reason.strip():
             raise BusinessRuleViolation("冲销付款必须填写原因")
         self.status = PaymentStatus.REVERSED

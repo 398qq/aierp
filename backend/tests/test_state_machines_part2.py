@@ -227,11 +227,11 @@ class TestTicketStateMachine:
 
 
 class TestSampleStateMachine:
-    def test_requested_to_shipped(self):
-        assert_ok("requested", "shipped", assert_can_transition_sample)
+    def test_pending_to_shipped(self):
+        assert_ok("pending", "shipped", assert_can_transition_sample)
 
-    def test_requested_to_cancelled(self):
-        assert_ok("requested", "cancelled", assert_can_transition_sample)
+    def test_pending_to_cancelled(self):
+        assert_ok("pending", "cancelled", assert_can_transition_sample)
 
     def test_shipped_to_received(self):
         assert_ok("shipped", "received", assert_can_transition_sample)
@@ -243,14 +243,14 @@ class TestSampleStateMachine:
         assert_ok("received", "evaluated", assert_can_transition_sample)
 
     def test_evaluated_is_terminal(self):
-        assert_blocked("evaluated", "requested", assert_can_transition_sample)
+        assert_blocked("evaluated", "pending", assert_can_transition_sample)
 
     def test_cancelled_is_terminal(self):
-        assert_blocked("cancelled", "requested", assert_can_transition_sample)
+        assert_blocked("cancelled", "pending", assert_can_transition_sample)
 
-    def test_requested_cannot_jump_to_evaluated(self):
-        assert_blocked("requested", "evaluated", assert_can_transition_sample)
+    def test_pending_cannot_jump_to_evaluated(self):
+        assert_blocked("pending", "evaluated", assert_can_transition_sample)
 
     def test_transitions_dict(self):
-        assert SAMPLE_TRANSITIONS["requested"] == {"shipped", "cancelled"}
+        assert SAMPLE_TRANSITIONS["pending"] == {"shipped", "cancelled"}
         assert SAMPLE_TRANSITIONS["evaluated"] == set()

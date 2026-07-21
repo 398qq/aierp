@@ -5,7 +5,7 @@ Cross-aggregate orchestration:
 2. Convert to domain Quotation
 3. Validate state (must be SENT or ACCEPTED)
 4. Build a new domain SalesOrder from quotation lines
-5. Mark the quotation as CONVERTED
+5. Mark the quotation as WON
 6. Persist both ORM records
 
 The use case returns both the new order and any tracked events so the
@@ -30,6 +30,7 @@ from app.models.sales import (
     SalesOrderItem,
 )
 from app.services.docno import generate_doc_no
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class ConvertQuotationToOrderUseCase:
         user_id: int,
         *,
         allow_legacy_draft: bool = False,
-        final_quotation_status: str = "converted",
+        final_quotation_status: str = "won",
     ) -> None:
         self._session = session
         self._user_id = user_id
@@ -103,19 +104,11 @@ class ConvertQuotationToOrderUseCase:
         )
 
         # 3. Validate conversion state before creating downstream documents.
-        # The canonical domain model uses "converted"; the legacy HTTP route
-        # still exposes the older "won" status, so keep that compatibility here
-        # instead of duplicating conversion rules in route adapters.
-        if self._final_quotation_status == "won":
-            assert_can_transition_quotation(quote_orm.status, "won")
-        elif (
-            self._allow_legacy_draft
-            and domain_quote.status == QuotationStatus.DRAFT
-            and self._final_quotation_status == "converted"
-        ):
-            pass
-        else:
-            domain_quote.convert_to_order()
+        # All adapters use the canonical quotation lifecycle. The compatibility
+        # arguments remain accepted for callers from older releases, but cannot
+        # bypass the state guard or introduce a second persisted vocabulary.
+        assert_can_transition_quotation(quote_orm.status, "won")
+        domain_quote.convert_to_order()
 
         # 4. Build domain SalesOrder from quotation lines
         domain_order = SalesOrder(
@@ -165,6 +158,8 @@ class ConvertQuotationToOrderUseCase:
                     order_id=new_order_orm.id,
                     product_id=source_line.product_id,
                     product_name=line.product_name,
+                    customer_part_no=source_line.customer_part_no,
+                    customer_product_name=source_line.customer_product_name,
                     quantity=line.quantity,
                     unit=source_line.unit,
                     unit_price=line.unit_price,
@@ -174,8 +169,16 @@ class ConvertQuotationToOrderUseCase:
                 )
             )
 
-        # 6. Mark source quotation as converted / won according to the adapter.
-        quote_orm.status = self._final_quotation_status
+        # 6. Persist the single canonical terminal status.
+        await transition_status(
+            self._session,
+            quote_orm,
+            "won",
+            guard=assert_can_transition_quotation,
+            aggregate_type="Quotation",
+            actor=self._user_id,
+            action="convert_to_order",
+        )
 
         logger.info(
             "Converted quotation Q#%s to order SO#%s by user#%s (%d lines)",

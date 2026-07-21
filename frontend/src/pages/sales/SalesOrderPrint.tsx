@@ -78,7 +78,7 @@ export function SalesOrderPrint({ order }: { order: SalesOrder }) {
           <thead><tr><th>#</th><th>产品名称 / 规格</th><th>单位</th><th className="number">数量</th><th className="number">含税单价</th><th className="number">折扣</th><th className="number">税率</th><th className="number">价税合计</th><th>备注</th></tr></thead>
           <tbody>{order.items.map((item, index) => (
             <tr key={item.id}>
-              <td>{index + 1}</td><td><strong>{item.product_name || "-"}</strong><small>{item.product_id ? `产品 #${item.product_id}` : ""}</small></td>
+              <td>{index + 1}</td><td><strong>{item.customer_product_name || item.product_name || "-"}</strong><small>{item.customer_part_no ? `客户料号：${item.customer_part_no}` : ""}</small></td>
               <td>{item.unit || "-"}</td><td className="number">{Number(item.quantity || 0).toLocaleString("zh-CN")}</td>
               <td className="number">{amount(item.unit_price, order.currency, 6)}</td><td className="number">{item.discount_rate == null ? "-" : `${item.discount_rate}%`}</td>
               <td className="number">{item.tax_rate == null ? "-" : `${item.tax_rate}%`}</td><td className="number"><strong>{amount(item.total_price, order.currency)}</strong></td>

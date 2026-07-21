@@ -26,6 +26,8 @@ export interface QuotationItem {
   quotation_id: number;
   product_id: number | null;
   product_name: string | null;
+  customer_part_no: string | null;
+  customer_product_name: string | null;
   quantity: number;
   unit: string | null;
   unit_price: number | null;
@@ -240,6 +242,8 @@ export interface SalesOrderItem {
   order_id: number;
   product_id: number | null;
   product_name: string | null;
+  customer_part_no: string | null;
+  customer_product_name: string | null;
   quantity: number;
   unit: string | null;
   unit_price: number | null;
@@ -254,6 +258,8 @@ export interface DeliveryNoteItem {
   delivery_note_id: number;
   product_id: number | null;
   product_name: string | null;
+  customer_part_no: string | null;
+  customer_product_name: string | null;
   quantity: number;
   unit: string | null;
   notes: string | null;

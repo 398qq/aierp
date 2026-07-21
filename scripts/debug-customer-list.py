@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Debug customer list — capture the actual error."""
-import os
+
 from playwright.sync_api import sync_playwright
 
 FRONTEND = "http://localhost:3002"
-USERNAME = os.getenv("AIERP_LOGIN_USERNAME", "admin")
-PASSWORD = os.getenv("AIERP_LOGIN_PASSWORD", "admin123")
+from lib.erp_auth import get_erp_creds
+
+USERNAME, PASSWORD = get_erp_creds()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -14,16 +15,26 @@ with sync_playwright() as p:
 
     # Capture all network errors
     failed_requests = []
-    page.on("requestfailed", lambda req: failed_requests.append({
-        "url": req.url,
-        "failure": req.failure,
-    }))
+    page.on(
+        "requestfailed",
+        lambda req: failed_requests.append(
+            {
+                "url": req.url,
+                "failure": req.failure,
+            }
+        ),
+    )
     api_responses = []
-    page.on("response", lambda resp: api_responses.append({
-        "url": resp.url,
-        "status": resp.status,
-        "body": "" if resp.status >= 400 else None,
-    }))
+    page.on(
+        "response",
+        lambda resp: api_responses.append(
+            {
+                "url": resp.url,
+                "status": resp.status,
+                "body": "" if resp.status >= 400 else None,
+            }
+        ),
+    )
 
     page.goto(f"{FRONTEND}/login", wait_until="networkidle")
     page.fill('input[type="text"]', USERNAME)

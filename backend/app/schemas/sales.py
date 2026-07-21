@@ -1,7 +1,25 @@
 """Sales schemas — Pydantic v2 models for opportunities, quotations, orders, delivery notes."""
 
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel, Field
+
+OpportunityStatus = Literal["active", "won", "lost"]
+QuotationStatus = Literal[
+    "draft", "sent", "accepted", "rejected", "expired", "lost", "won"
+]
+SalesOrderStatus = Literal[
+    "pending",
+    "draft",
+    "confirmed",
+    "partially_shipped",
+    "shipped",
+    "delivered",
+    "invoiced",
+    "completed",
+    "cancelled",
+]
+DeliveryStatus = Literal["pending", "shipped", "delivered", "cancelled"]
 
 
 # ============================================================
@@ -14,7 +32,7 @@ class OpportunityCreate(BaseModel):
     product_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    status: str = "active"
+    status: Literal["active"] = "active"
     stage: str | None = None
     amount: float | None = None
     win_probability: int | None = None
@@ -29,7 +47,7 @@ class OpportunityUpdate(BaseModel):
     product_id: int | None = None
     title: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
-    status: str | None = None
+    status: OpportunityStatus | None = None
     stage: str | None = None
     amount: float | None = None
     win_probability: int | None = None
@@ -71,6 +89,8 @@ class OpportunityResponse(BaseModel):
 class QuotationItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int = 1
     unit: str | None = None
     unit_price: float | None = None
@@ -89,6 +109,8 @@ class QuotationItemCreate(BaseModel):
 class QuotationItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int | None = None
     unit: str | None = None
     unit_price: float | None = None
@@ -109,6 +131,8 @@ class QuotationItemResponse(BaseModel):
     quotation_id: int
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = None
+    customer_product_name: str | None = None
     quantity: int
     unit: str | None = None
     unit_price: float | None = None
@@ -131,7 +155,7 @@ class QuotationCreate(BaseModel):
     opportunity_id: int | None = None
     title: str | None = None
     total_amount: float = 0
-    status: str = "draft"
+    status: Literal["draft"] = "draft"
     currency: str = "CNY"
     incoterms: str | None = None
     payment_terms: str | None = None
@@ -149,7 +173,7 @@ class QuotationUpdate(BaseModel):
     opportunity_id: int | None = None
     title: str | None = None
     total_amount: float | None = None
-    status: str | None = None
+    status: QuotationStatus | None = None
     currency: str | None = None
     incoterms: str | None = None
     payment_terms: str | None = None
@@ -162,7 +186,7 @@ class QuotationUpdate(BaseModel):
 
 
 class QuotationStatusUpdate(BaseModel):
-    status: str
+    status: QuotationStatus
 
 
 class QuotationFromInquiryRequest(BaseModel):
@@ -207,6 +231,8 @@ class QuotationResponse(BaseModel):
 class SalesOrderItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int = 1
     unit: str | None = None
     unit_price: float | None = None
@@ -219,6 +245,8 @@ class SalesOrderItemCreate(BaseModel):
 class SalesOrderItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int | None = None
     unit: str | None = None
     unit_price: float | None = None
@@ -233,6 +261,8 @@ class SalesOrderItemResponse(BaseModel):
     order_id: int
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = None
+    customer_product_name: str | None = None
     quantity: int
     unit: str | None = None
     unit_price: float | None = None
@@ -248,7 +278,7 @@ class SalesOrderCreate(BaseModel):
     customer_id: int
     quotation_id: int | None = None
     total_amount: float = 0
-    status: str = "pending"
+    status: Literal["pending"] = "pending"
     currency: str = "CNY"
     incoterms: str | None = None
     payment_terms: str | None = None
@@ -270,7 +300,7 @@ class SalesOrderUpdate(BaseModel):
     customer_id: int | None = None
     quotation_id: int | None = None
     total_amount: float | None = None
-    status: str | None = None
+    status: SalesOrderStatus | None = None
     currency: str | None = None
     incoterms: str | None = None
     payment_terms: str | None = None
@@ -324,6 +354,8 @@ class SalesOrderResponse(BaseModel):
 class DeliveryNoteItemCreate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int = 1
     unit: str | None = None
     notes: str | None = None
@@ -332,6 +364,8 @@ class DeliveryNoteItemCreate(BaseModel):
 class DeliveryNoteItemUpdate(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = Field(None, max_length=150)
+    customer_product_name: str | None = Field(None, max_length=255)
     quantity: int | None = None
     unit: str | None = None
     notes: str | None = None
@@ -342,6 +376,8 @@ class DeliveryNoteItemResponse(BaseModel):
     delivery_note_id: int
     product_id: int | None = None
     product_name: str | None = None
+    customer_part_no: str | None = None
+    customer_product_name: str | None = None
     quantity: int
     unit: str | None = None
     notes: str | None = None
@@ -352,7 +388,7 @@ class DeliveryNoteCreate(BaseModel):
     delivery_no: str | None = None
     sales_order_id: int
     customer_id: int
-    status: str = "pending"
+    status: Literal["pending"] = "pending"
     shipping_method: str | None = None
     tracking_number: str | None = None
     incoterms: str | None = None
@@ -366,7 +402,7 @@ class DeliveryNoteUpdate(BaseModel):
     delivery_no: str | None = None
     sales_order_id: int | None = None
     customer_id: int | None = None
-    status: str | None = None
+    status: DeliveryStatus | None = None
     shipping_method: str | None = None
     tracking_number: str | None = None
     incoterms: str | None = None

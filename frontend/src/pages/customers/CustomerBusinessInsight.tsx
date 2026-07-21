@@ -13,6 +13,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { fontSize } from "../../design-tokens";
 import {
   Card,
   Col,
@@ -192,7 +193,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
               strokeColor={hColor}
               format={() => (
                 <span>
-                  <div style={{ fontSize: 28, fontWeight: "bold", color: hColor }}>{score}</div>
+                  <div style={{ fontSize: fontSize.metric, fontWeight: "bold", color: hColor }}>{score}</div>
                   <div style={{ fontSize: 12, marginTop: -4 }}>{stats.health_label || "综合评分"}</div>
                 </span>
               )}
@@ -287,7 +288,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
                     background: bucket === "90+" ? "#fff1f0" : bucket === "61-90" ? "#fff7e6" : "#f6ffed",
                     borderRadius: 4, padding: "4px 0",
                   }}>
-                    <div style={{ fontSize: 11, color: "#8c8c8c" }}>{bucket}天</div>
+                    <div style={{ fontSize: 12, color: "#8c8c8c" }}>{bucket}天</div>
                     <div style={{ fontWeight: "bold", fontSize: 12 }}>
                       ¥{((amount as number) / 10000).toFixed(1)}万
                     </div>
@@ -326,7 +327,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
                 {/* 月份标签 */}
                 <div style={{ display: "flex", gap: 2 }}>
                   {derived.monthlyTrend.map((m) => (
-                    <div key={m.month} style={{ flex: 1, textAlign: "center", fontSize: 10, color: "#8c8c8c" }}>
+                    <div key={m.month} style={{ flex: 1, textAlign: "center", fontSize: 12, color: "#8c8c8c" }}>
                       {m.month.slice(5)}
                     </div>
                   ))}
@@ -380,7 +381,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
                         {name}
                       </Text>
                       <br />
-                      <Text type="secondary" style={{ fontSize: 11 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
                         {v.count}笔 · ¥{v.total.toLocaleString("zh-CN")}
                       </Text>
                     </Card>
@@ -404,7 +405,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
               <Progress percent={Math.min(100, ((derived?.avgOrder || 0) / 500000) * 100)}
                 size="small" showInfo={false}
                 strokeColor={stats.order_count >= 3 ? "#52c41a" : "#1890ff"} />
-              <Text type="secondary" style={{ fontSize: 11 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 行业中位 ¥50万
               </Text>
             </div>
@@ -418,7 +419,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
               <Progress percent={Math.min(100, ((derived?.dso || 0) / 90) * 100)}
                 size="small" showInfo={false}
                 strokeColor={(derived?.dso || 0) <= 45 ? "#52c41a" : "#faad14"} />
-              <Text type="secondary" style={{ fontSize: 11 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 行业平均 45 天
               </Text>
             </div>
@@ -432,7 +433,7 @@ export const CustomerBusinessInsight: React.FC<BusinessInsightProps> = ({
               <Progress percent={Math.min(100, (stats.order_count / 12) * 100)}
                 size="small" showInfo={false}
                 strokeColor={stats.order_count >= 5 ? "#52c41a" : "#1890ff"} />
-              <Text type="secondary" style={{ fontSize: 11 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 行业活跃 12 笔/年
               </Text>
             </div>

@@ -4,15 +4,15 @@
 Run from repo root:  python3 scripts/screenshot-commission.py
 """
 
-import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 OUT_DIR = Path("/home/ttdiy/aierp/docs/screenshots")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 FRONTEND = "http://localhost:3002"
-USERNAME = os.getenv("AIERP_LOGIN_USERNAME", "admin")
-PASSWORD = os.getenv("AIERP_LOGIN_PASSWORD", "admin123")
+from lib.erp_auth import get_erp_creds
+
+USERNAME, PASSWORD = get_erp_creds()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)

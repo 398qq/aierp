@@ -15,6 +15,7 @@ from app.models.customer import Customer
 from app.models.finance import Commission, Contract, Invoice, PaymentRecord, SalesTarget
 from app.models.sales import SalesOrder
 from app.services.docno import generate_doc_no
+from app.services.state_transition_service import transition_status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,12 +125,24 @@ async def create_invoice(db: AsyncSession, data: dict) -> Invoice:
     return inv
 
 
-async def update_invoice(db: AsyncSession, inv: Invoice, data: dict) -> Invoice:
+async def update_invoice(
+    db: AsyncSession,
+    inv: Invoice,
+    data: dict,
+    actor: str | int | None = None,
+) -> Invoice:
     _parse_dates(data)
     if "amount" in data and "tax_amount" not in data:
         data["tax_amount"] = _calculate_invoice_tax(data["amount"])
     if "status" in data and data["status"] != inv.status:
-        assert_can_transition_invoice(inv.status, data["status"])
+        await transition_status(
+            db,
+            inv,
+            data["status"],
+            guard=assert_can_transition_invoice,
+            aggregate_type="Invoice",
+            actor=actor,
+        )
     await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
@@ -211,11 +224,21 @@ async def create_payment(db: AsyncSession, data: dict) -> PaymentRecord:
 
 
 async def update_payment(
-    db: AsyncSession, pay: PaymentRecord, data: dict
+    db: AsyncSession,
+    pay: PaymentRecord,
+    data: dict,
+    actor: str | int | None = None,
 ) -> PaymentRecord:
     _parse_dates(data)
     if "status" in data and data["status"] != pay.status:
-        assert_can_transition_payment(pay.status, data["status"])
+        await transition_status(
+            db,
+            pay,
+            data["status"],
+            guard=assert_can_transition_payment,
+            aggregate_type="PaymentRecord",
+            actor=actor,
+        )
     await _apply_sales_order_customer(db, data)
     for k, v in data.items():
         if v is not None:
@@ -249,7 +272,14 @@ async def _reconcile_invoice_if_fully_paid(db: AsyncSession, invoice_id: int) ->
         )
     )
     if total_paid and total_paid >= inv.amount:
-        inv.status = "paid"
+        await transition_status(
+            db,
+            inv,
+            "paid",
+            guard=assert_can_transition_invoice,
+            aggregate_type="Invoice",
+            action="payment_reconcile",
+        )
         await db.commit()
         # Stage 7: auto-create draft commission (no-op if already exists)
         await on_invoice_paid(db, invoice_id)
@@ -421,7 +451,12 @@ async def create_contract(db: AsyncSession, data: dict) -> Contract:
     return contract
 
 
-async def update_contract(db: AsyncSession, contract: Contract, data: dict) -> Contract:
+async def update_contract(
+    db: AsyncSession,
+    contract: Contract,
+    data: dict,
+    actor: str | int | None = None,
+) -> Contract:
     _normalize_contract_data(data)
     _parse_dates(data)
     if contract.status != "draft":
@@ -432,7 +467,14 @@ async def update_contract(db: AsyncSession, contract: Contract, data: dict) -> C
                 fields=sorted(locked_fields),
             )
     if "status" in data and data["status"] != contract.status:
-        assert_can_transition_contract(contract.status, data["status"])
+        await transition_status(
+            db,
+            contract,
+            data["status"],
+            guard=assert_can_transition_contract,
+            aggregate_type="Contract",
+            actor=actor,
+        )
     _validate_contract_invariants(data, existing=contract)
     await _apply_sales_order_customer(db, data)
     if "customer_id" in data:

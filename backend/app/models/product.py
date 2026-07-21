@@ -8,10 +8,12 @@ from sqlalchemy import (
     DECIMAL,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -434,6 +436,52 @@ class SupplierProduct(TimestampMixin, Base):
     updated_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
+
+
+class CustomerProductCode(TimestampMixin, Base):
+    """Customer-specific identity for one internal product.
+
+    Inventory and procurement continue to use ``Product.sku`` / ``Product.mpn``;
+    customer-facing documents snapshot these fields at document creation time.
+    """
+
+    __tablename__ = "customer_product_codes"
+    __table_args__ = (
+        Index(
+            "uq_customer_product_code_product",
+            "customer_id",
+            "product_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "uq_customer_product_code_part_no",
+            "customer_id",
+            "customer_part_no",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+    )
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    customer_part_no: Mapped[str] = mapped_column(String(150), nullable=False)
+    customer_product_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+
+    customer = relationship("Customer", foreign_keys=[customer_id])
+    product = relationship("Product", foreign_keys=[product_id])
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -212,7 +212,7 @@ export function useCustomerTableColumns({
             <Space size={4}>
               <StatusTag tone={tone as any}>{label}</StatusTag>
               <FollowUpMethodTag method={next.method} />
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {formatDateTime(next.planned_at)}
               </Typography.Text>
             </Space>

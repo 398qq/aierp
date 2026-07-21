@@ -17,6 +17,7 @@ from app.models.product import Product
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.schemas.common import fail, ok
 from app.services.customer_service import find_name_conflict
+from app.services.sales_service._helpers import _apply_customer_product_codes
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -205,15 +206,17 @@ async def import_orders(
             await db.flush()
 
             if product:
-                db.add(
-                    SalesOrderItem(
-                        order_id=order.id,
-                        product_id=product.id,
-                        quantity=qty,
-                        unit_price=price,
-                        total_price=qty * price,
-                    )
+                item_data = {
+                    "product_id": product.id,
+                    "product_name": product.name,
+                    "quantity": qty,
+                    "unit_price": price,
+                    "total_price": qty * price,
+                }
+                await _apply_customer_product_codes(
+                    db, customer.id, [item_data]
                 )
+                db.add(SalesOrderItem(order_id=order.id, **item_data))
 
             created_orders += 1
         except Exception as e:

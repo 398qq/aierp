@@ -6,14 +6,21 @@ set -euo pipefail
 BASE="http://localhost:8080/api/v1"
 ALERTS_FILE="/tmp/watchtower_alerts.json"
 CUSTOMERS_FILE="/tmp/watchtower_customers.json"
-trap 'rm -f "$ALERTS_FILE" "$CUSTOMERS_FILE"' EXIT
+LOGIN_FILE="/tmp/watchtower_login.json"
+AIERP_LOGIN_USERNAME="${AIERP_LOGIN_USERNAME:-admin}"
+: "${AIERP_LOGIN_PASSWORD:?Set AIERP_LOGIN_PASSWORD before running this script}"
+LOGIN_PAYLOAD=$(jq -cn \
+  --arg username "$AIERP_LOGIN_USERNAME" \
+  --arg password "$AIERP_LOGIN_PASSWORD" \
+  '{username: $username, password: $password}')
+trap 'rm -f "$ALERTS_FILE" "$CUSTOMERS_FILE" "$LOGIN_FILE"' EXIT
 
 # ── Login ──
 LOGIN_RESP=$(curl -sS -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}')
-printf '%s' "$LOGIN_RESP" > /tmp/watchtower_login.json
-TOKEN=$(python3 -c "import json; d=json.load(open('/tmp/watchtower_login.json')); print(d['data']['token'])")
+  -d "$LOGIN_PAYLOAD")
+printf '%s' "$LOGIN_RESP" > "$LOGIN_FILE"
+TOKEN=$(python3 -c "import json; d=json.load(open('$LOGIN_FILE')); print(d['data']['token'])")
 
 # ── Trigger scan ──
 echo "Triggering watchtower scan..."

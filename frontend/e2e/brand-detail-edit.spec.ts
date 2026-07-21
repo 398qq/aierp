@@ -1,8 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+const USERNAME = process.env.AIERP_LOGIN_USERNAME ?? "admin";
+const PASSWORD = process.env.AIERP_LOGIN_PASSWORD;
+if (!PASSWORD) throw new Error("AIERP_LOGIN_PASSWORD is required");
+
 test("brand detail opens a standalone editor and saves changes", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
 
@@ -27,7 +31,7 @@ test("brand detail opens a standalone editor and saves changes", async ({ page }
 
 test("brand detail provides manual product association", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
   const brands = await page.request.get("/api/v1/brands?page=1&page_size=1");
@@ -41,11 +45,13 @@ test("brand detail provides manual product association", async ({ page }) => {
 
 test("associated products expose view edit and unlink actions", async ({ page }) => {
   const login = await page.request.post("/api/v1/auth/login", {
-    data: { username: "admin", password: "admin123" },
+    data: { username: USERNAME, password: PASSWORD },
   });
   expect(login.ok(), await login.text()).toBeTruthy();
   const products = await page.request.get("/api/v1/products?page=1&page_size=100");
-  const product = (await products.json()).data.list.find((item: { brand_id?: number }) => item.brand_id);
+  const product = (await products.json()).data.list.find(
+    (item: { brand_id?: number }) => item.brand_id,
+  );
   test.skip(!product, "当前没有已关联品牌的产品");
 
   await page.goto(`/brands/${product.brand_id}`, { waitUntil: "domcontentloaded" });

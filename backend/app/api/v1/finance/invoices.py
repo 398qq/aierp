@@ -170,7 +170,12 @@ async def update_invoice(
     inv = await svc.get_invoice(db, inv_id)
     if not inv:
         return fail("发票不存在", 404)
-    inv = await svc.update_invoice(db, inv, body.model_dump(exclude_none=True))
+    inv = await svc.update_invoice(
+        db,
+        inv,
+        body.model_dump(exclude_none=True),
+        actor=_user["user_id"],
+    )
     await _bump_invoice_caches()
     await attach_customer_and_quotation(db, inv, type(inv))
     await attach_sales_order(db, inv, "sales_order_id")

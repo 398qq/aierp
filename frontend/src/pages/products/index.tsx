@@ -24,7 +24,7 @@ import {
   Tooltip,
   message,
 } from "antd";
-import { StatusTag } from "../../ui";
+import { StatusTag, UomSelect } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import {
   DeleteOutlined,
@@ -1389,7 +1389,7 @@ export default function ProductList() {
             </Col>
             <Col span={8}>
               <Form.Item name="unit" label="单位">
-                <Input />
+                <UomSelect uomType="count" />
               </Form.Item>
             </Col>
           </Row>
@@ -1494,7 +1494,7 @@ export default function ProductList() {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="unit" label="单位">
-                    <Input placeholder="保持不变" />
+                    <UomSelect uomType="count" placeholder="保持不变" />
                   </Form.Item>
                 </Col>
               </Row>

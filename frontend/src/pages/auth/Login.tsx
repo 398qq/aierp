@@ -91,10 +91,10 @@ export default function Login() {
         }
 
         .login-logo-sub {
-          font-size: 10px;
+          font-size: var(--type-caption-size, 12px);
           font-weight: 400;
-          color: rgba(255,255,255,0.32);
-          letter-spacing: 0.14em;
+          color: rgba(255,255,255,0.62);
+          letter-spacing: 0.08em;
           text-transform: uppercase;
           margin-top: 2px;
         }
@@ -124,16 +124,16 @@ export default function Login() {
 
         .login-brand-sub {
           font-size: 13px;
-          font-weight: 300;
+          font-weight: 400;
           line-height: 1.85;
           color: rgba(255,255,255,0.68);
           max-width: 268px;
         }
 
         .login-brand-footer {
-          font-size: 10px;
-          color: rgba(255,255,255,0.16);
-          letter-spacing: 0.04em;
+          font-size: var(--type-caption-size, 12px);
+          color: rgba(255,255,255,0.48);
+          letter-spacing: 0.02em;
         }
 
         /* ── Form panel ── */
@@ -152,11 +152,11 @@ export default function Login() {
         }
 
         .login-form-heading {
-          font-size: 10px;
+          font-size: var(--type-support-size, 13px);
           font-weight: 500;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: #6B6B6B;
+          line-height: var(--type-support-line, 20px);
+          letter-spacing: 0.06em;
+          color: #475569;
           margin-bottom: 36px;
         }
 
@@ -202,7 +202,7 @@ export default function Login() {
         }
 
         .login-form .ant-form-item-label > label {
-          font-size: 11px;
+          font-size: var(--font-size-caption, 12px);
           font-weight: 400;
           color: #6B6B6B;
           letter-spacing: 0.02em;
@@ -217,7 +217,7 @@ export default function Login() {
           box-shadow: none !important;
           background: transparent !important;
           font-size: 15px !important;
-          font-weight: 300 !important;
+          font-weight: 400 !important;
           color: #0F0F0F !important;
           font-family: inherit !important;
         }
@@ -231,13 +231,13 @@ export default function Login() {
 
         .login-form .ant-input {
           font-size: 15px;
-          font-weight: 300;
+          font-weight: 400;
           color: #172033;
           background: transparent;
         }
 
         .login-form .ant-input::placeholder {
-          color: rgba(107,107,107,0.38);
+          color: #98A2B3;
         }
 
         .login-form .ant-input-prefix {
@@ -256,10 +256,9 @@ export default function Login() {
           border: none;
           border-radius: 2px;
           font-family: inherit;
-          font-size: 12px;
-          font-weight: 400;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
+          font-size: var(--type-body-size, 14px);
+          font-weight: 500;
+          letter-spacing: 0.02em;
           color: #FFFFFF;
           cursor: pointer;
           margin-top: 8px;
@@ -302,10 +301,10 @@ export default function Login() {
 
         .login-form-footer {
           margin-top: 56px;
-          font-size: 10px;
-          color: rgba(107,107,107,0.38);
+          font-size: var(--type-caption-size, 12px);
+          color: #98A2B3;
           text-align: center;
-          letter-spacing: 0.04em;
+          letter-spacing: 0.02em;
         }
       `}</style>
 

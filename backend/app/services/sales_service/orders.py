@@ -10,11 +10,13 @@ from app.models.sales import SalesOrder, SalesOrderItem
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
 from app.services.sales_service._helpers import (
+    _apply_customer_product_codes,
     _customer_search_ids,
     _normalize_sales_order_items,
     _sales_item_ids,
 )
 from app.services.sales_service.delivery_notes import _auto_lock_sales_order
+from app.services.state_transition_service import transition_status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -121,6 +123,7 @@ class SalesOrderService(BaseCRUDService):
         if not data.get("order_date"):
             data["order_date"] = datetime.now(timezone.utc)
         normalized_items, total = _normalize_sales_order_items(items_data)
+        await _apply_customer_product_codes(db, data.get("customer_id"), normalized_items)
         product_ids = {
             item.get("product_id")
             for item in normalized_items
@@ -157,18 +160,32 @@ class SalesOrderService(BaseCRUDService):
         return order
 
     async def update_order_with_items(
-        self, db: AsyncSession, order: SalesOrder, data: dict
+        self,
+        db: AsyncSession,
+        order: SalesOrder,
+        data: dict,
+        actor: str | int | None = None,
     ) -> SalesOrder:
         old_status = order.status
         new_status = data.get("status")
         if new_status and new_status != old_status:
-            assert_can_transition_sales_order(old_status, new_status)
+            await transition_status(
+                db,
+                order,
+                new_status,
+                guard=assert_can_transition_sales_order,
+                aggregate_type="SalesOrder",
+                actor=actor,
+            )
         items_data = data.pop("items", None)
         for k, v in data.items():
             if v is not None and k != "items":
                 setattr(order, k, v)
         if items_data is not None:
             normalized_items, total = _normalize_sales_order_items(items_data)
+            await _apply_customer_product_codes(
+                db, data.get("customer_id", order.customer_id), normalized_items
+            )
             product_ids = {
                 item.get("product_id")
                 for item in normalized_items
@@ -251,9 +268,12 @@ async def create_sales_order(
 
 
 async def update_sales_order(
-    db: AsyncSession, order: SalesOrder, data: dict
+    db: AsyncSession,
+    order: SalesOrder,
+    data: dict,
+    actor: str | int | None = None,
 ) -> SalesOrder:
-    return await sales_order_service.update_order_with_items(db, order, data)
+    return await sales_order_service.update_order_with_items(db, order, data, actor)
 
 
 async def delete_sales_order(db: AsyncSession, order: SalesOrder) -> None:

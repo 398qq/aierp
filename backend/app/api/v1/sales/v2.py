@@ -31,9 +31,16 @@ from app.application.sales import (
 )
 from app.application.uow import UnitOfWork
 from app.domain.sales.quotation import Quotation, QuotationLine
+from app.domain.states import (
+    assert_can_transition_quotation,
+    assert_can_transition_sales_order,
+)
 from app.models.sales import Quotation as QuotationModel
 from app.models.sales import QuotationItem
+from app.services.state_transition_service import transition_status
 from app.schemas.common import fail, ok
+from app.services.order_release_policy import validate_order_release
+from app.services.sales_service._helpers import _apply_customer_product_codes
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sales-v2", tags=["sales-v2"])
@@ -110,19 +117,26 @@ async def create_quotation(
     await uow.session.flush()
 
     total = Decimal("0")
-    for line in domain_lines:
+    item_snapshots = [
+        {
+            "product_id": line.product_id,
+            "product_name": line.product_name,
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "cost_price": line.cost_price,
+            "total_price": line.subtotal,
+        }
+        for line in domain_lines
+    ]
+    await _apply_customer_product_codes(uow.session, body.customer_id, item_snapshots)
+    for snapshot in item_snapshots:
         uow.session.add(
             QuotationItem(
                 quotation_id=quote_orm.id,
-                product_id=line.product_id,
-                product_name=line.product_name,
-                quantity=line.quantity,
-                unit_price=line.unit_price,
-                cost_price=line.cost_price,
-                total_price=line.subtotal,
+                **snapshot,
             )
         )
-        total += line.subtotal
+        total += Decimal(str(snapshot["total_price"]))
 
     quote_orm.total_amount = float(total)
     await uow.session.flush()
@@ -177,7 +191,15 @@ async def send_quotation(
     )
     domain.send()  # Raises InvalidStateTransition / BusinessRuleViolation
 
-    quote_orm.status = domain.status.value
+    await transition_status(
+        uow.session,
+        quote_orm,
+        domain.status.value,
+        guard=assert_can_transition_quotation,
+        aggregate_type="Quotation",
+        actor=user["user_id"],
+        action="send",
+    )
     for event in domain.collect_events():
         uow.track_event(event)
     return ok({"id": quote_orm.id, "status": domain.status.value})
@@ -291,6 +313,10 @@ async def convert_order_to_delivery_v2(
     if count > 0:
         return fail("订单已生成发货单", 409)
 
+    release_error = await validate_order_release(uow.session, order)
+    if release_error:
+        return fail(release_error, 409)
+
     delivery_no = await generate_doc_no(uow.session, "DN", DeliveryNote, "delivery_no")
     note = DeliveryNote(
         delivery_no=delivery_no,
@@ -307,12 +333,22 @@ async def convert_order_to_delivery_v2(
                 delivery_note_id=note.id,
                 product_id=soi.product_id,
                 product_name=soi.product_name,
+                customer_part_no=soi.customer_part_no,
+                customer_product_name=soi.customer_product_name,
                 quantity=soi.quantity,
             )
         )
 
     if order.status in ("pending", "draft"):
-        order.status = "confirmed"
+        await transition_status(
+            uow.session,
+            order,
+            "confirmed",
+            guard=assert_can_transition_sales_order,
+            aggregate_type="SalesOrder",
+            actor=user["user_id"],
+            action="create_delivery",
+        )
 
     await uow.session.flush()
     return ok({"id": note.id, "delivery_no": note.delivery_no})

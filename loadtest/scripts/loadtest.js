@@ -14,7 +14,11 @@ import { SharedArray } from 'k6/data';
 
 const BASE = __ENV.BASE_URL || 'http://localhost:8080';
 const USERNAME = __ENV.AIERP_LOGIN_USERNAME || 'admin';
-const PASSWORD = __ENV.AIERP_LOGIN_PASSWORD || 'admin123';
+const PASSWORD = __ENV.AIERP_LOGIN_PASSWORD;
+
+if (!PASSWORD) {
+  throw new Error('AIERP_LOGIN_PASSWORD is required');
+}
 
 // 自定义 metrics
 const loginDuration = new Trend('login_duration', true);

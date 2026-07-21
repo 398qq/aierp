@@ -402,8 +402,8 @@ export default function SalesOrderDetail() {
               pagination={false}
               columns={[
                 { title: "#", width: 40, render: (_: unknown, __: SalesOrderItem, index: number) => index + 1 },
-                { title: "产品编码", width: 120, render: (_: unknown, row: SalesOrderItem) => itemProgress.get(row.id)?.product_code || (row.product_id ? `#${row.product_id}` : "-") },
-                { title: "产品名称 / 规格", dataIndex: "product_name", ellipsis: true },
+                { title: "客户料号 / 产品编码", width: 170, render: (_: unknown, row: SalesOrderItem) => row.customer_part_no || itemProgress.get(row.id)?.product_code || (row.product_id ? `#${row.product_id}` : "-") },
+                { title: "产品名称 / 规格", ellipsis: true, render: (_: unknown, row: SalesOrderItem) => row.customer_product_name || row.product_name || "-" },
                 { title: "单位", dataIndex: "unit", width: 65, render: (v: string | null) => v || "-" },
                 { title: "订单数量", dataIndex: "quantity", width: 85, align: "right" as const },
                 { title: "已发", width: 70, align: "right" as const, render: (_: unknown, row: SalesOrderItem) => itemProgress.get(row.id)?.delivered_quantity ?? 0 },

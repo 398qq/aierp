@@ -1,6 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Divider,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Segmented,
+  Select,
+  Space,
+  Spin,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
+} from "antd";
 import { StatusTag } from "../../ui";
 import {
   ArrowLeftOutlined,
@@ -15,16 +37,35 @@ import {
   SendOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
-import { convertQuotationToOrder, downloadQuotationPDF, duplicateQuotation, getCustomer, getQuotation, sendQuotation, updateQuotationStatus, getApiErrorMessage } from "../../api";
+import {
+  convertQuotationToOrder,
+  downloadQuotationPDF,
+  duplicateQuotation,
+  getCustomer,
+  getQuotation,
+  sendQuotation,
+  updateQuotationStatus,
+  getApiErrorMessage,
+} from "../../api";
 import type { QuotationPDFOptions } from "../../api";
 import client from "../../api/client";
 import SalesAIInsight from "../../components/sales/SalesAIInsight";
 import type { Quotation, QuotationItem } from "../../types";
-import { CustomerLink, ErpStatusTimeline, MetricBand, OpportunityLink, SalesModuleShell, SalesStatusTag, money, shortDate } from "./salesUi";
+import {
+  CustomerLink,
+  ErpStatusTimeline,
+  MetricBand,
+  OpportunityLink,
+  SalesModuleShell,
+  SalesStatusTag,
+  money,
+  shortDate,
+} from "./salesUi";
 import { SalesQuotationPrint } from "./SalesQuotationPrint";
 
 const getDueMeta = (validUntil?: string | null, status?: string) => {
-  if (!validUntil || status === "won" || status === "lost") return { text: "-", color: "default", risk: false };
+  if (!validUntil || status === "won" || status === "lost")
+    return { text: "-", color: "default", risk: false };
   const due = new Date(validUntil).getTime();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -102,7 +143,9 @@ export default function QuotationDetail() {
       profitMargin: amount > 0 ? (profit / amount) * 100 : 0,
       untaxedAmount,
       taxAmount: Math.max(amount - untaxedAmount, 0),
-      missingCostLines: items.filter((item) => item.cost_price == null || Number(item.cost_price) <= 0).length,
+      missingCostLines: items.filter(
+        (item) => item.cost_price == null || Number(item.cost_price) <= 0,
+      ).length,
       missingTaxLines: items.filter((item) => item.tax_rate == null).length,
     };
   }, [quote]);
@@ -112,7 +155,11 @@ export default function QuotationDetail() {
     setPdfDownloading(true);
     try {
       const values = await pdfForm.validateFields();
-      await downloadQuotationPDF(quote.id, `QUOTATION_${quote.quotation_no || quote.id}.pdf`, values);
+      await downloadQuotationPDF(
+        quote.id,
+        `QUOTATION_${quote.quotation_no || quote.id}.pdf`,
+        values,
+      );
       setPdfOpen(false);
     } catch (err: any) {
       if (err?.errorFields) return;
@@ -153,7 +200,9 @@ export default function QuotationDetail() {
       await action();
       message.success(success);
       await load();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "操作失败"));
+    } finally {
       setActionLoading(false);
     }
   };
@@ -163,17 +212,28 @@ export default function QuotationDetail() {
       title={quote.quotation_no || `报价单 #${quote.id}`}
       subtitle={quote.title || "报价详情、产品明细、审批与转订单动作"}
       activeKey="quotations"
-      extra={(
+      extra={
         <>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/quotations")}>返回</Button>
-          {quote.status === "draft" ? <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/quotations/${quote.id}/edit`)}>编辑</Button> : null}
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/quotations")}>
+            返回
+          </Button>
+          {quote.status === "draft" ? (
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/sales/quotations/${quote.id}/edit`)}
+            >
+              编辑
+            </Button>
+          ) : null}
           <Button
             icon={<CopyOutlined />}
             loading={actionLoading}
-            onClick={() => runAction(async () => {
-              const resp = await duplicateQuotation(quote.id);
-              navigate(`/sales/quotations/${resp.data.data.id}/edit`);
-            }, "已复制为新报价")}
+            onClick={() =>
+              runAction(async () => {
+                const resp = await duplicateQuotation(quote.id);
+                navigate(`/sales/quotations/${resp.data.data.id}/edit`);
+              }, "已复制为新报价")
+            }
           >
             复制
           </Button>
@@ -185,27 +245,38 @@ export default function QuotationDetail() {
               setViewMode(next);
               if (next === "customer") setShowCostColumns(false);
             }}
-            options={[{ label: "内部经营", value: "internal" }, { label: "客户视图", value: "customer" }]}
+            options={[
+              { label: "内部经营", value: "internal" },
+              { label: "客户视图", value: "customer" },
+            ]}
           />
         </>
-      )}
+      }
     >
       <SalesQuotationPrint quote={quote} customerName={customerName} />
       <MetricBand
         items={[
           { title: "价税合计", value: quote.total_amount || 0, prefix: "¥", precision: 2 },
-          ...(!isCustomerView ? [{
-            title: "销售利润",
-            value: itemSummary.profit,
-            prefix: "¥",
-            precision: 2,
-          }] : []),
-          ...(!isCustomerView ? [{
-            title: "毛利率",
-            value: itemSummary.profitMargin,
-            suffix: "%",
-            precision: 1,
-          }] : []),
+          ...(!isCustomerView
+            ? [
+                {
+                  title: "销售利润",
+                  value: itemSummary.profit,
+                  prefix: "¥",
+                  precision: 2,
+                },
+              ]
+            : []),
+          ...(!isCustomerView
+            ? [
+                {
+                  title: "毛利率",
+                  value: itemSummary.profitMargin,
+                  suffix: "%",
+                  precision: 1,
+                },
+              ]
+            : []),
           { title: "状态", value: quote.status },
           { title: "有效期", value: due.text },
         ]}
@@ -226,7 +297,9 @@ export default function QuotationDetail() {
             <Button
               icon={<SendOutlined />}
               loading={actionLoading}
-              onClick={() => runAction(() => sendQuotation(quote.id).then(() => undefined), "已标记为已发送")}
+              onClick={() =>
+                runAction(() => sendQuotation(quote.id).then(() => undefined), "已标记为已发送")
+              }
             >
               发送报价
             </Button>
@@ -235,49 +308,83 @@ export default function QuotationDetail() {
             <Button
               type="primary"
               loading={actionLoading}
-              onClick={() => runAction(() => updateQuotationStatus(quote.id, "accepted").then(() => undefined), "已记录客户接受报价")}
+              onClick={() =>
+                runAction(
+                  () => updateQuotationStatus(quote.id, "accepted").then(() => undefined),
+                  "已记录客户接受报价",
+                )
+              }
             >
               客户已接受
             </Button>
           )}
           {quote.status === "accepted" && (
-            <Popconfirm title="确认转为销售订单?" onConfirm={() => runAction(async () => {
-              await convertQuotationToOrder(quote.id);
-              navigate("/sales/orders");
-            }, "已转为订单")}>
-              <Button type="primary" icon={<ShoppingCartOutlined />} loading={actionLoading}>转为订单</Button>
+            <Popconfirm
+              title="确认转为销售订单?"
+              onConfirm={() =>
+                runAction(async () => {
+                  await convertQuotationToOrder(quote.id);
+                  navigate("/sales/orders");
+                }, "已转为订单")
+              }
+            >
+              <Button type="primary" icon={<ShoppingCartOutlined />} loading={actionLoading}>
+                转为订单
+              </Button>
             </Popconfirm>
           )}
           {quote.status === "sent" && (
             <Button
               danger
               loading={actionLoading}
-              onClick={() => runAction(() => updateQuotationStatus(quote.id, "lost").then(() => undefined), "已标记为丢失")}
+              onClick={() =>
+                runAction(
+                  () => updateQuotationStatus(quote.id, "lost").then(() => undefined),
+                  "已标记为丢失",
+                )
+              }
             >
               标记丢失
             </Button>
           )}
-          <Button icon={<DownloadOutlined />} onClick={() => {
-            if (customerName && !pdfForm.getFieldValue("company_name")) {
-              pdfForm.setFieldValue("company_name", customerName);
-            }
-            setPdfOpen(true);
-          }}>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              if (customerName && !pdfForm.getFieldValue("company_name")) {
+                pdfForm.setFieldValue("company_name", customerName);
+              }
+              setPdfOpen(true);
+            }}
+          >
             智能PDF
           </Button>
-          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印报价单</Button>
-          {!isCustomerView && quote.status === "draft" ? <Button icon={<FileProtectOutlined />} onClick={async () => {
-            try {
-              await client.post("/approvals/submit", { doc_type: "quotation", doc_id: quote.id });
-              message.success("已提交审批");
-            } catch (e: unknown) { message.error(getApiErrorMessage(e, "提交审批失败")); }
-          }}>
-            提交审批
-          </Button> : null}
-          {!isCustomerView && <Space>
-            <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
-            <span style={{ fontSize: 13 }}>AI</span>
-          </Space>}
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+            打印报价单
+          </Button>
+          {!isCustomerView && quote.status === "draft" ? (
+            <Button
+              icon={<FileProtectOutlined />}
+              onClick={async () => {
+                try {
+                  await client.post("/approvals/submit", {
+                    doc_type: "quotation",
+                    doc_id: quote.id,
+                  });
+                  message.success("已提交审批");
+                } catch (e: unknown) {
+                  message.error(getApiErrorMessage(e, "提交审批失败"));
+                }
+              }}
+            >
+              提交审批
+            </Button>
+          ) : null}
+          {!isCustomerView && (
+            <Space>
+              <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
+              <span style={{ fontSize: 13 }}>AI</span>
+            </Space>
+          )}
         </Space>
       </Card>
 
@@ -296,11 +403,29 @@ export default function QuotationDetail() {
           onValuesChange={(changed) => {
             if (!("template" in changed)) return;
             if (changed.template === "smart") {
-              pdfForm.setFieldsValue({ show_smart_summary: true, show_line_hints: true, show_terms: true, show_notes: true, show_signature: true });
+              pdfForm.setFieldsValue({
+                show_smart_summary: true,
+                show_line_hints: true,
+                show_terms: true,
+                show_notes: true,
+                show_signature: true,
+              });
             } else if (changed.template === "standard") {
-              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: true, show_signature: true });
+              pdfForm.setFieldsValue({
+                show_smart_summary: false,
+                show_line_hints: false,
+                show_terms: true,
+                show_notes: true,
+                show_signature: true,
+              });
             } else if (changed.template === "compact") {
-              pdfForm.setFieldsValue({ show_smart_summary: false, show_line_hints: false, show_terms: true, show_notes: false, show_signature: false });
+              pdfForm.setFieldsValue({
+                show_smart_summary: false,
+                show_line_hints: false,
+                show_terms: true,
+                show_notes: false,
+                show_signature: false,
+              });
             }
           }}
           initialValues={{
@@ -321,13 +446,21 @@ export default function QuotationDetail() {
             ].join("\n"),
           }}
         >
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
             <Form.Item name="template" label="PDF 形式">
-              <Select options={[
-                { value: "smart", label: "智能版：含摘要和提示" },
-                { value: "standard", label: "标准版：报价和条款" },
-                { value: "compact", label: "紧凑版：适合打印" },
-              ]} />
+              <Select
+                options={[
+                  { value: "smart", label: "智能版：含摘要和提示" },
+                  { value: "standard", label: "标准版：报价和条款" },
+                  { value: "compact", label: "紧凑版：适合打印" },
+                ]}
+              />
             </Form.Item>
             <Form.Item name="company_name" label="抬头公司">
               <Input placeholder="默认取客户公司名称" />
@@ -336,7 +469,13 @@ export default function QuotationDetail() {
           <Form.Item name="document_title" label="文档标题">
             <Input />
           </Form.Item>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
             <Form.Item name="prepared_by" label="报价经办">
               <Input placeholder="销售 / 商务负责人" />
             </Form.Item>
@@ -344,7 +483,13 @@ export default function QuotationDetail() {
               <Input placeholder="对外联系号码" />
             </Form.Item>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: 8,
+            }}
+          >
             <Form.Item name="show_smart_summary" valuePropName="checked">
               <Checkbox>智能摘要</Checkbox>
             </Form.Item>
@@ -360,9 +505,11 @@ export default function QuotationDetail() {
             <Form.Item name="show_signature" valuePropName="checked">
               <Checkbox>签署确认栏</Checkbox>
             </Form.Item>
-            {!isCustomerView ? <Form.Item name="show_internal_metrics" valuePropName="checked">
-              <Checkbox>内部成本毛利</Checkbox>
-            </Form.Item> : null}
+            {!isCustomerView ? (
+              <Form.Item name="show_internal_metrics" valuePropName="checked">
+                <Checkbox>内部成本毛利</Checkbox>
+              </Form.Item>
+            ) : null}
           </div>
           <Alert
             showIcon
@@ -381,44 +528,62 @@ export default function QuotationDetail() {
           <Card
             title="报价信息"
             size="small"
-            extra={(
+            extra={
               <Space>
                 <SalesStatusTag value={quote.status} />
                 <StatusTag tone={due.color}>{due.text}</StatusTag>
               </Space>
-            )}
+            }
           >
             <Descriptions column={2} size="small">
-              <Descriptions.Item label="报价单号">{quote.quotation_no || `#${quote.id}`}</Descriptions.Item>
-              <Descriptions.Item label="客户"><CustomerLink id={quote.customer_id} /></Descriptions.Item>
+              <Descriptions.Item label="报价单号">
+                {quote.quotation_no || `#${quote.id}`}
+              </Descriptions.Item>
+              <Descriptions.Item label="客户">
+                <CustomerLink id={quote.customer_id} />
+              </Descriptions.Item>
               <Descriptions.Item label="标题">{quote.title || "-"}</Descriptions.Item>
               <Descriptions.Item label="有效期">{shortDate(quote.valid_until)}</Descriptions.Item>
               <Descriptions.Item label="价税合计">{money(quote.total_amount)}</Descriptions.Item>
-              <Descriptions.Item label="关联商机"><OpportunityLink id={quote.opportunity_id} /></Descriptions.Item>
+              <Descriptions.Item label="关联商机">
+                <OpportunityLink id={quote.opportunity_id} />
+              </Descriptions.Item>
               <Descriptions.Item label="币种">{quote.currency || "CNY"}</Descriptions.Item>
               <Descriptions.Item label="贸易条款">{quote.incoterms || "-"}</Descriptions.Item>
               <Descriptions.Item label="付款条件">{quote.payment_terms || "-"}</Descriptions.Item>
-              <Descriptions.Item label="整单折扣">{quote.discount_rate != null ? `${quote.discount_rate}%` : "-"}</Descriptions.Item>
-              <Descriptions.Item label="折扣金额">{quote.discount_amount != null ? money(quote.discount_amount) : "-"}</Descriptions.Item>
+              <Descriptions.Item label="整单折扣">
+                {quote.discount_rate != null ? `${quote.discount_rate}%` : "-"}
+              </Descriptions.Item>
+              <Descriptions.Item label="折扣金额">
+                {quote.discount_amount != null ? money(quote.discount_amount) : "-"}
+              </Descriptions.Item>
               <Descriptions.Item label="创建时间">{shortDate(quote.created_at)}</Descriptions.Item>
               <Descriptions.Item label="最后更新">{shortDate(quote.updated_at)}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={2}>{quote.notes || "-"}</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>
+                {quote.notes || "-"}
+              </Descriptions.Item>
             </Descriptions>
           </Card>
 
           <Card
             title="报价明细"
             size="small"
-            extra={!isCustomerView ? <Tooltip title={showCostColumns ? "隐藏成本列" : "显示成本列"}>
-                <Button
-                  size="small"
-                  type={showCostColumns ? "primary" : "default"}
-                  icon={showCostColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                  onClick={() => setShowCostColumns((prev) => !prev)}
-                >
-                  {showCostColumns ? "隐藏成本" : "查看成本"}
-                </Button>
-              </Tooltip> : <Typography.Text type="secondary">客户可见字段</Typography.Text>}
+            extra={
+              !isCustomerView ? (
+                <Tooltip title={showCostColumns ? "隐藏成本列" : "显示成本列"}>
+                  <Button
+                    size="small"
+                    type={showCostColumns ? "primary" : "default"}
+                    icon={showCostColumns ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                    onClick={() => setShowCostColumns((prev) => !prev)}
+                  >
+                    {showCostColumns ? "隐藏成本" : "查看成本"}
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Typography.Text type="secondary">客户可见字段</Typography.Text>
+              )
+            }
           >
             <Table
               rowKey={(record) => record.id || `${record.product_id}-${record.product_name}`}
@@ -427,72 +592,207 @@ export default function QuotationDetail() {
               pagination={false}
               columns={[
                 {
-                  title: "产品编码 / 产品",
+                  title: "序号",
+                  width: 56,
+                  fixed: "left",
+                  align: "center" as const,
+                  render: (_: unknown, __: QuotationItem, index: number) => index + 1,
+                },
+                {
+                  title: "产品 / 规格",
                   dataIndex: "product_name",
                   ellipsis: true,
-                  width: 220,
+                  width: 240,
+                  fixed: "left",
                   render: (value: string | null, record) => (
                     <Space direction="vertical" size={0}>
-                      <Typography.Text>{record.product_id ? `#${record.product_id} · ` : ""}{value || "-"}</Typography.Text>
+                      <Typography.Text>
+                        {record.customer_product_name || value || "-"}
+                      </Typography.Text>
                       {record.product_id && (
-                        <Typography.Link style={{ fontSize: 12 }} onClick={() => navigate(`/products/${record.product_id}`)}>
+                        <Typography.Link
+                          style={{ fontSize: 12 }}
+                          onClick={() => navigate(`/products/${record.product_id}`)}
+                        >
                           查看产品资料
                         </Typography.Link>
                       )}
                     </Space>
                   ),
                 },
+                {
+                  title: "客户料号",
+                  dataIndex: "customer_part_no",
+                  width: 170,
+                  render: (value: string | null) =>
+                    value ? <Typography.Text copyable>{value}</Typography.Text> : "-",
+                },
                 { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
-                { title: "单位", dataIndex: "unit", width: 70, render: (value: string | null) => value || "-" },
-                { title: "生产日期（DATECODE）", dataIndex: "datecode", width: 150, render: (value: string | null) => value || "-" },
-                { title: "交期", dataIndex: "lead_time", width: 120, render: (value: string | null) => value || "-" },
-                { title: "含税单价", dataIndex: "unit_price", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
-                { title: "折扣", dataIndex: "discount_rate", width: 75, align: "right" as const, render: (value: number | null) => value != null ? `${value}%` : "-" },
-                { title: "税率", dataIndex: "tax_rate", width: 75, align: "right" as const, render: (value: number | null) => value != null ? `${value}%` : <Typography.Text type="warning">未设置</Typography.Text> },
-                { title: "未税金额", width: 110, align: "right" as const, render: (_: unknown, record) => {
-                  const gross = Number(record.total_price || 0);
-                  const rate = Number(record.tax_rate || 0) / 100;
-                  return money(rate > 0 ? gross / (1 + rate) : gross);
-                } },
-                { title: "税额", width: 100, align: "right" as const, render: (_: unknown, record) => {
-                  const gross = Number(record.total_price || 0);
-                  const rate = Number(record.tax_rate || 0) / 100;
-                  return money(rate > 0 ? gross - gross / (1 + rate) : 0);
-                } },
-                { title: "价税合计", dataIndex: "total_price", width: 120, align: "right" as const, render: (value: number | null) => value != null ? <Typography.Text strong>{money(value)}</Typography.Text> : "-" },
-                ...(!isCustomerView && showCostColumns ? [
-                  { title: "含税成本单价", dataIndex: "cost_price", width: 130, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
-                  { title: "未税成本", dataIndex: "untaxed_cost", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
-                  { title: "含税成本", dataIndex: "taxed_cost", width: 110, align: "right" as const, render: (value: number | null) => value != null ? money(value) : "-" },
-                  {
-                    title: "销售利润",
-                    dataIndex: "sales_profit",
-                    width: 110,
-                    align: "right" as const,
-                    render: (value: number | null) => (
-                      value != null ? <Typography.Text type={value < 0 ? "danger" : undefined}>{money(value)}</Typography.Text> : "-"
+                {
+                  title: "单位",
+                  dataIndex: "unit",
+                  width: 70,
+                  render: (value: string | null) => value || "-",
+                },
+                {
+                  title: "批次 / D/C",
+                  dataIndex: "datecode",
+                  width: 140,
+                  render: (value: string | null) => value || "-",
+                },
+                {
+                  title: "交期",
+                  dataIndex: "lead_time",
+                  width: 120,
+                  render: (value: string | null) => value || "-",
+                },
+                {
+                  title: "含税单价",
+                  dataIndex: "unit_price",
+                  width: 110,
+                  align: "right" as const,
+                  render: (value: number | null) => (value != null ? money(value) : "-"),
+                },
+                {
+                  title: "折扣",
+                  dataIndex: "discount_rate",
+                  width: 75,
+                  align: "right" as const,
+                  render: (value: number | null) => (value != null ? `${value}%` : "-"),
+                },
+                {
+                  title: "税率",
+                  dataIndex: "tax_rate",
+                  width: 75,
+                  align: "right" as const,
+                  render: (value: number | null) =>
+                    value != null ? (
+                      `${value}%`
+                    ) : (
+                      <Typography.Text type="warning">未设置</Typography.Text>
                     ),
+                },
+                {
+                  title: "未税金额",
+                  width: 110,
+                  align: "right" as const,
+                  render: (_: unknown, record) => {
+                    const gross = Number(record.total_price || 0);
+                    const rate = Number(record.tax_rate || 0) / 100;
+                    return money(rate > 0 ? gross / (1 + rate) : gross);
                   },
-                  {
-                    title: "毛利率",
-                    width: 90,
-                    align: "right" as const,
-                    render: (_: unknown, record: QuotationItem) => {
-                      const amount = Number(record.total_price || 0);
-                      const margin = amount > 0 ? Number(record.sales_profit || 0) / amount * 100 : 0;
-                      return <Typography.Text type={margin < 10 ? "warning" : undefined}>{margin.toFixed(1)}%</Typography.Text>;
-                    },
+                },
+                {
+                  title: "税额",
+                  width: 100,
+                  align: "right" as const,
+                  render: (_: unknown, record) => {
+                    const gross = Number(record.total_price || 0);
+                    const rate = Number(record.tax_rate || 0) / 100;
+                    return money(rate > 0 ? gross - gross / (1 + rate) : 0);
                   },
-                ] : []),
-                { title: "备注", dataIndex: "notes", width: 160, ellipsis: true, render: (value: string | null) => value || "-" },
+                },
+                {
+                  title: "价税合计",
+                  dataIndex: "total_price",
+                  width: 120,
+                  align: "right" as const,
+                  render: (value: number | null) =>
+                    value != null ? <Typography.Text strong>{money(value)}</Typography.Text> : "-",
+                },
+                ...(!isCustomerView && showCostColumns
+                  ? [
+                      {
+                        title: "含税成本单价",
+                        dataIndex: "cost_price",
+                        width: 130,
+                        align: "right" as const,
+                        render: (value: number | null) => (value != null ? money(value) : "-"),
+                      },
+                      {
+                        title: "未税成本",
+                        dataIndex: "untaxed_cost",
+                        width: 110,
+                        align: "right" as const,
+                        render: (value: number | null) => (value != null ? money(value) : "-"),
+                      },
+                      {
+                        title: "含税成本",
+                        dataIndex: "taxed_cost",
+                        width: 110,
+                        align: "right" as const,
+                        render: (value: number | null) => (value != null ? money(value) : "-"),
+                      },
+                      {
+                        title: "销售利润",
+                        dataIndex: "sales_profit",
+                        width: 110,
+                        align: "right" as const,
+                        render: (value: number | null) =>
+                          value != null ? (
+                            <Typography.Text type={value < 0 ? "danger" : undefined}>
+                              {money(value)}
+                            </Typography.Text>
+                          ) : (
+                            "-"
+                          ),
+                      },
+                      {
+                        title: "毛利率",
+                        width: 90,
+                        align: "right" as const,
+                        render: (_: unknown, record: QuotationItem) => {
+                          const amount = Number(record.total_price || 0);
+                          const margin =
+                            amount > 0 ? (Number(record.sales_profit || 0) / amount) * 100 : 0;
+                          return (
+                            <Typography.Text type={margin < 10 ? "warning" : undefined}>
+                              {margin.toFixed(1)}%
+                            </Typography.Text>
+                          );
+                        },
+                      },
+                    ]
+                  : []),
+                {
+                  title: "备注",
+                  dataIndex: "notes",
+                  width: 160,
+                  ellipsis: true,
+                  render: (value: string | null) => value || "-",
+                },
               ]}
-              summary={() => <Table.Summary.Row>
-                <Table.Summary.Cell index={0}><Typography.Text strong>合计：{itemSummary.quantity} 件</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={1} colSpan={8} />
-                <Table.Summary.Cell index={9}><Typography.Text strong>{money(itemSummary.untaxedAmount)}</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={10}><Typography.Text strong>{money(itemSummary.taxAmount)}</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={11}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
-              </Table.Summary.Row>}
+              summary={() => (
+                <Table.Summary.Row>
+                  <Table.Summary.Cell
+                    index={0}
+                    colSpan={!isCustomerView && showCostColumns ? 19 : 14}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: 24,
+                        paddingRight: 8,
+                      }}
+                    >
+                      <Typography.Text>
+                        共 <strong>{itemSummary.count}</strong> 行 / 数量{" "}
+                        <strong>{itemSummary.quantity}</strong>
+                      </Typography.Text>
+                      <Typography.Text>
+                        未税金额 <strong>{money(itemSummary.untaxedAmount)}</strong>
+                      </Typography.Text>
+                      <Typography.Text>
+                        税额 <strong>{money(itemSummary.taxAmount)}</strong>
+                      </Typography.Text>
+                      <Typography.Text strong>
+                        价税合计：{money(itemSummary.amount)}
+                      </Typography.Text>
+                    </div>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              )}
               scroll={{ x: "max-content" }}
             />
           </Card>
@@ -501,7 +801,14 @@ export default function QuotationDetail() {
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-          <Card size="small" title={<><DollarOutlined /> {isCustomerView ? "报价金额" : "成本与利润"}</>}>
+          <Card
+            size="small"
+            title={
+              <>
+                <DollarOutlined /> {isCustomerView ? "报价金额" : "成本与利润"}
+              </>
+            }
+          >
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">未税销售额</Typography.Text>
@@ -515,45 +822,93 @@ export default function QuotationDetail() {
                 <Typography.Text strong>价税合计</Typography.Text>
                 <Typography.Text strong>{money(itemSummary.amount)}</Typography.Text>
               </div>
-              {!isCustomerView && <>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <Typography.Text type="secondary">未税成本</Typography.Text>
-                  <Typography.Text>{money(itemSummary.untaxedCost)}</Typography.Text>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <Typography.Text type="secondary">含税成本</Typography.Text>
-                  <Typography.Text>{money(itemSummary.taxedCost)}</Typography.Text>
-                </div>
-              </>}
+              {!isCustomerView && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <Typography.Text type="secondary">未税成本</Typography.Text>
+                    <Typography.Text>{money(itemSummary.untaxedCost)}</Typography.Text>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <Typography.Text type="secondary">含税成本</Typography.Text>
+                    <Typography.Text>{money(itemSummary.taxedCost)}</Typography.Text>
+                  </div>
+                </>
+              )}
               <Divider style={{ margin: "6px 0" }} />
-              {!isCustomerView && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text strong>销售利润</Typography.Text>
-                <Typography.Text strong type={itemSummary.profit < 0 ? "danger" : undefined}>
-                  {money(itemSummary.profit)}
-                </Typography.Text>
-              </div>}
-              {!isCustomerView && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <Typography.Text strong>毛利率</Typography.Text>
-                <Typography.Text strong type={itemSummary.profitMargin < 0 ? "danger" : itemSummary.profitMargin < 10 ? "warning" : undefined}>
-                  {itemSummary.profitMargin.toFixed(1)}%
-                </Typography.Text>
-              </div>}
+              {!isCustomerView && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <Typography.Text strong>销售利润</Typography.Text>
+                  <Typography.Text strong type={itemSummary.profit < 0 ? "danger" : undefined}>
+                    {money(itemSummary.profit)}
+                  </Typography.Text>
+                </div>
+              )}
+              {!isCustomerView && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <Typography.Text strong>毛利率</Typography.Text>
+                  <Typography.Text
+                    strong
+                    type={
+                      itemSummary.profitMargin < 0
+                        ? "danger"
+                        : itemSummary.profitMargin < 10
+                          ? "warning"
+                          : undefined
+                    }
+                  >
+                    {itemSummary.profitMargin.toFixed(1)}%
+                  </Typography.Text>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <Typography.Text type="secondary">产品行数</Typography.Text>
-                <Typography.Text>{itemSummary.count} 项 / {itemSummary.quantity} 件</Typography.Text>
+                <Typography.Text>
+                  {itemSummary.count} 项 / {itemSummary.quantity} 件
+                </Typography.Text>
               </div>
             </Space>
           </Card>
 
-          {!isCustomerView && <Card size="small" title="报价风险控制">
-            <Space direction="vertical" size={8} style={{ width: "100%" }}>
-              {due.risk ? <Alert showIcon type={due.color === "red" ? "error" : "warning"} message={`有效期风险：${due.text}`} /> : null}
-              {itemSummary.missingCostLines > 0 ? <Alert showIcon type="warning" message={`${itemSummary.missingCostLines} 行未维护成本，毛利结果可能不准确`} /> : null}
-              {itemSummary.missingTaxLines > 0 ? <Alert showIcon type="warning" message={`${itemSummary.missingTaxLines} 行未设置税率`} /> : null}
-              {itemSummary.profitMargin < 10 ? <Alert showIcon type="error" message={`毛利率 ${itemSummary.profitMargin.toFixed(1)}%，建议审批后发送`} /> : null}
-              {!due.risk && itemSummary.missingCostLines === 0 && itemSummary.missingTaxLines === 0 && itemSummary.profitMargin >= 10 ? <Alert showIcon type="success" message="价格、税率、成本和有效期检查正常" /> : null}
-            </Space>
-          </Card>}
+          {!isCustomerView && (
+            <Card size="small" title="报价风险控制">
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                {due.risk ? (
+                  <Alert
+                    showIcon
+                    type={due.color === "red" ? "error" : "warning"}
+                    message={`有效期风险：${due.text}`}
+                  />
+                ) : null}
+                {itemSummary.missingCostLines > 0 ? (
+                  <Alert
+                    showIcon
+                    type="warning"
+                    message={`${itemSummary.missingCostLines} 行未维护成本，毛利结果可能不准确`}
+                  />
+                ) : null}
+                {itemSummary.missingTaxLines > 0 ? (
+                  <Alert
+                    showIcon
+                    type="warning"
+                    message={`${itemSummary.missingTaxLines} 行未设置税率`}
+                  />
+                ) : null}
+                {itemSummary.profitMargin < 10 ? (
+                  <Alert
+                    showIcon
+                    type="error"
+                    message={`毛利率 ${itemSummary.profitMargin.toFixed(1)}%，建议审批后发送`}
+                  />
+                ) : null}
+                {!due.risk &&
+                itemSummary.missingCostLines === 0 &&
+                itemSummary.missingTaxLines === 0 &&
+                itemSummary.profitMargin >= 10 ? (
+                  <Alert showIcon type="success" message="价格、税率、成本和有效期检查正常" />
+                ) : null}
+              </Space>
+            </Card>
+          )}
 
           <Card size="small" title="状态流转">
             <ErpStatusTimeline
@@ -571,17 +926,49 @@ export default function QuotationDetail() {
 
           <Card size="small" title="下一步动作">
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
-              {quote.status === "draft" && <Alert showIcon type="info" message="建议先确认有效期和产品行，再发送给客户。" />}
-              {quote.status === "sent" && <Alert showIcon type="info" message="已发送报价，请跟进并记录客户接受或拒绝。" />}
-              {quote.status === "accepted" && <Alert showIcon type="success" message="客户已接受报价，可以转换为销售订单。" />}
-              {quote.status === "won" && <Alert showIcon type="success" message="报价已成交，进入订单执行链路。" />}
-              {quote.status === "lost" && <Alert showIcon type="warning" message="报价已丢失，建议记录原因并复制生成新版本。" />}
-              {quote.status === "draft" ? <Button block icon={<EditOutlined />} onClick={() => navigate(`/sales/quotations/${quote.id}/edit`)}>编辑报价</Button> : null}
-              <Button block icon={<CopyOutlined />} onClick={() => runAction(async () => {
-                const resp = await duplicateQuotation(quote.id);
-                navigate(`/sales/quotations/${resp.data.data.id}/edit`);
-              }, "已复制为新报价")}>复制新版本</Button>
-              <Button block onClick={() => navigate(`/customers/${quote.customer_id}`)}>查看客户</Button>
+              {quote.status === "draft" && (
+                <Alert showIcon type="info" message="建议先确认有效期和产品行，再发送给客户。" />
+              )}
+              {quote.status === "sent" && (
+                <Alert showIcon type="info" message="已发送报价，请跟进并记录客户接受或拒绝。" />
+              )}
+              {quote.status === "accepted" && (
+                <Alert showIcon type="success" message="客户已接受报价，可以转换为销售订单。" />
+              )}
+              {quote.status === "won" && (
+                <Alert showIcon type="success" message="报价已成交，进入订单执行链路。" />
+              )}
+              {quote.status === "lost" && (
+                <Alert
+                  showIcon
+                  type="warning"
+                  message="报价已丢失，建议记录原因并复制生成新版本。"
+                />
+              )}
+              {quote.status === "draft" ? (
+                <Button
+                  block
+                  icon={<EditOutlined />}
+                  onClick={() => navigate(`/sales/quotations/${quote.id}/edit`)}
+                >
+                  编辑报价
+                </Button>
+              ) : null}
+              <Button
+                block
+                icon={<CopyOutlined />}
+                onClick={() =>
+                  runAction(async () => {
+                    const resp = await duplicateQuotation(quote.id);
+                    navigate(`/sales/quotations/${resp.data.data.id}/edit`);
+                  }, "已复制为新报价")
+                }
+              >
+                复制新版本
+              </Button>
+              <Button block onClick={() => navigate(`/customers/${quote.customer_id}`)}>
+                查看客户
+              </Button>
             </Space>
           </Card>
         </Space>

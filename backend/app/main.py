@@ -41,6 +41,7 @@ for _model_module in (
     "app.models.report",
     "app.models.sales",
     "app.models.transaction",
+    "app.models.uom",
     "app.models.user",
     "app.models.audit",
     "app.models.commission_scheme",

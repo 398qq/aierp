@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.states import assert_can_transition_quotation
+from app.domain.states import (
+    assert_can_transition_credit_note,
+    assert_can_transition_quotation,
+    assert_can_transition_return,
+    assert_can_transition_sales_order,
+)
 from app.models.finance import CreditNote, Invoice, InvoiceLine
 from app.models.sales import (
     DeliveryNote,
@@ -21,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.sales import ReturnNote, ReturnNoteItem  # noqa: F401
 from app.services.base_crud import BaseCRUDService
 from app.services.docno import generate_doc_no
+from app.services.state_transition_service import transition_status
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +80,8 @@ class SalesConversionService(BaseCRUDService):
                 order_id=order.id,
                 product_id=qi.product_id,
                 product_name=qi.product_name,
+                customer_part_no=qi.customer_part_no,
+                customer_product_name=qi.customer_product_name,
                 quantity=qi.quantity,
                 unit=qi.unit,
                 unit_price=qi.unit_price,
@@ -83,7 +91,14 @@ class SalesConversionService(BaseCRUDService):
             )
             db.add(soi)
 
-        quote.status = "won"
+        await transition_status(
+            db,
+            quote,
+            "won",
+            guard=assert_can_transition_quotation,
+            aggregate_type="Quotation",
+            action="convert_to_order",
+        )
         await db.commit()
         await db.refresh(order)
         return order
@@ -117,13 +132,22 @@ class SalesConversionService(BaseCRUDService):
                 delivery_note_id=note.id,
                 product_id=soi.product_id,
                 product_name=soi.product_name,
+                customer_part_no=soi.customer_part_no,
+                customer_product_name=soi.customer_product_name,
                 quantity=soi.quantity,
             )
             db.add(dni)
 
         # Auto-transition order state: conversion to delivery = commitment
         if order.status in ("pending", "draft"):
-            order.status = "confirmed"
+            await transition_status(
+                db,
+                order,
+                "confirmed",
+                guard=assert_can_transition_sales_order,
+                aggregate_type="SalesOrder",
+                action="create_delivery",
+            )
         await db.commit()
         await db.refresh(note)
         return note
@@ -217,11 +241,19 @@ class SalesConversionService(BaseCRUDService):
             total_amount=(
                 float(note.sales_order.total_amount) if note.sales_order else 0
             ),
-            status="approved",
+            status="pending",
             reason=reason or "",
         )
         db.add(rn)
         await db.flush()
+        await transition_status(
+            db,
+            rn,
+            "approved",
+            guard=assert_can_transition_return,
+            aggregate_type="ReturnNote",
+            action="create_from_delivery",
+        )
 
         for dni in note.items:
             db.add(
@@ -271,7 +303,6 @@ async def complete_return_note(db: AsyncSession, return_note_id: int) -> dict | 
     Returns dict with {return_status, credit_note_no, credit_note_amount}
     or None if validation fails.
     """
-    from app.domain.states import assert_can_transition_return
     from app.models.sales import ReturnNote
     from app.services.docno import generate_doc_no
 
@@ -281,8 +312,14 @@ async def complete_return_note(db: AsyncSession, return_note_id: int) -> dict | 
     if rn.status != "approved":
         return None
 
-    assert_can_transition_return(rn.status, "completed")
-    rn.status = "completed"
+    await transition_status(
+        db,
+        rn,
+        "completed",
+        guard=assert_can_transition_return,
+        aggregate_type="ReturnNote",
+        action="complete",
+    )
 
     # Auto-generate credit note
     cn_no = await generate_doc_no(db, "CN", CreditNote, "credit_note_no")
@@ -293,10 +330,19 @@ async def complete_return_note(db: AsyncSession, return_note_id: int) -> dict | 
         return_note_id=rn.id,
         amount=-float(rn.total_amount),
         tax_amount=-round(float(rn.total_amount) * 0.13, 4),
-        status="issued",
+        status="draft",
         reason=rn.reason or "退货冲红",
     )
     db.add(cn)
+    await db.flush()
+    await transition_status(
+        db,
+        cn,
+        "issued",
+        guard=assert_can_transition_credit_note,
+        aggregate_type="CreditNote",
+        action="issue_for_return",
+    )
     await db.commit()
     await db.refresh(cn)
 

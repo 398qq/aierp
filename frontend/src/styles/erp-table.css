@@ -9,17 +9,17 @@
   border-bottom: 1px solid #e8e8e8;
   background: #fafafa;
 }
-.erp-table .ant-card-head-title { padding: 6px 0; font-size: 13px; font-weight: 650; }
+.erp-table .ant-card-head-title { padding: 6px 0; font-size: var(--type-card-size, 15px); font-weight: 600; }
 .erp-table .ant-card-extra { padding: 6px 0; }
 
 /* ── 表头：专业 ERP 风格 ── */
 .erp-table .ant-table-thead > tr > th {
   background: #f5f5f5 !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
+  font-size: var(--type-table-header-size, 13px) !important;
+  font-weight: 600 !important;
   color: #434343 !important;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  text-transform: none;
+  letter-spacing: 0;
   padding: 7px 10px !important;
   border-bottom: 2px solid #d9d9d9 !important;
   border-right: 1px solid #eee;
@@ -36,16 +36,16 @@
 
 /* ── 数据行：高密度信息展示 ── */
 .erp-table .ant-table-tbody > tr > td {
-  padding: 5px 10px !important;
-  font-size: 12px !important;
-  line-height: 1.35 !important;
+  padding: 9px 10px !important;
+  font-size: var(--type-table-size, 14px) !important;
+  line-height: var(--type-table-line, 20px) !important;
   border-bottom: 1px solid #f0f0f0;
   border-right: 1px solid #f5f5f5;
   font-variant-numeric: tabular-nums;
   vertical-align: middle !important;
 }
 .erp-table .ant-table-tbody > tr > td:last-child { border-right: none; }
-.erp-table .ant-table-tbody > tr { height: 34px; }
+.erp-table .ant-table-tbody > tr { height: 40px; }
 
 /* 斑马纹 */
 .erp-table .ant-table-tbody > tr.ant-table-row:nth-child(even) > td {
@@ -74,7 +74,7 @@
 /* ── 数字列右对齐等宽 ── */
 .erp-table .ant-table-cell.ant-table-column-align-right {
   font-family: "SF Mono", "Consolas", "Menlo", monospace;
-  font-size: 12px;
+  font-size: var(--type-table-size, 14px);
 }
 
 /* ── 列排序图标 ── */
@@ -84,7 +84,7 @@
 }
 .erp-table .ant-table-column-sorter {
   color: #bfbfbf;
-  font-size: 10px;
+  font-size: var(--font-size-caption, 12px);
 }
 
 /* ── 分页 ── */
@@ -95,9 +95,9 @@
 .erp-table .ant-pagination-prev,
 .erp-table .ant-pagination-next {
   min-width: 28px !important; height: 28px !important;
-  line-height: 26px !important; font-size: 12px;
+  line-height: 26px !important; font-size: var(--type-support-size, 13px);
 }
-.erp-table .ant-pagination-item a { font-size: 12px; padding: 0 4px; }
+.erp-table .ant-pagination-item a { font-size: var(--type-support-size, 13px); padding: 0 4px; }
 .erp-table .ant-table-pagination.ant-pagination { margin: 8px 0 !important; }
 
 /* ── 表格 wrapper 边框 ── */
@@ -108,13 +108,13 @@
 
 /* ── 空状态 ── */
 .erp-table .ant-empty { margin: 40px 0; }
-.erp-table .ant-empty-description { font-size: 12px; color: #8c8c8c; }
+.erp-table .ant-empty-description { font-size: var(--type-support-size, 13px); color: #8c8c8c; }
 
 /* ── 加载遮罩 ── */
 .erp-table .ant-spin-container::after { background: rgba(255,255,255,0.6); }
 
 /* ── 状态标签在表格内紧凑 ── */
-.erp-table .ant-tag { margin: 0; font-size: 11px; line-height: 18px; padding: 0 6px; }
+.erp-table .ant-tag { margin: 0; font-size: var(--type-caption-size, 12px); line-height: var(--type-caption-line, 18px); padding: 0 6px; }
 
 /* ── 客户主数据台账 ── */
 .customer-ledger {
@@ -193,7 +193,7 @@
   margin-right: 4px;
   color: #1f1f1f;
   font-size: 20px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 26px;
   font-variant-numeric: tabular-nums;
 }
@@ -331,7 +331,7 @@
 .followup-ledger-metrics strong {
   color: #1f1f1f;
   font-size: 20px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 26px;
   font-variant-numeric: tabular-nums;
 }

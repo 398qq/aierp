@@ -17,7 +17,7 @@ from app.domain.shared.errors import (
 class DeliveryStatus(str, Enum):
     DRAFT = "pending"  # Map to ORM "pending"
     SHIPPED = "shipped"
-    RECEIVED = "received"  # Customer confirmed receipt
+    DELIVERED = "delivered"  # Customer confirmed receipt
     CANCELLED = "cancelled"
 
 
@@ -40,7 +40,7 @@ class DeliveryNote:
 
     Lifecycle:
     - DRAFT → SHIPPED (stock is deducted here)
-    - SHIPPED → RECEIVED (customer confirms)
+    - SHIPPED → DELIVERED (customer confirms)
     - DRAFT → CANCELLED (no inventory side effect)
     - SHIPPED → CANCELLED (requires reversing the stock-out — out of scope here)
     """
@@ -97,11 +97,11 @@ class DeliveryNote:
         """Customer confirms receipt."""
         if self.status != DeliveryStatus.SHIPPED:
             raise InvalidStateTransition(
-                f"发货单 {self.id}: {self.status.value} → received 不允许"
+                f"发货单 {self.id}: {self.status.value} → delivered 不允许"
             )
         from datetime import datetime, timezone
 
-        self.status = DeliveryStatus.RECEIVED
+        self.status = DeliveryStatus.DELIVERED
         self.received_date = datetime.now(timezone.utc)
 
     def cancel(self, reason: str) -> None:

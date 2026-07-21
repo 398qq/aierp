@@ -22,6 +22,7 @@ from app.api.v1 import (
     sales,
     targets,
     transactions,
+    uoms,
     users,
 )
 from app.api.v1.inventory.batches import router as inventory_batch_router
@@ -58,4 +59,5 @@ api_router.include_router(finance_accounts.router)
 api_router.include_router(integrations.router)
 api_router.include_router(documents.router)
 api_router.include_router(export_import.router)
+api_router.include_router(uoms.router)
 api_router.include_router(audit.router)

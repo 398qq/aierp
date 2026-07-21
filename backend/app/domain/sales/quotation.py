@@ -11,6 +11,7 @@ from app.domain.shared.errors import (
     InvalidStateTransition,
 )
 from app.domain.sales.events import QuotationSent, QuotationAccepted
+from app.domain.states.sales import assert_can_transition_quotation
 
 
 class QuotationStatus(str, Enum):
@@ -19,22 +20,8 @@ class QuotationStatus(str, Enum):
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     EXPIRED = "expired"
-    CONVERTED = "converted"
-
-
-_QUOTATION_TRANSITIONS: dict[QuotationStatus, set[QuotationStatus]] = {
-    QuotationStatus.DRAFT: {
-        QuotationStatus.SENT,
-        QuotationStatus.REJECTED,
-    },
-    QuotationStatus.SENT: {
-        QuotationStatus.ACCEPTED,
-        QuotationStatus.REJECTED,
-        QuotationStatus.EXPIRED,
-        QuotationStatus.CONVERTED,
-    },
-    QuotationStatus.ACCEPTED: {QuotationStatus.CONVERTED},
-}
+    LOST = "lost"
+    WON = "won"
 
 
 @dataclass
@@ -76,8 +63,8 @@ class QuotationLine:
 class Quotation:
     """Quotation aggregate root.
 
-    Lifecycle: DRAFT → SENT → (ACCEPTED | REJECTED | EXPIRED | CONVERTED).
-    Once CONVERTED, the quotation is locked because the corresponding sales
+    Lifecycle: DRAFT → SENT → (ACCEPTED | REJECTED | EXPIRED | LOST | WON).
+    Once WON, the quotation is locked because the corresponding sales
     order inherits its line items.
     """
 
@@ -136,11 +123,7 @@ class Quotation:
         self.lines.pop(index)
 
     def _check_transition(self, target: QuotationStatus) -> None:
-        allowed = _QUOTATION_TRANSITIONS.get(self.status, set())
-        if target not in allowed:
-            raise InvalidStateTransition(
-                f"报价单 {self.id}: {self.status.value} → {target.value} 不允许"
-            )
+        assert_can_transition_quotation(self.status.value, target.value)
 
     def send(self) -> None:
         """Send the quotation to the customer.
@@ -193,9 +176,9 @@ class Quotation:
         self.status = QuotationStatus.EXPIRED
 
     def convert_to_order(self) -> None:
-        """Mark the quotation as converted (after order created)."""
-        self._check_transition(QuotationStatus.CONVERTED)
-        self.status = QuotationStatus.CONVERTED
+        """Mark the quotation as won after its sales order is created."""
+        self._check_transition(QuotationStatus.WON)
+        self.status = QuotationStatus.WON
 
     def collect_events(self) -> list:
         events = self._events[:]

@@ -7,7 +7,7 @@ import zhCN from "antd/locale/zh_CN";
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./pages/auth/Login";
-import { antdTheme } from "./design-tokens";
+import { antdTheme, fontSize, fontWeight, lineHeight, typography } from "./design-tokens";
 import AntdOverlayGuard from "./ui/AntdOverlayGuard";
 
 class ErrorBoundary extends Component<
@@ -130,6 +130,7 @@ const ProfitLoss = lazy(() => import("./pages/finance/ProfitLoss"));
 const CommissionList = lazy(() => import("./pages/finance/CommissionList"));
 const CommissionSchemeList = lazy(() => import("./pages/finance/CommissionSchemeList"));
 const AuditLogViewer = lazy(() => import("./pages/system/AuditLogViewer"));
+const UomsList = lazy(() => import("./pages/system/UomsList"));
 const ReportAP = lazy(() => import("./pages/reports/ReportAP"));
 const ImportExport = lazy(() => import("./pages/import-export/index"));
 
@@ -176,10 +177,48 @@ export default function App() {
           --color-border: ${antdTheme.token.colorBorder};
           --color-canvas: ${antdTheme.token.colorBgContainer};
           --color-bg-layout: ${antdTheme.token.colorBgLayout};
-          --color-primary-bg: #eff6ff;
+          --color-primary-bg: #edf3fa;
           --radius-card: ${antdTheme.token.borderRadius}px;
           --radius-input: ${antdTheme.token.borderRadiusSM}px;
           --radius-tag: ${antdTheme.token.borderRadiusXS}px;
+          --font-size-page-title: ${fontSize.headingMd}px;
+          --font-size-section-title: ${fontSize.section}px;
+          --font-size-card-title: ${fontSize.cardTitle}px;
+          --font-size-body: ${fontSize.body}px;
+          --font-size-body-sm: ${fontSize.bodySm}px;
+          --font-size-caption: ${fontSize.caption}px;
+          --font-size-table: ${fontSize.table}px;
+          --font-size-table-header: ${fontSize.tableHeader}px;
+          --font-size-metric: ${fontSize.metric}px;
+          --font-weight-medium: ${fontWeight.medium};
+          --font-weight-semibold: ${fontWeight.semibold};
+          --font-weight-bold: ${fontWeight.bold};
+          --line-height-heading: ${lineHeight.heading};
+          --line-height-body: ${lineHeight.body};
+          --line-height-compact: ${lineHeight.compact};
+          --line-height-caption: ${lineHeight.caption};
+          --type-report-size: ${typography.reportTitle.fontSize}px;
+          --type-report-line: ${typography.reportTitle.lineHeight}px;
+          --type-page-size: ${typography.pageTitle.fontSize}px;
+          --type-page-line: ${typography.pageTitle.lineHeight}px;
+          --type-subsection-size: ${typography.subsectionTitle.fontSize}px;
+          --type-subsection-line: ${typography.subsectionTitle.lineHeight}px;
+          --type-section-size: ${typography.sectionTitle.fontSize}px;
+          --type-section-line: ${typography.sectionTitle.lineHeight}px;
+          --type-card-size: ${typography.cardTitle.fontSize}px;
+          --type-card-line: ${typography.cardTitle.lineHeight}px;
+          --type-body-size: ${typography.body.fontSize}px;
+          --type-body-line: ${typography.body.lineHeight}px;
+          --type-support-size: ${typography.supporting.fontSize}px;
+          --type-support-line: ${typography.supporting.lineHeight}px;
+          --type-table-size: ${typography.table.fontSize}px;
+          --type-table-line: ${typography.table.lineHeight}px;
+          --type-table-header-size: ${typography.tableHeader.fontSize}px;
+          --type-table-header-line: ${typography.tableHeader.lineHeight}px;
+          --type-caption-size: ${typography.caption.fontSize}px;
+          --type-caption-line: ${typography.caption.lineHeight}px;
+          --type-metric-size: ${typography.metric.fontSize}px;
+          --type-metric-line: ${typography.metric.lineHeight}px;
         }
       `}</style>
         <AntdApp>
@@ -527,6 +566,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <AuditLogList />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/system/uoms"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <UomsList />
                     </Suspense>
                   }
                 />
