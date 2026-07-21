@@ -382,16 +382,43 @@ class DeliveryNoteService(BaseCRUDService):
     # ── private inventory hooks ───────────────────────────────────────
 
     async def _auto_deduct_delivery(self, db: AsyncSession, note: DeliveryNote) -> None:
-        """Auto-deduct inventory per item on shipped/completed."""
+        """Auto-deduct inventory per item on shipped/completed.
+
+        Also performs batch allocation (LCFO) and writes COGS back to
+        SalesOrderItem.cost_amount for each matched line item.
+        """
+        # Ensure items relationship is loaded before iterating (async session
+        # cannot lazy-load relationships inside a sync for-loop — MissingGreenlet).
+        await db.refresh(note, ["items"])
+
         result = await db.execute(select(Warehouse.id).limit(1))
         warehouse_id = result.scalar() or 1
 
         for item in note.items:
             if item.product_id and item.quantity > 0:
                 try:
-                    await deduct_for_delivery(
+                    deduct_result = await deduct_for_delivery(
                         db, item.product_id, warehouse_id, item.quantity, note.id
                     )
+                    # ── COGS 回写到 SalesOrderItem ─────────────────────────
+                    total_cogs = deduct_result.get("total_cogs", 0)
+                    if total_cogs > 0 and note.sales_order_id:
+                        from sqlalchemy import and_
+
+                        soi_rows = (
+                            await db.execute(
+                                select(SalesOrderItem).where(
+                                    and_(
+                                        SalesOrderItem.order_id == note.sales_order_id,
+                                        SalesOrderItem.product_id == item.product_id,
+                                        SalesOrderItem.deleted_at.is_(None),
+                                    )
+                                )
+                            )
+                        ).scalars().all()
+                        for soi in soi_rows:
+                            soi.cost_amount = Decimal(str(total_cogs))
+                            db.add(soi)
                 except InsufficientStockError:
                     raise
                 except Exception as e:

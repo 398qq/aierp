@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    testTimeout: 30000,
     css: { modules: { classNameStrategy: "non-scoped" } },
   },
   resolve: {

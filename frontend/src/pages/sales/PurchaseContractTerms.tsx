@@ -130,7 +130,7 @@ export function PurchaseContractTerms({ orderNo, purchaserName, supplierName }: 
         <div>附件一</div>
         <h2>采购合同条款 v3.4</h2>
         <p>本条款与采购订单正文共同构成双方采购合同，供应方确认 PO 即视为接受。</p>
-        <p className="po-print-contract-reference">合同编号：{orderNo}　甲方：{purchaserName}　乙方：{supplierName}</p>
+        <p className="po-print-contract-reference">合同编号：{orderNo} 甲方：{purchaserName} 乙方：{supplierName}</p>
       </header>
       <div className="po-print-contract-columns">
         {TERMS.map((term) => (

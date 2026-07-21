@@ -216,7 +216,7 @@ class TestFinanceWritePathInvalidation:
                 "sales_order_id": order_id,
                 "customer_id": test_customer["id"],
                 "amount": 1500,
-                "status": "completed",
+                "status": "pending",
             },
         )
         assert resp.status_code == 200, resp.text
