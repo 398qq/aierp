@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 import httpx
@@ -29,8 +30,10 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
-POLL_INTERVAL_S = 1.0
-POLL_LONG_TIMEOUT_S = 30
+POLL_INTERVAL_S = 0.5
+# Short long-poll (5s) instead of Telegram's 30s default — keeps connections well
+# under typical NAT / LB idle limits and recovers fast from dropped TCP.
+POLL_LONG_TIMEOUT_S = 5
 POLL_CLIENT_TIMEOUT_S = POLL_LONG_TIMEOUT_S + 10
 MAX_MESSAGE_LEN = 4000  # Telegram limit is 4096, leave headroom
 
@@ -247,8 +250,16 @@ async def _poll_once(offset: int | None) -> int | None:
     if offset is not None:
         params["offset"] = offset
 
+    # Sandbox blocks direct egress; must go through HTTP(S) proxy from env.
+    # trust_env=False avoids ALL_PROXY=socks5 (would need socksio); explicit
+    # proxy= from HTTPS_PROXY/HTTP_PROXY is the only path that actually works.
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     try:
-        async with httpx.AsyncClient(trust_env=False, timeout=POLL_CLIENT_TIMEOUT_S) as client:
+        async with httpx.AsyncClient(
+            trust_env=False,
+            proxy=proxy,
+            timeout=POLL_CLIENT_TIMEOUT_S,
+        ) as client:
             r = await client.get(url, params=params)
     except Exception as exc:
         logger.exception("getUpdates network error: %s", exc)
