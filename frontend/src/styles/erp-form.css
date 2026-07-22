@@ -1,22 +1,22 @@
-/* Global operational form language: deep navy, cool gray, compact and legible. */
+/* Global operational form language: light pastel palette. */
 
 .erp-app-content .ant-form,
 .ant-modal .ant-form,
 .ant-drawer .ant-form {
-  --erp-form-primary: #1d4ed8;
-  --erp-form-primary-hover: #2563eb;
-  --erp-form-primary-deep: #17365d;
-  --erp-form-section: #edf3fa;
-  --erp-form-field: #fafbfc;
-  --erp-form-border: #d8dee8;
-  --erp-form-text: #172033;
-  --erp-form-muted: #667085;
+  --erp-form-primary: #a8c0ff;
+  --erp-form-primary-hover: #b8cdff;
+  --erp-form-primary-deep: #7a9eff;
+  --erp-form-section: #fcfcfd;
+  --erp-form-field: #ffffff;
+  --erp-form-border: #eef2f8;
+  --erp-form-text: #334155;
+  --erp-form-muted: #94a3b8;
 }
 
 .erp-app-content .ant-form-item-label > label,
 .ant-modal .ant-form-item-label > label,
 .ant-drawer .ant-form-item-label > label {
-  color: #344054;
+  color: #64748b;
   font-size: var(--type-support-size, 13px);
   line-height: var(--type-support-line, 20px);
   font-weight: 500;
@@ -25,7 +25,7 @@
 .erp-app-content .ant-form-item-required::before,
 .ant-modal .ant-form-item-required::before,
 .ant-drawer .ant-form-item-required::before {
-  color: #dc2626 !important;
+  color: #f87171 !important;
 }
 
 .erp-app-content .ant-form-item-extra,
@@ -55,8 +55,8 @@
 .ant-drawer .ant-form .ant-input-number,
 .ant-drawer .ant-form .ant-picker,
 .ant-drawer .ant-form .ant-select-selector {
-  border-color: #d8dee8;
-  background: #fafbfc;
+  border-color: #eef2f8;
+  background: #ffffff;
 }
 
 .erp-app-content .ant-form textarea.ant-input,
@@ -81,7 +81,7 @@
 .ant-drawer .ant-form .ant-input-number:hover,
 .ant-drawer .ant-form .ant-picker:hover,
 .ant-drawer .ant-form .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
-  border-color: #2563eb;
+  border-color: #b8cdff;
   background: #fff;
 }
 
@@ -103,9 +103,9 @@
 .ant-drawer .ant-form .ant-input-number-focused,
 .ant-drawer .ant-form .ant-picker-focused,
 .ant-drawer .ant-form .ant-select-focused .ant-select-selector {
-  border-color: #1d4ed8 !important;
+  border-color: #a8c0ff !important;
   background: #fff;
-  box-shadow: 0 0 0 2px rgb(29 78 216 / 12%) !important;
+  box-shadow: 0 0 0 2px rgba(168, 192, 255, 0.18) !important;
 }
 
 .erp-app-content .ant-form .ant-input[disabled],
@@ -117,9 +117,9 @@
 .ant-modal .ant-form .ant-select-disabled .ant-select-selector,
 .ant-drawer .ant-form .ant-input[disabled],
 .ant-drawer .ant-form .ant-select-disabled .ant-select-selector {
-  border-color: #e1e6ed;
-  color: #7b8797;
-  background: #f0f2f5;
+  border-color: #eef2f8;
+  color: #b0baca;
+  background: #f8f9fb;
 }
 
 .erp-app-content .ant-form .ant-form-item-has-error .ant-input,
@@ -131,38 +131,38 @@
 .ant-modal .ant-form .ant-form-item-has-error .ant-select-selector,
 .ant-drawer .ant-form .ant-form-item-has-error .ant-input,
 .ant-drawer .ant-form .ant-form-item-has-error .ant-select-selector {
-  border-color: #dc2626;
-  background: #fffafa;
+  border-color: #fca5a5;
+  background: #fef5f5;
 }
 
 .erp-app-content .ant-form .ant-card,
 .erp-app-content .ant-form .erp-form-section,
 .ant-modal .ant-form .ant-card,
 .ant-drawer .ant-form .ant-card {
-  border-color: #d8dee8;
-  box-shadow: 0 1px 2px rgb(16 42 76 / 4%);
+  border-color: #eef2f8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .erp-app-content .ant-form .ant-card > .ant-card-head,
 .erp-app-content .ant-form .erp-form-section > .ant-card-head,
 .ant-modal .ant-form .ant-card > .ant-card-head,
 .ant-drawer .ant-form .ant-card > .ant-card-head {
-  border-bottom-color: #d8dee8;
-  background: #edf3fa;
+  border-bottom-color: #eef2f8;
+  background: #fcfcfd;
 }
 
 .erp-app-content .ant-form .ant-card > .ant-card-head .ant-card-head-title,
 .erp-app-content .ant-form .erp-form-section > .ant-card-head .ant-card-head-title,
 .ant-modal .ant-form .ant-card > .ant-card-head .ant-card-head-title,
 .ant-drawer .ant-form .ant-card > .ant-card-head .ant-card-head-title {
-  color: #17365d;
+  color: #7a9eff;
   font-weight: 600;
 }
 
 .erp-app-content .ant-form .ant-divider-inner-text,
 .ant-modal .ant-form .ant-divider-inner-text,
 .ant-drawer .ant-form .ant-divider-inner-text {
-  color: #17365d;
+  color: #7a9eff;
   font-size: var(--type-section-size, 16px);
   font-weight: 600;
 }
@@ -170,16 +170,16 @@
 .erp-app-content .ant-form .ant-btn-primary,
 .ant-modal .ant-form .ant-btn-primary,
 .ant-drawer .ant-form .ant-btn-primary {
-  border-color: #1d4ed8;
-  background: #1d4ed8;
-  box-shadow: 0 1px 2px rgb(23 54 93 / 18%);
+  border-color: #7a9eff;
+  background: #7a9eff;
+  box-shadow: 0 1px 2px rgba(122, 158, 255, 0.18);
 }
 
 .erp-app-content .ant-form .ant-btn-primary:hover,
 .ant-modal .ant-form .ant-btn-primary:hover,
 .ant-drawer .ant-form .ant-btn-primary:hover {
-  border-color: #2563eb !important;
-  background: #2563eb !important;
+  border-color: #8babff !important;
+  background: #8babff !important;
 }
 
 @media (max-width: 767px) {
