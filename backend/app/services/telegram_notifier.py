@@ -61,7 +61,7 @@ async def send_message(text: str, chat_id: Optional[str] = None) -> bool:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=10.0) as client:
             r = await client.post(url, json=payload)
         if r.status_code == 200:
             logger.info("telegram sent to %s: %s", target, payload_text[:60])

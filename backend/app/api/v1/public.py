@@ -72,7 +72,7 @@ async def _send_wecom_notification(
 
         import httpx
 
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=10) as client:
             resp = await client.post(webhook_url, json=payload)
             if resp.status_code == 200:
                 logger.info(

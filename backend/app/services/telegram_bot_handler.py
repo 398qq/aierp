@@ -28,6 +28,7 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
 POLL_INTERVAL_S = 0.5
@@ -37,6 +38,10 @@ POLL_INTERVAL_S = 0.5
 POLL_LONG_TIMEOUT_S = 25
 POLL_CLIENT_TIMEOUT_S = POLL_LONG_TIMEOUT_S + 30
 MAX_MESSAGE_LEN = 4000  # Telegram limit is 4096, leave headroom
+
+# Redis distributed lock key for multi-worker polling coordination.
+_POLLING_LOCK_KEY = "telegram:bot:polling:lock"
+_POLLING_LOCK_TTL = 60  # seconds
 
 
 CODE_EXPERT_SYSTEM_PROMPT = """你是一位资深软件工程师，精通多种技术栈：Python、JavaScript/TypeScript、Go、Rust、Java、C/C++、SQL、Shell、Vue/React、Solidity 等。
@@ -237,6 +242,42 @@ async def _handle_update(update: dict[str, Any]) -> None:
     await _send_text(chat_id, reply)
 
 
+def _resolve_wsl_proxy(proxy: str | None) -> str | None:
+    """WSL2 cannot reach Windows 127.0.0.1; rewrite to the host gateway IP."""
+    if not proxy:
+        return proxy
+    try:
+        from urllib.parse import urlparse, urlunparse
+
+        parsed = urlparse(proxy)
+        host = parsed.hostname or ""
+        if host not in ("127.0.0.1", "localhost", "127.0.1.1"):
+            return proxy
+        # Read default gateway from /proc/net/route
+        with open("/proc/net/route") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 3 and parts[1] == "00000000" and parts[2] != "00000000":
+                    gw_hex = parts[2]
+                    gw = ".".join(
+                        str(int(gw_hex[i : i + 2], 16))
+                        for i in range(6, -1, -2)
+                    )
+                    new_proxy = urlunparse((
+                        parsed.scheme,
+                        f"{gw}:{parsed.port}",
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    ))
+                    logger.debug("rewrote proxy %s -> %s (WSL gateway)", proxy, new_proxy)
+                    return new_proxy
+    except Exception:
+        logger.debug("failed to resolve WSL proxy, using original: %s", proxy)
+    return proxy
+
+
 async def _poll_once(offset: int | None) -> int | None:
     """Fetch new updates via long-polling. Returns next offset to use."""
     token = _bot_token()
@@ -251,10 +292,13 @@ async def _poll_once(offset: int | None) -> int | None:
     if offset is not None:
         params["offset"] = offset
 
-    # Sandbox blocks direct egress; must go through HTTP(S) proxy from env.
+    # Must use HTTP(S) proxy from env (GFW blocks Telegram in China).
     # trust_env=False avoids ALL_PROXY=socks5 (would need socksio); explicit
-    # proxy= from HTTPS_PROXY/HTTP_PROXY is the only path that actually works.
+    # proxy= from HTTPS_PROXY/HTTP_PROXY is the only path that works.
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+    if proxy and proxy.startswith("socks"):
+        proxy = None
+    proxy = _resolve_wsl_proxy(proxy)
     try:
         async with httpx.AsyncClient(
             trust_env=False,
@@ -294,6 +338,50 @@ async def _poll_once(offset: int | None) -> int | None:
     return next_offset
 
 
+async def _acquire_polling_lock() -> bool:
+    """Try to acquire a Redis distributed lock for bot polling.
+
+    Only one uvicorn worker may poll the bot at a time (Telegram rejects
+    concurrent getUpdates with 409). Falls through to True when Redis is
+    unavailable (single-worker dev mode).
+    """
+    try:
+        from app.services.cache_service import get_redis
+
+        r = await get_redis()
+        if r is None:
+            return True
+        ok = await r.set(_POLLING_LOCK_KEY, "1", nx=True, ex=_POLLING_LOCK_TTL)
+        return bool(ok)
+    except Exception:
+        logger.exception("failed to acquire polling lock")
+        return True
+
+
+async def _refresh_polling_lock() -> None:
+    """Extend the TTL of the polling lock."""
+    try:
+        from app.services.cache_service import get_redis
+
+        r = await get_redis()
+        if r is not None:
+            await r.expire(_POLLING_LOCK_KEY, _POLLING_LOCK_TTL)
+    except Exception:
+        pass
+
+
+async def _release_polling_lock() -> None:
+    """Release the polling lock."""
+    try:
+        from app.services.cache_service import get_redis
+
+        r = await get_redis()
+        if r is not None:
+            await r.delete(_POLLING_LOCK_KEY)
+    except Exception:
+        pass
+
+
 async def run_polling_loop() -> None:
     """Long-running polling task. Started by main.py lifespan."""
     if _is_disabled():
@@ -306,14 +394,22 @@ async def run_polling_loop() -> None:
         return
 
     model = settings.AI_CODE_MODEL or settings.AI_MODEL
+    bot_id = (_bot_token() or "").split(":", 1)[0]
     logger.info(
         "telegram code bot polling started (model=%s, bot=%s)",
         model,
-        (_bot_token() or "").split(":", 1)[0],  # log bot id only, never the token
+        bot_id,
     )
+
+    # Acquire distributed lock so only one uvicorn worker polls the bot.
+    if not await _acquire_polling_lock():
+        logger.info("another worker holds the polling lock (bot=%s), skipping", bot_id)
+        return
+    logger.debug("polling lock acquired (bot=%s)", bot_id)
 
     offset: int | None = None
     backoff = 1.0
+    refresh_counter = 0
     try:
         while True:
             try:
@@ -323,6 +419,11 @@ async def run_polling_loop() -> None:
                     backoff = 1.0
                 else:
                     await asyncio.sleep(POLL_INTERVAL_S)
+
+                refresh_counter += 1
+                if refresh_counter >= 30:
+                    await _refresh_polling_lock()
+                    refresh_counter = 0
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -331,4 +432,5 @@ async def run_polling_loop() -> None:
                 backoff = min(backoff * 2, 30.0)
     except asyncio.CancelledError:
         logger.info("telegram code bot polling stopped (cancelled)")
+        await _release_polling_lock()
         raise
