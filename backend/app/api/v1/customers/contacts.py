@@ -5,8 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_perm
+from app.core.pii_policy import apply_pii_mask
 from app.database import get_db
-from app.models.customer import CustomerContact
+from app.models.customer import Customer, CustomerContact
 from app.schemas.common import fail, ok
 
 from .crud import ContactCreate, ContactUpdate
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 async def list_contacts(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_perm("customers", "read")),
+    current_user: dict = Depends(require_perm("customers", "read")),
 ):
     rows = (
         (
@@ -32,19 +33,34 @@ async def list_contacts(
         .scalars()
         .all()
     )
+    # Stage 19 P2 #3: contact PII masking inherits the parent customer's owner
+    # policy.  Contacts belong to a customer record; masking follows the same
+    # admin/finance-or-owner rule as the customer detail endpoint.
+    parent_result = await db.execute(
+        select(Customer.owner).where(
+            Customer.id == customer_id,
+            Customer.deleted_at.is_(None),
+        )
+    )
+    parent_owner = parent_result.scalar_one_or_none()
     return ok(
         [
-            {
-                "id": c.id,
-                "name": c.name,
-                "title": c.title,
-                "role": c.role,
-                "phone": c.phone,
-                "email": c.email,
-                "wechat": c.wechat,
-                "is_primary": c.is_primary,
-                "notes": c.notes,
-            }
+            apply_pii_mask(
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "title": c.title,
+                    "role": c.role,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "wechat": c.wechat,
+                    "is_primary": c.is_primary,
+                    "notes": c.notes,
+                    # borrow parent's owner so apply_pii_mask uses customer-level policy
+                    "owner": parent_owner,
+                },
+                current_user,
+            )
             for c in rows
         ]
     )

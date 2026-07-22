@@ -14,6 +14,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_perm
+from app.core.pii_policy import apply_pii_mask
 from app.database import get_db
 from app.models.customer import Customer, CustomerLog
 from app.schemas.common import fail, ok
@@ -473,7 +474,7 @@ def _customers_cache_key(**parts: object) -> str:
 async def get_customer(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_perm("customers", "read")),
+    current_user: dict = Depends(require_perm("customers", "read")),
 ):
     result = await db.execute(
         select(Customer).where(
@@ -522,6 +523,9 @@ async def get_customer(
         }
         for f in (customer.follow_ups or [])
     ]
+    # Stage 19 P2 #3: per-record PII masking on detail response.
+    data = apply_pii_mask(data, current_user)
+    data["contacts"] = [apply_pii_mask(ct, current_user) for ct in data["contacts"]]
     return ok(data)
 
 

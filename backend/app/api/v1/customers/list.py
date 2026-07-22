@@ -23,6 +23,7 @@ from app.api.v1.customers.crud import (
     _customers_cache_key,
 )
 from app.core.permissions import require_perm
+from app.core.pii_policy import apply_pii_mask
 from app.database import get_db
 from app.models.customer import Customer, CustomerFollowUp
 from app.models.sales import SalesOrder
@@ -230,6 +231,10 @@ async def list_customers(
         _customer_row(customer, now=now, total_amount=total_amount)
         for customer, total_amount in customer_rows
     ]
+    # Stage 19 P2 #3: per-record PII masking (owner sees full, admin/finance sees full,
+    # others see masked phone/email/tax_id/bank_account).  Applied on retrieval so the
+    # cached payload holds full PII but only privileged viewers ever see it un-masked.
+    rows = [apply_pii_mask(row, current_user) for row in rows]
     payload = {"list": rows, "total": total, "page": page, "page_size": page_size}
     await cache_set_versioned(
         "customers:list",
