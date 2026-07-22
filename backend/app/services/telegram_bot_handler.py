@@ -31,10 +31,11 @@ logger = logging.getLogger(__name__)
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
 POLL_INTERVAL_S = 0.5
-# Short long-poll (5s) instead of Telegram's 30s default — keeps connections well
-# under typical NAT / LB idle limits and recovers fast from dropped TCP.
-POLL_LONG_TIMEOUT_S = 5
-POLL_CLIENT_TIMEOUT_S = POLL_LONG_TIMEOUT_S + 10
+# Telegram standard long-poll is 30s. Using 25s stays well under typical NAT/LB
+# idle timeouts (60s+) while letting Telegram hold the connection long enough
+# to actually deliver updates (5s causes Server disconnected on every poll).
+POLL_LONG_TIMEOUT_S = 25
+POLL_CLIENT_TIMEOUT_S = POLL_LONG_TIMEOUT_S + 30
 MAX_MESSAGE_LEN = 4000  # Telegram limit is 4096, leave headroom
 
 
@@ -261,6 +262,11 @@ async def _poll_once(offset: int | None) -> int | None:
             timeout=POLL_CLIENT_TIMEOUT_S,
         ) as client:
             r = await client.get(url, params=params)
+    except httpx.RemoteProtocolError:
+        # Telegram closed the long-poll connection without a response (timeout
+        # elapsed, no updates). Normal — treat as "no new updates", don't spam
+        # the log.
+        return offset
     except Exception as exc:
         logger.exception("getUpdates network error: %s", exc)
         return offset
