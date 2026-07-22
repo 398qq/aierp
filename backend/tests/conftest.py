@@ -12,6 +12,11 @@ os.environ.setdefault(
     "JWT_SECRET",
     "aierp-test-jwt-secret-at-least-32-bytes-long",
 )
+# Disable fire-and-forget embedding pipeline in tests — pytest-asyncio uses
+# function-scope event loops, so `asyncio.create_task()` from embedding_pipeline
+# would create tasks bound to one loop that get awaited under another loop,
+# raising "attached to a different loop" / "Event loop is closed".
+os.environ.setdefault("EMBEDDING_PIPELINE", "0")
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
