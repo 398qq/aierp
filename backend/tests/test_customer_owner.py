@@ -495,9 +495,11 @@ class TestReleaseRules:
                 "name": "90天无跟进释放",
                 "rule_type": "no_followup",
                 "condition_days": 90,
+                "target_status": "inactive",
             },
         )
         assert created.status_code == 201
+        assert created.json()["data"]["target_status"] == "inactive"
         listed = await async_client.get(
             "/api/v1/customers/release-rules", headers=auth_headers
         )
@@ -537,6 +539,20 @@ class TestReleaseRules:
             "/api/v1/customers/release-rules",
             headers=auth_headers,
             json={"name": "非法类型", "rule_type": "nonsense", "condition_days": 30},
+        )
+        assert resp.status_code == 422
+
+    async def test_create_rejects_invalid_target_status(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        resp = await async_client.post(
+            "/api/v1/customers/release-rules",
+            headers=auth_headers,
+            json={
+                "name": "非法状态释放",
+                "rule_type": "no_followup",
+                "target_status": "archived",
+            },
         )
         assert resp.status_code == 422
 
@@ -736,6 +752,67 @@ class TestReleaseCheckJob:
         assert c.owner is None
         logs = await _owner_logs(db_session, c.id)
         assert logs[-1].action_type == "auto_release"
+
+    async def test_transitions_status_and_notifies_released_owner(
+        self, db_session: AsyncSession, test_user: dict, monkeypatch
+    ):
+        from app.jobs.scheduler import _run_owner_release_check_job
+        from app.models.finance import Notification
+
+        old = datetime.now(timezone.utc) - timedelta(days=200)
+        c = await _make_customer(
+            db_session,
+            name="待释放活跃客户",
+            owner=test_user["username"],
+            created_at=old,
+        )
+        c.status = "active"
+        rule = await self._make_release_rule(
+            db_session, rule_type="no_followup", days=90
+        )
+        rule.target_status = "inactive"
+        _patch_session(monkeypatch, db_session)
+
+        await _run_owner_release_check_job()
+
+        await db_session.refresh(c)
+        assert c.owner is None
+        assert c.status == "inactive"
+        notifications = (
+            await db_session.execute(
+                select(Notification).where(
+                    Notification.user_id == test_user["id"],
+                    Notification.related_id == c.id,
+                )
+            )
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].type == "owner_release"
+        assert notifications[0].content == "超过90天无跟进记录（规则: 释放规则）"
+
+    async def test_releases_without_illegal_status_transition(
+        self, db_session: AsyncSession, monkeypatch
+    ):
+        from app.jobs.scheduler import _run_owner_release_check_job
+
+        old = datetime.now(timezone.utc) - timedelta(days=200)
+        c = await _make_customer(
+            db_session,
+            name="状态不能跳转的客户",
+            owner="sales_a",
+            created_at=old,
+        )
+        rule = await self._make_release_rule(
+            db_session, rule_type="no_followup", days=90
+        )
+        rule.target_status = "vip"
+        _patch_session(monkeypatch, db_session)
+
+        await _run_owner_release_check_job()
+
+        await db_session.refresh(c)
+        assert c.owner is None
+        assert c.status == "new_lead"
 
     async def test_keeps_owner_with_recent_followup(
         self, db_session: AsyncSession, monkeypatch

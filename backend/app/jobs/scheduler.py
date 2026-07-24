@@ -675,6 +675,67 @@ def _evaluate_assignment_conditions(customer, rule) -> bool:
     return all(results)
 
 
+def _release_customer_owner(
+    db,
+    customer,
+    rule,
+    reason: str,
+    operator: str,
+    username_to_user_id: dict[str, int],
+) -> None:
+    """Release ``customer``'s owner for ``rule``: clear owner, log, optionally
+    transition ``status`` and notify the outgoing owner.
+
+    Status transition and notification are best-effort — an illegal state
+    transition or unresolvable owner username must not abort the release.
+    """
+    from app.domain.shared.errors import InvalidStateTransition
+    from app.domain.states import assert_can_transition_customer
+    from app.models.customer import CustomerOwnerLog
+    from app.models.finance import Notification
+
+    from_owner = customer.owner
+    customer.owner = None
+
+    if rule.target_status:
+        try:
+            assert_can_transition_customer(customer.status, rule.target_status)
+            customer.status = rule.target_status
+        except InvalidStateTransition:
+            logger.info(
+                "scheduler: owner_release_check — skip illegal status transition "
+                "%s → %s for customer #%d (rule: %s)",
+                customer.status,
+                rule.target_status,
+                customer.id,
+                rule.name,
+            )
+
+    db.add(
+        CustomerOwnerLog(
+            customer_id=customer.id,
+            from_owner=from_owner,
+            to_owner=None,
+            action_type="auto_release",
+            operator=operator,
+            reason=reason,
+        )
+    )
+
+    if rule.notify_owner and from_owner:
+        owner_user_id = username_to_user_id.get(from_owner)
+        if owner_user_id is not None:
+            db.add(
+                Notification(
+                    user_id=owner_user_id,
+                    type="owner_release",
+                    title=f"客户「{customer.name}」已自动释放",
+                    content=reason,
+                    related_id=customer.id,
+                )
+            )
+
+
 async def _run_owner_release_check_job():
     """Auto-release customer owners who have no follow-ups / orders beyond threshold days.
 
@@ -682,9 +743,10 @@ async def _run_owner_release_check_job():
     """
     try:
         from datetime import timedelta
-        from app.models.customer import ReleaseRule, Customer, CustomerOwnerLog
+        from app.models.customer import ReleaseRule, Customer
         from app.models.customer import CustomerFollowUp
         from app.models.sales import SalesOrder
+        from app.models.user import User
 
         async with async_session() as db:
             rules = (
@@ -722,6 +784,15 @@ async def _run_owner_release_check_job():
                 .all()
             )
 
+            username_to_user_id = {
+                u.username: u.id
+                for u in (
+                    await db.execute(select(User).where(User.deleted_at.is_(None)))
+                )
+                .scalars()
+                .all()
+            }
+
             operator = "system"
 
             for rule in rules:
@@ -757,17 +828,14 @@ async def _run_owner_release_check_job():
                             continue  # brand new customer, give grace period
 
                         # Release this customer
-                        from_owner = customer.owner
-                        customer.owner = None
-                        log = CustomerOwnerLog(
-                            customer_id=customer.id,
-                            from_owner=from_owner,
-                            to_owner=None,
-                            action_type="auto_release",
-                            operator=operator,
+                        _release_customer_owner(
+                            db,
+                            customer,
+                            rule,
                             reason=f"超过{rule.condition_days}天无跟进记录（规则: {rule.name}）",
+                            operator=operator,
+                            username_to_user_id=username_to_user_id,
                         )
-                        db.add(log)
                         released_count += 1
 
                     elif rule.rule_type == "no_order":
@@ -795,17 +863,14 @@ async def _run_owner_release_check_job():
                         if customer.created_at and customer.created_at >= cutoff:
                             continue
 
-                        from_owner = customer.owner
-                        customer.owner = None
-                        log = CustomerOwnerLog(
-                            customer_id=customer.id,
-                            from_owner=from_owner,
-                            to_owner=None,
-                            action_type="auto_release",
-                            operator=operator,
+                        _release_customer_owner(
+                            db,
+                            customer,
+                            rule,
                             reason=f"超过{rule.condition_days}天无新订单（规则: {rule.name}）",
+                            operator=operator,
+                            username_to_user_id=username_to_user_id,
                         )
-                        db.add(log)
                         released_count += 1
 
             if released_count:
