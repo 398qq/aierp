@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, Button, List } from "antd";
+import { Card, Col, Progress, Row, Statistic, Tag, Typography, Spin, Alert, Button, List } from "antd";
 import { PieChartOutlined, TrophyOutlined, CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined } from "@ant-design/icons";
 import { getSupplier360 } from "../../api";
 import type { Supplier360 as Supplier360Type } from "../../types";

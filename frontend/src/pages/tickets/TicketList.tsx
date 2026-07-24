@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Space, Select, message, Popconfirm } from "antd";
+import { Button, Space, Select, message, Popconfirm } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getTickets, deleteTicket, getApiErrorMessage } from "../../api";
 import type { Ticket } from "../../types";
@@ -21,36 +22,21 @@ const PRIORITY_MAP: Record<string, { color: string; label: string }> = {
 };
 
 export default function TicketList() {
-  const [data, setData] = useState<Ticket[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const actionRef = useRef<ActionType>(null);
   const [status, setStatus] = useState<string | undefined>();
   const [priority, setPriority] = useState<string | undefined>();
   const [selected, setSelected] = useState<number[]>([]);
   const navigate = useNavigate();
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (status) params.status = status;
-      if (priority) params.priority = priority;
-      const resp = await getTickets(params);
-      setData(resp.data.data.list || []);
-      setTotal(resp.data.data.total || 0);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [page, pageSize, status, priority]);
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [status, priority]);
 
   const handleDelete = async (id: number) => {
     try {
       await deleteTicket(id);
       message.success("已删除");
-      load();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
@@ -67,11 +53,19 @@ export default function TicketList() {
         ]} />
       </Space>
 
-      <Table
+      <ProTable
+        actionRef={actionRef}
         rowKey="id"
-        loading={loading}
-        dataSource={data}
         rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+        request={async (params) => {
+          const p: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+          if (status) p.status = status;
+          if (priority) p.priority = priority;
+          const resp = await getTickets(p);
+          return { data: resp.data.data.list || [], success: true, total: resp.data.data.total || 0 };
+        }}
+        search={false}
+        options={{ reload: true, density: true, setting: true }}
         columns={[
           { title: "工单号", dataIndex: "ticket_no", width: 140, render: (v: string | null, r: Ticket) => <a onClick={() => navigate(`/tickets/${r.id}`)}>{v || `#${r.id}`}</a> },
           { title: "标题", dataIndex: "title", ellipsis: true, width: 200 },
@@ -94,8 +88,7 @@ export default function TicketList() {
               </Space>
             ),
           },
-        ]}
-        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+        ] as any}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Progress, Select, Space, Spin, Switch, Table, Tooltip, Typography, message } from "antd";
+import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Progress, Select, Space, Spin, Switch, Tooltip, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import {
   ArrowLeftOutlined,
   CarOutlined,
@@ -343,7 +344,7 @@ export default function SalesOrderDetail() {
                 ].map((group) => (
                   <div key={group.title}>
                     <Typography.Text strong>{group.title}（{group.rows.length}）</Typography.Text>
-                    <Table
+                    <ProTable
                       style={{ marginTop: 6 }}
                       rowKey="id"
                       size="small"
@@ -351,13 +352,15 @@ export default function SalesOrderDetail() {
                       locale={{ emptyText: `暂无${group.title}` }}
                       dataSource={group.rows}
                       columns={[
-                        { title: "单据号", dataIndex: "number", render: (value: string, row) => (
+                        { title: "单据号", dataIndex: "number", render: (value: string, row: any) => (
                           <Typography.Link onClick={() => navigate(group.path === "payments" ? `/sales/payments/${row.id}/edit` : `/sales/${group.path}/${row.id}`)}>{value}</Typography.Link>
                         ) },
                         { title: "状态", dataIndex: "status", width: 110, render: (value: string) => <SalesStatusTag value={value} /> },
                         { title: "日期", dataIndex: "date", width: 110, render: (value: string | null) => shortDate(value) },
                         { title: "金额", dataIndex: "amount", width: 120, align: "right", render: (value?: number) => value == null ? "-" : money(value) },
-                      ]}
+                      ] as any}
+                      search={false}
+                      options={false}
                     />
                   </div>
                 ))}
@@ -395,7 +398,7 @@ export default function SalesOrderDetail() {
               </Space>
             )}
           >
-            <Table
+            <ProTable
               rowKey="id"
               dataSource={order.items}
               size="small"
@@ -413,21 +416,23 @@ export default function SalesOrderDetail() {
                 { title: "税率", dataIndex: "tax_rate", width: 70, align: "right" as const, render: (v: number | null) => v != null ? `${v}%` : "-" },
                 { title: "价税合计", dataIndex: "total_price", width: 120, align: "right" as const, render: (v: number | null) => (v != null ? <Typography.Text strong>{money(v)}</Typography.Text> : "-") },
                 ...(showExtraColumns ? [{ title: "备注", dataIndex: "notes" as keyof SalesOrderItem, width: 160, ellipsis: true, render: (v: string | null) => v || "-" }] : []),
-              ]}
+              ] as any}
+              search={false}
+              options={false}
               summary={() => (
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} />
-                  <Table.Summary.Cell index={2} />
-                  <Table.Summary.Cell index={3} />
-                  <Table.Summary.Cell index={4}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={5}><Typography.Text strong>{businessChain?.progress.delivered_quantity || 0}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6}><Typography.Text strong>{businessChain?.progress.pending_delivery_quantity ?? itemSummary.quantity}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={7} />
-                  <Table.Summary.Cell index={8} />
-                  <Table.Summary.Cell index={9} />
-                  <Table.Summary.Cell index={10}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></Table.Summary.Cell>
-                </Table.Summary.Row>
+                <ProTable.Summary.Row>
+                  <ProTable.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={1} />
+                  <ProTable.Summary.Cell index={2} />
+                  <ProTable.Summary.Cell index={3} />
+                  <ProTable.Summary.Cell index={4}><Typography.Text strong>{itemSummary.quantity}</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={5}><Typography.Text strong>{businessChain?.progress.delivered_quantity || 0}</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={6}><Typography.Text strong>{businessChain?.progress.pending_delivery_quantity ?? itemSummary.quantity}</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={7} />
+                  <ProTable.Summary.Cell index={8} />
+                  <ProTable.Summary.Cell index={9} />
+                  <ProTable.Summary.Cell index={10}><Typography.Text strong>{money(itemSummary.amount)}</Typography.Text></ProTable.Summary.Cell>
+                </ProTable.Summary.Row>
               )}
               scroll={{ x: "max-content" }}
             />

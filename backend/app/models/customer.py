@@ -395,3 +395,105 @@ class CustomerAIAction(TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     result_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class CustomerOwnerLog(TimestampMixin, Base):
+    __tablename__ = "customer_owner_logs"
+
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE")
+    )
+    from_owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    to_owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    action_type: Mapped[str] = mapped_column(
+        String(30)
+    )  # claim, release, assign, auto_assign, transfer_in, transfer_out, auto_release
+    operator: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AssignmentRule(TimestampMixin, Base):
+    """自动分配规则 — 公海客户自动分配给指定负责人。
+
+    条件引擎：所有 condition 满足时，将客户分配给 assigned_to。
+    """
+
+    __tablename__ = "assignment_rules"
+
+    name: Mapped[str] = mapped_column(String(100))
+    priority: Mapped[int] = mapped_column(default=0)
+    condition_logic: Mapped[str] = mapped_column(
+        String(10), default="all"
+    )  # all:全部满足, any:任一满足
+    assigned_to: Mapped[str] = mapped_column(String(100))
+    max_customers: Mapped[int | None] = mapped_column(
+        nullable=True, default=None
+    )  # 上限，null=不限
+    is_enabled: Mapped[bool] = mapped_column(default=True)
+
+    conditions: Mapped[list["AssignmentRuleCondition"]] = relationship(
+        "AssignmentRuleCondition",
+        back_populates="rule",
+        cascade="all, delete-orphan",
+    )
+
+
+class AssignmentRuleCondition(TimestampMixin, Base):
+    __tablename__ = "assignment_rule_conditions"
+
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey("assignment_rules.id", ondelete="CASCADE")
+    )
+    field: Mapped[str] = mapped_column(
+        String(50)
+    )  # industry, region, source, level, customer_type
+    operator: Mapped[str] = mapped_column(
+        String(20)
+    )  # equals, in, contains, not_empty
+    value: Mapped[str] = mapped_column(String(255))
+
+    rule = relationship("AssignmentRule", back_populates="conditions")
+
+
+
+class OwnerTransferRequest(TimestampMixin, Base):
+    """负责人转移审批请求 — 跨人转移需审批时使用。"""
+
+    __tablename__ = "owner_transfer_requests"
+
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE")
+    )
+    from_owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    to_owner: Mapped[str] = mapped_column(String(100))
+    requested_by: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending, approved, rejected, cancelled
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class ReleaseRule(TimestampMixin, Base):
+    """释放规则 — 自动释放客户负责人的条件配置。
+
+    满足任一规则即触发释放：超过 N 天无跟进 / 超过 N 天无订单。
+    """
+
+    __tablename__ = "release_rules"
+
+    name: Mapped[str] = mapped_column(String(100))
+    rule_type: Mapped[str] = mapped_column(
+        String(50)
+    )  # no_followup, no_order
+    condition_days: Mapped[int] = mapped_column(default=90)
+    target_status: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # 释放后是否改状态，null=只释放负责人
+    is_enabled: Mapped[bool] = mapped_column(default=True)
+    priority: Mapped[int] = mapped_column(default=0)
+    notify_owner: Mapped[bool] = mapped_column(default=True)

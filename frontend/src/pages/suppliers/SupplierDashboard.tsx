@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Row, Col, Statistic, Table, Tag, Spin, Button, Space, Typography } from "antd";
+import { Card, Row, Col, Statistic, Tag, Spin, Button, Space, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import {
   ShopOutlined, SafetyCertificateOutlined, RiseOutlined,
   PieChartOutlined, RightOutlined, ReloadOutlined,
@@ -130,7 +131,7 @@ export default function SupplierDashboard() {
 
       {/* Top Suppliers Table */}
       <Card title="Top 供应商（按关联产品数）" size="small">
-        <Table rowKey="id" columns={topColumns} dataSource={s.top_suppliers} size="small" pagination={false} />
+        <ProTable search={false} options={false} rowKey="id" columns={topColumns as any} dataSource={s.top_suppliers} size="small" pagination={false} />
       </Card>
     </div>
   );

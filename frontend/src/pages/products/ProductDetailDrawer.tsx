@@ -1,5 +1,6 @@
 import { EditOutlined, ProfileOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Progress, Space, Table, Tabs, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Progress, Space, Tabs, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import type { InventoryItem, Product } from "../../types";
 import { formatDateTime, getAvailableQty, getStockState, ProductSalesData } from "./constants";
@@ -283,7 +284,7 @@ export default function ProductDetailDrawer({
           ) : null}
 
           <Card size="small" title={`库存分仓 (${inventories.length})`}>
-            <Table
+            <ProTable search={false} options={false}
               rowKey="id"
               size="small"
               pagination={false}
@@ -318,7 +319,7 @@ export default function ProductDetailDrawer({
                   align: "right",
                   render: money,
                 },
-              ]}
+              ] as any}
             />
           </Card>
 
@@ -329,12 +330,12 @@ export default function ProductDetailDrawer({
                   key: "orders",
                   label: `销售订单 ${sales?.orders?.length || 0}`,
                   children: (
-                    <Table
+                    <ProTable search={false} options={false}
                       rowKey={documentRowKey}
                       size="small"
                       pagination={false}
                       dataSource={sales?.orders || []}
-                      columns={salesColumns}
+                      columns={salesColumns as any}
                     />
                   ),
                 },
@@ -342,12 +343,12 @@ export default function ProductDetailDrawer({
                   key: "quotations",
                   label: `报价 ${sales?.quotations?.length || 0}`,
                   children: (
-                    <Table
+                    <ProTable search={false} options={false}
                       rowKey={documentRowKey}
                       size="small"
                       pagination={false}
                       dataSource={sales?.quotations || []}
-                      columns={salesColumns}
+                      columns={salesColumns as any}
                     />
                   ),
                 },
@@ -355,12 +356,12 @@ export default function ProductDetailDrawer({
                   key: "deliveries",
                   label: `发货 ${sales?.deliveries?.length || 0}`,
                   children: (
-                    <Table
+                    <ProTable search={false} options={false}
                       rowKey={documentRowKey}
                       size="small"
                       pagination={false}
                       dataSource={sales?.deliveries || []}
-                      columns={salesColumns}
+                      columns={salesColumns as any}
                     />
                   ),
                 },

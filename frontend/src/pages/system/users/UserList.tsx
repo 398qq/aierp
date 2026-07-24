@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { Table, Button, Space, Select, Input, message, Popconfirm, Card, Modal, Checkbox, Spin } from "antd";
+import { useState, useRef } from "react";
+import { Button, Space, Select, Input, message, Popconfirm, Card, Modal, Checkbox } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag, type StatusTone } from "../../../ui";
-import { erpPagination } from "../../../ui/pagination";
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import { getUsers, deleteUser, getApiErrorMessage } from "../../../api";
 import client from "../../../api/client";
 import UserForm from "./UserForm";
@@ -31,11 +31,7 @@ interface UserItem {
 interface RbacRole { id: number; name: string; description: string; }
 
 export default function UserList() {
-  const [data, setData] = useState<UserItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const actionRef = useRef<ActionType>(null);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<string | undefined>();
   const [formOpen, setFormOpen] = useState(false);
@@ -48,32 +44,16 @@ export default function UserList() {
   const [assignedRoleIds, setAssignedRoleIds] = useState<number[]>([]);
   const [roleSaving, setRoleSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (search) params.q = search;
-      if (filterRole) params.role = filterRole;
-      const resp = await getUsers(params);
-      const d = resp.data.data;
-      setData((d.list || []) as unknown as UserItem[]);
-      setTotal(d.total || 0);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载用户失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [page, pageSize, filterRole]);
-
-  const handleSearch = () => { setPage(1); load(); };
+  const handleSearch = () => { actionRef.current?.reload(); };
 
   const openCreate = () => { setEditing(null); setFormOpen(true); };
   const openEdit = (u: UserItem) => { setEditing(u); setFormOpen(true); };
 
   const handleDelete = async (id: number) => {
-    try { await deleteUser(id); message.success("删除成功"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    try { await deleteUser(id); message.success("删除成功"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
-  const onFormSuccess = () => { setFormOpen(false); load(); };
+  const onFormSuccess = () => { setFormOpen(false); actionRef.current?.reload(); };
 
   const openRoleAssign = async (u: UserItem) => {
     setRoleUser(u);
@@ -99,7 +79,7 @@ export default function UserList() {
     finally { setRoleSaving(false); }
   };
 
-  const columns: ColumnsType<UserItem> = [
+  const columns = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "用户名", dataIndex: "username", width: 120 },
     {
@@ -137,15 +117,22 @@ export default function UserList() {
             <Input.Search placeholder="搜索用户名" allowClear value={search}
               onChange={(e) => setSearch(e.target.value)} onSearch={handleSearch} style={{ width: 160 }} />
             <Select placeholder="角色筛选" allowClear style={{ width: 100 }} value={filterRole}
-              onChange={(v) => { setFilterRole(v); setPage(1); }} options={ROLE_OPTIONS} />
-            <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+              onChange={(v) => { setFilterRole(v); actionRef.current?.reload(); }} options={ROLE_OPTIONS} />
+            <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增用户</Button>
           </Space>
         }
       >
-        <Table rowKey="id" loading={loading} dataSource={data} columns={columns} size="small"
-          pagination={erpPagination({ current: page, total, pageSize, onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); } })}
-          scroll={{ x: 700 }} />
+        <ProTable rowKey="id" actionRef={actionRef} search={false} options={{ reload: true }}
+          columns={columns as any} size="small" scroll={{ x: 700 }}
+          request={async (params) => {
+            const queryParams: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+            if (search) queryParams.q = search;
+            if (filterRole) queryParams.role = filterRole;
+            const resp = await getUsers(queryParams);
+            const d = resp.data.data;
+            return { data: (d.list || []) as unknown as UserItem[], success: true, total: d.total || 0 };
+          }} />
       </Card>
 
       <UserForm open={formOpen} editing={editing} onClose={() => setFormOpen(false)} onSuccess={onFormSuccess} />

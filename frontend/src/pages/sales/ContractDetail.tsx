@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Empty, Progress, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Divider, Empty, Progress, Space, Spin, Tag, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, AuditOutlined, EditOutlined, PrinterOutlined } from "@ant-design/icons";
 import { getContract, getCustomer, getSalesOrder, getSalesOrderBusinessChain } from "../../api";
@@ -139,7 +140,7 @@ export default function ContractDetail() {
           </Card>
 
           <Card title="合同产品明细" size="small">
-            {order ? <Table
+            {order ? <ProTable
               rowKey="id"
               size="small"
               pagination={false}
@@ -150,8 +151,10 @@ export default function ContractDetail() {
                 { title: "单位", dataIndex: "unit", render: (value: string | null) => value || "-" },
                 { title: "单价", dataIndex: "unit_price", align: "right" as const, render: (value: number | null) => value == null ? "-" : money(value) },
                 { title: "金额", dataIndex: "total_price", align: "right" as const, render: (value: number | null) => value == null ? "-" : money(value) },
-              ]}
-              summary={() => <Table.Summary.Row><Table.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={1}><Typography.Text strong>{order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={2} /><Table.Summary.Cell index={3} /><Table.Summary.Cell index={4}><Typography.Text strong>{money(order.total_amount)}</Typography.Text></Table.Summary.Cell></Table.Summary.Row>}
+              ] as any}
+              search={false}
+              options={false}
+              summary={() => <ProTable.Summary.Row><ProTable.Summary.Cell index={0}><Typography.Text strong>合计</Typography.Text></ProTable.Summary.Cell><ProTable.Summary.Cell index={1}><Typography.Text strong>{order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</Typography.Text></ProTable.Summary.Cell><ProTable.Summary.Cell index={2} /><ProTable.Summary.Cell index={3} /><ProTable.Summary.Cell index={4}><Typography.Text strong>{money(order.total_amount)}</Typography.Text></ProTable.Summary.Cell></ProTable.Summary.Row>}
             /> : <Typography.Text type="secondary">未关联合同订单，暂无产品明细</Typography.Text>}
           </Card>
 

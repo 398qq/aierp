@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { Table, Button, Space, Modal, Form, Input, Tree, message, Popconfirm, Card, Tooltip } from "antd";
+import { useEffect, useState, useRef } from "react";
+import { Button, Space, Modal, Form, Input, Tree, message, Popconfirm, Card, Tooltip } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 
 import client from "../../api/client";
 import { getApiErrorMessage } from "../../api";
@@ -14,23 +15,17 @@ interface Role {
 interface PermGroup { resource: string; resource_label: string; actions: { id: number; action: string; name: string; description: string }[]; }
 
 export default function Roles() {
-  const [roles, setRoles] = useState<Role[]>([]);
+  const actionRef = useRef<ActionType>(null);
   const [permGroups, setPermGroups] = useState<PermGroup[]>([]);
-  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [saving, setSaving] = useState(false);
   const [checkedKeys, setCheckedKeys] = useState<number[]>([]);
   const [form] = Form.useForm();
 
-  const fetchRoles = async () => {
-    setLoading(true);
+  const fetchPerms = async () => {
     try {
-      const [rResp, pResp] = await Promise.all([
-        client.get("/permissions/roles"),
-        client.get("/permissions"),
-      ]);
-      setRoles(rResp.data.data || []);
+      const pResp = await client.get("/permissions");
       const groups = pResp.data.data?.groups || {};
       const resourceLabels: Record<string, string> = {
         customers: "客户", products: "产品", sales: "销售",
@@ -43,11 +38,10 @@ export default function Roles() {
         actions: (actions as { id: number; action: string; name: string; description: string }[]),
       }));
       setPermGroups(grouped);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
-    finally { setLoading(false); }
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载权限失败")); }
   };
 
-  useEffect(() => { fetchRoles(); }, []);
+  useEffect(() => { fetchPerms(); }, []);
 
   const openCreate = () => { setEditingRole(null); form.resetFields(); setCheckedKeys([]); setModalOpen(true); };
   const openEdit = (r: Role) => { setEditingRole(r); form.setFieldsValue(r); setCheckedKeys(r.permission_ids || []); setModalOpen(true); };
@@ -64,13 +58,13 @@ export default function Roles() {
       }
       message.success(editingRole ? "更新成功" : "创建成功");
       setModalOpen(false);
-      fetchRoles();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await client.delete(`/permissions/roles/${id}`); message.success("已删除"); fetchRoles(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    try { await client.delete(`/permissions/roles/${id}`); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
   const treeData = permGroups.map((g) => ({
@@ -86,15 +80,15 @@ export default function Roles() {
     })),
   }));
 
-  const columns: ColumnsType<Role> = [
+  const columns = [
     { title: "角色名", dataIndex: "name", key: "name" },
     { title: "描述", dataIndex: "description", key: "description", ellipsis: true },
     { title: "用户数", dataIndex: "user_count", key: "uc", width: 80 },
     {
       title: "权限预览", key: "pc", width: 200,
-      render: (_, r) => {
+      render: (_: any, r: any) => {
         const perms = r.permission_ids || [];
-        const labels = perms.slice(0, 3).map((id) => {
+        const labels = perms.slice(0, 3).map((id: any) => {
           for (const g of permGroups) {
             const a = g.actions.find((ac) => ac.id === id);
             if (a) return a.name;
@@ -107,7 +101,7 @@ export default function Roles() {
     },
     {
       title: "操作", key: "op", width: 160,
-      render: (_, r) => (
+      render: (_: any, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
           {r.name !== "admin" && (
@@ -122,7 +116,12 @@ export default function Roles() {
 
   return (
     <Card title="角色权限管理" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建角色</Button>}>
-      <Table rowKey="id" columns={columns} dataSource={roles} loading={loading} pagination={false} />
+      <ProTable rowKey="id" actionRef={actionRef} search={false} options={{ reload: true }}
+        columns={columns as any} pagination={false}
+        request={async () => {
+          const resp = await client.get("/permissions/roles");
+          return { data: resp.data.data || [], success: true, total: resp.data.data?.length || 0 };
+        }} />
       <Modal
         title={editingRole ? "编辑角色" : "新建角色"}
         open={modalOpen}

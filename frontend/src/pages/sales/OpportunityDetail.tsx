@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Empty, List, Progress, Space, Spin, Switch, Table, Tag, Timeline, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Empty, List, Progress, Space, Spin, Switch, Tag, Timeline, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, AuditOutlined, CalendarOutlined, DollarOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from "@ant-design/icons";
 import { getOpportunity, getOpportunityAudit, getOpportunityBusinessChain, getOpportunityFollowUps } from "../../api";
@@ -292,14 +293,14 @@ export default function OpportunityDetail() {
               <Card size="small"><Typography.Text type="secondary">订单金额</Typography.Text><Typography.Title level={5} style={{ margin: "4px 0 0" }}>{money(businessChain?.summary.ordered_amount || 0)}</Typography.Title></Card>
               <Card size="small"><Typography.Text type="secondary">报价转单率</Typography.Text><Typography.Title level={5} style={{ margin: "4px 0 0" }}>{businessChain?.summary.conversion_rate || 0}%</Typography.Title></Card>
             </div>
-            <Table
+            <ProTable search={false} options={false}
               rowKey="id"
               size="small"
               pagination={false}
               locale={{ emptyText: "暂无关联报价" }}
               dataSource={businessChain?.quotations || []}
               columns={[
-                { title: "报价单号", dataIndex: "number", render: (value: string, row) => <Typography.Link onClick={() => navigate(`/sales/quotations/${row.id}`)}>{value}</Typography.Link> },
+                { title: "报价单号", dataIndex: "number", render: (value: string, row: any) => <Typography.Link onClick={() => navigate(`/sales/quotations/${row.id}`)}>{value}</Typography.Link> },
                 { title: "状态", dataIndex: "status", width: 100, render: (value: string) => <SalesStatusTag value={value} /> },
                 { title: "金额", dataIndex: "amount", width: 120, align: "right", render: money },
                 { title: "创建时间", dataIndex: "created_at", width: 120, render: shortDate },
@@ -307,14 +308,14 @@ export default function OpportunityDetail() {
                   title: "关联订单",
                   key: "orders",
                   width: 180,
-                  render: (_: unknown, row) => {
+                  render: (_: unknown, row: any) => {
                     const orders = (businessChain?.orders || []).filter((item) => item.quotation?.id === row.id);
                     return orders.length ? (
                       <Space wrap size={4}>{orders.map((item) => <Button key={item.order.id} type="link" size="small" onClick={() => navigate(`/sales/orders/${item.order.id}`)}>{item.order.number}</Button>)}</Space>
                     ) : <Typography.Text type="secondary">未转订单</Typography.Text>;
                   },
                 },
-              ]}
+              ] as any}
             />
           </Card>
         </Space>

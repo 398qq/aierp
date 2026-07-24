@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Alert, Button, Card, Col, Empty, List, Row, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Col, Empty, List, Row, Space, Spin, Tag, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { fontSize } from "../../design-tokens";
 import {
@@ -234,49 +235,52 @@ export default function SalesDashboard() {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={8}>
           <Card size="small" className="sales-erp-table-card" title="近期商机" extra={<Button size="small" type="link" onClick={() => navigate("/sales/opportunities")}>全部</Button>}>
-            <Table
+            <ProTable
+              search={false}
+              options={false}
               rowKey="id"
               size="small"
-              bordered
               pagination={false}
               dataSource={opportunities}
               columns={[
-                { title: "商机", dataIndex: "title", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/opportunities/${r.id}`)}>{v}</a> },
+                { title: "商机", dataIndex: "title", ellipsis: true, render: (v: string, r: any) => <a onClick={() => navigate(`/sales/opportunities/${r.id}`)}>{v}</a> },
                 { title: "阶段", dataIndex: "stage", width: 78, render: (v: string) => {
                   const stageColors: Record<string, string> = { lead: "default", qualification: "blue", proposal: "purple", negotiation: "orange", closed_won: "green", closed_lost: "red" };
                   return <StatusTag tone={stageColors[v] || "neutral"} style={{ fontSize: 12, lineHeight: "18px", margin: 0 }}>{stageLabel[v] || v || "-"}</StatusTag>;
                 }},
                 { title: "金额", dataIndex: "amount", width: 90, render: money },
-              ]}
+              ] as any}
             />
           </Card>
         </Col>
         <Col xs={24} xl={8}>
           <Card size="small" className="sales-erp-table-card" title="待报价" extra={<Button size="small" type="link" icon={<FileTextOutlined />} onClick={() => navigate("/sales/quotations")}>处理</Button>}>
-            <Table
+            <ProTable
+              search={false}
+              options={false}
               rowKey="id"
               size="small"
-              bordered
               pagination={false}
               dataSource={quotations}
               columns={[
-                { title: "报价", dataIndex: "quotation_no", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/quotations/${r.id}`)}>{v || r.title || `#${r.id}`}</a> },
+                { title: "报价", dataIndex: "quotation_no", ellipsis: true, render: (v: string, r: any) => <a onClick={() => navigate(`/sales/quotations/${r.id}`)}>{v || r.title || `#${r.id}`}</a> },
                 { title: "状态", dataIndex: "status", width: 74, render: (v: string) => <SalesStatusTag value={v} /> },
                 { title: "金额", dataIndex: "total_amount", width: 90, render: money },
-              ]}
+              ] as any}
             />
           </Card>
         </Col>
         <Col xs={24} xl={8}>
           <Card size="small" className="sales-erp-table-card" title="待确认订单" extra={<Button size="small" type="link" icon={<ShoppingCartOutlined />} onClick={() => navigate("/sales/orders")}>执行</Button>}>
-            <Table
+            <ProTable
+              search={false}
+              options={false}
               rowKey="id"
               size="small"
-              bordered
               pagination={false}
               dataSource={orders}
               columns={[
-                { title: "订单", dataIndex: "order_no", ellipsis: true, render: (v: string, r) => <a onClick={() => navigate(`/sales/orders/${r.id}`)}>{v || `#${r.id}`}</a> },
+                { title: "订单", dataIndex: "order_no", ellipsis: true, render: (v: string, r: any) => <a onClick={() => navigate(`/sales/orders/${r.id}`)}>{v || `#${r.id}`}</a> },
                 { title: "交付", dataIndex: "delivery_date", width: 86, render: (v: string | null) => {
                   if (!v) return "-";
                   const diff = Math.ceil((new Date(v).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
@@ -285,7 +289,7 @@ export default function SalesDashboard() {
                   return shortDate(v);
                 }},
                 { title: "金额", dataIndex: "total_amount", width: 90, render: money },
-              ]}
+              ] as any}
             />
           </Card>
         </Col>

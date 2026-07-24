@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Table, Card, Tag, Typography } from "antd";
+import { Card, Tag, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import type { ColumnsType } from "antd/es/table";
+
 import client from "../../api/client";
 
 interface Account {
@@ -27,7 +28,7 @@ export default function AccountList() {
     })();
   }, []);
 
-  const columns: ColumnsType<Account> = [
+  const columns: any = [
     { title: "编码", dataIndex: "code", width: 100 },
     { title: "名称", dataIndex: "name", width: 180 },
     {
@@ -39,8 +40,8 @@ export default function AccountList() {
 
   return (
     <Card title="会计科目表">
-      <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
-        pagination={false} size="small" />
+      <ProTable rowKey="id" columns={columns} dataSource={data} loading={loading}
+        pagination={false} size="small" search={false} options={false} />
     </Card>
   );
 }

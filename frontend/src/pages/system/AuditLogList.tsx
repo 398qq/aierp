@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { Table, Card, Tag, Select, Input, Space, Typography } from "antd";
+import { useEffect, useRef, useState } from "react";
+import { Card, Tag, Select, Input, Space, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import { SearchOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+
 import client from "../../api/client";
 
 interface AuditLog {
@@ -22,32 +23,19 @@ const resourceLabels: Record<string, string> = {
 };
 
 export default function AuditLogList() {
-  const [data, setData] = useState<AuditLog[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const actionRef = useRef<ActionType>(null);
   const [resourceType, setResourceType] = useState<string | undefined>();
   const [userId, setUserId] = useState<string>("");
 
-  const fetch = async (p = page) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page: p, page_size: pageSize };
-      if (resourceType) params.resource_type = resourceType;
-      if (userId) params.user_id = Number(userId);
-      const resp = await client.get("/permissions/audit-logs", { params });
-      setData(resp.data.data?.list || []);
-      setTotal(resp.data.data?.total || 0);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [resourceType]);
+
+  const handleSearch = () => {
+    actionRef.current?.reload();
   };
 
-  useEffect(() => { fetch(); }, [page, pageSize, resourceType]);
-
-  const handleSearch = () => { setPage(1); fetch(1); };
-
-  const columns: ColumnsType<AuditLog> = [
+  const columns: any = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "用户", dataIndex: "username", width: 100 },
     {
@@ -79,9 +67,16 @@ export default function AuditLogList() {
         />
         <Typography.Link onClick={handleSearch}><SearchOutlined /> 搜索</Typography.Link>
       </Space>
-      <Table
-        rowKey="id" columns={columns} dataSource={data} loading={loading}
-        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+      <ProTable
+        actionRef={actionRef} rowKey="id" columns={columns}
+        request={async (params) => {
+          const p: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+          if (resourceType) p.resource_type = resourceType;
+          if (userId) p.user_id = Number(userId);
+          const resp = await client.get("/permissions/audit-logs", { params: p });
+          return { data: resp.data.data?.list || [], success: true, total: resp.data.data?.total || 0 };
+        }}
+        search={false} options={{ reload: true, density: true, setting: true }}
         size="small"
       />
     </Card>

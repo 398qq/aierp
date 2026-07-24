@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Table, Typography, message } from "antd";
+import { Button, Card, Col, Dropdown, Input, Modal, Progress, Row, Segmented, Select, Space, Spin, Switch, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
+import type { ActionType } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
 import { AppstoreOutlined, BarsOutlined, DeleteOutlined, EllipsisOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { batchUpdateOpportunities, deleteOpportunity, getOpportunities, getApiErrorMessage } from "../../api";
@@ -26,6 +27,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function OpportunityList() {
+  const actionRef = useRef<ActionType>(null);
   const [data, setData] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | undefined>();
@@ -40,10 +42,21 @@ export default function OpportunityList() {
   const [aiMap, setAiMap] = useState<Record<number, OpportunityAI>>({});
   const navigate = useNavigate();
 
-  const load = useCallback(async () => {
+  const tableParams = useMemo(() => {
+    const p: Record<string, unknown> = {};
+    if (status) p.status = status;
+    if (stage) p.stage = stage;
+    if (assignedTo) p.assigned_to = assignedTo;
+    if (customerId) p.customer_id = customerId;
+    if (q) p.q = q;
+    if (includeAi) p.include_ai = true;
+    return p;
+  }, [status, stage, assignedTo, customerId, q, includeAi]);
+
+  const doFetch = useCallback(async (extraParams: Record<string, unknown> = {}) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page_size: 100 };
+      const params: Record<string, unknown> = { page_size: 100, ...extraParams };
       if (status) params.status = status;
       if (stage) params.stage = stage;
       if (assignedTo) params.assigned_to = assignedTo;
@@ -51,16 +64,19 @@ export default function OpportunityList() {
       if (q.trim()) params.q = q.trim();
       if (includeAi) params.include_ai = true;
       const resp = await getOpportunities(params);
-      setData(resp.data.data.list || []);
+      const list: Opportunity[] = resp.data.data.list || [];
+      setData(list);
       setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, OpportunityAI> }).ai || {}) : {});
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); } finally {
+      return list;
+    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); return []; } finally {
       setLoading(false);
     }
-  }, [assignedTo, customerId, includeAi, q, stage, status]);
+  }, [status, stage, assignedTo, customerId, q, includeAi]);
 
+  // Load data on mount and when filters change (used for board view and list view initial state)
   useEffect(() => {
-    load();
-  }, [load]);
+    doFetch();
+  }, [doFetch]);
 
   const ownerOptions = useMemo(
     () => Array.from(new Set(data.map((item) => item.assigned_to).filter(Boolean) as string[]))
@@ -122,8 +138,16 @@ export default function OpportunityList() {
       await batchUpdateOpportunities(selected, nextStage);
       message.success("阶段已更新");
       setSelected([]);
-      load();
+      doFetch();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); }
+  };
+
+  const handleRefresh = () => {
+    if (view === "board") {
+      doFetch();
+    } else {
+      actionRef.current?.reload();
+    }
   };
 
   return (
@@ -152,7 +176,7 @@ export default function OpportunityList() {
         title={<Typography.Text strong>商机筛选</Typography.Text>}
         extra={(
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+            <Button icon={<ReloadOutlined />} onClick={handleRefresh}>刷新</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/opportunities/new")}>新建商机</Button>
           </Space>
         )}
@@ -245,15 +269,32 @@ export default function OpportunityList() {
           <Spin size="large" />
         </div>
       ) : view === "board" ? (
-        <PipelineBoard opportunities={data} aiMap={aiMap} loading={loading} onRefresh={load} />
+        <PipelineBoard opportunities={data} aiMap={aiMap} loading={loading} onRefresh={doFetch} />
       ) : (
         <Card size="small" title="商机清单" className="erp-table">
-          <Table
+          <ProTable<Opportunity>
+            actionRef={actionRef}
             rowKey="id"
-            dataSource={data}
+            search={false}
+            options={{ reload: true, density: true, setting: true }}
             rowClassName={erpRowClass}
             rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
             scroll={{ x: "max-content" }}
+            params={tableParams}
+            request={async (params) => {
+              const queryParams: Record<string, unknown> = { page_size: 100 };
+              if (params.status) queryParams.status = params.status;
+              if (params.stage) queryParams.stage = params.stage;
+              if (params.assigned_to) queryParams.assigned_to = params.assigned_to;
+              if (params.customer_id) queryParams.customer_id = params.customer_id;
+              if (params.q?.trim()) queryParams.q = params.q.trim();
+              if (params.include_ai) queryParams.include_ai = true;
+              const resp = await getOpportunities(queryParams);
+              const list: Opportunity[] = resp.data.data.list || [];
+              setData(list);
+              setAiMap(params.include_ai ? ((resp.data.data as unknown as { ai?: Record<number, OpportunityAI> }).ai || {}) : {});
+              return { data: list, success: true, total: list.length };
+            }}
             columns={[
               {
                 title: "#", width: 45, fixed: "left",
@@ -277,7 +318,7 @@ export default function OpportunityList() {
                 title: "阶段",
                 dataIndex: "stage",
                 width: 110,
-                sorter: (a, b) => (a.stage || "").localeCompare(b.stage || ""),
+                sorter: (a: any, b: any) => (a.stage || "").localeCompare(b.stage || ""),
                 render: (value: string) => (
                   <StatusTag status={value || "-"} color="blue" label={stageLabel[value] || value || "-"} />
                 ),
@@ -286,7 +327,7 @@ export default function OpportunityList() {
                 title: "状态",
                 dataIndex: "status",
                 width: 100,
-                sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+                sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
                 render: (value: string) => (
                   <>
                     {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
@@ -299,7 +340,7 @@ export default function OpportunityList() {
                 dataIndex: "amount",
                 width: 130,
                 align: "right",
-                sorter: (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
+                sorter: (a: any, b: any) => Number(a.amount || 0) - Number(b.amount || 0),
                 render: (value: number | null) => <Typography.Text strong>{money(value)}</Typography.Text>,
               },
               {
@@ -307,7 +348,7 @@ export default function OpportunityList() {
                 key: "weighted_amount",
                 width: 130,
                 align: "right",
-                sorter: (a, b) => Number(a.amount || 0) * Number(a.win_probability || 0) - Number(b.amount || 0) * Number(b.win_probability || 0),
+                sorter: (a: any, b: any) => Number(a.amount || 0) * Number(a.win_probability || 0) - Number(b.amount || 0) * Number(b.win_probability || 0),
                 render: (_: unknown, record: Opportunity) => (
                   <Typography.Text>{money(Number(record.amount || 0) * Number(record.win_probability || 0) / 100)}</Typography.Text>
                 ),
@@ -316,7 +357,7 @@ export default function OpportunityList() {
                 title: "赢率",
                 dataIndex: "win_probability",
                 width: 150,
-                sorter: (a, b) => Number(a.win_probability || 0) - Number(b.win_probability || 0),
+                sorter: (a: any, b: any) => Number(a.win_probability || 0) - Number(b.win_probability || 0),
                 render: (value: number | null) => (
                   <Space direction="vertical" size={0} style={{ width: "100%" }}>
                     <Progress percent={Number(value || 0)} size="small" showInfo={false} />
@@ -324,10 +365,10 @@ export default function OpportunityList() {
                   </Space>
                 ),
               },
-              { title: "预计成交", dataIndex: "expected_close_date", width: 120, sorter: (a, b) => (a.expected_close_date || "").localeCompare(b.expected_close_date || ""), render: shortDate },
+              { title: "预计成交", dataIndex: "expected_close_date", width: 120, sorter: (a: any, b: any) => (a.expected_close_date || "").localeCompare(b.expected_close_date || ""), render: shortDate },
               { title: "负责人", dataIndex: "assigned_to", width: 120, render: (value: string | null) => value || "-" },
               { title: "来源", dataIndex: "source", width: 120, ellipsis: true, render: (value: string | null) => value || "-" },
-              { title: "最近更新", dataIndex: "updated_at", width: 120, sorter: (a, b) => (a.updated_at || a.created_at || "").localeCompare(b.updated_at || b.created_at || ""), render: (value: string | null, record: Opportunity) => shortDate(value || record.created_at) },
+              { title: "最近更新", dataIndex: "updated_at", width: 120, sorter: (a: any, b: any) => (a.updated_at || a.created_at || "").localeCompare(b.updated_at || b.created_at || ""), render: (value: string | null, record: Opportunity) => shortDate(value || record.created_at) },
               {
                 title: "风险",
                 key: "risk",
@@ -347,7 +388,7 @@ export default function OpportunityList() {
                     { type: "divider" as const },
                     { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                       Modal.confirm({ title: "确定删除?", content: `删除商机 #${record.id}？`, onOk: async () => {
-                        try { await deleteOpportunity(record.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+                        try { await deleteOpportunity(record.id); message.success("已删除"); handleRefresh(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                       }});
                     }},
                   ];
@@ -358,21 +399,20 @@ export default function OpportunityList() {
                   );
                 },
               },
-            ]}
+            ] as any}
             summary={(pageData: readonly Opportunity[]) => {
               const totalAmt = pageData.reduce((s, r) => s + Number(r.amount || 0), 0);
               const weightedAmt = pageData.reduce((s, r) => s + Number(r.amount || 0) * Number(r.win_probability || 0) / 100, 0);
               return (
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={2}>合计 <Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={2} colSpan={2} />
-                  <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalAmt)}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="right"><Typography.Text strong>{money(weightedAmt)}</Typography.Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} colSpan={7} />
-                </Table.Summary.Row>
+                <ProTable.Summary.Row>
+                  <ProTable.Summary.Cell index={0} colSpan={2}>合计 <Typography.Text strong>{pageData.length} 项</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={2} colSpan={2} />
+                  <ProTable.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalAmt)}</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={5} align="right"><Typography.Text strong>{money(weightedAmt)}</Typography.Text></ProTable.Summary.Cell>
+                  <ProTable.Summary.Cell index={6} colSpan={7} />
+                </ProTable.Summary.Row>
               );
             }}
-            pagination={erpPagination()}
           />
         </Card>
       )}

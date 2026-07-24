@@ -5,10 +5,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { App, Table, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
+import { App, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+
 import type { TablePaginationConfig } from "antd/es/table/interface";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -284,7 +285,7 @@ export default function FollowUpList() {
   };
 
   // 表格列定义
-  const columns: ColumnsType<FollowUp> = [
+  const columns: any = [
     {
       title: "方式",
       dataIndex: "method",
@@ -318,7 +319,7 @@ export default function FollowUpList() {
       dataIndex: "planned_at",
       key: "planned_at",
       width: 120,
-      render: (planned_at: string, record) => {
+      render: (planned_at: string, record: any) => {
         const bucket = getDueFilter(record);
         const color = bucket === "overdue" ? "red" : bucket === "today" ? "orange" : bucket === "upcoming" ? "blue" : "default";
         return (
@@ -355,7 +356,7 @@ export default function FollowUpList() {
       key: "actions",
       width: 260,
       fixed: "right",
-      render: (_, record) => (
+              render: (_: any, record: any) => (
         <Space size="small">
           {record.status === "in_progress" && (
             <Button type="link" size="small" icon={<SyncOutlined />} onClick={() => openUpdate(record)}>
@@ -478,7 +479,7 @@ export default function FollowUpList() {
       )}
 
       {!loading && filteredData.length > 0 && (
-        <Table
+        <ProTable search={false} options={false}
           className="erp-table followup-ledger-table"
           columns={columns}
           dataSource={currentData}

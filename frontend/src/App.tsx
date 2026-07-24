@@ -55,6 +55,9 @@ const CustomerIntelligenceDashboard = lazy(
 const CustomerAIWorkbench = lazy(() => import("./pages/customers/CustomerAIWorkbench"));
 const CustomerSegments = lazy(() => import("./pages/customers/CustomerSegments"));
 const CustomerFollowUpsPage = lazy(() => import("./pages/customers/CustomerFollowUpsPage"));
+const AssignmentRulesPage = lazy(() => import("./pages/customers/AssignmentRulesPage"));
+const OwnerTransferRequestsPage = lazy(() => import("./pages/customers/OwnerTransferRequestsPage"));
+const ReleaseRulesPage = lazy(() => import("./pages/customers/ReleaseRulesPage"));
 const FollowUpList = lazy(() => import("./pages/customers/FollowUpList"));
 const ProductList = lazy(() => import("./pages/products/index"));
 const ProductDetail = lazy(() => import("./pages/products/ProductDetail"));
@@ -313,6 +316,30 @@ export default function App() {
                   element={
                     <Suspense fallback={<PageLoader />}>
                       <CustomerFollowUpsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/assignment-rules"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AssignmentRulesPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/transfer-requests"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OwnerTransferRequestsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/customers/release-rules"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReleaseRulesPage />
                     </Suspense>
                   }
                 />

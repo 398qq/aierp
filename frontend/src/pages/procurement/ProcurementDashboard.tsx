@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty, List } from "antd";
+import { Card, Row, Col, Statistic, Typography, Spin, Empty, List } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ShoppingCartOutlined, DollarOutlined, ClockCircleOutlined, TruckOutlined } from "@ant-design/icons";
 import client from "../../api/client";
@@ -80,13 +81,13 @@ export default function ProcurementDashboard() {
         </Col>
         <Col span={12}>
           <Card title="月度采购趋势" size="small">
-            <Table
+            <ProTable search={false} options={false}
               rowKey="month" dataSource={d?.monthly_trend || []} pagination={false} size="small"
               columns={[
                 { title: "月份", dataIndex: "month" },
                 { title: "订单数", dataIndex: "count" },
                 { title: "金额", dataIndex: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
-              ]}
+              ] as any}
             />
           </Card>
         </Col>

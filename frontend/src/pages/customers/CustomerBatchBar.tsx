@@ -13,14 +13,17 @@ import {
   PushpinOutlined,
   TagsOutlined,
   UserSwitchOutlined,
+  UsergroupAddOutlined,
 } from "@ant-design/icons";
 import {
+  assignCustomers,
   batchDeleteCustomers,
   batchSetOwner,
   batchTagCustomers,
   exportCustomers,
-  getTags,
+  getActiveUsers,
   getApiErrorMessage,
+  getTags,
 } from "@/api";
 
 // ── 类型 ──
@@ -46,6 +49,10 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [tagOptions, setTagOptions] = useState<Array<{ value: number; label: string }>>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<string | null>(null);
+  const [userOptions, setUserOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   // ── 批量删除 ──
   const handleBatchDelete = useCallback(() => {
@@ -129,6 +136,44 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
     }
   }, [selectedIds, selectedTagIds, selectedCount, onBatchComplete, onClear]);
 
+  // ── 批量分配 ──
+  const handleBatchAssign = useCallback(async () => {
+    try {
+      const res = await getActiveUsers();
+      const users = (res.data?.data || res.data) as
+        | Array<{ username: string; role: string }>
+        | { list: Array<{ username: string; role: string }> };
+      const userList = Array.isArray(users)
+        ? users
+        : (users as { list: Array<{ username: string; role: string }> }).list || [];
+      setUserOptions(userList.map((u) => ({ value: u.username, label: `${u.username} (${u.role || "销售"})` })));
+      setAssignTarget(null);
+      setAssignModalOpen(true);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载用户列表失败"));
+    }
+  }, []);
+
+  const handleBatchAssignSubmit = useCallback(async () => {
+    if (!assignTarget) {
+      message.warning("请选择目标负责人");
+      return;
+    }
+    setAssigning(true);
+    try {
+      await assignCustomers(selectedIds, assignTarget);
+      message.success(`已分配 ${selectedCount} 个客户给 ${assignTarget}`);
+      setAssignModalOpen(false);
+      setAssignTarget(null);
+      onBatchComplete();
+      onClear();
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量分配失败"));
+    } finally {
+      setAssigning(false);
+    }
+  }, [selectedIds, assignTarget, selectedCount, onBatchComplete, onClear]);
+
   if (selectedCount === 0) return null;
 
   return (
@@ -177,6 +222,13 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
           </Button>
           <Button
             size="small"
+            icon={<UsergroupAddOutlined />}
+            onClick={handleBatchAssign}
+          >
+            分配
+          </Button>
+          <Button
+            size="small"
             icon={<UserSwitchOutlined />}
             onClick={async () => {
               try {
@@ -221,6 +273,27 @@ export const CustomerBatchBar: React.FC<CustomerBatchBarProps> = ({
           options={tagOptions}
           value={selectedTagIds}
           onChange={setSelectedTagIds}
+        />
+      </Modal>
+      <Modal
+        title={`分配 ${selectedCount} 个客户给负责人`}
+        open={assignModalOpen}
+        okText="确认分配"
+        cancelText="取消"
+        confirmLoading={assigning}
+        onOk={handleBatchAssignSubmit}
+        onCancel={() => setAssignModalOpen(false)}
+      >
+        <Select
+          showSearch
+          style={{ width: "100%", marginTop: 12 }}
+          placeholder="选择目标负责人"
+          options={userOptions}
+          value={assignTarget}
+          onChange={setAssignTarget}
+          filterOption={(input, option) =>
+            (option?.label as string)?.toLowerCase().includes(input.toLowerCase()) ?? false
+          }
         />
       </Modal>
     </>

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Button, Card, Col, message, Row, Select, Space, Table, Tabs, Typography, Upload } from "antd";
+import { Button, Card, Col, message, Row, Select, Space, Tabs, Typography, Upload } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { DownloadOutlined, InboxOutlined, UploadOutlined } from "@ant-design/icons";
 import { exportEntity, importEntity, getApiErrorMessage } from "../../api";
 
@@ -156,11 +157,13 @@ export default function ImportExportPage() {
                         {importResult.errors.length > 0 && (
                           <>
                             <Text type="danger">失败 {importResult.errors.length} 条：</Text>
-                            <Table
+                            <ProTable
                               size="small"
                               dataSource={importResult.errors.map((e, i) => ({ key: i, error: e }))}
                               columns={[{ title: "错误信息", dataIndex: "error" }]}
                               pagination={false}
+                              search={false}
+                              options={false}
                             />
                           </>
                         )}

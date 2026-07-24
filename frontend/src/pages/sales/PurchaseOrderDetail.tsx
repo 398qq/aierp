@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, InputNumber, Modal, Select, Space, Spin, Table, Typography, message } from "antd";
+import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, InputNumber, Modal, Select, Space, Spin, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, PrinterOutlined, SendOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { confirmLargePurchaseOrder, confirmPurchaseOrderSupplier, getApiErrorMessage, getPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder } from "../../api";
@@ -118,15 +119,15 @@ export default function PurchaseOrderDetail() {
           </Descriptions>
         </Card>
         <Card size="small" title="采购明细（含税）">
-          <Table rowKey="id" size="small" bordered pagination={false} scroll={{ x: 1650 }} dataSource={po.items} columns={[
-            { title: "#", width: 45, fixed: "left", render: (_v, _r, index) => index + 1 },
+          <ProTable rowKey="id" size="small" bordered pagination={false} scroll={{ x: 1650 }} dataSource={po.items} columns={[
+            { title: "#", width: 45, fixed: "left", render: (_v: any, _r: any, index: any) => index + 1 },
             { title: "供应商型号(MPN)", dataIndex: "supplier_mpn", width: 170, fixed: "left" }, { title: "自有SKU", dataIndex: "product_sku", width: 140 },
             { title: "品名", dataIndex: "product_name", width: 180 }, { title: "品牌", dataIndex: "brand_name", width: 100 }, { title: "封装", dataIndex: "package_type", width: 100 },
-            { title: "数量(pcs)", dataIndex: "quantity", width: 100, align: "right" }, { title: "最小包装", width: 110, render: (_v, r) => r.min_pack_qty ? `${r.min_pack_qty}/${r.min_pack_unit || "包"}` : "-" },
-            { title: "生产批次", dataIndex: "date_code_requirement", width: 120 }, { title: "含税单价", dataIndex: "unit_price", width: 110, align: "right", render: (value) => money(value) },
-            { title: "金额", dataIndex: "amount", width: 120, align: "right", render: (value) => <Typography.Text strong>{money(value)}</Typography.Text> },
+            { title: "数量(pcs)", dataIndex: "quantity", width: 100, align: "right" }, { title: "最小包装", width: 110, render: (_v: any, r: any) => r.min_pack_qty ? `${r.min_pack_qty}/${r.min_pack_unit || "包"}` : "-" },
+            { title: "生产批次", dataIndex: "date_code_requirement", width: 120 }, { title: "含税单价", dataIndex: "unit_price", width: 110, align: "right", render: (value: any) => money(value) },
+            { title: "金额", dataIndex: "amount", width: 120, align: "right", render: (value: any) => <Typography.Text strong>{money(value)}</Typography.Text> },
             { title: "备注", dataIndex: "notes", width: 150 },
-          ]} summary={() => <Table.Summary.Row><Table.Summary.Cell index={0} colSpan={6}><Typography.Text strong>合计</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={6}><Typography.Text strong>{summary.quantity.toLocaleString()}</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={7} colSpan={3} /><Table.Summary.Cell index={10}><Typography.Text strong>{money(summary.amount)}</Typography.Text></Table.Summary.Cell><Table.Summary.Cell index={11} /></Table.Summary.Row>} />
+          ] as any} search={false} options={false} summary={() => <ProTable.Summary.Row><ProTable.Summary.Cell index={0} colSpan={6}><Typography.Text strong>合计</Typography.Text></ProTable.Summary.Cell><ProTable.Summary.Cell index={6}><Typography.Text strong>{summary.quantity.toLocaleString()}</Typography.Text></ProTable.Summary.Cell><ProTable.Summary.Cell index={7} colSpan={3} /><ProTable.Summary.Cell index={10}><Typography.Text strong>{money(summary.amount)}</Typography.Text></ProTable.Summary.Cell><ProTable.Summary.Cell index={11} /></ProTable.Summary.Row>} />
         </Card>
       </Space>
       <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>

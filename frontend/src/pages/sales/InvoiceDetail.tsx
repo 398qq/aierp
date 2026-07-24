@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Divider, Empty, Space, Spin, Tag, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, DollarOutlined, EditOutlined } from "@ant-design/icons";
 import { getInvoice } from "../../api";
@@ -112,7 +113,7 @@ export default function InvoiceDetail() {
 
           {inv.items && inv.items.length > 0 && (
             <Card title="发票行项" size="small">
-              <Table
+              <ProTable search={false} options={false}
                 rowKey="id"
                 size="small"
                 dataSource={inv.items}
@@ -126,7 +127,7 @@ export default function InvoiceDetail() {
                   { title: "税率", dataIndex: "tax_rate", width: 70, align: "right", render: (v: number|null) => v != null ? `${v}%` : "-" },
                   { title: "税额", dataIndex: "tax_amount", width: 90, align: "right", render: (v: number|null) => v != null ? money(v) : "-" },
                   { title: "备注", dataIndex: "notes", ellipsis: true },
-                ]}
+                ] as any}
               />
             </Card>
           )}

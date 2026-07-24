@@ -35,4 +35,7 @@ export const updateUser = (id: number, data: Record<string, unknown>) =>
 export const deleteUser = (id: number) =>
   client.delete<APIResponse>(`/users/${id}`);
 
+export const getActiveUsers = () =>
+  client.get<APIResponse<Array<{ username: string; role: string }>>>("/users/active");
+
 

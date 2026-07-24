@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Card, Col, Row, Statistic, Tag, Typography, Spin, Alert, Table, List, Button, Space } from "antd";
+import { Card, Col, Row, Statistic, Tag, Typography, Spin, Alert, List, Button, Space } from "antd";
 import { StatusTag } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import { WarningOutlined, SafetyOutlined, AlertOutlined, ThunderboltOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ProTable } from "@ant-design/pro-components";
 import { getWatchtowerScan } from "../../api";
 
 const { Title, Text, Paragraph } = Typography;
@@ -136,7 +137,7 @@ export default function WatchtowerDashboard() {
 
       <Card title="异常详情" style={{ marginBottom: 24 }}>
         {allAnomalies.length > 0 ? (
-          <Table columns={anomalyColumns} dataSource={allAnomalies} rowKey={(_r, i) => String(i)} pagination={erpPagination()} size="small" />
+          <ProTable columns={anomalyColumns as any} dataSource={allAnomalies} rowKey={(_r, i) => String(i)} pagination={erpPagination()} search={false} options={false} />
         ) : (
           <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 40 }}>未检测到异常，系统运行正常</Text>
         )}

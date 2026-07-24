@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
+import { Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag, type StatusTone } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
-import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
 import { getPurchaseOrders, getSuppliers, receivePurchaseOrder, deletePurchaseOrder, batchDeletePurchaseOrders, getApiErrorMessage } from "../../api";
@@ -22,11 +22,10 @@ const STATUS: Record<string, { tone: StatusTone; label: string }> = {
 
 export default function PurchaseOrderList() {
   const navigate = useNavigate();
-  const [data, setData] = useState<PurchaseOrder[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageData, setPageData] = useState<PurchaseOrder[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(20);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [receivePO, setReceivePO] = useState<PurchaseOrder | null>(null);
   const [receiveWarehouseId, setReceiveWarehouseId] = useState(1);
@@ -41,24 +40,7 @@ export default function PurchaseOrderList() {
   const [filterDateFrom, setFilterDateFrom] = useState<string | undefined>();
   const [filterDateTo, setFilterDateTo] = useState<string | undefined>();
   const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
-
-  const fetch = async (p = page) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page: p, page_size: pageSize };
-      if (filterSupplierId) params.supplier_id = filterSupplierId;
-      if (filterStatus) params.status = filterStatus;
-      if (filterDateFrom) params.date_from = filterDateFrom;
-      if (filterDateTo) params.date_to = filterDateTo;
-      if (q.trim()) params.q = q.trim();
-      const r = await getPurchaseOrders(params);
-      setData((r.data.data?.list || []) as PurchaseOrder[]);
-      setTotal((r.data.data?.total || 0) as number);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载采购订单失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { fetch(); }, [page, pageSize, filterSupplierId, filterStatus, filterDateFrom, filterDateTo, q]);
+  const actionRef = useRef<ActionType>(null);
 
   useEffect(() => {
     getSuppliers({ page: 1, page_size: 200 }).then((r) =>
@@ -67,19 +49,18 @@ export default function PurchaseOrderList() {
   }, []);
 
   const stats = useMemo(() => {
-    const amount = data.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-    const draft = data.filter((item) => item.status === "draft").length;
-    const received = data.filter((item) => item.status === "received").length;
-    const cancelled = data.filter((item) => item.status === "cancelled").length;
+    const amount = pageData.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+    const draft = pageData.filter((item) => item.status === "draft").length;
+    const received = pageData.filter((item) => item.status === "received").length;
+    const cancelled = pageData.filter((item) => item.status === "cancelled").length;
     return { amount, draft, received, cancelled };
-  }, [data]);
+  }, [pageData]);
 
   const clearFilters = () => {
     setFilterSupplierId(undefined);
     setFilterStatus(undefined);
     setFilterDateFrom(undefined);
     setFilterDateTo(undefined);
-    setPage(1);
   };
 
   const handleBatchDelete = async () => {
@@ -87,7 +68,7 @@ export default function PurchaseOrderList() {
       await batchDeletePurchaseOrders(selected);
       message.success("已批量删除");
       setSelected([]);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
   };
 
@@ -98,7 +79,7 @@ export default function PurchaseOrderList() {
       await receivePurchaseOrder(receivePO.id, receiveWarehouseId);
       message.success(`PO #${receivePO.order_no || receivePO.id} 已收货，库存已自动入库`);
       setReceiveModalOpen(false);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "收货失败")); }
     finally { setReceiving(false); }
   };
@@ -108,11 +89,11 @@ export default function PurchaseOrderList() {
       await deletePurchaseOrder(po.id);
       message.success(`PO ${po.order_no || `#${po.id}`} 已删除`);
       setSelected((prev) => prev.filter((id) => id !== po.id));
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
-  const exportData = useMemo(() => data.map((item) => ({
+  const exportData = useMemo(() => pageData.map((item) => ({
     order_no: item.order_no || "-",
     supplier: item.supplier_name || `#${item.supplier_id}`,
     status: STATUS[item.status]?.label || item.status,
@@ -120,10 +101,10 @@ export default function PurchaseOrderList() {
     expected_date: item.expected_date?.slice(0, 10) || "-",
     notes: item.notes || "-",
     created_at: item.created_at?.slice(0, 10) || "-",
-  })), [data]);
+  })), [pageData]);
 
-  const columns: ColumnsType<PurchaseOrder> = [
-    { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: PurchaseOrder, index: number) => (page - 1) * pageSize + index + 1 },
+  const columns = [
+    { title: "#", width: 40, fixed: "left", render: (_: unknown, __: PurchaseOrder, index: number) => (currentPage - 1) * currentPageSize + index + 1 },
     {
       title: "采购单", dataIndex: "order_no", minWidth: 200,
       render: (v: string | null, r: PurchaseOrder) => (
@@ -177,7 +158,7 @@ export default function PurchaseOrderList() {
         );
       },
     },
-  ];
+  ] as any;
 
   return (
     <SalesModuleShell
@@ -187,13 +168,13 @@ export default function PurchaseOrderList() {
       extra={(
         <Space>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/purchase-orders/new")}>新建采购单</Button>
-          <Button icon={<ReloadOutlined />} onClick={() => fetch()}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
         </Space>
       )}
     >
       <MetricBand
         items={[
-          { title: "采购单数", value: total, suffix: "单" },
+          { title: "采购单数", value: totalRecords, suffix: "单" },
           { title: "本页金额", value: stats.amount, prefix: "¥", precision: 0 },
           { title: "草稿", value: stats.draft, suffix: "单" },
           { title: "已收货", value: stats.received, suffix: "单" },
@@ -222,15 +203,9 @@ export default function PurchaseOrderList() {
             value={searchText}
             onChange={(e) => {
               setSearchText(e.target.value);
-              if (!e.target.value) {
-                setPage(1);
-                setQ("");
-              }
+              if (!e.target.value) setQ("");
             }}
-            onSearch={(value) => {
-              setPage(1);
-              setQ(value);
-            }}
+            onSearch={(value) => setQ(value)}
             style={{ width: 240 }}
           />
           <Select
@@ -240,7 +215,7 @@ export default function PurchaseOrderList() {
             optionFilterProp="label"
             style={{ width: 160 }}
             value={filterSupplierId}
-            onChange={(v) => { setFilterSupplierId(v); setPage(1); }}
+            onChange={setFilterSupplierId}
             options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
           />
           <Select
@@ -248,7 +223,7 @@ export default function PurchaseOrderList() {
             placeholder="状态"
             style={{ width: 120 }}
             value={filterStatus}
-            onChange={(v) => { setFilterStatus(v); setPage(1); }}
+            onChange={setFilterStatus}
             options={[
               { value: "draft", label: "草稿" },
               { value: "approved", label: "已审批" },
@@ -261,12 +236,12 @@ export default function PurchaseOrderList() {
           <DatePicker
             placeholder="创建日期-从"
             value={filterDateFrom ? dayjs(filterDateFrom) : null}
-            onChange={(d) => { setFilterDateFrom(d?.format("YYYY-MM-DD")); setPage(1); }}
+            onChange={(d) => setFilterDateFrom(d?.format("YYYY-MM-DD"))}
           />
           <DatePicker
             placeholder="创建日期-至"
             value={filterDateTo ? dayjs(filterDateTo) : null}
-            onChange={(d) => { setFilterDateTo(d?.format("YYYY-MM-DD")); setPage(1); }}
+            onChange={(d) => setFilterDateTo(d?.format("YYYY-MM-DD"))}
           />
           <Button icon={<ClearOutlined />} onClick={clearFilters} disabled={!filterSupplierId && !filterStatus && !filterDateFrom && !filterDateTo}>
             清除筛选
@@ -285,24 +260,39 @@ export default function PurchaseOrderList() {
         title={(
           <Space size={8} wrap>
             <Typography.Text strong>采购订单单据</Typography.Text>
-            <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
+            <Typography.Text type="secondary">{pageData.length} / {totalRecords} 单</Typography.Text>
             {selected.length > 0 && <StatusTag status={`已选 ${selected.length}`} tone="info" />}
           </Space>
         )}
       >
-        <Table
+        <ProTable<PurchaseOrder>
+          actionRef={actionRef}
           rowKey="id"
           columns={columns}
-          dataSource={data}
-          loading={loading}
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           size="small"
           bordered
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           scroll={{ x: 900 }}
-          pagination={erpPagination({
-            current: page, total, pageSize,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
-          })}
+          params={{ q, filterSupplierId, filterStatus, filterDateFrom, filterDateTo }}
+          request={async (params) => {
+            setCurrentPage(params.current || 1);
+            setCurrentPageSize(params.pageSize || 20);
+            const apiParams: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+            if (filterSupplierId) apiParams.supplier_id = filterSupplierId;
+            if (filterStatus) apiParams.status = filterStatus;
+            if (filterDateFrom) apiParams.date_from = filterDateFrom;
+            if (filterDateTo) apiParams.date_to = filterDateTo;
+            if (q.trim()) apiParams.q = q.trim();
+            const r = await getPurchaseOrders(apiParams);
+            const list = (r.data.data?.list || []) as PurchaseOrder[];
+            const total = (r.data.data?.total || 0) as number;
+            setTotalRecords(total);
+            return { data: list, success: true, total };
+          }}
+          onLoad={(ds) => setPageData(ds as PurchaseOrder[])}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         />
       </Card>
 

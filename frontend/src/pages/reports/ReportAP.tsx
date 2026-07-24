@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, Table, Tag, Typography, Statistic, Spin, Empty } from "antd";
+import { Card, Tag, Typography, Statistic, Spin, Empty } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { DollarOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 
@@ -38,7 +39,7 @@ export default function ReportAP() {
       </Card>
       <Card title="应付明细" size="small">
         {data?.items?.length ? (
-          <Table rowKey="po_id" columns={columns} dataSource={data.items} pagination={false} size="small" />
+          <ProTable rowKey="po_id" columns={columns as any} dataSource={data.items} pagination={false} size="small" search={false} options={false} />
         ) : <Empty description="暂无应付账款" />}
       </Card>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Col, Row, Spin, Table, Tag, Typography, Empty, Slider, Space } from "antd";
+import { Card, Col, Row, Spin, Tag, Typography, Empty, Slider, Space } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { getCustomerSegments } from "../../api";
@@ -164,8 +165,8 @@ export default function CustomerSegmentsPage() {
           </Card>
 
           <Card size="small" className="customer-segments-panel customer-segments-grid" title="聚类详情" extra={<Text type="secondary">点击行查看客户</Text>}>
-            <Table
-              columns={columns}
+            <ProTable search={false} options={false}
+              columns={columns as any}
               dataSource={clusters}
               rowKey="id"
               pagination={false}

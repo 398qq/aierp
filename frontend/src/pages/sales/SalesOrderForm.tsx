@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Typography, message } from "antd";
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { getProductCustomerCodes, getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
@@ -245,7 +246,7 @@ export default function SalesOrderForm() {
               <Form.List name="items">
                 {(fields, { add, remove }) => (
                   <>
-                    <Table
+                    <ProTable search={false} options={false}
                       rowKey="key"
                       size="small"
                       bordered
@@ -253,22 +254,22 @@ export default function SalesOrderForm() {
                       dataSource={fields}
                       scroll={{ x: "max-content" }}
                       summary={() => (
-                        <Table.Summary fixed>
-                          <Table.Summary.Row>
-                            <Table.Summary.Cell index={0}>
+                        <ProTable.Summary fixed>
+                          <ProTable.Summary.Row>
+                            <ProTable.Summary.Cell index={0}>
                               <Typography.Text strong>合计</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={1}>
+                            </ProTable.Summary.Cell>
+                            <ProTable.Summary.Cell index={1}>
                               <Typography.Text strong>{summary.quantity}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={2} />
-                            <Table.Summary.Cell index={3}>
+                            </ProTable.Summary.Cell>
+                            <ProTable.Summary.Cell index={2} />
+                            <ProTable.Summary.Cell index={3}>
                               <Typography.Text strong>{money(summary.amount)}</Typography.Text>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={4} />
-                            <Table.Summary.Cell index={5} />
-                          </Table.Summary.Row>
-                        </Table.Summary>
+                            </ProTable.Summary.Cell>
+                            <ProTable.Summary.Cell index={4} />
+                            <ProTable.Summary.Cell index={5} />
+                          </ProTable.Summary.Row>
+                        </ProTable.Summary>
                       )}
                       columns={[
                         {

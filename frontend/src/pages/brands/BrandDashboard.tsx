@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Row, Col, Statistic, Table, Tag, Spin, Button, Space, Typography, Alert, List, Progress } from "antd";
+import { Card, Row, Col, Statistic, Tag, Spin, Button, Space, Typography, Alert, List, Progress } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import {
   BankOutlined, AlertOutlined, RiseOutlined,
@@ -455,7 +456,7 @@ export default function BrandDashboard() {
         <Col xs={24} xl={14}>
           <Card className="brand-table-card" title="TOP 风险品牌" size="small" extra={<Button size="small" onClick={() => navigate("/brands?scene=high_risk")}>查看全部</Button>}>
             {s.top_risk_brands.length > 0 ? (
-              <Table rowKey="id" columns={riskColumns} dataSource={s.top_risk_brands} size="small" pagination={false} scroll={{ x: 560 }} />
+              <ProTable search={false} options={false} rowKey="id" columns={riskColumns as any} dataSource={s.top_risk_brands} size="small" pagination={false} scroll={{ x: 560 }} />
             ) : (
               <div className="brand-dashboard-empty"><Text type="secondary">暂无高风险品牌</Text></div>
             )}
@@ -493,7 +494,7 @@ export default function BrandDashboard() {
       <Row gutter={[12, 12]}>
         <Col xs={24} xl={12}>
           <Card className="brand-table-card" title="品牌分类分布 (TOP 10)" size="small">
-            <Table
+            <ProTable search={false} options={false}
               rowKey="category"
               dataSource={s.by_category.slice(0, 10)}
               size="small"
@@ -507,7 +508,7 @@ export default function BrandDashboard() {
                   width: 80,
                   render: (_: unknown, r: { count: number }) => `${s.total > 0 ? (r.count / s.total * 100).toFixed(1) : 0}%`,
                 },
-              ]}
+              ] as any}
             />
           </Card>
         </Col>

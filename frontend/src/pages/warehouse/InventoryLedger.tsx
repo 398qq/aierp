@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { Table, Button, Space, Card, Select, Input, message } from "antd";
+import { useEffect, useState, useRef } from "react";
+import { Button, Space, Card, Select, Input, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import { ReloadOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import { getInventoryTransactions, getWarehouses, getApiErrorMessage } from "../../api";
 import type { Warehouse } from "../../types";
 
@@ -45,12 +45,7 @@ interface InventoryTransactionRecord {
 }
 
 export default function InventoryLedger() {
-  const [data, setData] = useState<InventoryTransactionRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-
+  const actionRef = useRef<ActionType>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState<number | undefined>();
   const [productSearch, setProductSearch] = useState("");
@@ -62,34 +57,11 @@ export default function InventoryLedger() {
     });
   }, []);
 
-  const fetch = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (warehouseId) params.warehouse_id = warehouseId;
-      if (typeFilter) params.type = typeFilter;
-      if (productSearch) params.product_id = productSearch;
-
-      const resp = await getInventoryTransactions(params);
-      if (resp.data.code === 0) {
-        setData(resp.data.data.list as InventoryTransactionRecord[]);
-        setTotal(resp.data.data.total);
-      }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存流水失败")); } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetch();
-  }, [page, pageSize, warehouseId, typeFilter]);
-
   const handleSearch = () => {
-    setPage(1);
-    fetch();
+    actionRef.current?.reload();
   };
 
-  const columns: ColumnsType<InventoryTransactionRecord> = [
+  const columns = [
     {
       title: "日期",
       dataIndex: "created_at",
@@ -123,9 +95,9 @@ export default function InventoryLedger() {
         return `${r.before_qty} → ${r.after_qty}`;
       },
     },
-    { title: "参考类型", dataIndex: "reference_type", width: 100, render: (v) => v || "-" },
-    { title: "参考ID", dataIndex: "reference_id", width: 80, render: (v) => v || "-" },
-    { title: "备注", dataIndex: "notes", ellipsis: true, render: (v) => v || "-" },
+    { title: "参考类型", dataIndex: "reference_type", width: 100, render: (v: any) => v || "-" },
+    { title: "参考ID", dataIndex: "reference_id", width: 80, render: (v: any) => v || "-" },
+    { title: "备注", dataIndex: "notes", ellipsis: true, render: (v: any) => v || "-" },
   ];
 
   return (
@@ -133,7 +105,7 @@ export default function InventoryLedger() {
       <Card
         title="库存台账"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={fetch}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
         }
       >
         <Space style={{ marginBottom: 16 }} wrap>
@@ -142,7 +114,7 @@ export default function InventoryLedger() {
             placeholder="选择仓库"
             style={{ width: 160 }}
             value={warehouseId}
-            onChange={(v) => { setWarehouseId(v); setPage(1); }}
+            onChange={(v) => { setWarehouseId(v); actionRef.current?.reload(); }}
             options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
           />
           <Select
@@ -150,7 +122,7 @@ export default function InventoryLedger() {
             placeholder="交易类型"
             style={{ width: 120 }}
             value={typeFilter}
-            onChange={(v) => { setTypeFilter(v); setPage(1); }}
+            onChange={(v) => { setTypeFilter(v); actionRef.current?.reload(); }}
             options={TRANSACTION_TYPES}
           />
           <Input.Search
@@ -163,20 +135,19 @@ export default function InventoryLedger() {
           />
         </Space>
 
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          size="small"
-          scroll={{ x: 1000 }}
-          pagination={erpPagination({
-            current: page,
-            total,
-            pageSize,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
-          })}
-        />
+        <ProTable rowKey="id" actionRef={actionRef} search={false} options={{ reload: true }}
+          columns={columns as any} size="small" scroll={{ x: 1000 }}
+          request={async (params) => {
+            const queryParams: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+            if (warehouseId) queryParams.warehouse_id = warehouseId;
+            if (typeFilter) queryParams.type = typeFilter;
+            if (productSearch) queryParams.product_id = productSearch;
+            const resp = await getInventoryTransactions(queryParams);
+            if (resp.data.code === 0) {
+              return { data: resp.data.data.list as InventoryTransactionRecord[], success: true, total: resp.data.data.total || 0 };
+            }
+            return { data: [], success: false, total: 0 };
+          }} />
       </Card>
     </div>
   );

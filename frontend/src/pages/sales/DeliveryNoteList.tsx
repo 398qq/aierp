@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd";
+import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Tag, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments, getApiErrorMessage } from "../../api";
@@ -182,14 +182,14 @@ export default function DeliveryNoteList() {
           />
         </Space>
 
-        <Table
+        <ProTable search={false} options={false}
           rowKey="id"
           loading={loading}
           dataSource={data}
           rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           scroll={{ x: "max-content" }}
-          columns={[
+            columns={[
             {
               title: "#", width: 45, fixed: "left",
               render: (_: unknown, __: DeliveryNote, index: number) => (page - 1) * 20 + index + 1,
@@ -212,7 +212,7 @@ export default function DeliveryNoteList() {
               v ? <Link to={`/customers/${r.customer_id}`}>{v}</Link> : <CustomerLink id={r.customer_id} /> },
             {
               title: "状态", dataIndex: "status", width: 110,
-              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
               render: (value: string) => (
                 <>
                   {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
@@ -220,8 +220,8 @@ export default function DeliveryNoteList() {
                 </>
               ),
             },
-            { title: "发货日期", dataIndex: "delivery_date", width: 120, sorter: (a, b) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
-            { title: "签收日期", dataIndex: "received_date", width: 120, sorter: (a, b) => (a.received_date || "").localeCompare(b.received_date || ""), render: shortDate },
+            { title: "发货日期", dataIndex: "delivery_date", width: 120, sorter: (a: any, b: any) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
+            { title: "签收日期", dataIndex: "received_date", width: 120, sorter: (a: any, b: any) => (a.received_date || "").localeCompare(b.received_date || ""), render: shortDate },
             { title: "明细", width: 80, align: "right", render: (_: unknown, record: DeliveryNote) => record.items?.length || 0 },
             {
               title: "回款", width: 100,
@@ -256,20 +256,20 @@ export default function DeliveryNoteList() {
                 );
               },
             },
-          ]}
+          ] as any}
           summary={(pageData: readonly DeliveryNote[]) => {
             const itemCount = pageData.reduce((s, r) => s + (r.items?.length || 0), 0);
             return (
-              <Table.Summary.Row>
-                <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
-                <Table.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={2} colSpan={4} />
-                <Table.Summary.Cell index={6} align="right"><Typography.Text strong>{itemCount} 行</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={7} colSpan={3} />
-              </Table.Summary.Row>
+              <ProTable.Summary.Row>
+                <ProTable.Summary.Cell index={0}>合计</ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={2} colSpan={4} />
+                <ProTable.Summary.Cell index={6} align="right"><Typography.Text strong>{itemCount} 行</Typography.Text></ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={7} colSpan={3} />
+              </ProTable.Summary.Row>
             );
           }}
-          pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+          pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showQuickJumper: true, showTotal: (total: number, range: [number, number]) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`, locale: { items_per_page: "条/页", jump_to: "跳至", page: "页" }, onChange: (nextPage: number, nextSize: number) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } }}
         />
       </Card>
     </SalesModuleShell>

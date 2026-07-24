@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Descriptions, Button, Space, Spin, Alert, Table, message, Typography, Row, Col, List, Progress, Modal, Select, Input, Flex, Popconfirm } from "antd";
+import { Card, Descriptions, Button, Space, Spin, Alert, message, Typography, Row, Col, List, Progress, Modal, Select, Input, Flex, Popconfirm } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import { ArrowLeftOutlined, EditOutlined, ThunderboltOutlined, PieChartOutlined, ImportOutlined, NodeIndexOutlined, DashboardOutlined, AlertOutlined, ApartmentOutlined, BulbOutlined, TrophyOutlined, TeamOutlined, RocketOutlined, LineChartOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+
 import { getBrand, getBrands, getProducts, updateProduct, getBrandProfile, getBrandPortfolio, getSimilarBrands, compareBrands, importBrandFromText, getBrandHealth, getBrandRisk, getBrandSupplierMatrix, getBrandRecommendations, getBrandProductPerformance, getBrandCustomerPenetration, getBrandLifecycle, getBrandPriceTrends, autoCompleteBrand, getApiErrorMessage } from "../../api";
 import type { Brand, Product, BrandProfile, BrandPortfolio, SimilarBrand, BrandComparison, BrandHealth, BrandRisk, BrandSupplierMatrix, BrandRecommendation, BrandProductPerformance, BrandCustomerPenetration, BrandLifecycle, BrandPriceTrends } from "../../types";
 import { getBrandAiTasks, getBrandNextAction } from "./brandAiOrchestration";
@@ -250,13 +251,13 @@ export default function BrandDetail() {
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!brand) return <Alert type="error" message="品牌未找到" />;
 
-  const productColumns: ColumnsType<Product> = [
-    { title: "SKU", dataIndex: "sku", width: 120, render: (v) => v || "-" },
+  const productColumns: any = [
+    { title: "SKU", dataIndex: "sku", width: 120, render: (v: any) => v || "-" },
     {
       title: "名称", dataIndex: "name", width: 200,
-      render: (v, r) => <a onClick={() => navigate(`/products/${r.id}`)}>{v}</a>,
+      render: (v: any, r: any) => <a onClick={() => navigate(`/products/${r.id}`)}>{v}</a>,
     },
-    { title: "分类", dataIndex: "category", width: 100, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
+    { title: "分类", dataIndex: "category", width: 100, render: (v: any) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "封装", dataIndex: "package_type", width: 100 },
     { title: "单位", dataIndex: "unit", width: 60 },
     {
@@ -264,7 +265,7 @@ export default function BrandDetail() {
       key: "actions",
       width: 230,
       fixed: "right",
-      render: (_, product) => (
+      render: (_: any, product: any) => (
         <Space size={0}>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/products/${product.id}`)}>查看</Button>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => navigate(`/products/${product.id}/edit`)}>编辑</Button>
@@ -694,13 +695,13 @@ export default function BrandDetail() {
       {/* Similar Brands */}
       {similarBrands.length > 0 && (
         <Card title={<><NodeIndexOutlined /> 相似品牌</>} style={{ marginBottom: 16 }}>
-          <Table size="small" dataSource={similarBrands} rowKey="id" pagination={false}
+          <ProTable search={false} options={false} size="small" dataSource={similarBrands} rowKey="id" pagination={false}
             columns={[
               { title: "品牌", key: "name", width: 150, render: (_: unknown, r: SimilarBrand) => <a onClick={() => navigate(`/brands/${r.id}`)}>{r.name}{r.name_cn ? ` (${r.name_cn})` : ""}</a> },
               { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <StatusTag>{v}</StatusTag> : null },
               { title: "产品数", dataIndex: "product_count", width: 80 },
               { title: "共同分类", dataIndex: "shared_categories", width: 80, render: (v: number) => <StatusTag tone="info">{v}</StatusTag> },
-            ]}
+            ] as any}
           />
         </Card>
       )}
@@ -820,14 +821,14 @@ export default function BrandDetail() {
             {supplierMatrix.supplier_details && supplierMatrix.supplier_details.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" title="供应商覆盖明细">
-                  <Table size="small" dataSource={supplierMatrix.supplier_details} rowKey="supplier_id" pagination={false}
+                  <ProTable search={false} options={false} size="small" dataSource={supplierMatrix.supplier_details} rowKey="supplier_id" pagination={false}
                     columns={[
                       { title: "供应商", dataIndex: "supplier_name", width: 180 },
                       { title: "产品数", dataIndex: "product_count", width: 80 },
                       { title: "均价", dataIndex: "avg_cost", width: 120, render: (v: number | null) => v ? `¥${v.toFixed(4)}` : "-" },
                       { title: "最低价", dataIndex: "min_cost", width: 120, render: (v: number | null) => v ? `¥${v.toFixed(4)}` : "-" },
                       { title: "平均交期", dataIndex: "avg_lead_time", width: 100, render: (v: number | null) => v ? `${v}天` : "-" },
-                    ]}
+                    ] as any}
                   />
                 </Card>
               </Col>
@@ -865,10 +866,10 @@ export default function BrandDetail() {
             </Col>
             {recommendations.recommended_brands.length > 0 && (
               <Col span={24}>
-                <Table size="small" dataSource={recommendations.recommended_brands} rowKey="brand_name" pagination={false}
+                <ProTable search={false} options={false} size="small" dataSource={recommendations.recommended_brands} rowKey="brand_name" pagination={false}
                   columns={[
                     { title: "推荐品牌", dataIndex: "brand_name", width: 180,
-                      render: (v: string, r) => <a onClick={() => {
+                      render: (v: string, r: any) => <a onClick={() => {
                         const found = recommendations.co_purchase_raw?.find(b => b.name === v);
                         if (found) navigate(`/brands/${found.id}`);
                       }}>{v}</a>
@@ -876,20 +877,20 @@ export default function BrandDetail() {
                     { title: "推荐度", dataIndex: "overlap_score", width: 100, render: (v: number) => <Progress percent={v} size="small" /> },
                     { title: "原因", dataIndex: "reason" },
                     { title: "优先级", dataIndex: "priority", width: 80, render: (v: string) => <StatusTag tone={v === "高" ? "danger" : v === "中" ? "info" : "neutral"}>{v}</StatusTag> },
-                  ]}
+                  ] as any}
                 />
               </Col>
             )}
             {recommendations.co_purchase_raw && recommendations.co_purchase_raw.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" title="关联购买数据">
-                  <Table size="small" dataSource={recommendations.co_purchase_raw} rowKey="id" pagination={false}
+                  <ProTable search={false} options={false} size="small" dataSource={recommendations.co_purchase_raw} rowKey="id" pagination={false}
                     columns={[
-                      { title: "品牌", key: "name", width: 180, render: (_: unknown, r) => <a onClick={() => navigate(`/brands/${r.id}`)}>{r.name}{r.name_cn ? ` (${r.name_cn})` : ""}</a> },
+                      { title: "品牌", key: "name", width: 180, render: (_: unknown, r: any) => <a onClick={() => navigate(`/brands/${r.id}`)}>{r.name}{r.name_cn ? ` (${r.name_cn})` : ""}</a> },
                       { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <StatusTag>{v}</StatusTag> : null },
                       { title: "共同客户", dataIndex: "shared_customers", width: 100 },
                       { title: "共同产品", dataIndex: "shared_products", width: 100 },
-                    ]}
+                    ] as any}
                   />
                 </Card>
               </Col>
@@ -925,14 +926,14 @@ export default function BrandDetail() {
             {perf.star_products.length > 0 && (
               <Col span={14}>
                 <Card size="small" type="inner" title="明星产品">
-                  <Table size="small" dataSource={perf.star_products} rowKey="product_name" pagination={false}
+                  <ProTable search={false} options={false} size="small" dataSource={perf.star_products} rowKey="product_name" pagination={false}
                     columns={[
                       { title: "产品", dataIndex: "product_name", width: 160, render: (v: string) => <Typography.Text strong>{v}</Typography.Text> },
                       { title: "销售额", dataIndex: "revenue", width: 100, render: (v: number) => `¥${v.toLocaleString()}` },
                       { title: "毛利率", dataIndex: "margin_pct", width: 80, render: (v: number) => <StatusTag tone="success">{v}%</StatusTag> },
                       { title: "增幅", dataIndex: "growth", width: 80 },
                       { title: "建议", dataIndex: "recommendation" },
-                    ]}
+                    ] as any}
                   />
                 </Card>
               </Col>
@@ -980,13 +981,13 @@ export default function BrandDetail() {
             {penetration.key_industries.length > 0 && (
               <Col span={12}>
                 <Card size="small" type="inner" title="核心覆盖行业">
-                  <Table size="small" dataSource={penetration.key_industries} rowKey="industry" pagination={false}
+                  <ProTable search={false} options={false} size="small" dataSource={penetration.key_industries} rowKey="industry" pagination={false}
                     columns={[
                       { title: "行业", dataIndex: "industry" },
                       { title: "客户数", dataIndex: "customer_count", width: 70 },
                       { title: "贡献占比", dataIndex: "contribution_pct", width: 80, render: (v: number) => `${v}%` },
                       { title: "评估", dataIndex: "assessment" },
-                    ]}
+                    ] as any}
                   />
                 </Card>
               </Col>
@@ -1116,7 +1117,7 @@ export default function BrandDetail() {
         extra={<Button icon={<PlusOutlined />} loading={linkLoading} onClick={openLinkProducts}>手动关联产品</Button>}
       >
         {products.length > 0 ? (
-          <Table rowKey="id" columns={productColumns} dataSource={products} size="small" scroll={{ x: 820 }} pagination={erpPagination()} />
+          <ProTable search={false} options={false} rowKey="id" columns={productColumns} dataSource={products} size="small" scroll={{ x: 820 }} pagination={erpPagination()} />
         ) : (<Text type="secondary">暂无关联产品</Text>)}
       </Card>
 
@@ -1177,13 +1178,13 @@ export default function BrandDetail() {
             <Card size="small" style={{ marginBottom: 12, background: "#f6ffed" }}>
               <Text>{comparison.comparison_summary}</Text>
             </Card>
-            <Table size="small" dataSource={comparison.dimension_scores || []} pagination={false} rowKey="dimension"
+            <ProTable search={false} options={false} size="small" dataSource={comparison.dimension_scores || []} pagination={false} rowKey="dimension"
               columns={[
                 { title: "维度", dataIndex: "dimension", width: 100 },
                 { title: comparison.brand_a?.name as string || "品牌A", dataIndex: "a_score", width: 80, render: (v: number) => <Progress percent={v * 10} size="small" /> },
                 { title: comparison.brand_b?.name as string || "品牌B", dataIndex: "b_score", width: 80, render: (v: number) => <Progress percent={v * 10} size="small" /> },
                 { title: "说明", dataIndex: "note" },
-              ]}
+              ] as any}
             />
             <Card size="small" style={{ marginTop: 12 }} title="替换分析">
               <Descriptions column={2} size="small">

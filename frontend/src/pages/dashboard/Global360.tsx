@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, List } from "antd";
+import { Card, Col, Progress, Row, Statistic, Tag, Typography, Spin, Alert, List } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, AimOutlined, WarningOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { orchestrateGlobal360 } from "../../api";
@@ -101,19 +102,19 @@ export default function Global360Page() {
 
       {insights.kpi_health?.length > 0 && (
         <Card title="KPI 健康看板" style={{ marginBottom: 24 }}>
-          <Table columns={kpiColumns} dataSource={insights.kpi_health} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+          <ProTable columns={kpiColumns as any} dataSource={insights.kpi_health} rowKey={(_r, i) => String(i)} pagination={false} search={false} options={false} />
         </Card>
       )}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Card title={<><RiseOutlined /> 顶部机会</>}>
-            <Table columns={oportunidadColumns} dataSource={insights.top_opportunities} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+            <ProTable columns={oportunidadColumns as any} dataSource={insights.top_opportunities} rowKey={(_r, i) => String(i)} pagination={false} search={false} options={false} />
           </Card>
         </Col>
         <Col span={12}>
           <Card title={<><WarningOutlined /> 顶部风险</>}>
-            <Table columns={riskColumns} dataSource={insights.top_risks} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+            <ProTable columns={riskColumns as any} dataSource={insights.top_risks} rowKey={(_r, i) => String(i)} pagination={false} search={false} options={false} />
           </Card>
         </Col>
       </Row>
@@ -135,7 +136,7 @@ export default function Global360Page() {
       </Row>
 
       <Card title="战略建议">
-        <Table columns={recoColumns} dataSource={insights.strategic_recommendations} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+        <ProTable columns={recoColumns as any} dataSource={insights.strategic_recommendations} rowKey={(_r, i) => String(i)} pagination={false} search={false} options={false} />
       </Card>
 
       {raw && (

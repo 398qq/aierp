@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Statistic, Table, Select, Tag, Spin, Empty, Descriptions } from "antd";
+import { Card, Row, Col, Statistic, Select, Tag, Spin, Empty, Descriptions } from "antd";
 import { DollarOutlined, RiseOutlined, FallOutlined, TrophyOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 

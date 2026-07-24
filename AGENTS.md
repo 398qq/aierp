@@ -1,69 +1,87 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Start here
 
-This repo is split into a Python backend and a React frontend. Backend code lives in `backend/app/`: API routes in `api/`, middleware/security helpers in `core/`, SQLAlchemy models in `models/`, Pydantic schemas in `schemas/`, business logic in `services/`, scheduled work in `jobs/`, and SQL migrations in `migrations/`. Backend tests are in `backend/tests/`.
+Use this file as the short, repo-specific entry point. For deeper detail, follow the linked project docs instead of copying them into agent instructions.
 
-Frontend code lives in `frontend/src/`: API clients in `api/`, reusable UI in `components/`, layouts in `layouts/`, feature pages in `pages/`, shared state in `store/`, and tests in `test/`. Static PWA assets are in `frontend/public/`. Planning and requirements documents are under `docs/`.
+- [docs/README.md](docs/README.md) — documentation index
+- [docs/development-workflow.md](docs/development-workflow.md) — build, TDD, planning, review workflow
+- [docs/architecture/README.md](docs/architecture/README.md) — architecture status and ADR pointers
+- [docs/FRONTEND_HOOKS.md](docs/FRONTEND_HOOKS.md) — frontend hook refactor patterns
+- [docs/FRONTEND_SECURITY.md](docs/FRONTEND_SECURITY.md) — frontend dependency/security posture
+- [CLAUDE.md](CLAUDE.md) — repository-wide engineering bottom lines and command references
 
-## Build, Test, and Development Commands
+## Codebase map
 
-Run commands from the repository root unless noted.
+- Backend: `backend/app/`
+  - `api/` routes stay thin
+  - `core/` security, middleware, request context
+  - `models/` SQLAlchemy ORM
+  - `schemas/` request/response contracts
+  - `services/` domain logic and orchestration
+  - `jobs/` scheduled work
+  - `migrations/` SQL migration scripts
+  - Tests live under `backend/tests/`
+- Frontend: `frontend/src/`
+  - `api/` is the single API layer
+  - `components/` reusable UI
+  - `layouts/` shell layout
+  - `pages/` feature pages
+  - `store/` Zustand state
+  - `test/` frontend tests
 
-- `make dev`: start FastAPI with reload on `localhost:8080` and Vite on `localhost:3002`.
-- `make dev-backend` / `make dev-frontend`: run only one side of the stack.
-- `make build`: install production dependencies and build the Vite app.
-- `make lint`: run backend `ruff` plus `mypy`, then frontend `tsc --noEmit`.
-- `make test`: run backend pytest and frontend Vitest.
-- `make security-check`: run `pip-audit` and high-severity `npm audit`.
+## Working commands
 
-## Coding Style & Naming Conventions
+Run from the repository root unless explicitly noted.
 
-Backend targets Python 3.12. Use snake_case modules, PascalCase classes, and `test_*.py` tests. Place domain behavior in `services/`; keep route handlers thin and schema-driven. Use Ruff and mypy, respecting incremental ignores in `backend/mypy.ini`.
+- `make dev` — run backend and frontend together
+- `make dev-backend` / `make dev-frontend` — run one side only
+- `make build` — install production dependencies and build the frontend bundle
+- `make lint` — backend `ruff` + `mypy`, then frontend `tsc --noEmit`
+- `make test` — backend pytest + frontend Vitest
+- `make security-check` — backend `pip-audit` + frontend `npm audit`
 
-Frontend uses TypeScript, React 19, Vite, and Ant Design. Use PascalCase for components/pages, camelCase for functions/hooks, and the `@/*` alias for `frontend/src/*`. Keep feature-specific UI near its page unless reusable.
+## What agents should optimize for
 
-## Testing Guidelines
+1. Keep business logic in `services/` and routes thin.
+2. Keep Pydantic schema contracts explicit at system boundaries.
+3. Prefer `Decimal` for money and `Enum`/status transitions for ERP workflows.
+4. Reuse existing repo patterns before introducing new abstractions.
+5. Treat tests as part of the implementation, not an afterthought.
 
-Backend tests use pytest with `asyncio_mode = auto`; mark database-dependent tests with `@pytest.mark.integration` and unit tests with `@pytest.mark.unit` where useful. Coverage: `make test-backend-cov`.
+## Backend expectations
 
-Frontend tests use Vitest and Testing Library in `frontend/src/test/`; name files `*.test.ts` or `*.test.tsx`. Coverage: `make test-frontend-cov`.
-
-## Commit & Pull Request Guidelines
-
-Git history uses concise imperative summaries, often Conventional Commit prefixes such as `feat:`, `fix:`, and `chore:`; Chinese summaries are common. Keep commits scoped, e.g. `fix: 兼容品牌分页返回`.
-
-Pull requests should describe the user-visible change, list validation performed (`make test`, targeted pytest/Vitest commands), link issues or docs, and include screenshots for UI changes. Note migrations, environment changes, or security-sensitive configuration.
-
-## Security & Configuration Tips
-
-Backend environment examples are in `backend/.env.example` and test defaults in `backend/.env.test`. Do not commit real secrets from `backend/.env`. Database reset/backup helpers in the Makefile assume local PostgreSQL credentials; verify targets before running them.
-
-## ERP Product Standards
-
-When implementing ERP features, prioritize operational correctness over visual novelty. Treat each change as part of a business workflow with status transitions, permissions, auditability, reporting impact, and data consistency.
-
-Core flows:
-
-- inquiry → opportunity → quotation → sales order → delivery note → invoice → payment
-- restock suggestion → purchase order → receiving → inventory ledger
-- customer/supplier/product master data → transactional documents → reports
-
-Backend expectations:
-
-- Keep route handlers thin and put domain behavior in `services/`.
-- Validate request/response contracts with schemas.
+- Python 3.12, `snake_case` modules, `PascalCase` classes, `test_*.py` tests.
+- Route handlers should parse input and delegate to services; they should not own business rules.
 - Keep document totals, line items, and downstream statuses consistent.
-- Bound slow dependencies such as AI, OCR, logistics APIs, payment gateways, and imports with explicit timeouts and safe fallback behavior.
-- Consider RBAC, approval rules, audit logs, soft delete, request IDs, and slow-query logging for core workflows.
+- Use explicit timeouts and safe fallbacks for slow dependencies such as AI, OCR, logistics APIs, and payment integrations.
+- Preserve soft-delete and request-context patterns.
 
-Frontend expectations:
+## Frontend expectations
 
-- Build dense, scan-friendly Ant Design operational screens with tables, filters, batch actions, detail pages, status tags, and clear async/error states.
-- Avoid marketing-style layouts for ERP modules.
-- Keep UI copy business-facing and compact.
+- TypeScript + React 19 + Vite + Ant Design.
+- Use PascalCase for components/pages and camelCase for hooks/functions.
+- Keep the API layer centralized in `frontend/src/api/index.ts`.
+- Use dense, operational Ant Design screens rather than marketing-style layouts.
+- Prefer existing shared UI primitives and keep feature-specific UI close to the page that owns it.
 
-Validation expectations:
+## Testing and validation
 
-- Add targeted tests around status transitions, document conversions, totals, permissions, and slow/failing dependencies.
-- For timeout or performance fixes, capture before/after timings and state the bounded slow path.
+- Backend tests use `pytest` with `asyncio_mode = auto`.
+- Mark database-heavy coverage with `@pytest.mark.integration` and lightweight cases with `@pytest.mark.unit` where appropriate.
+- Frontend tests live under `frontend/src/test/` and should use `*.test.ts` / `*.test.tsx` names.
+- When fixing timeouts, performance regressions, or integration issues, capture a clear before/after signal and explain the bounded slow path.
+
+## PR and change hygiene
+
+- Keep changes scoped and implementation-focused.
+- Prefer concise, repo-relevant commit messages.
+- When opening or reviewing a PR, mention the user-visible change, validation performed, and any migration/security/config impact.
+- Do not commit secrets, environment files, or local credentials.
+
+## Common pitfalls
+
+- Do not add DB logic directly inside route handlers.
+- Do not introduce new frontend API calls outside the centralized client layer.
+- Do not use `float` for money or magic strings for ERP status transitions.
+- Do not duplicate existing docs; link to them and keep this file minimal.

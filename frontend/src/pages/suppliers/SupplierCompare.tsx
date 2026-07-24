@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, Select, Table, Typography, Spin, Alert, Button, Space, Row, Col } from "antd";
+import { Card, Select, Typography, Spin, Alert, Button, Space, Row, Col } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { TrophyOutlined, SwapOutlined, DashboardOutlined } from "@ant-design/icons";
 import { compareSuppliers, getSuppliers } from "../../api";
@@ -130,7 +131,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={24}>
               <Card title={<><TrophyOutlined /> 总体排名</>}>
-                <Table columns={rankColumns} dataSource={data?.overall_ranking} rowKey={(r) => r.rank + "-" + r.supplier_name} pagination={false} size="small" />
+                <ProTable search={false} options={false} columns={rankColumns as any} dataSource={data?.overall_ranking} rowKey={(r) => r.rank + "-" + r.supplier_name} pagination={false} size="small" />
               </Card>
             </Col>
           </Row>
@@ -155,7 +156,7 @@ export default function SupplierComparePage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={24}>
               <Card title={<><DashboardOutlined /> 维度对比矩阵</>}>
-                <Table columns={matrixColumns} dataSource={data?.comparison_matrix} rowKey="dimension" pagination={false} size="small" />
+                <ProTable search={false} options={false} columns={matrixColumns as any} dataSource={data?.comparison_matrix} rowKey="dimension" pagination={false} size="small" />
               </Card>
             </Col>
           </Row>

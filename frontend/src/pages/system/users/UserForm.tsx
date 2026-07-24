@@ -119,7 +119,8 @@ export default function UserForm({ open, editing, onClose, onSuccess }: Props) {
           rules={[{ required: true, message: "请选择角色" }]}
         >
           <Select
-            placeholder="选择角色"
+            mode="multiple"
+            placeholder="选择角色（可多选）"
             options={roleOptions}
             loading={loadingRoles}
             showSearch

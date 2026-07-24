@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 from typing import Any
 
 import httpx
@@ -29,6 +30,11 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+if not logger.handlers and not logging.root.handlers:
+    _h = logging.StreamHandler(sys.stdout)
+    _h.setLevel(logging.INFO)
+    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(_h)
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
 POLL_INTERVAL_S = 0.5
@@ -132,7 +138,8 @@ def _welcome_text() -> str:
         "<b>命令</b>：\n"
         "/help  用法说明\n"
         "/model 当前模型\n"
-        "/reset 清空上下文"
+        "/reset 清空上下文\n"
+        "/status 后端健康状态"
     )
 
 
@@ -146,7 +153,8 @@ def _help_text() -> str:
         "/start  欢迎\n"
         "/help   帮助\n"
         "/model  查看当前模型\n"
-        "/reset  清空对话上下文"
+        "/reset  清空对话上下文\n"
+        "/status 后端健康状态"
     )
 
 
@@ -211,6 +219,22 @@ async def _handle_update(update: dict[str, Any]) -> None:
         await _send_text(chat_id, "🧹 上下文已清空。")
         return
 
+    if cmd == "/status":
+        try:
+            async with httpx.AsyncClient(trust_env=False, timeout=5) as client:
+                r = await client.get("http://localhost:8080/health")
+                data = r.json()
+            msg = (
+                f"🟢 数据库：{data['checks']['database']}\n"
+                f"🟢 Redis：{data['checks']['redis']}\n"
+                f"🟢 AI：{data['checks']['ai_service']}\n"
+                f"⏱ 运行：{data['uptime_seconds']}s"
+            )
+        except Exception as exc:
+            msg = f"🔴 获取状态失败：{type(exc).__name__}"
+        await _send_text(chat_id, msg)
+        return
+
     # Regular message → forward to AI with rolling history.
     messages = _build_messages(chat_id, text)
     model = settings.AI_CODE_MODEL or settings.AI_MODEL
@@ -242,42 +266,6 @@ async def _handle_update(update: dict[str, Any]) -> None:
     await _send_text(chat_id, reply)
 
 
-def _resolve_wsl_proxy(proxy: str | None) -> str | None:
-    """WSL2 cannot reach Windows 127.0.0.1; rewrite to the host gateway IP."""
-    if not proxy:
-        return proxy
-    try:
-        from urllib.parse import urlparse, urlunparse
-
-        parsed = urlparse(proxy)
-        host = parsed.hostname or ""
-        if host not in ("127.0.0.1", "localhost", "127.0.1.1"):
-            return proxy
-        # Read default gateway from /proc/net/route
-        with open("/proc/net/route") as f:
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) >= 3 and parts[1] == "00000000" and parts[2] != "00000000":
-                    gw_hex = parts[2]
-                    gw = ".".join(
-                        str(int(gw_hex[i : i + 2], 16))
-                        for i in range(6, -1, -2)
-                    )
-                    new_proxy = urlunparse((
-                        parsed.scheme,
-                        f"{gw}:{parsed.port}",
-                        parsed.path,
-                        parsed.params,
-                        parsed.query,
-                        parsed.fragment,
-                    ))
-                    logger.debug("rewrote proxy %s -> %s (WSL gateway)", proxy, new_proxy)
-                    return new_proxy
-    except Exception:
-        logger.debug("failed to resolve WSL proxy, using original: %s", proxy)
-    return proxy
-
-
 async def _poll_once(offset: int | None) -> int | None:
     """Fetch new updates via long-polling. Returns next offset to use."""
     token = _bot_token()
@@ -292,13 +280,13 @@ async def _poll_once(offset: int | None) -> int | None:
     if offset is not None:
         params["offset"] = offset
 
-    # Must use HTTP(S) proxy from env (GFW blocks Telegram in China).
+    # Use HTTP(S) proxy from env for regions that block Telegram (e.g. China).
     # trust_env=False avoids ALL_PROXY=socks5 (would need socksio); explicit
     # proxy= from HTTPS_PROXY/HTTP_PROXY is the only path that works.
+    # WSL2 forwards 127.0.0.1 to Windows host by default, so no rewrite needed.
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     if proxy and proxy.startswith("socks"):
         proxy = None
-    proxy = _resolve_wsl_proxy(proxy)
     try:
         async with httpx.AsyncClient(
             trust_env=False,

@@ -196,8 +196,34 @@ export const batchDeleteCustomers = (ids: number[]) =>
 export const batchTagCustomers = (ids: number[], tag_ids: number[]) =>
   client.post<APIResponse>("/customers/batch-tag", { ids, tag_ids });
 
-export const batchSetOwner = (ids: number[], action: "claim" | "release") =>
-  client.post<APIResponse>("/customers/batch-owner", { ids, action });
+export const batchSetOwner = (
+  ids: number[],
+  action: "claim" | "release" | "assign",
+  owner?: string,
+) =>
+  client.post<APIResponse>("/customers/batch-owner", { ids, action, owner });
+
+export const assignCustomers = (ids: number[], owner: string) =>
+  client.post<APIResponse>("/customers/assign", { ids, owner });
+
+export const getOwnerHistory = (customerId: number) =>
+  client.get<APIResponse<{ list: Array<{
+    id: number;
+    from_owner: string | null;
+    to_owner: string | null;
+    action_type: string;
+    operator: string | null;
+    reason: string | null;
+    created_at: string | null;
+  }> }>>(`/customers/${customerId}/owner-history`);
+
+export const getClaimStats = (username?: string) =>
+  client.get<APIResponse<{
+    username: string;
+    claimed: number;
+    max_limit: number;
+    remaining: number;
+  }>>("/customers/claim-stats", { params: username ? { username } : undefined });
 
 // Tags
 export const getTags = () => client.get<APIResponse<Tag[]>>("/customers/tags");

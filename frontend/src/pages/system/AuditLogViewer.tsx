@@ -9,8 +9,9 @@ Used by system admin / owner to answer "who changed what when".
 */
 
 import { useEffect, useState } from "react";
-import { Table, Tabs, Form, Input, InputNumber, Select, Space, Button, Tag } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { Tabs, Form, Input, InputNumber, Select, Space, Button, Tag } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+
 
 import { PageHeader } from "@/ui/PageHeader";
 import { ErrorBoundary } from "@/ui/ErrorBoundary";
@@ -46,21 +47,21 @@ function RecentTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const columns: ColumnsType<FieldChange> = [
+  const columns: any = [
     { title: "时间", dataIndex: "changed_at", width: 170 },
     { title: "表", dataIndex: "table_name", width: 110,
-      render: (t) => <Tag color="blue">{t}</Tag> },
+      render: (t: any) => <Tag color="blue">{t}</Tag> },
     { title: "记录 ID", dataIndex: "record_id", width: 90 },
     { title: "字段", dataIndex: "field_name", width: 110,
-      render: (f) => <Tag>{f}</Tag> },
+      render: (f: any) => <Tag>{f}</Tag> },
     { title: "旧值", dataIndex: "old_value", ellipsis: true },
     { title: "新值", dataIndex: "new_value", ellipsis: true,
-      render: (v) => <span style={{ color: "#1677ff" }}>{v}</span> },
+      render: (v: any) => <span style={{ color: "#1677ff" }}>{v}</span> },
     { title: "操作人", dataIndex: "actor", width: 100 },
   ];
 
   return (
-    <Table
+    <ProTable search={false} options={false}
       size="small"
       rowKey="id"
       loading={loading}
@@ -99,17 +100,17 @@ function FilteredTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
-  const columns: ColumnsType<FieldChange> = [
+  const columns: any = [
     { title: "时间", dataIndex: "changed_at", width: 170 },
     { title: "表", dataIndex: "table_name", width: 110,
-      render: (t) => <Tag color="blue">{t}</Tag> },
+      render: (t: any) => <Tag color="blue">{t}</Tag> },
     { title: "记录 ID", dataIndex: "record_id", width: 90 },
     { title: "字段", dataIndex: "field_name", width: 110,
-      render: (f) => <Tag>{f}</Tag> },
+      render: (f: any) => <Tag>{f}</Tag> },
     { title: "旧值", dataIndex: "old_value", ellipsis: true,
-      render: (v) => <span style={{ color: "#999" }}>{v ?? "—"}</span> },
+      render: (v: any) => <span style={{ color: "#999" }}>{v ?? "—"}</span> },
     { title: "新值", dataIndex: "new_value", ellipsis: true,
-      render: (v) => <span style={{ color: "#1677ff" }}>{v ?? "—"}</span> },
+      render: (v: any) => <span style={{ color: "#1677ff" }}>{v ?? "—"}</span> },
     { title: "操作人", dataIndex: "actor", width: 100 },
   ];
 
@@ -146,7 +147,7 @@ function FilteredTab() {
           </Space>
         </Form.Item>
       </Form>
-      <Table
+      <ProTable search={false} options={false}
         size="small"
         rowKey="id"
         loading={loading}
@@ -195,7 +196,7 @@ function SummaryTab() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div>
           <h3>按表</h3>
-          <Table
+          <ProTable search={false} options={false}
             size="small"
             loading={loading}
             rowKey="name"
@@ -211,7 +212,7 @@ function SummaryTab() {
         </div>
         <div>
           <h3>按操作人</h3>
-          <Table
+          <ProTable search={false} options={false}
             size="small"
             loading={loading}
             rowKey="name"
@@ -227,7 +228,7 @@ function SummaryTab() {
         </div>
       </div>
       <h3 style={{ marginTop: 24 }}>最常变动的字段（Top 20）</h3>
-      <Table
+      <ProTable search={false} options={false}
         size="small"
         rowKey={(r) => `${r.table}.${r.field}`}
         loading={loading}

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button, Dropdown, Modal, Select, Space, Table, Typography, message } from "antd";
+import { Button, Dropdown, Modal, Select, Space, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getInvoices, deleteInvoice, getApiErrorMessage } from "../../api";
@@ -15,39 +16,23 @@ const STATUS: Record<string, { color: string; label: string }> = {
 };
 
 export default function InvoiceList() {
-  const [data, setData] = useState<Invoice[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageData, setPageData] = useState<Invoice[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const navigate = useNavigate();
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (status) params.status = status;
-      if (customerId) params.customer_id = customerId;
-      const resp = await getInvoices(params);
-      setData(resp.data.data.list || []);
-      setTotal(resp.data.data.total || 0);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [page, pageSize, status, customerId]);
+  const actionRef = useRef<ActionType>(null);
 
   const metrics = useMemo(() => ({
-    totalCount: data.length,
-    totalAmount: data.reduce((sum, inv) => sum + inv.amount, 0),
-    draftCount: data.filter((inv) => inv.status === "draft").length,
-    issuedCount: data.filter((inv) => ["issued", "paid"].includes(inv.status)).length,
-  }), [data]);
+    totalCount: pageData.length,
+    totalAmount: pageData.reduce((sum, inv) => sum + inv.amount, 0),
+    draftCount: pageData.filter((inv) => inv.status === "draft").length,
+    issuedCount: pageData.filter((inv) => ["issued", "paid"].includes(inv.status)).length,
+  }), [pageData]);
 
   const exportData = useMemo(() =>
-    data.map((inv) => ({
+    pageData.map((inv) => ({
       invoice_no: inv.invoice_no || `#${inv.id}`,
       customer_id: inv.customer_id,
       amount: inv.amount,
@@ -56,7 +41,7 @@ export default function InvoiceList() {
       status: STATUS[inv.status]?.label || inv.status,
       invoice_date: inv.invoice_date?.slice(0, 10) || "",
     })),
-  [data]);
+  [pageData]);
 
   return (
     <SalesModuleShell
@@ -78,7 +63,7 @@ export default function InvoiceList() {
           { value: "draft", label: "草稿" }, { value: "issued", label: "已开票" }, { value: "paid", label: "已付款" },
         ]} />
         <div className="sales-customer-filter" style={{ width: 280 }}>
-          <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+          <CustomerSelect value={customerId} onChange={setCustomerId} />
         </div>
         <ErpExportButton
           data={exportData}
@@ -94,12 +79,27 @@ export default function InvoiceList() {
           filename="invoices_export.csv"
         />
       </Space>
-      <Table className="erp-table"
-        rowKey="id" loading={loading} dataSource={data}
+      <ProTable<Invoice>
+        className="erp-table"
+        actionRef={actionRef}
+        rowKey="id"
+        search={false}
+        options={{ reload: true, density: true, setting: true }}
         rowClassName={erpRowClass}
         scroll={{ x: "max-content" }}
+        params={{ status, customerId }}
+        request={async (params) => {
+          setCurrentPage(params.current || 1);
+          setCurrentPageSize(params.pageSize || 20);
+          const apiParams: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+          if (status) apiParams.status = status;
+          if (customerId) apiParams.customer_id = customerId;
+          const resp = await getInvoices(apiParams);
+          return { data: resp.data.data.list || [], success: true, total: resp.data.data.total || 0 };
+        }}
+        onLoad={(ds) => setPageData(ds as Invoice[])}
         columns={[
-          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: Invoice, index: number) => (page - 1) * 20 + index + 1 },
+          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: Invoice, index: number) => (currentPage - 1) * currentPageSize + index + 1 },
           {
             title: "发票号", dataIndex: "invoice_no", width: 140, fixed: "left",
             render: (v: string, r: Invoice) => (
@@ -110,12 +110,12 @@ export default function InvoiceList() {
           },
           { title: "客户", dataIndex: "customer_name", width: 180, render: (v: string | null | undefined, r: Invoice) =>
             v ? <Link to={`/customers/${r.customer_id}`}>{v}</Link> : <CustomerLink id={r.customer_id} /> },
-          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (v: number) => money(v) },
-          { title: "税额", dataIndex: "tax_amount", width: 100, align: "right", sorter: (a, b) => (a.tax_amount || 0) - (b.tax_amount || 0), render: (v: number) => money(v) },
+          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a: any, b: any) => a.amount - b.amount, render: (v: number) => money(v) },
+          { title: "税额", dataIndex: "tax_amount", width: 100, align: "right", sorter: (a: any, b: any) => (a.tax_amount || 0) - (b.tax_amount || 0), render: (v: number) => money(v) },
           { title: "类型", dataIndex: "invoice_type", width: 100 },
           {
             title: "状态", dataIndex: "status", width: 90,
-            sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+            sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
             render: (v: string) => (
               <>
                 {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
@@ -123,7 +123,7 @@ export default function InvoiceList() {
               </>
             ),
           },
-          { title: "开票日期", dataIndex: "invoice_date", width: 110, sorter: (a, b) => (a.invoice_date || "").localeCompare(b.invoice_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
+          { title: "开票日期", dataIndex: "invoice_date", width: 110, sorter: (a: any, b: any) => (a.invoice_date || "").localeCompare(b.invoice_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
           {
             title: "操作", width: 60, fixed: "right",
             render: (_: unknown, r: Invoice) => {
@@ -133,7 +133,7 @@ export default function InvoiceList() {
                 { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                   Modal.confirm({ title: "确定删除?", content: `删除发票 #${r.id}？`, onOk: async () => {
-                    try { await deleteInvoice(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+                    try { await deleteInvoice(r.id); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                   }});
                 }},
               ];
@@ -144,21 +144,21 @@ export default function InvoiceList() {
               );
             },
           },
-        ]}
+        ] as any}
         summary={(pageData: readonly Invoice[]) => {
           const totalAmount = pageData.reduce((s, r) => s + r.amount, 0);
           const totalTax = pageData.reduce((s, r) => s + (r.tax_amount || 0), 0);
           return (
-            <Table.Summary.Row>
-              <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
-              <Table.Summary.Cell index={1} colSpan={2} />
-              <Table.Summary.Cell index={3} align="right"><Typography.Text strong>{money(totalAmount)}</Typography.Text></Table.Summary.Cell>
-              <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalTax)}</Typography.Text></Table.Summary.Cell>
-              <Table.Summary.Cell index={5} colSpan={4} />
-            </Table.Summary.Row>
+            <ProTable.Summary.Row>
+              <ProTable.Summary.Cell index={0}>合计</ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={1} colSpan={2} />
+              <ProTable.Summary.Cell index={3} align="right"><Typography.Text strong>{money(totalAmount)}</Typography.Text></ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={4} align="right"><Typography.Text strong>{money(totalTax)}</Typography.Text></ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={5} colSpan={4} />
+            </ProTable.Summary.Row>
           );
         }}
-        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
       />
     </SalesModuleShell>
   );

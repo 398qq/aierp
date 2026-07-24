@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Statistic, Table, Typography, Spin, Empty } from "antd";
+import { Card, Row, Col, Statistic, Typography, Spin, Empty } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { WarningOutlined, ShopOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import client from "../../api/client";
@@ -31,7 +32,7 @@ export default function ReportInventory() {
   if (loading) return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
 
   const d = data;
-  const columns = [
+  const columns: any = [
     { title: "产品名", dataIndex: "name", key: "name" },
     { title: "SKU", dataIndex: "sku", key: "sku" },
     { title: "当前库存", dataIndex: "quantity", key: "quantity", sorter: (a: { quantity: number }, b: { quantity: number }) => a.quantity - b.quantity },
@@ -60,7 +61,7 @@ export default function ReportInventory() {
 
       <Card title="库存明细" size="small">
         {d?.items?.length ? (
-          <Table rowKey="sku" columns={columns} dataSource={d.items} pagination={erpPagination()} size="small" />
+          <ProTable rowKey="sku" columns={columns} dataSource={d.items} pagination={erpPagination()} size="small" search={false} options={false} />
         ) : <Empty />}
       </Card>
     </div>

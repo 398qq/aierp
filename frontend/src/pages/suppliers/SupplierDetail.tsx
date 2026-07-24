@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Table, Modal, Input, InputNumber, message, Switch, Typography, Popconfirm, Progress, Badge, List, Col, Row, Flex } from "antd";
+import { Card, Descriptions, Tag, Button, Space, Spin, Alert, Modal, Input, InputNumber, message, Switch, Typography, Popconfirm, Progress, Badge, List, Col, Row, Flex } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, LinkOutlined, ThunderboltOutlined, DeleteOutlined, DashboardOutlined, ClockCircleOutlined, SwapOutlined, DollarOutlined, PieChartOutlined, FileTextOutlined, EditOutlined, SearchOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+
 import { getSupplier, getSupplierProducts, linkSupplierProduct, updateSupplierProduct, unlinkSupplierProduct, aiMatchSupplierProducts, getProducts, getSupplierScorecard, predictSupplierDelay, getSupplierAlternatives, detectSupplierPriceVariance, getSupplierNegotiation, getApiErrorMessage } from "../../api";
 import type { Supplier, SupplierProductLink, Product, SupplierScorecard, SupplierDelayPrediction, SupplierAlternatives, SupplierPriceVariance, SupplierNegotiation } from "../../types";
 import { erpPagination } from "../../ui/pagination";
@@ -228,37 +229,37 @@ export default function SupplierDetail() {
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!supplier) return <Alert type="error" message="供应商未找到" />;
 
-  const linkedColumns: ColumnsType<SupplierProductLink> = [
+  const linkedColumns: any = [
     {
       title: "产品", key: "product", width: 220,
-      render: (_: unknown, r) => (
+      render: (_: unknown, r: any) => (
         <a onClick={() => navigate(`/products/${r.product_id}`)}>
           {r.sku || r.product_sku ? `[${r.sku || r.product_sku}] ` : ""}{r.product_name || `#${r.product_id}`}
         </a>
       ),
     },
-    { title: "原厂料号", dataIndex: "supplier_sku", width: 120, render: (v) => v || "-" },
-    { title: "分类", dataIndex: "category", width: 80, render: (v) => v ? <StatusTag>{v}</StatusTag> : null },
+    { title: "原厂料号", dataIndex: "supplier_sku", width: 120, render: (v: any) => v || "-" },
+    { title: "分类", dataIndex: "category", width: 80, render: (v: any) => v ? <StatusTag>{v}</StatusTag> : null },
     { title: "品牌", dataIndex: "brand_name", width: 80 },
     { title: "封装", dataIndex: "package_type", width: 80 },
     {
       title: "成本价", dataIndex: "cost_price", width: 100,
-      render: (v, record) => v != null ? `${Number(v).toFixed(4)} ${record.currency || "CNY"}` : "-",
+      render: (v: any, record: any) => v != null ? `${Number(v).toFixed(4)} ${record.currency || "CNY"}` : "-",
     },
     { title: "交期(天)", dataIndex: "lead_time_days", width: 80 },
     { title: "MOQ", dataIndex: "moq", width: 60 },
     { title: "SPQ", dataIndex: "spq", width: 60 },
     {
       title: "首选", dataIndex: "is_preferred", width: 60,
-      render: (v) => v ? <StatusTag tone="success">是</StatusTag> : null,
+      render: (v: any) => v ? <StatusTag tone="success">是</StatusTag> : null,
     },
     {
       title: "状态", dataIndex: "is_active", width: 70,
-      render: (v) => <StatusTag tone={v === false ? "neutral" : "success"}>{v === false ? "停用" : "启用"}</StatusTag>,
+      render: (v: any) => <StatusTag tone={v === false ? "neutral" : "success"}>{v === false ? "停用" : "启用"}</StatusTag>,
     },
     {
       title: "操作", key: "action", width: 150, fixed: "right",
-      render: (_: unknown, r) => (
+      render: (_: unknown, r: any) => (
         <Space size={0}>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditLink(r)}>编辑</Button>
           <Popconfirm title="确认解除产品关联？" description="不会删除产品主数据。" okText="解除关联" cancelText="取消" onConfirm={() => handleUnlink(r.product_id)}>
@@ -303,7 +304,7 @@ export default function SupplierDetail() {
         title={`${supplier.supplier_type === "原厂" ? "原厂关联产品" : "关联产品"} (${linkedProducts.length})`}
         extra={<Input allowClear prefix={<SearchOutlined />} placeholder="查询产品 / SKU / 原厂料号 / 品牌" value={linkedProductSearch} onChange={(event) => setLinkedProductSearch(event.target.value)} style={{ width: 300 }} />}
       >
-        <Table rowKey="id" columns={linkedColumns} dataSource={filteredLinkedProducts} size="small" scroll={{ x: 1150 }} pagination={erpPagination()} />
+        <ProTable search={false} options={false} rowKey="id" columns={linkedColumns} dataSource={filteredLinkedProducts} size="small" scroll={{ x: 1150 }} pagination={erpPagination()} />
       </Card>
 
       {/* AI Match Modal */}
@@ -331,7 +332,7 @@ export default function SupplierDetail() {
           />
         </div>
         {matchResults.length > 0 && (
-          <Table
+          <ProTable search={false} options={false}
             size="small"
             rowKey="product_id"
             dataSource={matchResults}
@@ -343,7 +344,7 @@ export default function SupplierDetail() {
               { title: "MOQ", dataIndex: "moq", width: 60 },
               { title: "置信度", dataIndex: "confidence", width: 80, render: (v: number) => <StatusTag tone={v > 80 ? "success" : v > 50 ? "warning" : "danger"}>{v}%</StatusTag> },
               { title: "理由", dataIndex: "match_reason", ellipsis: true },
-            ]}
+            ] as any}
             pagination={false}
           />
         )}
@@ -559,14 +560,14 @@ export default function SupplierDetail() {
             {alternatives.recommended_alternatives.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" title="推荐替代供应商">
-                  <Table size="small" dataSource={alternatives.recommended_alternatives} rowKey="supplier_name" pagination={false}
+                  <ProTable search={false} options={false} size="small" dataSource={alternatives.recommended_alternatives} rowKey="supplier_name" pagination={false}
                     columns={[
                       { title: "供应商", dataIndex: "supplier_name", width: 160 },
                       { title: "产品线", dataIndex: "product_lines", ellipsis: true },
                       { title: "匹配度", dataIndex: "score", width: 80, render: (v: number) => <Progress percent={v} size="small" /> },
                       { title: "优势", dataIndex: "advantage" },
                       { title: "切换成本", dataIndex: "switch_cost", width: 100, render: (v: string) => <StatusTag tone={v === "低" ? "success" : v === "中" ? "warning" : "danger"}>{v}</StatusTag> },
-                    ]}
+                    ] as any}
                   />
                 </Card>
               </Col>
@@ -612,14 +613,14 @@ export default function SupplierDetail() {
             {priceVariance.anomaly_products.length > 0 && (
               <Col span={24}>
                 <Card size="small" type="inner" title="异常产品">
-                  <Table size="small" dataSource={priceVariance.anomaly_products} rowKey="product_name" pagination={false}
+                  <ProTable search={false} options={false} size="small" dataSource={priceVariance.anomaly_products} rowKey="product_name" pagination={false}
                     columns={[
                       { title: "产品", dataIndex: "product_name", width: 180 },
                       { title: "当前价", dataIndex: "current_price", width: 100, render: (v: number) => `¥${v.toFixed(4)}` },
                       { title: "期望价", dataIndex: "expected_price", width: 100, render: (v: number) => `¥${v.toFixed(4)}` },
                       { title: "偏差", dataIndex: "variance_pct", width: 80, render: (v: number) => <StatusTag tone={v > 20 ? "danger" : v > 10 ? "warning" : "info"}>{v}%</StatusTag> },
                       { title: "原因", dataIndex: "reason" },
-                    ]}
+                    ] as any}
                   />
                 </Card>
               </Col>

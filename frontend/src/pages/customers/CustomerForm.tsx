@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { Form, Input, Select, InputNumber, Divider, Switch, Typography } from "antd";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Form, Input, Select, InputNumber, Divider, Switch } from "antd";
+import { getActiveUsers } from "@/api";
 
 const { Item: FormItem } = Form;
 const opts = (arr: string[]) => arr.map((v) => ({ label: v, value: v }));
@@ -68,6 +69,23 @@ export default function CustomerFormFields() {
   const customerName = Form.useWatch("name", form) as string | undefined;
   const shortName = Form.useWatch("short_name", form) as string | undefined;
   const previousGeneratedRef = useRef("");
+  const [userOptions, setUserOptions] = useState<Array<{ value: string; label: string }>>([]);
+
+  useEffect(() => {
+    getActiveUsers()
+      .then((res) => {
+        const users = (res.data?.data || res.data) as
+          | Array<{ username: string; role: string }>
+          | { list: Array<{ username: string; role: string }> };
+        const userList = Array.isArray(users)
+          ? users
+          : (users as { list: Array<{ username: string; role: string }> }).list || [];
+        setUserOptions(userList.map((u) => ({ value: u.username, label: u.username })));
+      })
+      .catch(() => {
+        // silently fail, user can still type manually if needed
+      });
+  }, []);
 
   useEffect(() => {
     const generated = generateCustomerShortName(customerName);
@@ -160,7 +178,15 @@ export default function CustomerFormFields() {
           <Input placeholder="https://" maxLength={500} />
         </FormItem>
         <FormItem name="owner" label="负责人">
-          <Input placeholder="归属负责人" />
+          <Select
+            showSearch
+            placeholder="选择负责人"
+            allowClear
+            options={userOptions}
+            filterOption={(input, option) =>
+              (option?.label as string)?.toLowerCase().includes(input.toLowerCase()) ?? false
+            }
+          />
         </FormItem>
       </FormRow>
 

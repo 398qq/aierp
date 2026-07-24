@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Dropdown, Form, InputNumber, Modal, Select, Space, Table, Typography, message } from "antd";
+import { Button, Dropdown, Form, InputNumber, Modal, Select, Space, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { allocatePayment, getInvoices, getPayments, deletePayment, getPaymentStats, getApiErrorMessage } from "../../api";
@@ -15,11 +16,9 @@ const STATUS: Record<string, { color: string; label: string }> = {
 };
 
 export default function PaymentList() {
-  const [data, setData] = useState<PaymentRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageData, setPageData] = useState<PaymentRecord[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [stats, setStats] = useState<{ total_received: number; total_pending: number; total_overdue: number }>({ total_received: 0, total_pending: 0, total_overdue: 0 });
@@ -28,22 +27,7 @@ export default function PaymentList() {
   const [allocating, setAllocating] = useState(false);
   const [allocationForm] = Form.useForm();
   const navigate = useNavigate();
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (status) params.status = status;
-      if (customerId) params.customer_id = customerId;
-      const [resp, s] = await Promise.all([getPayments(params), getPaymentStats()]);
-      setData(resp.data.data.list || []);
-      setTotal(resp.data.data.total || 0);
-      setStats(s.data.data);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [page, pageSize, status, customerId]);
+  const actionRef = useRef<ActionType>(null);
 
   const openAllocation = async (payment: PaymentRecord) => {
     try {
@@ -64,7 +48,7 @@ export default function PaymentList() {
       await allocatePayment(allocationTarget.id, values.allocations);
       message.success("回款核销完成");
       setAllocationTarget(null);
-      load();
+      actionRef.current?.reload();
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "回款核销失败"));
     } finally {
@@ -73,7 +57,7 @@ export default function PaymentList() {
   };
 
   const exportData = useMemo(() =>
-    data.map((r) => ({
+    pageData.map((r) => ({
       id: r.id,
       sales_order_no: r.sales_order_no || `#${r.sales_order_id}`,
       delivery_note_no: r.delivery_note_no || (r.delivery_note_id ? `#${r.delivery_note_id}` : ""),
@@ -83,7 +67,7 @@ export default function PaymentList() {
       payment_date: r.payment_date?.slice(0, 10) || "",
       status: STATUS[r.status]?.label || r.status,
     })),
-  [data]);
+  [pageData]);
 
   return (
     <SalesModuleShell
@@ -105,7 +89,7 @@ export default function PaymentList() {
           { value: "pending", label: "待收款" }, { value: "completed", label: "已收款" },
         ]} />
         <div className="sales-customer-filter" style={{ width: 280 }}>
-          <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+          <CustomerSelect value={customerId} onChange={setCustomerId} />
         </div>
         <ErpExportButton
           data={exportData}
@@ -123,12 +107,28 @@ export default function PaymentList() {
         />
       </Space>
 
-      <Table className="erp-table"
-        rowKey="id" loading={loading} dataSource={data}
+      <ProTable<PaymentRecord>
+        className="erp-table"
+        actionRef={actionRef}
+        rowKey="id"
+        search={false}
+        options={{ reload: true, density: true, setting: true }}
         rowClassName={erpRowClass}
         scroll={{ x: "max-content" }}
+        params={{ status, customerId }}
+        request={async (params) => {
+          setCurrentPage(params.current || 1);
+          setCurrentPageSize(params.pageSize || 20);
+          const apiParams: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+          if (status) apiParams.status = status;
+          if (customerId) apiParams.customer_id = customerId;
+          const [resp, s] = await Promise.all([getPayments(apiParams), getPaymentStats()]);
+          setStats(s.data.data);
+          return { data: resp.data.data.list || [], success: true, total: resp.data.data.total || 0 };
+        }}
+        onLoad={(ds) => setPageData(ds as PaymentRecord[])}
         columns={[
-          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: PaymentRecord, index: number) => (page - 1) * 20 + index + 1 },
+          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: PaymentRecord, index: number) => (currentPage - 1) * currentPageSize + index + 1 },
           {
             title: "关联订单号", dataIndex: "sales_order_no", width: 160,
             render: (value: string | null, record: PaymentRecord) => (
@@ -164,12 +164,12 @@ export default function PaymentList() {
             },
           },
           { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
-          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
+          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a: any, b: any) => a.amount - b.amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
           { title: "方式", dataIndex: "payment_method", width: 80 },
-          { title: "付款日期", dataIndex: "payment_date", width: 110, sorter: (a, b) => (a.payment_date || "").localeCompare(b.payment_date || ""), render: shortDate },
+          { title: "付款日期", dataIndex: "payment_date", width: 110, sorter: (a: any, b: any) => (a.payment_date || "").localeCompare(b.payment_date || ""), render: shortDate },
           {
             title: "状态", dataIndex: "status", width: 90,
-            sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+            sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
             render: (v: string) => (
               <>
                 {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
@@ -187,7 +187,7 @@ export default function PaymentList() {
                 { type: "divider" as const },
                 { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                   Modal.confirm({ title: "确定删除?", content: `删除回款 #${r.id}？`, onOk: async () => {
-                    try { await deletePayment(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+                    try { await deletePayment(r.id); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                   }});
                 }},
               ];
@@ -198,21 +198,21 @@ export default function PaymentList() {
               );
             },
           },
-        ]}
+        ] as any}
         summary={(pageData: readonly PaymentRecord[]) => {
           const total = pageData.reduce((s, r) => s + r.amount, 0);
           return (
-            <Table.Summary.Row>
-              <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
-              <Table.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
-              <Table.Summary.Cell index={2} />
-              <Table.Summary.Cell index={3} />
-              <Table.Summary.Cell index={4} align="right"><Typography.Text strong>{money(total)}</Typography.Text></Table.Summary.Cell>
-              <Table.Summary.Cell index={5} colSpan={4} />
-            </Table.Summary.Row>
+            <ProTable.Summary.Row>
+              <ProTable.Summary.Cell index={0}>合计</ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={2} />
+              <ProTable.Summary.Cell index={3} />
+              <ProTable.Summary.Cell index={4} align="right"><Typography.Text strong>{money(total)}</Typography.Text></ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={5} colSpan={4} />
+            </ProTable.Summary.Row>
           );
         }}
-        pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
       />
 
       <Modal

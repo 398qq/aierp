@@ -79,6 +79,7 @@ import {
   unlinkTag,
   getCustomerStats,
   getCustomerLogs,
+  getOwnerHistory,
   getChildren,
   getGroupStats,
   linkParent,
@@ -91,6 +92,7 @@ import {
   getSimilarCustomers,
   getApiErrorMessage,
 } from "../../api";
+import client from "../../api/client";
 import AttachmentPanel from "../../components/AttachmentPanel";
 import type { CustomerProductMatch, SimilarCustomer } from "../../types";
 import AIInsight from "../../components/ai/AIInsight";
@@ -178,6 +180,9 @@ export default function CustomerDetail() {
   const [recResult, setRecResult] = useState<CustomerProductMatch | null>(null);
   const [recLoading, setRecLoading] = useState(false);
   const [vendModalOpen, setVendModalOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferForm] = Form.useForm();
 
   const customerId = Number(id);
   const nextOpenFollowUp = useMemo(
@@ -428,7 +433,20 @@ export default function CustomerDetail() {
                   <Descriptions.Item label="简称">{customer.short_name || "-"}</Descriptions.Item>
                   <Descriptions.Item label="行业">{customer.industry || "-"}</Descriptions.Item>
                   <Descriptions.Item label="区域">{customer.region || "-"}</Descriptions.Item>
-                  <Descriptions.Item label="负责人">{customer.owner || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="负责人">
+                    {customer.owner || "-"}
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ padding: "0 8px", fontSize: 12 }}
+                      onClick={() => {
+                        transferForm.resetFields();
+                        setTransferModalOpen(true);
+                      }}
+                    >
+                      转移
+                    </Button>
+                  </Descriptions.Item>
                   <Descriptions.Item label="来源">{customer.source || "-"}</Descriptions.Item>
                   <Descriptions.Item label="信用">
                     {customer.credit_level || "-"}
@@ -580,6 +598,7 @@ export default function CustomerDetail() {
                   <Button icon={<SwapOutlined />} onClick={() => setVendModalOpen(true)}>
                     转为供应商
                   </Button>
+
                 </div>
                 <Divider style={{ margin: "12px 0" }} />
                 <Descriptions column={1} size="small">
@@ -793,6 +812,11 @@ export default function CustomerDetail() {
                 children: <ChangeLogPanel customerId={customerId} />,
               },
               {
+                key: "owner_history",
+                label: "负责人变更",
+                children: <OwnerHistoryPanel customerId={customerId} />,
+              },
+              {
                 key: "group",
                 label: "集团关系",
                 children: <GroupPanel customerId={customerId} customerName={customer.name} />,
@@ -912,6 +936,45 @@ export default function CustomerDetail() {
                 </Card>
               </div>
             )}
+          </Modal>
+
+          <Modal
+            title="提交负责人转移申请"
+            open={transferModalOpen}
+            okText="提交"
+            cancelText="取消"
+            confirmLoading={transferSaving}
+            onOk={async () => {
+              try {
+                const values = await transferForm.validateFields();
+                setTransferSaving(true);
+                await client.post("/customers/transfer-requests", {
+                  customer_id: customerId,
+                  to_owner: values.to_owner,
+                  reason: values.reason || null,
+                });
+                message.success("转移申请已提交，等待审批");
+                setTransferModalOpen(false);
+              } catch (e: unknown) {
+                message.error(getApiErrorMessage(e, "提交失败"));
+              } finally {
+                setTransferSaving(false);
+              }
+            }}
+            onCancel={() => setTransferModalOpen(false)}
+          >
+            <Form form={transferForm} layout="vertical" style={{ marginTop: 16 }}>
+              <Form.Item
+                name="to_owner"
+                label="目标负责人"
+                rules={[{ required: true, message: "请输入目标负责人用户名" }]}
+              >
+                <Input placeholder="输入用户名" />
+              </Form.Item>
+              <Form.Item name="reason" label="转移原因">
+                <Input.TextArea rows={3} placeholder="请说明转移原因" maxLength={500} showCount />
+              </Form.Item>
+            </Form>
           </Modal>
 
           <VendAsSupplierModal
@@ -1590,6 +1653,26 @@ const ACTION_LABELS: Record<string, string> = {
   tag: "标签",
   import: "导入",
 };
+const OWNER_ACTION_LABELS: Record<string, string> = {
+  claim: "认领",
+  release: "释放到公海",
+  assign: "分配",
+  auto_assign: "自动分配",
+  transfer_in: "转入",
+  transfer_out: "转出",
+  auto_release: "自动释放",
+};
+
+const OWNER_ACTION_COLORS: Record<string, string> = {
+  claim: "green",
+  release: "orange",
+  assign: "blue",
+  auto_assign: "cyan",
+  transfer_in: "purple",
+  transfer_out: "red",
+  auto_release: "red",
+};
+
 const ACTION_COLORS: Record<string, string> = {
   create: "green",
   update: "blue",
@@ -1644,6 +1727,62 @@ function ChangeLogPanel({ customerId }: { customerId: number }) {
 }
 
 // --- Group Panel ---
+
+// ── Owner History Panel ──
+
+function OwnerHistoryPanel({ customerId }: { customerId: number }) {
+  const [history, setHistory] = useState<Array<{
+    id: number;
+    from_owner: string | null;
+    to_owner: string | null;
+    action_type: string;
+    operator: string | null;
+    reason: string | null;
+    created_at: string | null;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getOwnerHistory(customerId)
+      .then((r) => {
+        const data = r.data.data as { list: typeof history } | undefined;
+        setHistory(data?.list || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [customerId]);
+
+  if (loading) return <Spin />;
+  if (history.length === 0) return <Empty description="暂无负责人变更记录" />;
+
+  return (
+    <Timeline
+      items={history.map((h) => ({
+        color: OWNER_ACTION_COLORS[h.action_type] || "gray",
+        children: (
+          <div>
+            <Space size={4}>
+              <StatusTag tone={OWNER_ACTION_COLORS[h.action_type] || "default"}>
+                {OWNER_ACTION_LABELS[h.action_type] || h.action_type}
+              </StatusTag>
+            </Space>
+            <div style={{ marginTop: 2, fontSize: 13 }}>
+              {h.from_owner || "（空）"} → {h.to_owner || "（公海）"}
+            </div>
+            {h.reason && (
+              <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                {h.reason}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: "#aaa", marginTop: 2 }}>
+              {h.created_at?.slice(0, 19)} {h.operator && `· ${h.operator}`}
+            </div>
+          </div>
+        ),
+      }))}
+    />
+  );
+}
 
 function GroupPanel({ customerId, customerName }: { customerId: number; customerName: string }) {
   const { message } = App.useApp();

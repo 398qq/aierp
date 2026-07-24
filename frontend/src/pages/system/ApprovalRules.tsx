@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { Table, Button, Space, Modal, Form, Input, InputNumber, Select, Switch, message, Card, Popconfirm, Tag } from "antd";
+import { useState, useRef } from "react";
+import { Button, Space, Modal, Form, Input, InputNumber, Select, Switch, message, Card, Popconfirm } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
 import { getApiErrorMessage } from "../../api";
 
@@ -18,23 +19,11 @@ const docTypeOptions = [
 ];
 
 export default function ApprovalRules() {
-  const [data, setData] = useState<ApprovalRule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const actionRef = useRef<ActionType>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ApprovalRule | null>(null);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
-
-  const fetch = async () => {
-    setLoading(true);
-    try {
-      const resp = await client.get("/approvals/rules");
-      setData(resp.data.data || []);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { fetch(); }, []);
 
   const openCreate = () => { setEditing(null); form.resetFields(); form.setFieldsValue({ enabled: true, min_amount: 0, flow_config: [] }); setModalOpen(true); };
   const openEdit = (r: ApprovalRule) => { setEditing(r); form.setFieldsValue(r); setModalOpen(true); };
@@ -50,20 +39,20 @@ export default function ApprovalRules() {
       }
       message.success(editing ? "更新成功" : "创建成功");
       setModalOpen(false);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await client.delete(`/approvals/rules/${id}`); message.success("已删除"); fetch(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    try { await client.delete(`/approvals/rules/${id}`); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
-  const columns: ColumnsType<ApprovalRule> = [
+  const columns = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "单据类型", dataIndex: "doc_type", width: 100, render: (v: string) => docTypeOptions.find(d => d.value === v)?.label || v },
     { title: "最小金额", dataIndex: "min_amount", width: 100, render: (v: number) => `¥${v.toLocaleString()}` },
-    { title: "审批层级", key: "levels", width: 100, render: (_, r) => (r.flow_config || []).length || 1 },
+    { title: "审批层级", key: "levels", width: 100, render: (_: any, r: any) => (r.flow_config || []).length || 1 },
     {
       title: "状态", dataIndex: "enabled", width: 80,
       render: (v: boolean) => <StatusTag tone={v ? "success" : "neutral"}>{v ? "启用" : "禁用"}</StatusTag>,
@@ -71,7 +60,7 @@ export default function ApprovalRules() {
     { title: "创建时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " ") },
     {
       title: "操作", key: "op", width: 160,
-      render: (_, r) => (
+      render: (_: any, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
           <Popconfirm title="确定删除？" onConfirm={() => handleDelete(r.id)}>
@@ -84,7 +73,12 @@ export default function ApprovalRules() {
 
   return (
     <Card title="审批规则" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建规则</Button>}>
-      <Table rowKey="id" columns={columns} dataSource={data} loading={loading} pagination={false} />
+      <ProTable rowKey="id" actionRef={actionRef} search={false} options={{ reload: true }}
+        columns={columns as any} pagination={false}
+        request={async () => {
+          const resp = await client.get("/approvals/rules");
+          return { data: resp.data.data || [], success: true, total: resp.data.data?.length || 0 };
+        }} />
       <Modal title={editing ? "编辑规则" : "新建规则"} open={modalOpen}
         onOk={handleSave} onCancel={() => setModalOpen(false)} confirmLoading={saving} width={500}>
         <Form form={form} layout="vertical">

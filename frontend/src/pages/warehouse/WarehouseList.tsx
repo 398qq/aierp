@@ -1,22 +1,18 @@
-import { useEffect, useState } from "react";
-import { Table, Button, Space, message, Card, Modal, Form, Input, Popconfirm, Tooltip, Tag } from "antd";
+import { useRef, useState } from "react";
+import { Button, Space, message, Card, Popconfirm, Tooltip, Tag } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { PlusOutlined, ReloadOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, getApiErrorMessage } from "../../api";
 import type { Warehouse } from "../../types";
 import WarehouseForm from "./WarehouseForm";
-import { erpPagination } from "../../ui/pagination";
 
 interface WarehouseRecord extends Warehouse {
   created_at?: string;
 }
 
 export default function WarehouseList() {
-  const [data, setData] = useState<WarehouseRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const actionRef = useRef<ActionType>(null);
 
   // Create modal
   const [createOpen, setCreateOpen] = useState(false);
@@ -27,30 +23,13 @@ export default function WarehouseList() {
   const [editRecord, setEditRecord] = useState<WarehouseRecord | null>(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  const fetch = async () => {
-    setLoading(true);
-    try {
-      const resp = await getWarehouses({ page: 1, page_size: 200 });
-      if (resp.data.code === 0) {
-        setData(resp.data.data.list as WarehouseRecord[]);
-        setTotal(resp.data.data.total);
-      }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载仓库失败")); } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetch();
-  }, [page]);
-
   const handleCreate = async (values: { name: string; location?: string; description?: string }) => {
     setCreateLoading(true);
     try {
       await createWarehouse(values);
       message.success("创建成功");
       setCreateOpen(false);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建失败")); } finally {
       setCreateLoading(false);
     }
@@ -69,7 +48,7 @@ export default function WarehouseList() {
       message.success("更新成功");
       setEditOpen(false);
       setEditRecord(null);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新失败")); } finally {
       setEditLoading(false);
     }
@@ -79,15 +58,15 @@ export default function WarehouseList() {
     try {
       await deleteWarehouse(id);
       message.success("已删除");
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
-  const columns: ColumnsType<WarehouseRecord> = [
+  const columns: any = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "名称", dataIndex: "name", width: 200 },
-    { title: "位置", dataIndex: "location", width: 200, render: (v) => v || <Tag>未设置</Tag> },
-    { title: "描述", dataIndex: "description", ellipsis: true, render: (v) => v || "-" },
+    { title: "位置", dataIndex: "location", width: 200, render: (v: string | null) => v || <Tag>未设置</Tag> },
+    { title: "描述", dataIndex: "description", ellipsis: true, render: (v: string | null) => v || "-" },
     { title: "创建时间", dataIndex: "created_at", width: 100, render: (v: string) => v?.slice(0, 10) || "-" },
     {
       title: "操作", key: "actions", width: 120, render: (_: unknown, r: WarehouseRecord) => (
@@ -109,21 +88,25 @@ export default function WarehouseList() {
         title="仓库管理"
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetch}>刷新</Button>
+            <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新增仓库</Button>
           </Space>
         }
       >
-        <Table
+        <ProTable
+          actionRef={actionRef}
           rowKey="id"
           columns={columns}
-          dataSource={data}
-          loading={loading}
+          request={async (params) => {
+            const resp = await getWarehouses({ page: params.current, page_size: params.pageSize });
+            if (resp.data.code === 0) {
+              return { data: resp.data.data.list as WarehouseRecord[], success: true, total: resp.data.data.total };
+            }
+            return { data: [], success: false, total: 0 };
+          }}
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           size="small"
-          pagination={erpPagination({
-            current: page, total, pageSize,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
-          })}
         />
       </Card>
 

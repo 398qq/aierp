@@ -2,8 +2,8 @@
 // the AI semantic-search endpoint, with results as a small table.
 
 import { useNavigate } from "react-router-dom";
-import { Button, Input, Modal, Space, Table } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { Button, Input, Modal, Space } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import type { SimilarCustomer } from "../../types";
 
@@ -27,7 +27,7 @@ export default function CustomerSemanticSearchModal({
   onSearch,
 }: Props) {
   const navigate = useNavigate();
-  const columns: ColumnsType<SimilarCustomer> = [
+  const columns: any = [
     {
       title: "客户名称",
       dataIndex: "name",
@@ -59,11 +59,13 @@ export default function CustomerSemanticSearchModal({
         />
         <Button type="primary" loading={loading} onClick={onSearch}>搜索</Button>
       </Space.Compact>
-      <Table
+      <ProTable
         dataSource={results}
         rowKey="id"
         size="small"
         pagination={false}
+        search={false}
+        options={false}
         locale={{ emptyText: query && !loading ? "未找到匹配客户" : "输入关键词后搜索" }}
         columns={columns}
       />

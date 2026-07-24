@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Tabs, Tag, Tooltip, Typography, message } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
+import type { ActionType } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
 import {
   CopyOutlined,
@@ -46,12 +47,8 @@ const getDueMeta = (validUntil?: string | null, status?: string) => {
 };
 
 export default function QuotationList() {
-  const [data, setData] = useState<Quotation[]>([]);
-  const [total, setTotal] = useState(0);
+  const actionRef = useRef<ActionType>(null);
   const [stats, setStats] = useState<QuotationStats | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [scene, setScene] = useState<QuoteScene>("all");
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
@@ -59,9 +56,18 @@ export default function QuotationList() {
   const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { pricing_health?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
+  const [pageStats, setPageStats] = useState({ amount: 0, total: 0 });
   const navigate = useNavigate();
 
   const status = ["draft", "sent", "won", "lost"].includes(scene) ? scene : undefined;
+
+  const tableParams = useMemo(() => {
+    const p: Record<string, unknown> = { scene };
+    if (customerId) p.customer_id = customerId;
+    if (q) p.q = q;
+    if (includeAi) p.include_ai = true;
+    return p;
+  }, [scene, customerId, q, includeAi]);
 
   const loadStats = async () => {
     try {
@@ -72,55 +78,16 @@ export default function QuotationList() {
     }
   };
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize, sort_by: "updated_at", sort_order: "desc" };
-      if (status) params.status = status;
-      if (customerId) params.customer_id = customerId;
-      if (q.trim()) params.q = q.trim();
-      if (includeAi) params.include_ai = true;
-      const resp = await getQuotations(params);
-      setData(resp.data.data.list || []);
-      setTotal(resp.data.data.total || 0);
-      setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, { pricing_health?: string; flag?: string }> }).ai || {}) : {});
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载报价失败")); } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, [page, pageSize, scene, customerId, q, includeAi]);
-
   useEffect(() => {
     loadStats();
   }, []);
-
-  const visibleData = useMemo(() => {
-    if (scene === "expiring") return data.filter((item) => getDueMeta(item.valid_until, item.status).scene === "expiring");
-    if (scene === "expired") return data.filter((item) => getDueMeta(item.valid_until, item.status).scene === "expired");
-    return data;
-  }, [data, scene]);
-
-  const pageStats = useMemo(() => {
-    const amount = visibleData.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-    const sent = visibleData.filter((item) => item.status === "sent").length;
-    const won = visibleData.filter((item) => item.status === "won").length;
-    const itemCount = visibleData.reduce((sum, item) => sum + (item.items?.length || 0), 0);
-    return { amount, sent, won, itemCount };
-  }, [visibleData]);
-
-  const refreshAll = async () => {
-    await Promise.all([load(), loadStats()]);
-  };
 
   const handleBatchDelete = async () => {
     try {
       await batchDeleteQuotations(selected);
       message.success("已批量删除");
       setSelected([]);
-      refreshAll();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
@@ -136,7 +103,7 @@ export default function QuotationList() {
     try {
       await sendQuotation(record.id);
       message.success("已标记为已发送");
-      refreshAll();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "发送失败")); }
   };
 
@@ -144,7 +111,7 @@ export default function QuotationList() {
     try {
       await convertQuotationToOrder(record.id);
       message.success("已转为订单");
-      refreshAll();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "转换失败")); }
   };
 
@@ -165,7 +132,7 @@ export default function QuotationList() {
     >
       <MetricBand
         items={[
-          { title: "报价总数", value: stats?.total ?? total, suffix: "张" },
+          { title: "报价总数", value: stats?.total ?? pageStats.total, suffix: "张" },
           { title: "报价总额", value: stats?.total_amount ?? pageStats.amount, prefix: "¥", precision: 0 },
           { title: "即将过期", value: stats?.expiring_soon ?? 0, suffix: "张" },
           { title: "已过期", value: stats?.expired ?? 0, suffix: "张" },
@@ -177,7 +144,7 @@ export default function QuotationList() {
       <Card size="small" className="sales-erp-toolbar" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/quotations/new")}>新建报价</Button>
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={refreshAll}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => { actionRef.current?.reload(); loadStats(); }}>刷新</Button>
           <Input.Search
             allowClear
             placeholder="搜索客户 / 报价单 / 产品"
@@ -185,18 +152,14 @@ export default function QuotationList() {
             onChange={(event) => {
               setSearchText(event.target.value);
               if (!event.target.value) {
-                setPage(1);
                 setQ("");
               }
             }}
-            onSearch={(value) => {
-              setPage(1);
-              setQ(value);
-            }}
+            onSearch={(value) => { setQ(value); }}
             style={{ width: 280 }}
           />
           <div style={{ width: 280 }}>
-            <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+            <CustomerSelect value={customerId} onChange={setCustomerId} />
           </div>
           <Select
             placeholder="状态"
@@ -205,7 +168,6 @@ export default function QuotationList() {
             value={status}
             onChange={(next) => {
               setScene((next as QuoteScene) || "all");
-              setPage(1);
             }}
             options={[
               { value: "draft", label: "草稿" },
@@ -232,17 +194,14 @@ export default function QuotationList() {
         title={(
           <Space size={8} wrap>
             <Typography.Text strong>报价单据</Typography.Text>
-            <Typography.Text type="secondary">{visibleData.length} / {total} 张</Typography.Text>
+            <Typography.Text type="secondary">{pageStats.total} 张</Typography.Text>
             {selected.length > 0 && <StatusTag status={`已选 ${selected.length}`} tone="info" />}
           </Space>
         )}
       >
         <Tabs
           activeKey={scene}
-          onChange={(key) => {
-            setScene(key as QuoteScene);
-            setPage(1);
-          }}
+          onChange={(key) => { setScene(key as QuoteScene); }}
           items={(Object.keys(SCENE_LABELS) as QuoteScene[]).map((key) => ({
             key,
             label: (
@@ -253,18 +212,41 @@ export default function QuotationList() {
             ),
           }))}
         />
-        <Table
+        <ProTable<Quotation>
+          actionRef={actionRef}
           rowKey="id"
           size="small"
           bordered
-          loading={loading}
-          dataSource={visibleData}
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+          scroll={{ x: "max-content" }}
+          params={tableParams}
+          request={async (params) => {
+            const apiStatus = ["draft", "sent", "won", "lost"].includes(params.scene as string) ? params.scene : undefined;
+            const queryParams: Record<string, unknown> = { page: params.current || 1, page_size: params.pageSize || 20, sort_by: "updated_at", sort_order: "desc" };
+            if (apiStatus) queryParams.status = apiStatus;
+            if (params.customer_id) queryParams.customer_id = params.customer_id;
+            if (params.q?.trim()) queryParams.q = params.q.trim();
+            if (params.include_ai) queryParams.include_ai = true;
+            const resp = await getQuotations(queryParams);
+            let list: Quotation[] = resp.data.data.list || [];
+            const total = resp.data.data.total || 0;
+            setAiMap(params.include_ai ? ((resp.data.data as unknown as { ai?: Record<number, { pricing_health?: string; flag?: string }> }).ai || {}) : {});
+            if (params.scene === "expiring" || params.scene === "expired") {
+              list = list.filter((item) => getDueMeta(item.valid_until, item.status).scene === params.scene);
+            }
+            setPageStats({
+              amount: list.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+              total: params.scene === "expiring" || params.scene === "expired" ? list.length : total,
+            });
+            return { data: list, success: true, total: params.scene === "expiring" || params.scene === "expired" ? list.length : total };
+          }}
           columns={[
             {
               title: "#", width: 45, fixed: "left",
-              render: (_: unknown, __: Quotation, index: number) => (page - 1) * 20 + index + 1,
+              render: (_: unknown, __: Quotation, index: number) => index + 1,
             },
             {
               title: "报价单号",
@@ -286,10 +268,10 @@ export default function QuotationList() {
                   ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{value}</Typography.Link>
                   : <CustomerLink id={record.customer_id} />,
             },
-            { title: "金额", dataIndex: "total_amount", width: 120, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
+            { title: "金额", dataIndex: "total_amount", width: 120, sorter: (a: any, b: any) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
             {
               title: "状态", dataIndex: "status", width: 90,
-              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
               render: (value: string) => (
                 <>
                   {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
@@ -301,7 +283,7 @@ export default function QuotationList() {
               title: "有效期",
               dataIndex: "valid_until",
               width: 130,
-              sorter: (a, b) => (a.valid_until || "").localeCompare(b.valid_until || ""),
+              sorter: (a: any, b: any) => (a.valid_until || "").localeCompare(b.valid_until || ""),
               render: (value: string | null, record: Quotation) => {
                 const due = getDueMeta(value, record.status);
                 return <StatusTag status={due.text} tone={due.tone} />;
@@ -344,7 +326,7 @@ export default function QuotationList() {
                   } }] : []),
                   { type: "divider" as const },
                   { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
-                    Modal.confirm({ title: "确定删除?", content: `删除报价 ${record.quotation_no || `#${record.id}`}`, onOk: () => deleteQuotation(record.id).then(() => { message.success("已删除"); refreshAll(); }).catch(() => message.error("删除失败")) });
+                    Modal.confirm({ title: "确定删除?", content: `删除报价 ${record.quotation_no || `#${record.id}`}`, onOk: () => deleteQuotation(record.id).then(() => { message.success("已删除"); actionRef.current?.reload(); }).catch(() => message.error("删除失败")) });
                   }},
                 ];
                 return (
@@ -354,14 +336,7 @@ export default function QuotationList() {
                 );
               },
             },
-          ]}
-          scroll={{ x: "max-content" }}
-          pagination={erpPagination({
-            current: page,
-            total: scene === "expiring" || scene === "expired" ? visibleData.length : total,
-            pageSize,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
-          })}
+          ] as any}
         />
       </Card>
     </SalesModuleShell>

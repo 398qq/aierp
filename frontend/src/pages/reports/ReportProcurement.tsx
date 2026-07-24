@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Table, Select, Typography, Spin, Empty } from "antd";
+import { Card, Row, Col, Select, Typography, Spin, Empty } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import client from "../../api/client";
 
@@ -33,7 +34,7 @@ export default function ReportProcurement() {
 
   if (loading) return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
 
-  const columns = [
+  const columns: any = [
     { title: "月份", dataIndex: "month", key: "month" },
     { title: "订单数", dataIndex: "count", key: "count" },
     { title: "金额", dataIndex: "amount", key: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
@@ -52,7 +53,7 @@ export default function ReportProcurement() {
         <Col span={16}>
           <Card title="月度采购趋势" size="small">
             {data?.monthly?.length ? (
-              <Table rowKey="month" columns={columns} dataSource={data.monthly} pagination={false} size="small" />
+              <ProTable rowKey="month" columns={columns} dataSource={data.monthly} pagination={false} size="small" search={false} options={false} />
             ) : <Empty />}
           </Card>
         </Col>

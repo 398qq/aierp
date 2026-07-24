@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Table, Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
+import { Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats, getApiErrorMessage } from "../../api";
 import type { Brand } from "../../types";
 import { getBatchAiSummary, getBrandNextAction } from "./brandAiOrchestration";
@@ -86,12 +86,13 @@ interface BrandStats {
 }
 
 export default function BrandList() {
+  const actionRef = useRef<ActionType>(null);
   const [data, setData] = useState<Brand[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Brand | null>(null);
   const [form] = Form.useForm();
@@ -113,29 +114,10 @@ export default function BrandList() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [aiPlanOpen, setAiPlanOpen] = useState(false);
   const [stats, setStats] = useState<BrandStats | null>(null);
+  const [loading, setLoading] = useState(false);
   const [activeBrandId, setActiveBrandId] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-
-  const fetch = async (p = page, ps = pageSize, keyword = search) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page: p, page_size: ps };
-      if (keyword) params.q = keyword;
-      if (filterStatus) params.status = filterStatus;
-      if (filterLevel) params.level = filterLevel;
-      if (filterType) params.brand_type = filterType;
-      if (filterLifecycle) params.lifecycle_stage = filterLifecycle;
-      if (filterRisk) params.risk_level = filterRisk;
-      if (scene !== "all") params.scene = scene;
-      if (sort) params.sort = sort;
-      const resp = await getBrands(params);
-      const d = resp.data.data as { list: Brand[]; total: number };
-      setData(d.list || []);
-      setTotal(d.total || 0);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载品牌失败")); }
-    finally { setLoading(false); }
-  };
 
   const fetchStats = async () => {
     try {
@@ -144,7 +126,7 @@ export default function BrandList() {
     } catch { /* non-blocking */ }
   };
 
-  useEffect(() => { fetch(); fetchStats(); }, [page, pageSize, filterStatus, filterLevel, filterType, filterLifecycle, filterRisk, scene, sort]);
+  useEffect(() => { fetchStats(); }, [filterStatus, filterLevel, filterType, filterLifecycle, filterRisk, scene]);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     setSearch(params.get("q") || params.get("keyword") || "");
@@ -158,13 +140,7 @@ export default function BrandList() {
     setPage(1);
   }, [location.search]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (page !== 1) {
-        setPage(1);
-      } else {
-        fetch(1, pageSize, search);
-      }
-    }, 300);
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
     return () => window.clearTimeout(timer);
   }, [search]);
 
@@ -192,7 +168,7 @@ export default function BrandList() {
         message.success("创建成功");
       }
       setModalOpen(false);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
     finally { setSubmitting(false); }
   };
@@ -201,7 +177,7 @@ export default function BrandList() {
     try {
       await deleteBrand(id);
       message.success("删除成功");
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
@@ -235,7 +211,7 @@ export default function BrandList() {
       setBatchField("");
       setBatchValue("");
       setSelectedRowKeys([]);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); }
     finally { setBatchSubmitting(false); }
   };
@@ -247,13 +223,14 @@ export default function BrandList() {
       await batchDeleteBrands(selectedRowKeys as number[]);
       message.success(`已删除 ${selectedRowKeys.length} 个品牌`);
       setSelectedRowKeys([]);
-      fetch();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
     finally { setBatchSubmitting(false); }
   };
 
   const resetFilters = () => {
     setSearch("");
+    setDebouncedSearch("");
     setFilterStatus(undefined);
     setFilterLevel(undefined);
     setFilterType(undefined);
@@ -261,7 +238,6 @@ export default function BrandList() {
     setFilterRisk(undefined);
     setScene("all");
     setSort("created_at_desc");
-    setPage(1);
   };
 
   const exportCurrentPage = () => {
@@ -302,33 +278,33 @@ export default function BrandList() {
     return <StatusTag tone={action.color}>{action.label}</StatusTag>;
   };
 
-  const columns: ColumnsType<Brand> = [
+  const columns: any = [
     { title: "ID", dataIndex: "id", width: 50 },
-    { title: "编码", dataIndex: "code", width: 80, render: (v) => v || "-" },
+    { title: "编码", dataIndex: "code", width: 80, render: (v: any) => v || "-" },
     {
       title: "名称", dataIndex: "name", width: 160,
-      render: (v, r) => <a onClick={() => navigate(`/brands/${r.id}`)}>{v}</a>,
+      render: (v: any, r: any) => <a onClick={() => navigate(`/brands/${r.id}`)}>{v}</a>,
     },
-    { title: "中文名", dataIndex: "name_cn", width: 100, render: (v) => v || "-" },
+    { title: "中文名", dataIndex: "name_cn", width: 100, render: (v: any) => v || "-" },
     {
       title: "状态", dataIndex: "status", width: 70,
-      render: (v) => <StatusTag tone={statusColor[v] || "neutral"}>{statusLabel[v] || v}</StatusTag>,
+      render: (v: any) => <StatusTag tone={statusColor[v] || "neutral"}>{statusLabel[v] || v}</StatusTag>,
     },
     {
       title: "类型", dataIndex: "brand_type", width: 70,
-      render: (v) => v ? <StatusTag>{typeLabel[v] || v}</StatusTag> : "-",
+      render: (v: any) => v ? <StatusTag>{typeLabel[v] || v}</StatusTag> : "-",
     },
     {
       title: "等级", dataIndex: "level", width: 60,
-      render: (v) => v ? <StatusTag tone={levelColor[v]}>{v}级</StatusTag> : "-",
+      render: (v: any) => v ? <StatusTag tone={levelColor[v]}>{v}级</StatusTag> : "-",
     },
     {
       title: "生命周期", dataIndex: "lifecycle_stage", width: 80,
-      render: (v) => v ? <StatusTag tone={lcTagColor[v] || "neutral"}>{v.toUpperCase()}</StatusTag> : "-",
+      render: (v: any) => v ? <StatusTag tone={lcTagColor[v] || "neutral"}>{v.toUpperCase()}</StatusTag> : "-",
     },
     {
       title: "风险", dataIndex: "risk_level", width: 70,
-      render: (v, r) => v ? (
+      render: (v: any, r: any) => v ? (
         <Space size={4}>
           <StatusTag tone={riskTagColor[v] || "neutral"}>{v === "low" ? "低" : v === "medium" ? "中" : v === "high" ? "高" : "严重"}</StatusTag>
           {r.risk_score != null && <Progress percent={r.risk_score} size="small" style={{ width: 40 }} showInfo={false} status={r.risk_score > 70 ? "exception" : "normal"} />}
@@ -337,19 +313,19 @@ export default function BrandList() {
     },
     {
       title: "RoHS", dataIndex: "rohs_status", width: 65,
-      render: (v) => v === "compliant" ? <StatusTag tone="success">合规</StatusTag> : v === "exempt" ? <StatusTag tone="warning">豁免</StatusTag> : v === "non_compliant" ? <StatusTag tone="danger">不合规</StatusTag> : "-",
+      render: (v: any) => v === "compliant" ? <StatusTag tone="success">合规</StatusTag> : v === "exempt" ? <StatusTag tone="warning">豁免</StatusTag> : v === "non_compliant" ? <StatusTag tone="danger">不合规</StatusTag> : "-",
     },
     {
       title: "定位", dataIndex: "positioning", width: 60,
-      render: (v) => v === "high" ? <StatusTag tone="success">高端</StatusTag> : v === "mid" ? <StatusTag>中端</StatusTag> : v === "low" ? <StatusTag tone="warning">低端</StatusTag> : "-",
+      render: (v: any) => v === "high" ? <StatusTag tone="success">高端</StatusTag> : v === "mid" ? <StatusTag>中端</StatusTag> : v === "low" ? <StatusTag tone="warning">低端</StatusTag> : "-",
     },
     {
       title: "MOQ", dataIndex: "moq", width: 60, align: "right",
-      render: (v) => v != null ? v : "-",
+      render: (v: any) => v != null ? v : "-",
     },
     {
       title: "完整度", dataIndex: "completion_score", width: 95,
-      render: (v: number | null, r) => {
+      render: (v: number | null, r: any) => {
         const score = v ?? 0;
         const missing = r.missing_fields?.length ? `缺少：${r.missing_fields.join("、")}` : "资料完整";
         return (
@@ -361,23 +337,23 @@ export default function BrandList() {
     },
     {
       title: "车规", dataIndex: "is_automotive", width: 55,
-      render: (v) => v ? <StatusTag tone="info" style={{padding: "0 4px"}}>车规</StatusTag> : <Text type="secondary">-</Text>,
+      render: (v: any) => v ? <StatusTag tone="info" style={{padding: "0 4px"}}>车规</StatusTag> : <Text type="secondary">-</Text>,
     },
     {
       title: "授权", dataIndex: "authorization_status", width: 70,
-      render: (v) => v ? <StatusTag tone={v === "authorized" ? "success" : v === "unauthorized" ? "danger" : "neutral"}>{v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}</StatusTag> : "-",
+      render: (v: any) => v ? <StatusTag tone={v === "authorized" ? "success" : v === "unauthorized" ? "danger" : "neutral"}>{v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}</StatusTag> : "-",
     },
     {
       title: "产品", dataIndex: "product_count", width: 55,
-      render: (v) => v != null && v > 0 ? <Text style={{ fontSize: 12 }}>{v}</Text> : <StatusTag tone="warning">未铺货</StatusTag>,
+      render: (v: any) => v != null && v > 0 ? <Text style={{ fontSize: 12 }}>{v}</Text> : <StatusTag tone="warning">未铺货</StatusTag>,
     },
     {
       title: "建议", key: "next_action", width: 90,
-      render: (_: unknown, r) => getBrandAction(r),
+      render: (_: unknown, r: any) => getBrandAction(r),
     },
     {
       title: "操作", key: "action", width: 120, fixed: "right",
-      render: (_: unknown, r) => (
+      render: (_: unknown, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
           <Popconfirm title="确认删除？" onConfirm={() => handleDelete(r.id)}>
@@ -395,16 +371,15 @@ export default function BrandList() {
 
   const applyScene = (nextScene: BrandScene) => {
     setScene(nextScene);
-    setPage(1);
   };
 
   const activeFilterTags = [
-    search ? { key: "search", label: `搜索: ${search}`, onClose: () => { setSearch(""); setPage(1); } } : null,
-    filterStatus ? { key: "status", label: `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}`, onClose: () => { setFilterStatus(undefined); setPage(1); } } : null,
-    filterLevel ? { key: "level", label: `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}`, onClose: () => { setFilterLevel(undefined); setPage(1); } } : null,
-    filterType ? { key: "type", label: `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}`, onClose: () => { setFilterType(undefined); setPage(1); } } : null,
-    filterLifecycle ? { key: "lifecycle", label: `生命周期: ${filterLifecycle.toUpperCase()}`, onClose: () => { setFilterLifecycle(undefined); setPage(1); } } : null,
-    filterRisk ? { key: "risk", label: `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}`, onClose: () => { setFilterRisk(undefined); setPage(1); } } : null,
+    search ? { key: "search", label: `搜索: ${search}`, onClose: () => { setSearch(""); setDebouncedSearch(""); } } : null,
+    filterStatus ? { key: "status", label: `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}`, onClose: () => { setFilterStatus(undefined); } } : null,
+    filterLevel ? { key: "level", label: `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}`, onClose: () => { setFilterLevel(undefined); } } : null,
+    filterType ? { key: "type", label: `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}`, onClose: () => { setFilterType(undefined); } } : null,
+    filterLifecycle ? { key: "lifecycle", label: `生命周期: ${filterLifecycle.toUpperCase()}`, onClose: () => { setFilterLifecycle(undefined); } } : null,
+    filterRisk ? { key: "risk", label: `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}`, onClose: () => { setFilterRisk(undefined); } } : null,
     scene !== "all" ? { key: "scene", label: `场景: ${SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}`, onClose: () => applyScene("all") } : null,
   ].filter((item): item is { key: string; label: string; onClose: () => void } => Boolean(item));
   const hasCustomView = activeFilterTags.length > 0 || sort !== "created_at_desc";
@@ -805,7 +780,7 @@ export default function BrandList() {
           <Space wrap>
             <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>看板</Button>
             <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>导出</Button>
-            <Button icon={<ReloadOutlined />} onClick={() => { fetch(); fetchStats(); }}>刷新</Button>
+            <Button icon={<ReloadOutlined />} onClick={() => { actionRef.current?.reload(); fetchStats(); }}>刷新</Button>
             <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
             {selectedRowKeys.length > 0 && (
               <>
@@ -829,7 +804,7 @@ export default function BrandList() {
               onChange={(v) => applyScene(v as BrandScene)}
             />
             <Space wrap>
-              <Select value={sort} style={{ width: 120 }} onChange={(v) => { setSort(v); setPage(1); }} options={SORT_OPTIONS} />
+              <Select value={sort} style={{ width: 120 }} onChange={(v) => { setSort(v); }} options={SORT_OPTIONS} />
               <Button onClick={resetFilters}>重置</Button>
             </Space>
           </div>
@@ -841,8 +816,7 @@ export default function BrandList() {
               onChange={(e) => setSearch(e.target.value)}
               onSearch={(v) => {
                 setSearch(v);
-                if (page !== 1) setPage(1);
-                else fetch(1, pageSize, v);
+                setDebouncedSearch(v);
               }}
               className="brand-filter-search"
             />
@@ -875,7 +849,8 @@ export default function BrandList() {
             {hasCustomView && <Button size="small" onClick={resetFilters}>清空视图</Button>}
           </Space>
         </div>
-        <Table
+        <ProTable
+          actionRef={actionRef}
           rowKey="id" columns={columns} dataSource={data}
           rowSelection={rowSelection}
           rowClassName={(record) => {
@@ -887,10 +862,11 @@ export default function BrandList() {
           onRow={(record) => ({
             onClick: () => setActiveBrandId(record.id),
           })}
-          loading={loading} size="small" pagination={erpPagination({
-            current: page, total, pageSize: pageSize,
+          loading={loading} size="small" search={false}
+          options={{ reload: true, density: true, setting: true }}
+          pagination={{ current: page, total, pageSize, showSizeChanger: true,
             onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
-          })}
+          }}
           locale={{
             emptyText: (
               <div className="brand-empty">

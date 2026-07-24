@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Table, Select, Typography, Spin, Empty, Button } from "antd";
+import { Card, Row, Col, Select, Typography, Spin, Empty, Button } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { DownloadOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 import { SalesModuleShell } from "../sales/salesUi";
@@ -42,13 +43,13 @@ export default function ReportSales() {
     } catch { /* ignore */ }
   };
 
-  const orderColumns = [
+  const orderColumns: any = [
     { title: "月份", dataIndex: "month", key: "month" },
     { title: "订单数", dataIndex: "count", key: "count" },
     { title: "金额", dataIndex: "amount", key: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
   ];
 
-  const productColumns = [
+  const productColumns: any = [
     { title: "产品名", dataIndex: "name", key: "name" },
     { title: "SKU", dataIndex: "sku", key: "sku" },
     { title: "订单数", dataIndex: "order_count", key: "order_count" },
@@ -78,14 +79,14 @@ export default function ReportSales() {
         <Col span={12}>
           <Card title="月度销售订单" size="small">
             {data?.monthly_orders?.length ? (
-              <Table rowKey="month" columns={orderColumns} dataSource={data.monthly_orders} pagination={false} size="small" />
+              <ProTable rowKey="month" columns={orderColumns} dataSource={data.monthly_orders} pagination={false} size="small" search={false} options={false} />
             ) : <Empty />}
           </Card>
         </Col>
         <Col span={12}>
           <Card title="月度报价单" size="small">
             {data?.monthly_quotations?.length ? (
-              <Table rowKey="month" columns={orderColumns} dataSource={data.monthly_quotations} pagination={false} size="small" />
+              <ProTable rowKey="month" columns={orderColumns} dataSource={data.monthly_quotations} pagination={false} size="small" search={false} options={false} />
             ) : <Empty />}
           </Card>
         </Col>
@@ -93,7 +94,7 @@ export default function ReportSales() {
 
       <Card title="热销产品 Top 10" size="small">
         {data?.top_products?.length ? (
-          <Table rowKey="sku" columns={productColumns} dataSource={data.top_products} pagination={false} size="small" />
+          <ProTable rowKey="sku" columns={productColumns} dataSource={data.top_products} pagination={false} size="small" search={false} options={false} />
         ) : <Empty />}
       </Card>
         </>

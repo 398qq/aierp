@@ -10,7 +10,6 @@ from app.core.security import hash_password
 from app.core.permissions import _invalidate_perm_cache
 from app.database import get_db
 from app.models.user import User
-from app.models.rbac import Role
 from app.schemas.common import ok, fail, APIResponse, PageData
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
@@ -95,6 +94,26 @@ async def list_users(
 
 
 # --- Detail ---
+@router.get("/active", response_model=APIResponse[list[dict]])
+async def list_active_users(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """简化的活跃用户列表，供负责人下拉选择器使用。"""
+    rows = (
+        (
+            await db.execute(
+                select(User)
+                .where(User.deleted_at.is_(None))
+                .order_by(User.username.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ok([{"username": u.username, "role": u.role} for u in rows])
+
+
 @router.get("/{user_id}", response_model=APIResponse[UserResponse])
 async def get_user(
     user_id: int,
@@ -138,19 +157,13 @@ async def create_user(
     await db.flush()
 
     if body.role_ids:
-        roles = (
-            (
-                await db.execute(
-                    select(Role).where(
-                        Role.id.in_(body.role_ids), Role.deleted_at.is_(None)
-                    )
-                )
+        from app.models.rbac import user_roles_table
+
+        # Direct INSERT to bypass lazy="selectin" relationship loading
+        for rid in body.role_ids:
+            await db.execute(
+                user_roles_table.insert().values(user_id=user.id, role_id=rid)
             )
-            .scalars()
-            .all()
-        )
-        user.roles = roles
-        await db.flush()
 
     await db.commit()
     await _invalidate_perm_cache()
@@ -182,22 +195,21 @@ async def update_user(
         row.password = hash_password(body.password)
 
     if body.role_ids is not None:
-        roles = (
-            (
-                await db.execute(
-                    select(Role).where(
-                        Role.id.in_(body.role_ids), Role.deleted_at.is_(None)
-                    )
-                )
+        from app.models.rbac import user_roles_table
+
+        # Replace role assignments via direct table manipulation
+        await db.execute(
+            user_roles_table.delete().where(
+                user_roles_table.c.user_id == row.id
             )
-            .scalars()
-            .all()
         )
-        row.roles = roles
+        for rid in body.role_ids:
+            await db.execute(
+                user_roles_table.insert().values(user_id=row.id, role_id=rid)
+            )
 
     await db.commit()
     await _invalidate_perm_cache()
-    await db.flush()
     await db.refresh(row)
 
     return ok(_user_row(row))

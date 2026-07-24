@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Row, Col, Statistic, Table, Tag, Spin, Button, Space, Typography, Alert, Progress, ProgressProps } from "antd";
+import { Card, Row, Col, Statistic, Tag, Spin, Button, Space, Typography, Alert, Progress, ProgressProps } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import {
   TeamOutlined, AlertOutlined, RiseOutlined, WarningOutlined,
@@ -263,10 +264,12 @@ export default function CustomerIntelligenceDashboard() {
         <Col span={24}>
           <Card title="高流失风险客户" size="small">
             {topChurnCustomers.length > 0 ? (
-              <Table
+              <ProTable
                 rowKey="id"
-                columns={scoreColumns}
+                columns={scoreColumns as any}
                 dataSource={topChurnCustomers}
+                search={false}
+                options={false}
                 size="small"
                 pagination={false}
               />

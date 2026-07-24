@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Table, Typography, message } from "antd";
+import { Alert, Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { createPurchaseOrder, getProducts, getPurchaseOrder, getSalesOrders, getSupplierProducts, getSuppliers, updatePurchaseOrder } from "../../api";
@@ -167,7 +168,7 @@ export default function PurchaseOrderForm() {
 
             <Card size="small" title="采购明细" extra={<Space><StatusTag tone="info">{summary.lines} 行</StatusTag><Typography.Text strong>{money(summary.total)}</Typography.Text></Space>}>
               <Form.List name="items">{(fields, { add, remove }) => <>
-                <Table rowKey="key" size="small" bordered pagination={false} dataSource={fields} scroll={{ x: 1900 }} columns={[
+                <ProTable search={false} options={false} rowKey="key" size="small" bordered pagination={false} dataSource={fields} scroll={{ x: 1900 }} columns={[
                   { title: "产品", width: 240, fixed: "left", render: (_v, field) => <Form.Item name={[field.name, "product_id"]} rules={[{ required: true }]} style={{ margin: 0 }}><Select showSearch optionFilterProp="label" onChange={(value) => selectProduct(field.name, value)} options={products.map((p) => ({ value: p.id, label: `${p.sku || "-"} · ${p.name}` }))} /></Form.Item> },
                   { title: "供应商型号(MPN)", width: 170, render: (_v, f) => <Form.Item name={[f.name, "supplier_mpn"]} rules={[{ required: true }]} style={{ margin: 0 }}><Input /></Form.Item> },
                   { title: "自有SKU", width: 140, render: (_v, f) => <Form.Item name={[f.name, "product_sku"]} style={{ margin: 0 }}><Input /></Form.Item> },

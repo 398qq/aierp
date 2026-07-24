@@ -220,18 +220,23 @@ async def get_user_roles(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    user = (
+    from app.models.rbac import user_roles_table
+
+    row = (
         await db.execute(
-            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+            select(Role.id, Role.name)
+            .join(user_roles_table, user_roles_table.c.role_id == Role.id)
+            .where(
+                user_roles_table.c.user_id == user_id,
+                Role.deleted_at.is_(None),
+            )
         )
-    ).scalar_one_or_none()
-    if not user:
-        return fail("用户不存在")
+    ).fetchall()
     return ok(
         {
             "user_id": user_id,
-            "role_ids": [r.id for r in user.roles],
-            "roles": [{"id": r.id, "name": r.name} for r in user.roles],
+            "role_ids": [r.id for r in row],
+            "roles": [{"id": r.id, "name": r.name} for r in row],
         }
     )
 
@@ -244,6 +249,8 @@ async def set_user_roles(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_perm("system", "write")),
 ):
+    from app.models.rbac import user_roles_table
+
     user = (
         await db.execute(
             select(User).where(User.id == user_id, User.deleted_at.is_(None))
@@ -252,18 +259,17 @@ async def set_user_roles(
     if not user:
         return fail("用户不存在")
 
-    roles = (
-        (
-            await db.execute(
-                select(Role).where(
-                    Role.id.in_(body.role_ids), Role.deleted_at.is_(None)
-                )
-            )
+    # Replace role assignments via direct table manipulation
+    await db.execute(
+        user_roles_table.delete().where(
+            user_roles_table.c.user_id == user_id
         )
-        .scalars()
-        .all()
     )
-    user.roles = roles
+    for rid in body.role_ids:
+        await db.execute(
+            user_roles_table.insert().values(user_id=user_id, role_id=rid)
+        )
+
     await db.commit()
     await _invalidate_perm_cache()
     await write_audit_log(
@@ -273,7 +279,7 @@ async def set_user_roles(
         "update",
         "user_roles",
         user_id,
-        f"设置用户 {user.username} 角色: {[r.name for r in roles]}",
+        f"设置用户 {user.username} 角色: {list(body.role_ids)}",
         request.client.host if request.client else "",
     )
     return ok(msg="角色设置成功")

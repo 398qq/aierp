@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, Card } from "antd";
+import { Button, Space, Modal, Form, Input, Select, InputNumber, message, Card } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
 import { getApiErrorMessage } from "../../api";
 
@@ -84,7 +84,7 @@ export default function UomsList() {
     });
   };
 
-  const columns: ColumnsType<UomItem> = [
+  const columns: any = [
     { title: "编码", dataIndex: "code", width: 100 },
     { title: "名称", dataIndex: "name", width: 120 },
     {
@@ -95,7 +95,7 @@ export default function UomsList() {
     { title: "排序", dataIndex: "sort_order", width: 60 },
     {
       title: "操作", key: "op", width: 120,
-      render: (_, r) => (
+      render: (_: unknown, r: UomItem) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(r)}>删除</Button>
@@ -106,12 +106,14 @@ export default function UomsList() {
 
   return (
     <Card title="计量单位管理" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增单位</Button>}>
-      <Table
+      <ProTable
         rowKey="code"
         columns={columns}
         dataSource={data}
         loading={loading}
         pagination={false}
+        search={false}
+        options={{ reload: true, density: true, setting: true }}
         size="middle"
       />
 

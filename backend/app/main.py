@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from importlib import import_module
 import asyncio
+import logging
 import time
 
 from fastapi import FastAPI
@@ -18,6 +19,8 @@ from app.core.request_context import RequestContextMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.database import engine, init_db
 from app.services.cache_service import get_redis
+
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 
 def _parse_cors_origins(raw: str) -> list[str]:

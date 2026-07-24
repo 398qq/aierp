@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, Upload, message } from "antd";
+import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Tag, Typography, Upload, message } from "antd";
+import type { ActionType } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
@@ -13,11 +14,7 @@ import type { SalesOrder } from "../../types";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 export default function SalesOrderList() {
-  const [data, setData] = useState<SalesOrder[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const actionRef = useRef<ActionType>(null);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
@@ -25,6 +22,8 @@ export default function SalesOrderList() {
   const [includeAi, setIncludeAi] = useState(false);
   const [aiMap, setAiMap] = useState<Record<number, { delivery_risk?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
+  const [stats, setStats] = useState({ amount: 0, confirmed: 0, pending: 0, itemCount: 0, total: 0 });
+  const [currentData, setCurrentData] = useState<SalesOrder[]>([]);
   const [pdfImportOpen, setPdfImportOpen] = useState(false);
   const [pdfFile, setPdfFile] = useState<UploadFile | null>(null);
   const [pdfCustomerId, setPdfCustomerId] = useState<number | undefined>();
@@ -32,41 +31,21 @@ export default function SalesOrderList() {
   const [pdfResult, setPdfResult] = useState<SalesOrderPDFImportResult | null>(null);
   const navigate = useNavigate();
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (status) params.status = status;
-      if (customerId) params.customer_id = customerId;
-      if (q.trim()) params.q = q.trim();
-      if (includeAi) params.include_ai = true;
-      const resp = await getSalesOrders(params);
-      setData(resp.data.data.list || []);
-      setTotal(resp.data.data.total || 0);
-      setAiMap(includeAi ? ((resp.data.data as unknown as { ai?: Record<number, { delivery_risk?: string; flag?: string }> }).ai || {}) : {});
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, [page, pageSize, status, customerId, q, includeAi]);
-
-  const stats = useMemo(() => {
-    const amount = data.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-    const confirmed = data.filter((item) => item.status === "confirmed").length;
-    const pending = data.filter((item) => item.status === "pending").length;
-    const itemCount = data.reduce((sum, item) => sum + (item.items?.length || 0), 0);
-    return { amount, confirmed, pending, itemCount };
-  }, [data]);
+  const tableParams = useMemo(() => {
+    const p: Record<string, unknown> = {};
+    if (status) p.status = status;
+    if (customerId) p.customer_id = customerId;
+    if (q) p.q = q;
+    if (includeAi) p.include_ai = true;
+    return p;
+  }, [status, customerId, q, includeAi]);
 
   const handleBatchDelete = async () => {
     try {
       await batchDeleteSalesOrders(selected);
       message.success("已批量删除");
       setSelected([]);
-      load();
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
@@ -84,7 +63,7 @@ export default function SalesOrderList() {
       }
       setPdfResult(resp.data.data);
       message.success(resp.data.msg || "PDF订单导入成功");
-      load();
+      actionRef.current?.reload();
     } catch (err: unknown) {
       const serverMsg = (err as { response?: { data?: { msg?: string } } })?.response?.data?.msg;
       message.error(serverMsg || "导入失败");
@@ -102,7 +81,7 @@ export default function SalesOrderList() {
     >
       <MetricBand
         items={[
-          { title: "订单数", value: total, suffix: "单" },
+          { title: "订单数", value: stats.total, suffix: "单" },
           { title: "本页金额", value: stats.amount, prefix: "¥", precision: 0 },
           { title: "待确认", value: stats.pending, suffix: "单" },
           { title: "已确认", value: stats.confirmed, suffix: "单" },
@@ -124,9 +103,9 @@ export default function SalesOrderList() {
           >
             导入PDF订单
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
           <ErpExportButton
-            data={data as unknown as Record<string, unknown>[]}
+            data={currentData as unknown as Record<string, unknown>[]}
             columns={[
               { key: "order_no", title: "订单号" },
               { key: "total_amount", title: "金额" },
@@ -143,18 +122,14 @@ export default function SalesOrderList() {
             onChange={(event) => {
               setSearchText(event.target.value);
               if (!event.target.value) {
-                setPage(1);
                 setQ("");
               }
             }}
-            onSearch={(value) => {
-              setPage(1);
-              setQ(value);
-            }}
+            onSearch={(value) => { setQ(value); }}
             style={{ width: 260 }}
           />
           <div style={{ width: 260 }}>
-            <CustomerSelect value={customerId} onChange={(next) => { setCustomerId(next); setPage(1); }} />
+            <CustomerSelect value={customerId} onChange={setCustomerId} />
           </div>
           {selected.length > 0 ? (
             <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}>
@@ -166,10 +141,7 @@ export default function SalesOrderList() {
             allowClear
             style={{ width: 128 }}
             value={status}
-            onChange={(next) => {
-              setPage(1);
-              setStatus(next);
-            }}
+            onChange={setStatus}
             options={[
               { value: "pending", label: "待确认" },
               { value: "confirmed", label: "已确认" },
@@ -190,22 +162,45 @@ export default function SalesOrderList() {
         title={(
           <Space size={8} wrap>
             <Typography.Text strong>销售订单单据</Typography.Text>
-            <Typography.Text type="secondary">{data.length} / {total} 单</Typography.Text>
+            <Typography.Text type="secondary">{currentData.length} / {stats.total} 单</Typography.Text>
             {selected.length > 0 && <StatusTag tone="info">已选 {selected.length}</StatusTag>}
           </Space>
         )}
       >
-        <Table
+        <ProTable<SalesOrder>
+          actionRef={actionRef}
           rowKey="id"
           size="small"
           bordered
-          loading={loading}
-          dataSource={data}
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           rowClassName={erpRowClass}
           rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
           scroll={{ x: "max-content" }}
+          params={tableParams}
+          request={async (params) => {
+            const queryParams: Record<string, unknown> = { page: params.current || 1, page_size: params.pageSize || 20 };
+            if (params.status) queryParams.status = params.status;
+            if (params.customer_id) queryParams.customer_id = params.customer_id;
+            if (params.q?.trim()) queryParams.q = params.q.trim();
+            if (params.include_ai) queryParams.include_ai = true;
+            const resp = await getSalesOrders(queryParams);
+            const list: SalesOrder[] = resp.data.data.list || [];
+            const total = resp.data.data.total || 0;
+            const aiData = params.include_ai ? ((resp.data.data as unknown as { ai?: Record<number, { delivery_risk?: string; flag?: string }> }).ai || {}) : {};
+            setAiMap(aiData);
+            setCurrentData(list);
+            setStats({
+              amount: list.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+              confirmed: list.filter((item) => item.status === "confirmed").length,
+              pending: list.filter((item) => item.status === "pending").length,
+              itemCount: list.reduce((sum, item) => sum + (item.items?.length || 0), 0),
+              total,
+            });
+            return { data: list, success: true, total };
+          }}
           columns={[
-            { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: SalesOrder, index: number) => (page - 1) * 20 + index + 1 },
+            { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: SalesOrder, index: number) => index + 1 },
             {
               title: "单号",
               dataIndex: "order_no",
@@ -226,10 +221,10 @@ export default function SalesOrderList() {
                   ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{value}</Typography.Link>
                   : <CustomerLink id={record.customer_id} />,
             },
-            { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a, b) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
+            { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a: any, b: any) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
             {
               title: "状态", dataIndex: "status", width: 100,
-              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
               render: (value: string) => (
                 <>
                   {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
@@ -237,8 +232,8 @@ export default function SalesOrderList() {
                 </>
               ),
             },
-            { title: "下单", dataIndex: "order_date", width: 120, sorter: (a, b) => (a.order_date || "").localeCompare(b.order_date || ""), render: shortDate },
-            { title: "交付", dataIndex: "delivery_date", width: 120, sorter: (a, b) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
+            { title: "下单", dataIndex: "order_date", width: 120, sorter: (a: any, b: any) => (a.order_date || "").localeCompare(b.order_date || ""), render: shortDate },
+            { title: "交付", dataIndex: "delivery_date", width: 120, sorter: (a: any, b: any) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
             {
               title: "AI",
               width: 100,
@@ -253,13 +248,13 @@ export default function SalesOrderList() {
                   { key: "view", label: "查看详情", onClick: () => navigate(`/sales/orders/${record.id}`) },
                   { key: "delivery", label: "转为发货单", icon: <CarOutlined />, onClick: () => {
                     Modal.confirm({ title: "转为发货单?", content: `将订单 ${record.order_no || `#${record.id}`} 转为发货单`, onOk: async () => {
-                      try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "转换失败")); }
+                      try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "转换失败")); }
                     } });
                   }},
                   { type: "divider" as const },
                   { key: "delete", label: "删除", danger: true, icon: <DeleteOutlined />, onClick: () => {
                     Modal.confirm({ title: "确定删除?", content: `删除订单 ${record.order_no || `#${record.id}`}`, onOk: async () => {
-                      try { await deleteSalesOrder(record.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+                      try { await deleteSalesOrder(record.id); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                     } });
                   }},
                 ];
@@ -270,8 +265,7 @@ export default function SalesOrderList() {
                 );
               },
             },
-          ]}
-          pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+          ] as any}
         />
       </Card>
 

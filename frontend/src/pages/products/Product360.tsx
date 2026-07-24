@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, Button } from "antd";
+import { Card, Col, Progress, Row, Statistic, Tag, Typography, Spin, Alert, Button } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, SafetyOutlined, ShopOutlined, AimOutlined, WarningOutlined } from "@ant-design/icons";
 import { orchestrateProduct360 } from "../../api";
@@ -91,11 +92,11 @@ export default function Product360Page() {
       </Row>
 
       <Card title="优先行动" style={{ marginBottom: 24 }}>
-        <Table columns={actionColumns} dataSource={data.prioritized_actions} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+        <ProTable search={false} options={false} columns={actionColumns as any} dataSource={data.prioritized_actions} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
       </Card>
 
       <Card title="跨领域洞察">
-        <Table columns={insightColumns} dataSource={data.cross_domain_insights} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+        <ProTable search={false} options={false} columns={insightColumns as any} dataSource={data.cross_domain_insights} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
       </Card>
     </div>
   );

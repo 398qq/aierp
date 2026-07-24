@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
-import { Table, Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
+import { useState, useRef } from "react";
+import { Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
 import { getApiErrorMessage } from "../../api";
-import { erpPagination } from "../../ui/pagination";
 
 interface ApprovalReq {
   id: number; doc_type: string; doc_id: number;
@@ -25,26 +25,12 @@ const statusColors: Record<string, string> = { pending: "processing", approved: 
 const statusLabels: Record<string, string> = { pending: "待审批", approved: "已通过", rejected: "已驳回" };
 
 export default function ApprovalList() {
-  const [data, setData] = useState<ApprovalReq[]>([]);
-  const [loading, setLoading] = useState(true);
+  const actionRef = useRef<ActionType>(null);
   const [tab, setTab] = useState("all");
   const [detail, setDetail] = useState<ApprovalDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [acting, setActing] = useState(false);
-
-  const fetch = async (status?: string) => {
-    setLoading(true);
-    try {
-      const params: Record<string, string> = {};
-      if (status && status !== "all") params.status = status;
-      const resp = await client.get("/approvals/requests", { params });
-      setData(resp.data.data?.list || []);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载审批列表失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { fetch(tab); }, [tab]);
 
   const viewDetail = async (id: number) => {
     try {
@@ -61,12 +47,12 @@ export default function ApprovalList() {
       message.success(action === "approve" ? "已通过" : "已驳回");
       setDetailOpen(false);
       setComment("");
-      fetch(tab);
+      actionRef.current?.reload();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
     finally { setActing(false); }
   };
 
-  const columns: ColumnsType<ApprovalReq> = [
+  const columns = [
     { title: "ID", dataIndex: "id", width: 60, responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
     { title: "单据类型", dataIndex: "doc_type", width: 100, render: (v: string) => docTypeLabels[v] || v },
     { title: "单据ID", dataIndex: "doc_id", width: 80, responsive: ["md"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
@@ -79,19 +65,29 @@ export default function ApprovalList() {
     { title: "提交时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " "), responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
     {
       title: "操作", key: "op", width: 80,
-      render: (_, r) => <Button size="small" icon={<EyeOutlined />} onClick={() => viewDetail(r.id)}>详情</Button>,
+      render: (_: any, r: any) => <Button size="small" icon={<EyeOutlined />} onClick={() => viewDetail(r.id)}>详情</Button>,
     },
   ];
 
   return (
     <Card title="审批管理">
-      <Tabs activeKey={tab} onChange={setTab} items={[
+      <Tabs activeKey={tab} onChange={(v) => { setTab(v); actionRef.current?.reload(); }} items={[
         { key: "all", label: "全部" },
         { key: "pending", label: "待审批" },
         { key: "approved", label: "已通过" },
         { key: "rejected", label: "已驳回" },
       ]} />
-      <Table rowKey="id" columns={columns} dataSource={data} loading={loading} pagination={erpPagination()} />
+      <ProTable rowKey="id" actionRef={actionRef} search={false} options={{ reload: true }}
+        columns={columns as any}
+        request={async (params) => {
+          const queryParams: Record<string, unknown> = {};
+          if (tab && tab !== "all") queryParams.status = tab;
+          queryParams.page = params.current;
+          queryParams.page_size = params.pageSize;
+          const resp = await client.get("/approvals/requests", { params: queryParams });
+          const d = resp.data.data;
+          return { data: d?.list || [], success: true, total: d?.total || 0 };
+        }} />
 
       <Modal title="审批详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null} width={600}>
         {detail && (

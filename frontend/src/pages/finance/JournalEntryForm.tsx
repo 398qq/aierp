@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Form, Input, DatePicker, Button, Space, InputNumber, Select, message, Table, Tag } from "antd";
+import { Card, Form, Input, DatePicker, Button, Space, InputNumber, Select, message, Tag } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import client from "../../api/client";
@@ -99,7 +100,7 @@ export default function JournalEntryForm() {
           <Form.List name="lines">
             {(fields, { add, remove }) => (
               <>
-                <Table rowKey="name" dataSource={fields.map(f => ({ ...f, name: f.name }))} columns={[
+                <ProTable search={false} options={false} rowKey="name" dataSource={fields.map(f => ({ ...f, name: f.name }))} columns={[
                   ...columns,
                   {
                     title: "", width: 60,

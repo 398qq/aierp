@@ -12,7 +12,6 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tabs,
   Tag,
   Timeline,
@@ -32,6 +31,7 @@ import {
   ThunderboltOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
+import { ProTable } from "@ant-design/pro-components";
 import {
   Bar,
   BarChart,
@@ -277,12 +277,12 @@ export default function Dashboard() {
             </span>
           ),
           children: overdue.length ? (
-            <Table
+            <ProTable
               rowKey="id"
               dataSource={overdue.slice(0, 8)}
               columns={[
                 { title: "客户", dataIndex: "customer_name", ellipsis: true },
-                { title: "负责人", dataIndex: "owner", width: 88, render: (value) => value || "-" },
+                { title: "负责人", dataIndex: "owner", width: 88, render: (value: string | null) => value || "-" },
                 { title: "计划日期", dataIndex: "planned_at", width: 104, render: shortDate },
                 {
                   title: "逾期",
@@ -304,7 +304,9 @@ export default function Dashboard() {
                     </Button>
                   ),
                 },
-              ]}
+              ] as any}
+              search={false}
+              options={false}
               pagination={false}
               size="small"
             />
@@ -322,12 +324,12 @@ export default function Dashboard() {
             </span>
           ),
           children: upcomingVisits.length ? (
-            <Table
+            <ProTable
               rowKey="id"
               dataSource={upcomingVisits.slice(0, 8)}
               columns={[
-                { title: "拜访主题", dataIndex: "title", ellipsis: true, render: (value) => value || "客户拜访" },
-                { title: "方式", dataIndex: "type", width: 82, render: (value) => value || "-" },
+                { title: "拜访主题", dataIndex: "title", ellipsis: true, render: (value: string | null) => value || "客户拜访" },
+                { title: "方式", dataIndex: "type", width: 82, render: (value: string | null) => value || "-" },
                 { title: "日期", dataIndex: "visit_date", width: 104, render: shortDate },
                 {
                   title: "状态",
@@ -341,7 +343,9 @@ export default function Dashboard() {
                     />
                   ),
                 },
-              ]}
+              ] as any}
+              search={false}
+              options={false}
               pagination={false}
               size="small"
             />
@@ -724,7 +728,7 @@ export default function Dashboard() {
                         key: "risks",
                         label: <Badge status="error" text={`主要风险 (${global360.top_risks.length})`} />,
                         children: (
-                          <Table
+                          <ProTable
                             rowKey={(record) => `${record.area}-${record.description}`}
                             dataSource={global360.top_risks}
                             columns={[
@@ -748,7 +752,9 @@ export default function Dashboard() {
                                 ),
                               },
                               { title: "缓解措施", dataIndex: "mitigation", ellipsis: true },
-                            ]}
+                            ] as any}
+                            search={false}
+                            options={false}
                             pagination={false}
                             size="small"
                           />
@@ -760,7 +766,7 @@ export default function Dashboard() {
                         key: "opportunities",
                         label: `重点机会 (${global360.top_opportunities.length})`,
                         children: (
-                          <Table
+                          <ProTable
                             rowKey={(record) => `${record.area}-${record.description}`}
                             dataSource={global360.top_opportunities}
                             columns={[
@@ -773,7 +779,9 @@ export default function Dashboard() {
                                 render: (value: number) => money(value),
                               },
                               { title: "时间窗口", dataIndex: "timeframe", width: 110 },
-                            ]}
+                            ] as any}
+                            search={false}
+                            options={false}
                             pagination={false}
                             size="small"
                           />

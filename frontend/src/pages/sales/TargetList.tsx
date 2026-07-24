@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Dropdown, Modal, Popconfirm, Progress, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Card, Dropdown, Modal, Popconfirm, Progress, Select, Space, Tag, Typography, message } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import type { MenuProps } from "antd";
 import { AimOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { getTargets, deleteTarget, getTargetStats, getApiErrorMessage } from "../../api";
@@ -15,32 +16,16 @@ const STATUS: Record<string, { color: string; label: string }> = {
 const TYPE: Record<string, string> = { monthly: "月度", quarterly: "季度", annual: "年度" };
 
 export default function TargetList() {
-  const [data, setData] = useState<SalesTarget[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageData, setPageData] = useState<SalesTarget[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [stats, setStats] = useState<{ total_target: number; total_actual: number; achievement_pct: number }>({ total_target: 0, total_actual: 0, achievement_pct: 0 });
   const navigate = useNavigate();
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, page_size: pageSize };
-      if (status) params.status = status;
-      const [resp, s] = await Promise.all([getTargets(params), getTargetStats()]);
-      setData(resp.data.data.list || []);
-      setTotal(resp.data.data.total || 0);
-      setStats(s.data.data);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载失败")); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [page, pageSize, status]);
+  const actionRef = useRef<ActionType>(null);
 
   const exportData = useMemo(() =>
-    data.map((r) => ({
+    pageData.map((r) => ({
       id: r.id,
       target_type: TYPE[r.target_type] || r.target_type,
       target_amount: r.target_amount,
@@ -49,7 +34,7 @@ export default function TargetList() {
       period: `${r.period_start?.slice(0, 10) || ""} ~ ${r.period_end?.slice(0, 10) || ""}`,
       status: STATUS[r.status]?.label || r.status,
     })),
-  [data]);
+  [pageData]);
 
   return (
     <SalesModuleShell
@@ -86,12 +71,26 @@ export default function TargetList() {
       </Card>
 
       <Card size="small" className="sales-erp-table-card">
-        <Table
-          rowKey="id" size="small" bordered loading={loading} dataSource={data}
+        <ProTable<SalesTarget>
+          actionRef={actionRef}
+          rowKey="id" size="small" bordered
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           rowClassName={erpRowClass}
           scroll={{ x: "max-content" }}
+          params={{ status }}
+          request={async (params) => {
+            setCurrentPage(params.current || 1);
+            setCurrentPageSize(params.pageSize || 20);
+            const apiParams: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
+            if (status) apiParams.status = status;
+            const [resp, s] = await Promise.all([getTargets(apiParams), getTargetStats()]);
+            setStats(s.data.data);
+            return { data: resp.data.data.list || [], success: true, total: resp.data.data.total || 0 };
+          }}
+          onLoad={(ds) => setPageData(ds as SalesTarget[])}
           columns={[
-            { title: "#", width: 45, fixed: "left", render: (_: unknown, __: SalesTarget, index: number) => (page - 1) * 20 + index + 1 },
+            { title: "#", width: 45, fixed: "left", render: (_: unknown, __: SalesTarget, index: number) => (currentPage - 1) * currentPageSize + index + 1 },
             {
               title: "类型", dataIndex: "target_type", width: 80, fixed: "left",
               render: (v: string) => (
@@ -100,13 +99,13 @@ export default function TargetList() {
                 </div>
               ),
             },
-            { title: "目标金额", dataIndex: "target_amount", width: 130, align: "right", sorter: (a, b) => a.target_amount - b.target_amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
-            { title: "实际金额", dataIndex: "actual_amount", width: 130, align: "right", sorter: (a, b) => a.actual_amount - b.actual_amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
+            { title: "目标金额", dataIndex: "target_amount", width: 130, align: "right", sorter: (a: any, b: any) => a.target_amount - b.target_amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
+            { title: "实际金额", dataIndex: "actual_amount", width: 130, align: "right", sorter: (a: any, b: any) => a.actual_amount - b.actual_amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
             { title: "达成率", width: 100, render: (_: unknown, r: SalesTarget) => <Progress percent={Math.round(r.target_amount > 0 ? r.actual_amount / r.target_amount * 100 : 0)} size="small" /> },
             { title: "期间", width: 180, render: (_: unknown, r: SalesTarget) => `${r.period_start?.slice(0, 10) || "?"} ~ ${r.period_end?.slice(0, 10) || "?"}` },
             {
               title: "状态", dataIndex: "status", width: 90,
-              sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+              sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
               render: (v: string) => (
                 <>
                   {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
@@ -123,7 +122,7 @@ export default function TargetList() {
                   { type: "divider" as const },
                   { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
                     Modal.confirm({ title: "确定删除?", content: `删除目标 #${r.id}？`, onOk: async () => {
-                      try { await deleteTarget(r.id); message.success("已删除"); load(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+                      try { await deleteTarget(r.id); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
                     }});
                   }},
                 ];
@@ -134,21 +133,21 @@ export default function TargetList() {
                 );
               },
             },
-          ]}
+          ] as any}
           summary={(pageData: readonly SalesTarget[]) => {
             const targetAmt = pageData.reduce((s, r) => s + r.target_amount, 0);
             const actualAmt = pageData.reduce((s, r) => s + r.actual_amount, 0);
             return (
-              <Table.Summary.Row>
-                <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
-                <Table.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={2} align="right"><Typography.Text strong>{money(targetAmt)}</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={3} align="right"><Typography.Text strong>{money(actualAmt)}</Typography.Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={4} colSpan={4} />
-              </Table.Summary.Row>
+              <ProTable.Summary.Row>
+                <ProTable.Summary.Cell index={0}>合计</ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={1}><Typography.Text strong>{pageData.length} 项</Typography.Text></ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={2} align="right"><Typography.Text strong>{money(targetAmt)}</Typography.Text></ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={3} align="right"><Typography.Text strong>{money(actualAmt)}</Typography.Text></ProTable.Summary.Cell>
+                <ProTable.Summary.Cell index={4} colSpan={4} />
+              </ProTable.Summary.Row>
             );
           }}
-          pagination={erpPagination({ current: page, total, pageSize, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize); } })}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         />
       </Card>
     </SalesModuleShell>

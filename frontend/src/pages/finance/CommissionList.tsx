@@ -10,16 +10,17 @@ Follows the ERP Operational Screens design (DESIGN.md):
 - Lazy-loaded in App.tsx
 */
 
-import { useEffect, useState } from "react";
-import { Table, Button, Drawer, Form, InputNumber, Space, App as AntdApp } from "antd";
+import { useRef, useState } from "react";
+import { Button, Drawer, Form, InputNumber, Space, App as AntdApp } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import type { ColumnsType } from "antd/es/table";
+
 
 import { PageHeader } from "@/ui/PageHeader";
 import { SearchBar } from "@/ui/SearchBar";
 import { EmptyState } from "@/ui/EmptyState";
 import { ErrorBoundary } from "@/ui/ErrorBoundary";
-import { erpPagination } from "@/ui/pagination";
 
 import {
   getCommissions,
@@ -60,36 +61,12 @@ function MoneyCell({ value }: { value: number }) {
 
 function CommissionList() {
   const { message } = AntdApp.useApp();
-  const [data, setData] = useState<Commission[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const actionRef = useRef<ActionType>(null);
   const [statusFilter, setStatusFilter] = useState<CommissionStatus | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [batchLoading, setBatchLoading] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const resp = await getCommissions({
-        page,
-        page_size: pageSize,
-        ...(statusFilter ? { status: statusFilter } : {}),
-      });
-      setData(resp.data.data?.list ?? []);
-      setTotal(resp.data.data?.total ?? 0);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载佣金记录失败")); } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, statusFilter]);
 
   const onCreate = async () => {
     try {
@@ -104,7 +81,7 @@ function CommissionList() {
       message.success("已创建");
       setDrawerOpen(false);
       form.resetFields();
-      void load();
+      actionRef.current?.reload();
     } catch {
       /* validation error — antd shows inline */
     }
@@ -114,7 +91,7 @@ function CommissionList() {
     try {
       await transitionCommission(id, to, "UI 触发");
       message.success(`已流转到 ${STATUS_LABELS[to]}`);
-      void load();
+      actionRef.current?.reload();
     } catch (e) {
       message.error((e as Error).message ?? "状态流转失败");
     }
@@ -142,7 +119,7 @@ function CommissionList() {
         message.success(`批量 ${STATUS_LABELS[to]}：${summary.succeeded} 条全部成功`);
       }
       setSelectedRowKeys([]);
-      void load();
+      actionRef.current?.reload();
     } catch (e) {
       message.error((e as Error).message ?? "批量操作失败");
     } finally {
@@ -150,7 +127,7 @@ function CommissionList() {
     }
   };
 
-  const columns: ColumnsType<Commission> = [
+  const columns: any = [
     { title: "佣金单号", dataIndex: "commission_no", width: 140, fixed: "left" },
     { title: "销售单", dataIndex: "sales_order_id", width: 100 },
     { title: "客户", dataIndex: "customer_id", width: 100 },
@@ -197,7 +174,7 @@ function CommissionList() {
       title: "操作",
       width: 220,
       fixed: "right",
-      render: (_, row) => (
+            render: (_: any, row: any) => (
         <Space size="small">
           {row.status === "draft" && (
             <Button
@@ -254,65 +231,58 @@ function CommissionList() {
       />
       <SearchBar
         placeholder="按佣金单号/销售人员搜索"
-        onSearch={() => void load()}
-        onReset={() => {
-          setStatusFilter(undefined);
-          setPage(1);
-        }}
+        onSearch={() => actionRef.current?.reload()}
+        onReset={() => setStatusFilter(undefined)}
       />
-      <Table<Commission>
+      <ProTable<Commission>
+        actionRef={actionRef}
         rowKey="id"
         size="middle"
         columns={columns}
-        dataSource={data}
-        loading={loading}
+        request={async (params) => {
+          try {
+            const resp = await getCommissions({
+              page: params.current,
+              page_size: params.pageSize,
+              ...(params.status ? { status: params.status as CommissionStatus } : {}),
+            });
+            return {
+              data: resp.data.data?.list ?? [],
+              total: resp.data.data?.total ?? 0,
+              success: true,
+            };
+          } catch {
+            return { data: [], total: 0, success: false };
+          }
+        }}
+        params={{ status: statusFilter }}
+        search={false}
+        options={{ reload: true, density: true, setting: true }}
         scroll={{ x: 1200 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
           preserveSelectedRowKeys: true,
         }}
-        title={() =>
-          selectedRowKeys.length > 0 ? (
-            <Space>
-              <span>已选 {selectedRowKeys.length} 条</span>
-              <Button
-                size="small"
-                onClick={() => void onBatchTransition("approved")}
-                loading={batchLoading}
-              >
-                批量审批
-              </Button>
-              <Button
-                size="small"
-                onClick={() => void onBatchTransition("rejected")}
-                loading={batchLoading}
-              >
-                批量拒绝
-              </Button>
-              <Button
-                size="small"
-                type="primary"
-                onClick={() => void onBatchTransition("paid")}
-                loading={batchLoading}
-              >
-                批量发放
-              </Button>
-              <Button size="small" type="text" onClick={() => setSelectedRowKeys([])}>
-                清除选择
-              </Button>
-            </Space>
-          ) : null
+        toolBarRender={() =>
+          selectedRowKeys.length > 0
+            ? [
+                <span key="count">已选 {selectedRowKeys.length} 条</span>,
+                <Button key="approve" size="small" onClick={() => void onBatchTransition("approved")} loading={batchLoading}>
+                  批量审批
+                </Button>,
+                <Button key="reject" size="small" onClick={() => void onBatchTransition("rejected")} loading={batchLoading}>
+                  批量拒绝
+                </Button>,
+                <Button key="pay" size="small" type="primary" onClick={() => void onBatchTransition("paid")} loading={batchLoading}>
+                  批量发放
+                </Button>,
+                <Button key="clear" size="small" type="text" onClick={() => setSelectedRowKeys([])}>
+                  清除选择
+                </Button>,
+              ]
+            : []
         }
-        pagination={erpPagination({
-          current: page,
-          pageSize,
-          total,
-          onChange: (p, ps) => {
-            setPage(ps !== pageSize ? 1 : p);
-            setPageSize(ps);
-          },
-        })}
         locale={{
           emptyText: (
             <EmptyState

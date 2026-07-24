@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Form, Input, message, Modal, Popconfirm, Select, Space, Switch, Table, Typography } from "antd";
+import { Button, Card, Form, Input, message, Modal, Popconfirm, Select, Space, Switch, Typography } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined } from "@ant-design/icons";
 import {
   createProductCustomerCode,
@@ -92,7 +93,7 @@ export default function ProductCustomerCodesCard({ productId }: Props) {
       extra={<Button icon={<PlusOutlined />} onClick={startCreate}>添加客户料号</Button>}
       style={{ marginBottom: 16 }}
     >
-      <Table
+      <ProTable search={false} options={false}
         size="small"
         loading={loading}
         dataSource={links}
@@ -111,7 +112,7 @@ export default function ProductCustomerCodesCard({ productId }: Props) {
               <Button type="link" danger size="small" icon={<DeleteOutlined />}>解除</Button>
             </Popconfirm>
           </Space> },
-        ]}
+        ] as any}
       />
       <Modal title={editing ? "编辑客户料号" : "添加客户料号"} open={open} onCancel={() => setOpen(false)} onOk={save} confirmLoading={saving} okText="保存">
         <Form form={form} layout="vertical">

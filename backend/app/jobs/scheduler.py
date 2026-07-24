@@ -536,6 +536,273 @@ async def _auto_expire_schemes():
         logger.error(f"scheduler: auto_expire_schemes failed: {e}")
 
 
+async def _run_auto_assign_job() -> dict:
+    """Auto-assign public-sea customers based on AssignmentRules."""
+    try:
+        from app.models.customer import AssignmentRule, Customer, CustomerOwnerLog
+        from sqlalchemy.orm import selectinload
+
+        async with async_session() as db:
+            rules = (
+                (
+                    await db.execute(
+                        select(AssignmentRule)
+                        .where(
+                            AssignmentRule.deleted_at.is_(None),
+                            AssignmentRule.is_enabled == True,  # noqa: E712
+                        )
+                        .options(selectinload(AssignmentRule.conditions))
+                        .order_by(AssignmentRule.priority.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            if not rules:
+                return {"assigned": 0, "rules_checked": 0}
+
+            # Get all public-sea customers (no owner)
+            customers = (
+                (
+                    await db.execute(
+                        select(Customer).where(
+                            Customer.deleted_at.is_(None),
+                            Customer.owner.is_(None),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            if not customers:
+                return {"assigned": 0, "rules_checked": len(rules)}
+
+            assigned_count = 0
+            operator = "system"
+
+            for rule in rules:
+                # Check if assigned_to has reached their limit
+                current_count = (
+                    await db.execute(
+                        select(Customer).where(
+                            Customer.owner == rule.assigned_to,
+                            Customer.deleted_at.is_(None),
+                        )
+                    )
+                ).scalars().all()
+                current_assigned = len(current_count)
+
+                if rule.max_customers is not None and current_assigned >= rule.max_customers:
+                    continue  # skip rule — target user is at capacity
+
+                for customer in customers:
+                    if customer.owner is not None:
+                        continue  # already assigned (concurrent)
+
+                    if rule.max_customers is not None and current_assigned >= rule.max_customers:
+                        break  # capacity reached for this rule
+
+                    # Evaluate conditions
+                    matched = _evaluate_assignment_conditions(customer, rule)
+                    if not matched:
+                        continue
+
+                    # Assign
+                    customer.owner = rule.assigned_to
+                    log = CustomerOwnerLog(
+                        customer_id=customer.id,
+                        from_owner=None,
+                        to_owner=rule.assigned_to,
+                        action_type="auto_assign",
+                        operator=operator,
+                        reason=f"自动分配规则: {rule.name}",
+                    )
+                    db.add(log)
+                    assigned_count += 1
+                    current_assigned += 1
+
+            await db.commit()
+            if assigned_count:
+                logger.info(
+                    f"scheduler: auto_assign — assigned {assigned_count} customers "
+                    f"across {len(rules)} rules"
+                )
+            return {"assigned": assigned_count, "rules_checked": len(rules)}
+    except Exception as e:
+        logger.error(f"scheduler: auto_assign failed: {e}")
+        return {"assigned": 0, "rules_checked": 0, "error": str(e)}
+
+
+def _evaluate_assignment_conditions(customer, rule) -> bool:
+    """Evaluate whether a customer matches all/any conditions of an assignment rule."""
+    if not rule.conditions:
+        return True  # no conditions = match all
+
+    results = []
+    for cond in rule.conditions:
+        field_value = getattr(customer, cond.field, None)
+        if field_value is None:
+            results.append(False)
+            continue
+
+        field_value = str(field_value)
+        if cond.operator == "equals":
+            results.append(field_value == cond.value)
+        elif cond.operator == "in":
+            values = [v.strip() for v in cond.value.split(",")]
+            results.append(field_value in values)
+        elif cond.operator == "contains":
+            results.append(cond.value in field_value)
+        elif cond.operator == "not_empty":
+            results.append(bool(field_value))
+        else:
+            results.append(False)
+
+    if rule.condition_logic == "any":
+        return any(results)
+    return all(results)
+
+
+async def _run_owner_release_check_job():
+    """Auto-release customer owners who have no follow-ups / orders beyond threshold days.
+
+    Reads all enabled ReleaseRules from DB and applies them.
+    """
+    try:
+        from datetime import timedelta
+        from app.models.customer import ReleaseRule, Customer, CustomerOwnerLog
+        from app.models.transaction import CustomerFollowUp
+        from app.models.sales import SalesOrder
+
+        async with async_session() as db:
+            rules = (
+                (
+                    await db.execute(
+                        select(ReleaseRule).where(
+                            ReleaseRule.deleted_at.is_(None),
+                            ReleaseRule.is_enabled == True,  # noqa: E712
+                        ).order_by(ReleaseRule.priority.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            if not rules:
+                return
+
+            now = datetime.now(timezone.utc)
+            released_count = 0
+
+            customers = (
+                (
+                    await db.execute(
+                        select(Customer).where(
+                            Customer.deleted_at.is_(None),
+                            Customer.owner.isnot(None),
+                            Customer.owner != "",
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            operator = "system"
+
+            for rule in rules:
+                cutoff = now - timedelta(days=rule.condition_days)
+                for customer in customers:
+                    if customer.owner is None or customer.owner == "":
+                        continue
+
+                    if rule.rule_type == "no_followup":
+                        # Check most recent follow-up completed_at
+                        last_fu = (
+                            await db.execute(
+                                select(CustomerFollowUp)
+                                .where(
+                                    CustomerFollowUp.customer_id == customer.id,
+                                    CustomerFollowUp.deleted_at.is_(None),
+                                    CustomerFollowUp.completed_at.isnot(None),
+                                )
+                                .order_by(CustomerFollowUp.completed_at.desc())
+                                .limit(1)
+                            )
+                        ).scalar_one_or_none()
+
+                        if last_fu and last_fu.completed_at and last_fu.completed_at >= cutoff:
+                            continue  # has recent follow-up, skip
+
+                        # Also check created_at as a proxy for "new customer with no follow-up"
+                        if (
+                            customer.created_at
+                            and customer.created_at >= cutoff
+                        ):
+                            continue  # brand new customer, give grace period
+
+                        # Release this customer
+                        from_owner = customer.owner
+                        customer.owner = None
+                        log = CustomerOwnerLog(
+                            customer_id=customer.id,
+                            from_owner=from_owner,
+                            to_owner=None,
+                            action_type="auto_release",
+                            operator=operator,
+                            reason=f"超过{rule.condition_days}天无跟进记录（规则: {rule.name}）",
+                        )
+                        db.add(log)
+                        released_count += 1
+
+                    elif rule.rule_type == "no_order":
+                        last_order = (
+                            await db.execute(
+                                select(SalesOrder)
+                                .where(
+                                    SalesOrder.customer_id == customer.id,
+                                    SalesOrder.deleted_at.is_(None),
+                                    SalesOrder.status == "completed",
+                                )
+                                .order_by(SalesOrder.order_date.desc().nulls_last())
+                                .limit(1)
+                            )
+                        ).scalar_one_or_none()
+
+                        if last_order and last_order.order_date and last_order.order_date >= cutoff:
+                            continue
+
+                        # Skip brand-new customers
+                        if customer.created_at and customer.created_at >= cutoff:
+                            continue
+
+                        from_owner = customer.owner
+                        customer.owner = None
+                        log = CustomerOwnerLog(
+                            customer_id=customer.id,
+                            from_owner=from_owner,
+                            to_owner=None,
+                            action_type="auto_release",
+                            operator=operator,
+                            reason=f"超过{rule.condition_days}天无新订单（规则: {rule.name}）",
+                        )
+                        db.add(log)
+                        released_count += 1
+
+            if released_count:
+                await db.commit()
+                logger.info(
+                    f"scheduler: owner_release_check — released {released_count} customers "
+                    f"across {len(rules)} rules"
+                )
+            else:
+                await db.commit()
+    except Exception as e:
+        logger.error(f"scheduler: owner_release_check failed: {e}")
+
+
 async def _run_customer_status_job():
     """Daily customer lifecycle status transitions (cron 02:00).
 
@@ -689,6 +956,22 @@ def start():
         misfire_grace_time=3600,
     )
     scheduler.add_job(
+        _run_owner_release_check_job,
+        "cron",
+        hour=2,
+        minute=30,
+        id="owner_release_check",
+        misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        _run_auto_assign_job,
+        "cron",
+        hour=3,
+        minute=0,
+        id="auto_assign",
+        misfire_grace_time=3600,
+    )
+    scheduler.add_job(
         _auto_expire_schemes,
         "cron",
         hour=2,
@@ -704,7 +987,7 @@ def start():
         misfire_grace_time=600,
     )
     scheduler.start()
-    logger.info("Scheduler started with 12 jobs")
+    logger.info("Scheduler started with 13 jobs")
 
 
 def shutdown():

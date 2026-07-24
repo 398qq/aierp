@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Card, Statistic, Row, Col, Tag, Button, Spin, message, Select, Space } from "antd";
+import { Card, Statistic, Row, Col, Tag, Button, Spin, message, Select, Space } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
@@ -186,9 +187,9 @@ export default function QuotationHistoryPanel({ customerId }: Props) {
       </div>
 
       {/* Table */}
-      <Table
+      <ProTable search={false} options={false}
         size="small"
-        columns={columns}
+        columns={columns as any}
         dataSource={quotations}
         rowKey="id"
         pagination={erpPagination({ size: "small" })}

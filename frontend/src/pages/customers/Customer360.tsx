@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography, Spin, Alert, Button } from "antd";
+import { Card, Col, Progress, Row, Statistic, Tag, Typography, Spin, Alert, Button } from "antd";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PieChartOutlined, RiseOutlined, SafetyOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { getCustomer360 } from "../../api";
@@ -87,11 +88,11 @@ export default function Customer360Page() {
       </Row>
 
       <Card title="优先行动" style={{ marginBottom: 24 }}>
-        <Table columns={actionColumns} dataSource={data.prioritized_actions} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+        <ProTable columns={actionColumns as any} dataSource={data.prioritized_actions} rowKey={(_r, i) => String(i)} pagination={false} search={false} options={false} />
       </Card>
 
       <Card title="跨领域洞察">
-        <Table columns={insightColumns} dataSource={data.cross_domain_insights} rowKey={(_r, i) => String(i)} pagination={false} size="small" />
+        <ProTable columns={insightColumns as any} dataSource={data.cross_domain_insights} rowKey={(_r, i) => String(i)} pagination={false} search={false} options={false} />
       </Card>
     </div>
   );
