@@ -104,9 +104,7 @@ async def list_transfer_requests(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_perm("customers", "read")),
 ):
-    q = select(OwnerTransferRequest).where(
-        OwnerTransferRequest.deleted_at.is_(None)
-    )
+    q = select(OwnerTransferRequest).where(OwnerTransferRequest.deleted_at.is_(None))
     if status_filter:
         q = q.where(OwnerTransferRequest.status == status_filter)
     q = q.order_by(OwnerTransferRequest.created_at.desc())
@@ -195,6 +193,9 @@ async def approve_transfer_request(
     db.add(log)
 
     await db.flush()
+    # ``updated_at`` uses a server-side ``onupdate`` — flush expires it, so
+    # refresh before serialising to avoid implicit IO under async (MissingGreenlet).
+    await db.refresh(row)
     return ok(_row(row))
 
 
@@ -230,6 +231,7 @@ async def reject_transfer_request(
     row.review_comment = body.comment
     row.reviewed_at = datetime.now(timezone.utc)
     await db.flush()
+    await db.refresh(row)
     return ok(_row(row))
 
 
@@ -264,4 +266,5 @@ async def cancel_transfer_request(
 
     row.status = "cancelled"
     await db.flush()
+    await db.refresh(row)
     return ok(_row(row))

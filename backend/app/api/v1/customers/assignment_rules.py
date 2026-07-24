@@ -77,7 +77,9 @@ async def list_assignment_rules(
                 select(AssignmentRule)
                 .where(AssignmentRule.deleted_at.is_(None))
                 .options(selectinload(AssignmentRule.conditions))
-                .order_by(AssignmentRule.priority.asc(), AssignmentRule.created_at.desc())
+                .order_by(
+                    AssignmentRule.priority.asc(), AssignmentRule.created_at.desc()
+                )
             )
         )
         .scalars()
@@ -140,7 +142,20 @@ async def update_assignment_rule(
             db.add(cond)
 
     await db.flush()
-    return ok(_rule_row(row))
+    # Re-read conditions from the DB so the response reflects the replacement
+    # set rather than the stale ``row.conditions`` relationship loaded earlier.
+    fresh_conds = (
+        (
+            await db.execute(
+                select(AssignmentRuleCondition).where(
+                    AssignmentRuleCondition.rule_id == row.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ok(_rule_row(row, conditions=list(fresh_conds)))
 
 
 @router.delete("/{rule_id}")
@@ -187,9 +202,7 @@ async def reorder_rules(
         from sqlalchemy import update
 
         await db.execute(
-            update(AssignmentRule)
-            .where(AssignmentRule.id == rid)
-            .values(priority=idx)
+            update(AssignmentRule).where(AssignmentRule.id == rid).values(priority=idx)
         )
     await db.flush()
     return ok(msg="reordered")
