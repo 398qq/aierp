@@ -32,18 +32,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useNavigate } from "react-router";
 import {
   getDailyReport,
@@ -67,11 +56,10 @@ import type {
   OverdueFollowUp,
   Visit,
 } from "../../types";
-import { StatusTag } from "../../ui";
+import { IndustryRanking, StatusTag } from "../../ui";
 import "./dashboard.css";
 
 const { Paragraph, Text, Title } = Typography;
-const CHART_COLORS = ["#2563eb", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#64748b"];
 const EMPTY_STATS: DashboardStats = {
   total: 0,
   by_industry: [],
@@ -280,31 +268,42 @@ export default function Dashboard() {
             <ProTable
               rowKey="id"
               dataSource={overdue.slice(0, 8)}
-              columns={[
-                { title: "客户", dataIndex: "customer_name", ellipsis: true },
-                { title: "负责人", dataIndex: "owner", width: 88, render: (value: string | null) => value || "-" },
-                { title: "计划日期", dataIndex: "planned_at", width: 104, render: shortDate },
-                {
-                  title: "逾期",
-                  dataIndex: "overdue_days",
-                  width: 78,
-                  render: (value: number) => <StatusTag status={`${value}天`} tone="danger" />,
-                },
-                {
-                  title: "操作",
-                  key: "actions",
-                  width: 96,
-                  render: (_: unknown, record: OverdueFollowUp) => (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => navigate(`/customers/${record.customer_id}/follow-ups?update=${record.id}`)}
-                    >
-                      更新跟进
-                    </Button>
-                  ),
-                },
-              ] as any}
+              columns={
+                [
+                  { title: "客户", dataIndex: "customer_name", ellipsis: true },
+                  {
+                    title: "负责人",
+                    dataIndex: "owner",
+                    width: 88,
+                    render: (value: string | null) => value || "-",
+                  },
+                  { title: "计划日期", dataIndex: "planned_at", width: 104, render: shortDate },
+                  {
+                    title: "逾期",
+                    dataIndex: "overdue_days",
+                    width: 78,
+                    render: (value: number) => <StatusTag status={`${value}天`} tone="danger" />,
+                  },
+                  {
+                    title: "操作",
+                    key: "actions",
+                    width: 96,
+                    render: (_: unknown, record: OverdueFollowUp) => (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() =>
+                          navigate(
+                            `/customers/${record.customer_id}/follow-ups?update=${record.id}`,
+                          )
+                        }
+                      >
+                        更新跟进
+                      </Button>
+                    ),
+                  },
+                ] as any
+              }
               search={false}
               options={false}
               pagination={false}
@@ -327,23 +326,47 @@ export default function Dashboard() {
             <ProTable
               rowKey="id"
               dataSource={upcomingVisits.slice(0, 8)}
-              columns={[
-                { title: "拜访主题", dataIndex: "title", ellipsis: true, render: (value: string | null) => value || "客户拜访" },
-                { title: "方式", dataIndex: "type", width: 82, render: (value: string | null) => value || "-" },
-                { title: "日期", dataIndex: "visit_date", width: 104, render: shortDate },
-                {
-                  title: "状态",
-                  dataIndex: "status",
-                  width: 86,
-                  render: (value: string) => (
-                    <StatusTag
-                      status={value || "planned"}
-                      tone={value === "completed" ? "success" : value === "cancelled" ? "danger" : "info"}
-                      label={value === "completed" ? "已完成" : value === "cancelled" ? "已取消" : "计划中"}
-                    />
-                  ),
-                },
-              ] as any}
+              columns={
+                [
+                  {
+                    title: "拜访主题",
+                    dataIndex: "title",
+                    ellipsis: true,
+                    render: (value: string | null) => value || "客户拜访",
+                  },
+                  {
+                    title: "方式",
+                    dataIndex: "type",
+                    width: 82,
+                    render: (value: string | null) => value || "-",
+                  },
+                  { title: "日期", dataIndex: "visit_date", width: 104, render: shortDate },
+                  {
+                    title: "状态",
+                    dataIndex: "status",
+                    width: 86,
+                    render: (value: string) => (
+                      <StatusTag
+                        status={value || "planned"}
+                        tone={
+                          value === "completed"
+                            ? "success"
+                            : value === "cancelled"
+                              ? "danger"
+                              : "info"
+                        }
+                        label={
+                          value === "completed"
+                            ? "已完成"
+                            : value === "cancelled"
+                              ? "已取消"
+                              : "计划中"
+                        }
+                      />
+                    ),
+                  },
+                ] as any
+              }
               search={false}
               options={false}
               pagination={false}
@@ -421,11 +444,13 @@ export default function Dashboard() {
           <RobotOutlined /> 快速提问
         </span>
         <Space wrap size={[8, 8]}>
-          {["本月销售趋势", "客户流失风险", "库存周转", "逾期回款", "供应商履约"].map((question) => (
-            <Button key={question} size="small" type="text" onClick={openAiAssistant}>
-              {question}
-            </Button>
-          ))}
+          {["本月销售趋势", "客户流失风险", "库存周转", "逾期回款", "供应商履约"].map(
+            (question) => (
+              <Button key={question} size="small" type="text" onClick={openAiAssistant}>
+                {question}
+              </Button>
+            ),
+          )}
         </Space>
       </section>
 
@@ -455,7 +480,11 @@ export default function Dashboard() {
           <div className="dashboard-pulse-items">
             {[
               { label: "客户总数", value: stats.total, color: "#2563eb" },
-              { label: "逾期跟进", value: overdue.length, color: overdue.length ? "#ef4444" : "#10b981" },
+              {
+                label: "逾期跟进",
+                value: overdue.length,
+                color: overdue.length ? "#ef4444" : "#10b981",
+              },
               { label: "未来14天拜访", value: upcomingVisits.length, color: "#3b82f6" },
               { label: "近期客户动态", value: recentActivity.length, color: "#f59e0b" },
             ].map((item) => (
@@ -482,7 +511,11 @@ export default function Dashboard() {
               </div>
             }
             extra={
-              <Button type="link" onClick={() => navigate("/customers")} icon={<ArrowRightOutlined />}>
+              <Button
+                type="link"
+                onClick={() => navigate("/customers")}
+                icon={<ArrowRightOutlined />}
+              >
                 客户中心
               </Button>
             }
@@ -533,11 +566,21 @@ export default function Dashboard() {
                   <Paragraph>{dailyReport.ai_summary}</Paragraph>
                 </div>
                 <div className="dashboard-report-metrics">
-                  <div><strong>{dailyReport.metrics.orders_today}</strong><Text>今日订单</Text></div>
-                  <div><strong>{money(dailyReport.metrics.revenue_today)}</strong><Text>今日营收</Text></div>
-                  <div><strong>{dailyReport.metrics.new_customers}</strong><Text>新增客户</Text></div>
+                  <div>
+                    <strong>{dailyReport.metrics.orders_today}</strong>
+                    <Text>今日订单</Text>
+                  </div>
+                  <div>
+                    <strong>{money(dailyReport.metrics.revenue_today)}</strong>
+                    <Text>今日营收</Text>
+                  </div>
+                  <div>
+                    <strong>{dailyReport.metrics.new_customers}</strong>
+                    <Text>新增客户</Text>
+                  </div>
                   <div className={dailyReport.metrics.low_stock_items > 0 ? "is-risk" : ""}>
-                    <strong>{dailyReport.metrics.low_stock_items}</strong><Text>低库存</Text>
+                    <strong>{dailyReport.metrics.low_stock_items}</strong>
+                    <Text>低库存</Text>
                   </div>
                 </div>
                 {dailyReport.top_action && (
@@ -574,12 +617,21 @@ export default function Dashboard() {
               <Card className="dashboard-panel dashboard-trend-card" title="月度新增客户">
                 {stats.monthly.length ? (
                   <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={stats.monthly} margin={{ top: 12, right: 8, left: -20, bottom: 0 }}>
+                    <BarChart
+                      data={stats.monthly}
+                      margin={{ top: 12, right: 8, left: -20, bottom: 0 }}
+                    >
                       <CartesianGrid stroke="#edf0f7" vertical={false} />
                       <XAxis dataKey="month" axisLine={false} tickLine={false} />
                       <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
                       <Tooltip cursor={{ fill: "#f6f5ff" }} />
-                      <Bar dataKey="count" name="新增客户" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                      <Bar
+                        dataKey="count"
+                        name="新增客户"
+                        fill="#2563eb"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={42}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -591,40 +643,7 @@ export default function Dashboard() {
             {widgetPrefs.industry_chart?.enabled !== false && (
               <>
                 <Card className="dashboard-panel" title="行业分布">
-                  {stats.by_industry.length ? (
-                    <>
-                      <ResponsiveContainer width="100%" height={190}>
-                        <PieChart>
-                          <Pie
-                            data={stats.by_industry}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={52}
-                            outerRadius={78}
-                            paddingAngle={2}
-                            isAnimationActive={false}
-                          >
-                            {stats.by_industry.map((item, index) => (
-                              <Cell key={item.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="dashboard-chart-legend">
-                        {stats.by_industry.slice(0, 5).map((item, index) => (
-                          <span key={item.name}>
-                            <i style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
-                            {item.name} <strong>{item.value}</strong>
-                          </span>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无行业数据" />
-                  )}
+                  <IndustryRanking items={stats.by_industry} limit={8} />
                 </Card>
                 <Card className="dashboard-panel" title="客户等级">
                   {stats.by_level.length ? (
@@ -635,10 +654,27 @@ export default function Dashboard() {
                         margin={{ top: 12, right: 12, left: 2, bottom: 0 }}
                       >
                         <CartesianGrid stroke="#edf0f7" horizontal={false} />
-                        <XAxis type="number" axisLine={false} tickLine={false} allowDecimals={false} />
-                        <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={50} />
+                        <XAxis
+                          type="number"
+                          axisLine={false}
+                          tickLine={false}
+                          allowDecimals={false}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          axisLine={false}
+                          tickLine={false}
+                          width={50}
+                        />
                         <Tooltip cursor={{ fill: "#f6f5ff" }} />
-                        <Bar dataKey="value" name="客户数" fill="#3b82f6" radius={[0, 6, 6, 0]} maxBarSize={26} />
+                        <Bar
+                          dataKey="value"
+                          name="客户数"
+                          fill="#3b82f6"
+                          radius={[0, 6, 6, 0]}
+                          maxBarSize={26}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -656,7 +692,9 @@ export default function Dashboard() {
           className="dashboard-panel dashboard-ai-panel"
           title={
             <div className="dashboard-ai-title">
-              <span className="dashboard-ai-icon"><AimOutlined /></span>
+              <span className="dashboard-ai-icon">
+                <AimOutlined />
+              </span>
               <div>
                 <span>AI 全局经营诊断</span>
                 <Text type="secondary">跨销售、客户、供应链与财务的综合判断</Text>
@@ -712,9 +750,18 @@ export default function Dashboard() {
                   </Space>
                 </div>
                 <div className="dashboard-health-counts">
-                  <div><strong>{global360.top_opportunities.length}</strong><Text>重点机会</Text></div>
-                  <div><strong>{global360.top_risks.length}</strong><Text>主要风险</Text></div>
-                  <div><strong>{global360.strategic_recommendations.length}</strong><Text>行动建议</Text></div>
+                  <div>
+                    <strong>{global360.top_opportunities.length}</strong>
+                    <Text>重点机会</Text>
+                  </div>
+                  <div>
+                    <strong>{global360.top_risks.length}</strong>
+                    <Text>主要风险</Text>
+                  </div>
+                  <div>
+                    <strong>{global360.strategic_recommendations.length}</strong>
+                    <Text>行动建议</Text>
+                  </div>
                 </div>
               </div>
 
@@ -722,113 +769,134 @@ export default function Dashboard() {
                 ghost
                 className="dashboard-ai-collapse"
                 defaultActiveKey={["risks"]}
-                items={[
-                  global360.top_risks.length
-                    ? {
-                        key: "risks",
-                        label: <Badge status="error" text={`主要风险 (${global360.top_risks.length})`} />,
-                        children: (
-                          <ProTable
-                            rowKey={(record) => `${record.area}-${record.description}`}
-                            dataSource={global360.top_risks}
-                            columns={[
-                              { title: "领域", dataIndex: "area", width: 110 },
-                              { title: "风险描述", dataIndex: "description", ellipsis: true },
-                              {
-                                title: "严重程度",
-                                dataIndex: "severity",
-                                width: 96,
-                                render: (value: string) => (
-                                  <StatusTag
-                                    status={value}
-                                    tone={
-                                      value.includes("高") || value === "high"
-                                        ? "danger"
-                                        : value.includes("中") || value === "medium"
-                                          ? "warning"
-                                          : "info"
-                                    }
-                                  />
-                                ),
-                              },
-                              { title: "缓解措施", dataIndex: "mitigation", ellipsis: true },
-                            ] as any}
-                            search={false}
-                            options={false}
-                            pagination={false}
-                            size="small"
-                          />
-                        ),
-                      }
-                    : null,
-                  global360.top_opportunities.length
-                    ? {
-                        key: "opportunities",
-                        label: `重点机会 (${global360.top_opportunities.length})`,
-                        children: (
-                          <ProTable
-                            rowKey={(record) => `${record.area}-${record.description}`}
-                            dataSource={global360.top_opportunities}
-                            columns={[
-                              { title: "领域", dataIndex: "area", width: 110 },
-                              { title: "机会描述", dataIndex: "description", ellipsis: true },
-                              {
-                                title: "潜在价值",
-                                dataIndex: "potential_value",
-                                width: 120,
-                                render: (value: number) => money(value),
-                              },
-                              { title: "时间窗口", dataIndex: "timeframe", width: 110 },
-                            ] as any}
-                            search={false}
-                            options={false}
-                            pagination={false}
-                            size="small"
-                          />
-                        ),
-                      }
-                    : null,
-                  global360.strategic_recommendations.length
-                    ? {
-                        key: "recommendations",
-                        label: `行动建议 (${global360.strategic_recommendations.length})`,
-                        children: (
-                          <List
-                            size="small"
-                            dataSource={global360.strategic_recommendations}
-                            renderItem={(recommendation) => (
-                              <List.Item>
-                                <List.Item.Meta
-                                  title={
-                                    <Space wrap>
+                items={
+                  [
+                    global360.top_risks.length
+                      ? {
+                          key: "risks",
+                          label: (
+                            <Badge
+                              status="error"
+                              text={`主要风险 (${global360.top_risks.length})`}
+                            />
+                          ),
+                          children: (
+                            <ProTable
+                              rowKey={(record) => `${record.area}-${record.description}`}
+                              dataSource={global360.top_risks}
+                              columns={
+                                [
+                                  { title: "领域", dataIndex: "area", width: 110 },
+                                  { title: "风险描述", dataIndex: "description", ellipsis: true },
+                                  {
+                                    title: "严重程度",
+                                    dataIndex: "severity",
+                                    width: 96,
+                                    render: (value: string) => (
                                       <StatusTag
-                                        status={recommendation.priority}
+                                        status={value}
                                         tone={
-                                          recommendation.priority === "高" || recommendation.priority === "high"
+                                          value.includes("高") || value === "high"
                                             ? "danger"
-                                            : recommendation.priority === "中" || recommendation.priority === "medium"
+                                            : value.includes("中") || value === "medium"
                                               ? "warning"
                                               : "info"
                                         }
                                       />
-                                      <Tag>{recommendation.domain}</Tag>
-                                      <Text strong>{recommendation.recommendation}</Text>
-                                    </Space>
-                                  }
-                                  description={recommendation.rationale}
-                                />
-                              </List.Item>
-                            )}
-                          />
-                        ),
-                      }
-                    : null,
-                ].filter(Boolean) as { key: string; label: React.ReactNode; children: React.ReactNode }[]}
+                                    ),
+                                  },
+                                  { title: "缓解措施", dataIndex: "mitigation", ellipsis: true },
+                                ] as any
+                              }
+                              search={false}
+                              options={false}
+                              pagination={false}
+                              size="small"
+                            />
+                          ),
+                        }
+                      : null,
+                    global360.top_opportunities.length
+                      ? {
+                          key: "opportunities",
+                          label: `重点机会 (${global360.top_opportunities.length})`,
+                          children: (
+                            <ProTable
+                              rowKey={(record) => `${record.area}-${record.description}`}
+                              dataSource={global360.top_opportunities}
+                              columns={
+                                [
+                                  { title: "领域", dataIndex: "area", width: 110 },
+                                  { title: "机会描述", dataIndex: "description", ellipsis: true },
+                                  {
+                                    title: "潜在价值",
+                                    dataIndex: "potential_value",
+                                    width: 120,
+                                    render: (value: number) => money(value),
+                                  },
+                                  { title: "时间窗口", dataIndex: "timeframe", width: 110 },
+                                ] as any
+                              }
+                              search={false}
+                              options={false}
+                              pagination={false}
+                              size="small"
+                            />
+                          ),
+                        }
+                      : null,
+                    global360.strategic_recommendations.length
+                      ? {
+                          key: "recommendations",
+                          label: `行动建议 (${global360.strategic_recommendations.length})`,
+                          children: (
+                            <List
+                              size="small"
+                              dataSource={global360.strategic_recommendations}
+                              renderItem={(recommendation) => (
+                                <List.Item>
+                                  <List.Item.Meta
+                                    title={
+                                      <Space wrap>
+                                        <StatusTag
+                                          status={recommendation.priority}
+                                          tone={
+                                            recommendation.priority === "高" ||
+                                            recommendation.priority === "high"
+                                              ? "danger"
+                                              : recommendation.priority === "中" ||
+                                                  recommendation.priority === "medium"
+                                                ? "warning"
+                                                : "info"
+                                          }
+                                        />
+                                        <Tag>{recommendation.domain}</Tag>
+                                        <Text strong>{recommendation.recommendation}</Text>
+                                      </Space>
+                                    }
+                                    description={recommendation.rationale}
+                                  />
+                                </List.Item>
+                              )}
+                            />
+                          ),
+                        }
+                      : null,
+                  ].filter(Boolean) as {
+                    key: string;
+                    label: React.ReactNode;
+                    children: React.ReactNode;
+                  }[]
+                }
               />
             </>
           ) : (
             <div className="dashboard-ai-empty">
-              {g360Loading ? <Spin description="AI 正在分析企业经营数据..." /> : <Empty description="AI 诊断暂不可用" />}
+              {g360Loading ? (
+                <Spin description="AI 正在分析企业经营数据..." />
+              ) : (
+                <Empty description="AI 诊断暂不可用" />
+              )}
             </div>
           )}
         </Card>

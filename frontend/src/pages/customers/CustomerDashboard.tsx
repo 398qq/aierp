@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Typography } from "antd";
-import { StatusTag } from "../../ui";
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Empty,
+  List,
+  Progress,
+  Row,
+  Space,
+  Spin,
+  Typography,
+} from "antd";
+import { IndustryRanking, StatusTag } from "../../ui";
 import {
   AlertOutlined,
   CheckCircleOutlined,
@@ -19,8 +31,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -31,7 +41,17 @@ import type { CustomerAIStats, DashboardStats, FollowUpReminder } from "../../ty
 import CustomerModuleShell from "./CustomerModuleShell";
 import { useAuthStore } from "@/store/auth";
 
-const COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#eb2f96", "#722ed1", "#13c2c2", "#f5222d", "#faad14", "#2f54eb"];
+const COLORS = [
+  "#1677ff",
+  "#52c41a",
+  "#fa8c16",
+  "#eb2f96",
+  "#722ed1",
+  "#13c2c2",
+  "#f5222d",
+  "#faad14",
+  "#2f54eb",
+];
 const { Text } = Typography;
 
 const EMPTY_STATS: DashboardStats = {
@@ -44,7 +64,8 @@ const EMPTY_STATS: DashboardStats = {
   monthly: [],
 };
 
-const formatDateTime = (value?: string | null) => value ? value.slice(0, 16).replace("T", " ") : "-";
+const formatDateTime = (value?: string | null) =>
+  value ? value.slice(0, 16).replace("T", " ") : "-";
 
 function getLevelCount(stats: DashboardStats, level: string) {
   return stats.by_level.find((item) => String(item.name).toUpperCase() === level)?.value || 0;
@@ -89,11 +110,14 @@ export default function CustomerDashboard() {
   const topIndustry = stats.by_industry[0];
   const topRegion = stats.by_region[0];
 
-  const reminderCounts = useMemo(() => ({
-    overdue: reminders.filter((item) => item.due_bucket === "overdue").length,
-    today: reminders.filter((item) => item.due_bucket === "today").length,
-    upcoming: reminders.filter((item) => item.due_bucket === "upcoming").length,
-  }), [reminders]);
+  const reminderCounts = useMemo(
+    () => ({
+      overdue: reminders.filter((item) => item.due_bucket === "overdue").length,
+      today: reminders.filter((item) => item.due_bucket === "today").length,
+      upcoming: reminders.filter((item) => item.due_bucket === "upcoming").length,
+    }),
+    [reminders],
+  );
 
   const actionItems = useMemo(() => {
     const items = [
@@ -134,9 +158,10 @@ export default function CustomerDashboard() {
   }, [aiStats, navigate, reminderCounts.overdue, reminderCounts.today]);
 
   const priorityReminders = useMemo(
-    () => reminders
-      .filter((item) => item.due_bucket === "overdue" || item.due_bucket === "today")
-      .slice(0, 5),
+    () =>
+      reminders
+        .filter((item) => item.due_bucket === "overdue" || item.due_bucket === "today")
+        .slice(0, 5),
     [reminders],
   );
   const dashboardContext = roles.some((role) => /finance/i.test(role))
@@ -165,12 +190,16 @@ export default function CustomerDashboard() {
     <CustomerModuleShell
       title={dashboardContext.title}
       subtitle={dashboardContext.subtitle}
-      extra={(
+      extra={
         <Space>
-          <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>AI工作队列</Button>
-          <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <Button icon={<RobotOutlined />} onClick={() => navigate("/customers/workbench")}>
+            AI工作队列
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={load}>
+            刷新
+          </Button>
         </Space>
-      )}
+      }
     >
       <style>{`
         .customer-dashboard-kpis {
@@ -273,36 +302,61 @@ export default function CustomerDashboard() {
           type={reminderCounts.overdue > 0 ? "error" : "warning"}
           icon={<AlertOutlined />}
           message={`当前有 ${reminderCounts.overdue} 个逾期跟进，${aiStats?.high_churn_count || 0} 个高流失风险客户`}
-          action={<Button size="small" onClick={() => navigate("/customers/workbench")}>进入AI队列</Button>}
+          action={
+            <Button size="small" onClick={() => navigate("/customers/workbench")}>
+              进入AI队列
+            </Button>
+          }
           showIcon
         />
       )}
 
       <div className="customer-dashboard-kpis">
         <div className="customer-dashboard-kpi">
-          <div className="customer-dashboard-kpi-title"><span>客户总数</span><TeamOutlined /></div>
+          <div className="customer-dashboard-kpi-title">
+            <span>客户总数</span>
+            <TeamOutlined />
+          </div>
           <div className="customer-dashboard-kpi-value">{stats.total}</div>
           <div className="customer-dashboard-kpi-note">A/B级占比 {abRatio}%</div>
         </div>
         <div className="customer-dashboard-kpi">
-          <div className="customer-dashboard-kpi-title"><span>A类客户</span><CheckCircleOutlined /></div>
+          <div className="customer-dashboard-kpi-title">
+            <span>A类客户</span>
+            <CheckCircleOutlined />
+          </div>
           <div className="customer-dashboard-kpi-value">{levelA}</div>
           <div className="customer-dashboard-kpi-note">B类客户 {levelB}</div>
         </div>
         <div className="customer-dashboard-kpi">
-          <div className="customer-dashboard-kpi-title"><span>本月新增</span><LineChartOutlined /></div>
+          <div className="customer-dashboard-kpi-title">
+            <span>本月新增</span>
+            <LineChartOutlined />
+          </div>
           <div className="customer-dashboard-kpi-value">{latestMonthly?.count || 0}</div>
-          <div className="customer-dashboard-kpi-note">{latestMonthly?.month || "暂无月度数据"}</div>
+          <div className="customer-dashboard-kpi-note">
+            {latestMonthly?.month || "暂无月度数据"}
+          </div>
         </div>
         <div className={`customer-dashboard-kpi${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
-          <div className="customer-dashboard-kpi-title"><span>逾期跟进</span><WarningOutlined /></div>
+          <div className="customer-dashboard-kpi-title">
+            <span>逾期跟进</span>
+            <WarningOutlined />
+          </div>
           <div className="customer-dashboard-kpi-value">{reminderCounts.overdue}</div>
           <div className="customer-dashboard-kpi-note">今日待跟进 {reminderCounts.today}</div>
         </div>
-        <div className={`customer-dashboard-kpi${(aiStats?.high_churn_count || 0) > 0 ? " is-warning" : ""}`}>
-          <div className="customer-dashboard-kpi-title"><span>AI风险客户</span><RobotOutlined /></div>
+        <div
+          className={`customer-dashboard-kpi${(aiStats?.high_churn_count || 0) > 0 ? " is-warning" : ""}`}
+        >
+          <div className="customer-dashboard-kpi-title">
+            <span>AI风险客户</span>
+            <RobotOutlined />
+          </div>
           <div className="customer-dashboard-kpi-value">{aiStats?.high_churn_count ?? "-"}</div>
-          <div className="customer-dashboard-kpi-note">AI覆盖率 {aiStats ? `${aiStats.ai_coverage_pct}%` : "未加载"}</div>
+          <div className="customer-dashboard-kpi-note">
+            AI覆盖率 {aiStats ? `${aiStats.ai_coverage_pct}%` : "未加载"}
+          </div>
         </div>
       </div>
 
@@ -317,7 +371,12 @@ export default function CustomerDashboard() {
                     <StatusTag status={String(item.value)} tone={item.tone} />
                   </div>
                   <div className="customer-dashboard-action-value">{item.value}</div>
-                  <Button size="small" type="link" style={{ padding: 0, marginTop: 8 }} onClick={item.onClick}>
+                  <Button
+                    size="small"
+                    type="link"
+                    style={{ padding: 0, marginTop: 8 }}
+                    onClick={item.onClick}
+                  >
                     {item.action}
                   </Button>
                 </div>
@@ -336,28 +395,37 @@ export default function CustomerDashboard() {
                 renderItem={(item) => (
                   <List.Item
                     actions={[
-                      <Button key="detail" size="small" type="link" onClick={() => navigate(`/customers/${item.customer_id}`)}>
+                      <Button
+                        key="detail"
+                        size="small"
+                        type="link"
+                        onClick={() => navigate(`/customers/${item.customer_id}`)}
+                      >
                         查看
                       </Button>,
                     ]}
                   >
                     <List.Item.Meta
-                      title={(
+                      title={
                         <Space wrap size={6}>
                           <Text strong>{item.customer_name}</Text>
                           <StatusTag
-                            status={item.due_bucket === "overdue" ? `逾期 ${item.overdue_days} 天` : "今日"}
+                            status={
+                              item.due_bucket === "overdue"
+                                ? `逾期 ${item.overdue_days} 天`
+                                : "今日"
+                            }
                             tone={item.due_bucket === "overdue" ? "danger" : "warning"}
                           />
                         </Space>
-                      )}
-                      description={(
+                      }
+                      description={
                         <Space size={8} wrap>
                           <ClockCircleOutlined />
                           <span>{formatDateTime(item.planned_at)}</span>
                           {item.owner && <span>负责人 {item.owner}</span>}
                         </Space>
-                      )}
+                      }
                     />
                   </List.Item>
                 )}
@@ -377,26 +445,44 @@ export default function CustomerDashboard() {
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {stats.by_level.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                  {stats.by_level.map((_, index) => (
+                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>
         </Col>
         <Col xs={24} xl={8}>
-          <Card size="small" className="customer-dashboard-chart" title="行业分布" extra={<Text type="secondary">{topIndustry ? `${topIndustry.name} ${topIndustry.value}` : "-"}</Text>}>
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={stats.by_industry} cx="50%" cy="50%" outerRadius={84} dataKey="value" label={({ name, value }) => `${name} ${value}`}>
-                  {stats.by_industry.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          <Card
+            size="small"
+            className="customer-dashboard-chart"
+            title="行业分布"
+            extra={
+              <Text type="secondary">
+                {topIndustry ? `${topIndustry.name} ${topIndustry.value}` : "-"}
+              </Text>
+            }
+          >
+            <IndustryRanking
+              items={stats.by_industry}
+              limit={10}
+              primaryColor="#1677ff"
+              secondaryColor="#91caff"
+            />
           </Card>
         </Col>
         <Col xs={24} xl={8}>
-          <Card size="small" className="customer-dashboard-chart" title="区域分布" extra={<Text type="secondary">{topRegion ? `${topRegion.name} ${topRegion.value}` : "-"}</Text>}>
+          <Card
+            size="small"
+            className="customer-dashboard-chart"
+            title="区域分布"
+            extra={
+              <Text type="secondary">
+                {topRegion ? `${topRegion.name} ${topRegion.value}` : "-"}
+              </Text>
+            }
+          >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={stats.by_region} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
@@ -419,7 +505,13 @@ export default function CustomerDashboard() {
                 <XAxis dataKey="month" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#1677ff" fill="#1677ff" fillOpacity={0.18} />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#1677ff"
+                  fill="#1677ff"
+                  fillOpacity={0.18}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
@@ -447,10 +539,17 @@ export default function CustomerDashboard() {
               </div>
               <Space wrap>
                 <StatusTag status={`从未联系 ${aiStats?.never_contacted ?? "-"}`} tone="warning" />
-                <StatusTag status={`沉默高价值 ${aiStats?.stale_high_value ?? "-"}`} tone="processing" />
+                <StatusTag
+                  status={`沉默高价值 ${aiStats?.stale_high_value ?? "-"}`}
+                  tone="processing"
+                />
                 <StatusTag status={`活跃30天 ${aiStats?.active_30d ?? "-"}`} tone="info" />
               </Space>
-              <Button block icon={<RobotOutlined />} onClick={() => navigate("/customers/intelligence")}>
+              <Button
+                block
+                icon={<RobotOutlined />}
+                onClick={() => navigate("/customers/intelligence")}
+              >
                 查看客户智能分析
               </Button>
             </Space>

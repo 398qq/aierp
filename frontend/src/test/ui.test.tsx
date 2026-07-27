@@ -54,12 +54,22 @@ describe("StatusTag", () => {
     // Custom status → humanized label
     expect(screen.getByText("Custom")).toBeInTheDocument();
   });
+
+  it("applies the operational class while preserving caller classes", () => {
+    const { container } = render(<StatusTag status="posted" className="finance-status" />);
+    expect(container.querySelector(".ant-tag")).toHaveClass("erp-status-tag", "finance-status");
+  });
 });
 
 describe("MetricBand", () => {
   const sampleItems = [
     { label: "今日订单", value: 42, suffix: "单" },
-    { label: "营收", value: "¥12,000", suffix: "元", trend: { value: "+5%", tone: "success" as const } },
+    {
+      label: "营收",
+      value: "¥12,000",
+      suffix: "元",
+      trend: { value: "+5%", tone: "success" as const },
+    },
     { label: "退款", value: 3, trend: { value: "-2%", tone: "danger" as const } },
   ];
 
@@ -79,9 +89,7 @@ describe("MetricBand", () => {
     // antd Tag content lives in `.ant-tag` elements. Leading "-"
     // and "+" are interpreted as CSS selector operators by Testing
     // Library's default text matcher, so we query the DOM directly.
-    const tagTexts = Array.from(container.querySelectorAll(".ant-tag")).map(
-      (el) => el.textContent,
-    );
+    const tagTexts = Array.from(container.querySelectorAll(".ant-tag")).map((el) => el.textContent);
     expect(tagTexts).toContain("+5%");
     expect(tagTexts).toContain("-2%");
   });
@@ -101,7 +109,15 @@ describe("PageHeader", () => {
 
   it("renders back button when onBack provided", () => {
     let clicked = false;
-    render(<PageHeader title="详情" onBack={() => { clicked = true; }} backLabel="返回列表" />);
+    render(
+      <PageHeader
+        title="详情"
+        onBack={() => {
+          clicked = true;
+        }}
+        backLabel="返回列表"
+      />,
+    );
     const backBtn = screen.getByText("返回列表");
     expect(backBtn).toBeInTheDocument();
     backBtn.click();
@@ -109,12 +125,7 @@ describe("PageHeader", () => {
   });
 
   it("renders actions when provided", () => {
-    render(
-      <PageHeader
-        title="销售订单"
-        actions={<button>新建订单</button>}
-      />,
-    );
+    render(<PageHeader title="销售订单" actions={<button>新建订单</button>} />);
     expect(screen.getByText("新建订单")).toBeInTheDocument();
   });
 });
@@ -160,13 +171,20 @@ describe("EmptyState", () => {
       <EmptyState
         description="还没有任何数据"
         actionLabel="创建第一份"
-        onAction={() => { clicked = true; }}
+        onAction={() => {
+          clicked = true;
+        }}
       />,
     );
     const btn = screen.getByText("创建第一份");
     expect(btn).toBeInTheDocument();
     btn.click();
     expect(clicked).toBe(true);
+  });
+
+  it("marks compact empty states for responsive operational styling", () => {
+    const { container } = render(<EmptyState compact />);
+    expect(container.firstElementChild).toHaveClass("erp-empty-state", "erp-empty-state-compact");
   });
 });
 
@@ -181,7 +199,9 @@ describe("SearchBar", () => {
     render(
       <SearchBar
         value=""
-        onChange={(v) => { captured = v; }}
+        onChange={(v) => {
+          captured = v;
+        }}
       />,
     );
     const input = screen.getByPlaceholderText("搜索…") as HTMLInputElement;
@@ -199,7 +219,9 @@ describe("SearchBar", () => {
     render(
       <SearchBar
         value="query"
-        onSearch={(v) => { searched = v; }}
+        onSearch={(v) => {
+          searched = v;
+        }}
       />,
     );
     const input = screen.getByPlaceholderText("搜索…") as HTMLInputElement;
@@ -213,7 +235,9 @@ describe("SearchBar", () => {
     let reset = false;
     render(
       <SearchBar
-        onReset={() => { reset = true; }}
+        onReset={() => {
+          reset = true;
+        }}
         resetLabel="清空筛选"
       />,
     );
@@ -227,8 +251,12 @@ describe("SearchBar", () => {
 describe("ErrorBoundary", () => {
   // Suppress console.error for expected error logs
   const originalError = console.error;
-  beforeAll(() => { console.error = () => {}; });
-  afterAll(() => { console.error = originalError; });
+  beforeAll(() => {
+    console.error = () => {};
+  });
+  afterAll(() => {
+    console.error = originalError;
+  });
 
   function ThrowingComponent(): never {
     throw new Error("intentional test error");
