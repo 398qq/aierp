@@ -17,7 +17,7 @@ import {
   ShoppingCartOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getCustomer, getCustomers, getOpportunity, getOpportunities, getProduct, getProducts, getQuotation, getQuotations } from "../../api";
 import type { Customer, Opportunity, Product, Quotation } from "../../types";
 

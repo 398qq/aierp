@@ -661,6 +661,11 @@ async def update_customer(
                 new_value=str(val),
                 operator=_user.get("username"),
             )
+    if data:
+        # SQLAlchemy's server-side ``CURRENT_TIMESTAMP`` has only second
+        # precision on SQLite. Use an application timestamp so rapid updates
+        # still sort ahead of records created in the same second.
+        customer.updated_at = datetime.now(timezone.utc)
     await db.flush()
     from app.services.embedding_pipeline import after_customer_save
 
@@ -698,6 +703,5 @@ async def delete_customer(
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
     return ok(msg="deleted")
-
 
 

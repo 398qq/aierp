@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import {
   Alert, Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Spin, Switch,
   Tabs, Typography, message,

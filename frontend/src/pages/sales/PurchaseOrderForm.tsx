@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { Alert, Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Typography, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";

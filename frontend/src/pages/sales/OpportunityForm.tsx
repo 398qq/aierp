@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Slider, Space, Statistic, Tag, Typography, message } from "antd";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
