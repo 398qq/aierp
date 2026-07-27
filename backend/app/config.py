@@ -40,9 +40,11 @@ class Settings(BaseSettings):
     # Consumed by app.services.telegram_notifier (outbound) and
     # app.services.telegram_bot_handler (inbound polling).
     # TELEGRAM_DISABLED='1' silences outbound + skips inbound polling.
+    # TELEGRAM_POLLING_DISABLED='1' only skips the legacy inbound getUpdates poller.
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
     TELEGRAM_DISABLED: str = "0"
+    TELEGRAM_POLLING_DISABLED: str = "0"
 
     @model_validator(mode="after")
     def validate_secrets(self) -> "Settings":

@@ -8,7 +8,9 @@ lifespan as a background asyncio task.
 
 Config (env, loaded lazily):
     TELEGRAM_BOT_TOKEN      bot token from @BotFather
-    TELEGRAM_DISABLED       '1' to silence the bot (default unset = enabled)
+    TELEGRAM_DISABLED       '1' to silence all Telegram integration
+    TELEGRAM_POLLING_DISABLED
+                            '1' to disable only this legacy inbound poller
     AI_CODE_MODEL           model id, defaults to settings.AI_CODE_MODEL
 
 Usage (in main.py lifespan):
@@ -75,7 +77,10 @@ def _bot_token() -> str | None:
 
 
 def _is_disabled() -> bool:
-    return settings.TELEGRAM_DISABLED == "1"
+    return (
+        settings.TELEGRAM_DISABLED == "1"
+        or settings.TELEGRAM_POLLING_DISABLED == "1"
+    )
 
 
 async def _send_text(chat_id: int, text: str) -> bool:
@@ -373,7 +378,7 @@ async def _release_polling_lock() -> None:
 async def run_polling_loop() -> None:
     """Long-running polling task. Started by main.py lifespan."""
     if _is_disabled():
-        logger.info("telegram code bot disabled via TELEGRAM_DISABLED=1, skipping")
+        logger.info("telegram code bot inbound polling disabled, skipping")
         return
     if not _bot_token():
         logger.warning(
@@ -397,7 +402,6 @@ async def run_polling_loop() -> None:
 
     offset: int | None = None
     backoff = 1.0
-    refresh_counter = 0
     try:
         while True:
             try:
@@ -408,10 +412,9 @@ async def run_polling_loop() -> None:
                 else:
                     await asyncio.sleep(POLL_INTERVAL_S)
 
-                refresh_counter += 1
-                if refresh_counter >= 30:
-                    await _refresh_polling_lock()
-                    refresh_counter = 0
+                # A getUpdates long poll can take ~30 seconds. Refresh after
+                # every cycle so the 60-second distributed lock cannot expire.
+                await _refresh_polling_lock()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
