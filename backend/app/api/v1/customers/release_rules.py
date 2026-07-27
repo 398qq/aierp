@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_perm
 from app.database import get_db
-from app.models.customer import ReleaseRule
+from app.models.customer import CustomerStatus, ReleaseRule
 from app.schemas.common import fail, ok
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class ReleaseRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     rule_type: str = Field(pattern=r"^(no_followup|no_order)$")
     condition_days: int = Field(default=90, ge=1, le=9999)
-    target_status: str | None = None
+    target_status: CustomerStatus | None = None
     is_enabled: bool = True
     priority: int = 0
     notify_owner: bool = True
@@ -32,7 +32,7 @@ class ReleaseRuleUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     rule_type: str | None = Field(None, pattern=r"^(no_followup|no_order)$")
     condition_days: int | None = Field(None, ge=1, le=9999)
-    target_status: str | None = None
+    target_status: CustomerStatus | None = None
     is_enabled: bool | None = None
     priority: int | None = None
     notify_owner: bool | None = None
