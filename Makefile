@@ -12,18 +12,18 @@ dev: ## Start backend + frontend hot-reload
 	@echo "Backend: http://localhost:$(BACKEND_PORT) | Frontend: http://localhost:3002"
 	@trap 'kill 0' EXIT; \
 		(cd $(BACKEND_DIR) && ../$(UVICORN) app.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0 2>&1 | sed 's/^/[backend] /') & \
-		(cd $(FRONTEND_DIR) && BACKEND_PORT=$(BACKEND_PORT) npx vite --port 3002 2>&1 | sed 's/^/[frontend] /') & \
+		(cd $(FRONTEND_DIR) && BACKEND_PORT=$(BACKEND_PORT) PORT=3002 npm run dev 2>&1 | sed 's/^/[frontend] /') & \
 		wait
 
 dev-backend: ## Start backend only
 	cd $(BACKEND_DIR) && ../$(UVICORN) app.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0
 
 dev-frontend: ## Start frontend only
-	cd $(FRONTEND_DIR) && BACKEND_PORT=$(BACKEND_PORT) npx vite --port 3002
+	cd $(FRONTEND_DIR) && BACKEND_PORT=$(BACKEND_PORT) PORT=3002 npm run dev
 
 build: ## Production build
 	cd $(BACKEND_DIR) && pip install -r requirements.txt
-	cd $(FRONTEND_DIR) && npm ci && npx vite build
+	cd $(FRONTEND_DIR) && npm ci && npm run build
 
 stop: ## Stop all services
 	-kill $$(lsof -t -i :$(BACKEND_PORT)) 2>/dev/null && echo "Backend stopped" || true
