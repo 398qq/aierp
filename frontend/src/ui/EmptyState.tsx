@@ -31,7 +31,10 @@ export function EmptyState({
   compact = false,
 }: EmptyStateProps) {
   return (
-    <div style={compact ? compactStyle : rootStyle}>
+    <div
+      className={`erp-empty-state${compact ? " erp-empty-state-compact" : ""}`}
+      style={compact ? compactStyle : rootStyle}
+    >
       <Empty
         image={compact ? Empty.PRESENTED_IMAGE_SIMPLE : <InboxOutlined style={iconStyle} />}
         description={description}

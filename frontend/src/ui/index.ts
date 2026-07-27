@@ -25,6 +25,8 @@ Each file is <100 lines so adding a new variant stays tractable.
 
 export { StatusTag } from "./StatusTag";
 export type { StatusTagProps, StatusTone } from "./StatusTag";
+export { buildIndustryRanking, IndustryRanking } from "./IndustryRanking";
+export type { IndustryRankingItem, IndustryRankingProps } from "./IndustryRanking";
 
 export { MetricBand } from "./MetricBand";
 export type { MetricBandProps, MetricItem } from "./MetricBand";

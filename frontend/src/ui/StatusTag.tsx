@@ -35,8 +35,7 @@ const TONE_TO_COLOR: Record<StatusTone, string> = {
 // Only replace separators between word chars; preserves leading "−" /
 // "+" / "$" / etc. so trend values like "-2%" don't get corrupted.
 const HUMANIZE_RE = /(?<=\w)[_-]+(?=\w)/g;
-const humanize = (s: string) =>
-  s.replace(HUMANIZE_RE, " ").replace(/^\w/, (c) => c.toUpperCase());
+const humanize = (s: string) => s.replace(HUMANIZE_RE, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 export interface StatusTagProps {
   status?: string;
@@ -54,13 +53,26 @@ export interface StatusTagProps {
   onClose?: (e: MouseEvent<HTMLElement>) => void | Promise<void>;
 }
 
-export function StatusTag({ status = "", tone, color, label, children, ...rest }: StatusTagProps) {
+export function StatusTag({
+  status = "",
+  tone,
+  color,
+  label,
+  children,
+  className,
+  ...rest
+}: StatusTagProps) {
   // Back-compat: if `tone` is a known StatusTone, look up the antd color.
   // If it's a raw antd color name (e.g. "red"), use it directly.
-  const toneColor = typeof tone === "string" && tone in TONE_TO_COLOR
-    ? TONE_TO_COLOR[tone as StatusTone]
-    : (tone as string | undefined);
+  const toneColor =
+    typeof tone === "string" && tone in TONE_TO_COLOR
+      ? TONE_TO_COLOR[tone as StatusTone]
+      : (tone as string | undefined);
   const resolved = color ?? toneColor ?? "default";
   const text = label ?? children ?? humanize(status);
-  return <Tag color={resolved} {...rest}>{text}</Tag>;
+  return (
+    <Tag color={resolved} className={`erp-status-tag${className ? ` ${className}` : ""}`} {...rest}>
+      {text}
+    </Tag>
+  );
 }
