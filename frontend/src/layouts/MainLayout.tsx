@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router";
 import { Button, Input, Avatar, Tooltip, Badge, Drawer, Card, Tag, Spin, Space, List, Typography, theme } from "antd";
 import {
   DashboardOutlined, TeamOutlined, ShopOutlined, StockOutlined, SettingOutlined,

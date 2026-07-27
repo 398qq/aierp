@@ -1,6 +1,6 @@
 import { Component, useEffect, Suspense, lazy } from "react";
 import type { ReactNode } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { Button, ConfigProvider, App as AntdApp, Result, Spin } from "antd";
 import zhCN from "antd/locale/zh_CN";
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { Alert, Button, Card, Descriptions, Divider, Empty, Progress, Space, Spin, Tag, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";

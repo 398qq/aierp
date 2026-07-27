@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Tabs, Tag, Tooltip, Typography, message } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
 import type { ActionType } from "@ant-design/pro-components";

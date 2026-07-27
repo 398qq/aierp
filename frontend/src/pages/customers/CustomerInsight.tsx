@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, Descriptions, Tag, Spin, Alert, Row, Col, List, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { getCustomerInsight } from "../../api";
 import type { CustomerInsight as CustomerInsightType } from "../../types";
 

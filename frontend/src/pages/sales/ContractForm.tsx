@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { Button, Card, DatePicker, Form, Input, InputNumber, message, Select } from "antd";
 import { getContract, createContract, updateContract, getSalesOrders } from "../../api";
 import dayjs from "dayjs";

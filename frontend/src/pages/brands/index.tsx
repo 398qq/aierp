@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ActionType } from "@ant-design/pro-components";

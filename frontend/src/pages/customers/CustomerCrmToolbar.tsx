@@ -1,7 +1,7 @@
 // CustomerCrmToolbar — top-of-page compact bar with CRM object picker,
 // view preset selector, table/board toggle, and quick-action buttons.
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button, Segmented, Select, Space, Typography } from "antd";
 import { BellOutlined, RobotOutlined } from "@ant-design/icons";
 import type {

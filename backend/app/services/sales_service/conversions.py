@@ -43,6 +43,28 @@ class SalesConversionService(BaseCRUDService):
 
     model = Quotation  # placeholder; conversions are document-cross-cutting
 
+    async def _load_delivery_context(
+        self, db: AsyncSession, note: DeliveryNote
+    ) -> tuple[SalesOrder | None, list[DeliveryNoteItem]]:
+        """Load conversion dependencies without async relationship lazy loads."""
+        order = await db.scalar(
+            select(SalesOrder).where(
+                SalesOrder.id == note.sales_order_id,
+                SalesOrder.deleted_at.is_(None),
+            )
+        )
+        items = list(
+            (
+                await db.scalars(
+                    select(DeliveryNoteItem).where(
+                        DeliveryNoteItem.delivery_note_id == note.id,
+                        DeliveryNoteItem.deleted_at.is_(None),
+                    )
+                )
+            ).all()
+        )
+        return order, items
+
     async def convert_quotation_to_order(
         self, db: AsyncSession, quote: Quotation
     ) -> SalesOrder:
@@ -174,11 +196,7 @@ class SalesConversionService(BaseCRUDService):
             return None
 
         invoice_no = await generate_doc_no(db, "INV", Invoice, "invoice_no")
-        order = (
-            await db.get(SalesOrder, note.sales_order_id)
-            if note.sales_order_id
-            else None
-        )
+        order, delivery_items = await self._load_delivery_context(db, note)
 
         inv = Invoice(
             invoice_no=invoice_no,
@@ -196,7 +214,7 @@ class SalesConversionService(BaseCRUDService):
         db.add(inv)
         await db.flush()
 
-        for dni in note.items:
+        for dni in delivery_items:
             line = InvoiceLine(
                 invoice_id=inv.id,
                 product_id=dni.product_id,
@@ -233,14 +251,13 @@ class SalesConversionService(BaseCRUDService):
             return None
 
         return_no = await generate_doc_no(db, "RTN", ReturnNote, "return_no")
+        order, delivery_items = await self._load_delivery_context(db, note)
         rn = ReturnNote(
             return_no=return_no,
             delivery_note_id=note.id,
             sales_order_id=note.sales_order_id,
             customer_id=note.customer_id,
-            total_amount=(
-                float(note.sales_order.total_amount) if note.sales_order else 0
-            ),
+            total_amount=float(order.total_amount) if order else 0,
             status="pending",
             reason=reason or "",
         )
@@ -255,7 +272,7 @@ class SalesConversionService(BaseCRUDService):
             action="create_from_delivery",
         )
 
-        for dni in note.items:
+        for dni in delivery_items:
             db.add(
                 ReturnNoteItem(
                     return_note_id=rn.id,

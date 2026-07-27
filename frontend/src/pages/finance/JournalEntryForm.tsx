@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { Card, Form, Input, DatePicker, Button, Space, InputNumber, Select, message, Tag } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
