@@ -9,7 +9,7 @@ import {
 } from "@ant-design/icons";
 import type { ProColumns, ActionType } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import dayjs from "dayjs";
 import { createFollowUp, detectDuplicates, exportCustomers, getCustomers, getApiErrorMessage, mergeCustomers } from "@/api";
 import type { Customer, DuplicatePair } from "@/types";

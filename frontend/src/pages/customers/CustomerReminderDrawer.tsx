@@ -1,7 +1,7 @@
 // CustomerReminderDrawer — right-side drawer showing follow-up reminders
 // (overdue / today / upcoming), with complete / postpone / view actions.
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import {
   Button,
   Drawer,

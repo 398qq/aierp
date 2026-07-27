@@ -5,7 +5,7 @@ import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PlusOutlined, EyeOutlined } from "@ant-design/icons";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import client from "../../api/client";
 
 interface Entry {

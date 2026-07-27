@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import {
