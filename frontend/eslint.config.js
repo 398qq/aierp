@@ -15,6 +15,8 @@ export default [
       "dist/**",
       "build/**",
       "coverage/**",
+      "src/.umi/**",
+      "src/.umi-*/**",
       "**/*.min.js",
       "src/test/setup.ts",  // vitest globals + localStorage stub
       "src/api/client.ts",  // axios interceptor (auto-generated pattern)

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { Button, Dropdown, Space, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {

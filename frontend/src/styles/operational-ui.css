@@ -66,6 +66,155 @@
 .erp-app-content .ant-form-item { margin-bottom: 14px; }
 .erp-app-content .ant-statistic-content { font-variant-numeric: tabular-nums; }
 
+/* Pro v6 page-level component baseline. */
+.erp-app-content .ant-table-wrapper,
+.erp-app-content .ant-pro-table {
+  min-width: 0;
+}
+
+.erp-app-content .ant-table-container {
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.erp-app-content .ant-table-thead > tr > th {
+  background: #f7f9fc;
+  color: #475569;
+  border-bottom: 1px solid #e1e7ef;
+}
+
+.erp-app-content .ant-table-tbody > tr > td {
+  border-bottom-color: #edf1f5;
+}
+
+.erp-app-content .ant-table-tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.erp-app-content .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: #eff6ff;
+}
+
+.erp-app-content .ant-form {
+  max-width: 100%;
+}
+
+.erp-app-content .ant-form-item-label > label {
+  color: #475569;
+}
+
+.erp-app-content .ant-input,
+.erp-app-content .ant-input-number,
+.erp-app-content .ant-picker,
+.erp-app-content .ant-select-selector,
+.erp-app-content .ant-input-affix-wrapper {
+  border-color: #cbd5e1;
+  box-shadow: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.erp-app-content .ant-input:hover,
+.erp-app-content .ant-input-number:hover,
+.erp-app-content .ant-picker:hover,
+.erp-app-content .ant-select-selector:hover,
+.erp-app-content .ant-input-affix-wrapper:hover {
+  border-color: #93c5fd;
+}
+
+.erp-app-content .ant-input:focus,
+.erp-app-content .ant-input-number-focused,
+.erp-app-content .ant-picker-focused,
+.erp-app-content .ant-select-focused .ant-select-selector,
+.erp-app-content .ant-input-affix-wrapper-focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.erp-app-content .ant-btn-primary {
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.18);
+}
+
+.erp-app-content .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous) {
+  color: #334155;
+}
+
+.erp-app-content .ant-tag {
+  border-radius: 4px;
+}
+
+.erp-app-content .ant-empty {
+  padding: 28px 16px;
+}
+
+.erp-app-content .ant-pagination {
+  margin-block: 14px 2px;
+}
+
+.erp-app-content .ant-statistic,
+.erp-app-content .erp-metric-band {
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-app-content .ant-alert {
+  border-radius: 8px;
+}
+
+.erp-status-tag {
+  min-height: 22px;
+  padding-inline: 8px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.erp-empty-state {
+  color: #64748b;
+}
+
+.erp-empty-state .ant-empty-description {
+  color: #64748b;
+}
+
+.erp-empty-state-compact {
+  padding-block: 20px !important;
+}
+
+.erp-app-content .ant-pro-table-list-toolbar {
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.erp-app-content .ant-pro-table-search {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.erp-app-content .ant-pro-card {
+  border-color: #e1e7ef;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+}
+
+.erp-app-content .ant-pro-card-title {
+  color: #172033;
+  font-weight: 600;
+}
+
+.erp-app-content .ant-tabs-nav {
+  margin-bottom: 14px;
+}
+
+.erp-app-content .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  font-weight: 600;
+}
+
 /* Neutralize the inventory module's former neo-brutalist visual island. */
 .erp-app-content .nb-page { min-height: auto; padding: 0; color: #172033; background: transparent; font-family: inherit; }
 .erp-app-content .nb-header { margin-bottom: 14px; }

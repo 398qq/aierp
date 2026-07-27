@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "@/router";
 import { Button, Input, Avatar, Tooltip, Badge, Drawer, Card, Tag, Spin, Space, List, Typography, theme } from "antd";
 import {
   DashboardOutlined, TeamOutlined, ShopOutlined, StockOutlined, SettingOutlined,
@@ -179,11 +179,16 @@ export default function MainLayout() {
   return (
     <>
       <ProLayout
+        layout="mix"
+        splitMenus={false}
+        fixSiderbar
+        contentWidth="Fluid"
+        siderWidth={224}
         collapsed={collapsed}
         onCollapse={setCollapsed}
         menuDataRender={() => menuItems}
         location={{ pathname: selectedKey }}
-        logo="https://gw.alipayobjects.com/zos/antfincdn/FLrTNDvlna/antdesign.png"
+        logo="/icon-192.png"
         title="AIERP"
         onMenuHeaderClick={() => navigate("/")}
         menuItemRender={(item, dom) => (
@@ -200,7 +205,7 @@ export default function MainLayout() {
           </a>
         )}
         actionsRender={() => [
-          <Input.Search key="search" placeholder="搜索菜单" allowClear
+          <Input.Search className="erp-layout-menu-search" key="search" placeholder="搜索菜单" allowClear
             onSearch={(v) => {
               const q = v.trim().toLowerCase();
               if (!q) return;

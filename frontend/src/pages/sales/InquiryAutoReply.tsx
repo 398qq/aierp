@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import {
   Card, Form, Input, Button, Space, Tag, Table, Typography,
   message, Spin, Alert, Badge, Row, Col, Modal,

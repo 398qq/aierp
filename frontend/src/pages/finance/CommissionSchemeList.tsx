@@ -8,7 +8,7 @@ ERP Operational Screens 风格：
 */
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import {
   App as AntdApp,
   Button,

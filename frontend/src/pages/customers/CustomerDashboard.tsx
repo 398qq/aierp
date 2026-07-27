@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { Alert, Button, Card, Col, Empty, List, Progress, Row, Space, Spin, Typography } from "antd";
 import { StatusTag } from "../../ui";
 import {
@@ -19,8 +19,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -88,6 +86,13 @@ export default function CustomerDashboard() {
   const latestMonthly = stats.monthly[stats.monthly.length - 1];
   const topIndustry = stats.by_industry[0];
   const topRegion = stats.by_region[0];
+  const industryChartData = useMemo(() => {
+    const sorted = [...stats.by_industry].sort((a, b) => b.value - a.value);
+    const top = sorted.slice(0, 10);
+    const rest = sorted.slice(10).reduce((sum, item) => sum + item.value, 0);
+    return rest > 0 ? [...top, { name: "其他", value: rest }] : top;
+  }, [stats.by_industry]);
+  const maxIndustryValue = industryChartData[0]?.value || 1;
 
   const reminderCounts = useMemo(() => ({
     overdue: reminders.filter((item) => item.due_bucket === "overdue").length,
@@ -385,14 +390,19 @@ export default function CustomerDashboard() {
         </Col>
         <Col xs={24} xl={8}>
           <Card size="small" className="customer-dashboard-chart" title="行业分布" extra={<Text type="secondary">{topIndustry ? `${topIndustry.name} ${topIndustry.value}` : "-"}</Text>}>
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={stats.by_industry} cx="50%" cy="50%" outerRadius={84} dataKey="value" label={({ name, value }) => `${name} ${value}`}>
-                  {stats.by_industry.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <Space direction="vertical" size={7} style={{ width: "100%" }}>
+              {industryChartData.length > 0 ? industryChartData.map((item, index) => (
+                <div key={item.name} style={{ width: "100%" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                    <Text ellipsis={{ tooltip: item.name }} style={{ maxWidth: "75%" }}>
+                      {index + 1}. {item.name}
+                    </Text>
+                    <Text strong>{item.value}</Text>
+                  </div>
+                  <Progress percent={Math.round((item.value / maxIndustryValue) * 100)} showInfo={false} size="small" strokeColor={index === 0 ? "#1677ff" : "#91caff"} />
+                </div>
+              )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无行业数据" />}
+            </Space>
           </Card>
         </Col>
         <Col xs={24} xl={8}>

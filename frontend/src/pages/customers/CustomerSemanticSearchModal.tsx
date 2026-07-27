@@ -1,7 +1,7 @@
 // CustomerSemanticSearchModal — natural-language customer search using
 // the AI semantic-search endpoint, with results as a small table.
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { Button, Input, Modal, Space } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";

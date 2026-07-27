@@ -4,7 +4,7 @@ import { ProTable } from "@ant-design/pro-components";
 import type { ActionType } from "@ant-design/pro-components";
 
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { getApiErrorMessage, getGlobalFollowUps } from "@/api";
 import type { GlobalFollowUp } from "@/types";
 import CustomerModuleShell from "./CustomerModuleShell";

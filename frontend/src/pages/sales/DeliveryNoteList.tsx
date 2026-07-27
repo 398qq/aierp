@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Tag, Typography, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
@@ -8,7 +8,7 @@ import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlin
 import { batchDeleteDeliveryNotes, deleteDeliveryNote, getDeliveryNotes, getPayments, getApiErrorMessage } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import type { DeliveryNote, PaymentRecord } from "../../types";
-import { Link } from "react-router-dom";
+import { Link } from "@/router";
 import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const PAYMENT_STATUS: Record<string, { color: string; label: string }> = {

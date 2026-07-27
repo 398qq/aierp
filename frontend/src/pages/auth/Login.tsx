@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Form, Input, App as AntdApp } from "antd";
+import { useNavigate } from "@/router";
+import { Form, Input, message } from "antd";
 import { useAuthStore } from "../../store/auth";
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
-  const { message } = AntdApp.useApp();
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
 

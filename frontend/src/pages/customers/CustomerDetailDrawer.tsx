@@ -1,6 +1,6 @@
 // CustomerDetailDrawer — 钉钉风格客户详情抽屉
 // 卡片式信息 + 快捷操作栏 + 经营数据
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import {
   Button,
   Card,

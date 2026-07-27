@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { App, Card, Button, Form, Space } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { createCustomer } from "../../api";

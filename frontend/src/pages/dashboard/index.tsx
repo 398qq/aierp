@@ -36,15 +36,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import {
   getDailyReport,
   getDashboardStats,
@@ -128,6 +125,12 @@ export default function Dashboard() {
   const [widgetDrawerOpen, setWidgetDrawerOpen] = useState(false);
   const [widgetSaving, setWidgetSaving] = useState(false);
   const [widgetPrefs, setWidgetPrefs] = useState(DEFAULT_WIDGETS);
+  const industryRanking = useMemo(() => {
+    const sorted = [...stats.by_industry].sort((a, b) => b.value - a.value);
+    const top = sorted.slice(0, 8);
+    const rest = sorted.slice(8).reduce((sum, item) => sum + item.value, 0);
+    return rest > 0 ? [...top, { name: "其他", value: rest }] : top;
+  }, [stats.by_industry]);
 
   useEffect(() => {
     try {
@@ -591,37 +594,18 @@ export default function Dashboard() {
             {widgetPrefs.industry_chart?.enabled !== false && (
               <>
                 <Card className="dashboard-panel" title="行业分布">
-                  {stats.by_industry.length ? (
-                    <>
-                      <ResponsiveContainer width="100%" height={190}>
-                        <PieChart>
-                          <Pie
-                            data={stats.by_industry}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={52}
-                            outerRadius={78}
-                            paddingAngle={2}
-                            isAnimationActive={false}
-                          >
-                            {stats.by_industry.map((item, index) => (
-                              <Cell key={item.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="dashboard-chart-legend">
-                        {stats.by_industry.slice(0, 5).map((item, index) => (
-                          <span key={item.name}>
-                            <i style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
-                            {item.name} <strong>{item.value}</strong>
-                          </span>
-                        ))}
-                      </div>
-                    </>
+                  {industryRanking.length ? (
+                    <Space direction="vertical" size={7} style={{ width: "100%" }}>
+                      {industryRanking.map((item, index) => (
+                        <div key={item.name} style={{ width: "100%" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                            <Text ellipsis={{ tooltip: item.name }} style={{ maxWidth: "78%" }}>{index + 1}. {item.name}</Text>
+                            <Text strong>{item.value}</Text>
+                          </div>
+                          <Progress percent={Math.round((item.value / (industryRanking[0]?.value || 1)) * 100)} showInfo={false} size="small" strokeColor={index === 0 ? "#2563eb" : "#93c5fd"} />
+                        </div>
+                      ))}
+                    </Space>
                   ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无行业数据" />
                   )}

@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate } from "@/router";
 
 export default function Users() {
   return <Navigate to="/system/users" replace />;

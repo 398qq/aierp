@@ -1,6 +1,6 @@
 import { Component, useEffect, Suspense, lazy } from "react";
 import type { ReactNode } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "@/router";
 import { Button, ConfigProvider, App as AntdApp, Result, Spin } from "antd";
 import zhCN from "antd/locale/zh_CN";
 
@@ -150,6 +150,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function CustomerTabRedirect({ tab }: { tab: string }) {
+  const { id } = useParams();
+  return <Navigate to={`/customers/${id}?tab=${tab}`} replace />;
+}
+
 export default function App() {
   const init = useAuthStore((s) => s.init);
   const loading = useAuthStore((s) => s.loading);
@@ -229,8 +234,7 @@ export default function App() {
       `}</style>
         <AntdApp>
           <AntdOverlayGuard />
-          <BrowserRouter>
-            <Routes>
+          <Routes>
               <Route path="/login" element={<Login />} />
               <Route
                 path="/inquiry"
@@ -353,11 +357,11 @@ export default function App() {
                 />
                 <Route
                   path="/customers/:id/insight"
-                  element={<Navigate to="../?tab=ai" relative="path" replace />}
+                  element={<CustomerTabRedirect tab="ai" />}
                 />
                 <Route
                   path="/customers/:id/360"
-                  element={<Navigate to="../?tab=profile" relative="path" replace />}
+                  element={<CustomerTabRedirect tab="profile" />}
                 />
                 <Route
                   path="/customers/:customerId/follow-ups"
@@ -1090,8 +1094,7 @@ export default function App() {
                 />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
+          </Routes>
         </AntdApp>
       </ConfigProvider>
     </ErrorBoundary>

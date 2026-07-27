@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { Card, Row, Col, Statistic, Tag, Spin, Button, Space, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import {

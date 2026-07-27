@@ -18,8 +18,8 @@ class TestContractBusinessRules:
         )
 
         assert resp.status_code == 422
-        assert resp.json()["code"] == "BUSINESS_RULE_VIOLATION"
-        assert "初始状态" in resp.json()["msg"]
+        assert resp.json()["code"] == 422
+        assert "body.status" in resp.json()["msg"]
 
     async def test_signed_contract_locks_amount(
         self, async_client: AsyncClient, auth_headers: dict, test_customer: dict

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link } from "@/router";
 import { Card, Col, Progress, Row, Statistic, Tag, Typography, Spin, Alert, Button, List } from "antd";
 import { PieChartOutlined, TrophyOutlined, CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined } from "@ant-design/icons";
 import { getSupplier360 } from "../../api";

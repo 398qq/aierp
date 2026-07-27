@@ -415,7 +415,6 @@ class TestCustomers:
             headers=auth_headers,
             json={
                 "customer_id": customer_id,
-                "status": "won",
                 "total_amount": 1200,
                 "items": [
                     {
@@ -427,12 +426,24 @@ class TestCustomers:
                 ],
             },
         )
+        won_id = won.json()["data"]["id"]
+        sent_status = await async_client.put(
+            f"/api/v1/quotations/{won_id}/status",
+            headers=auth_headers,
+            json={"status": "sent"},
+        )
+        assert sent_status.status_code == 200
+        won_status = await async_client.put(
+            f"/api/v1/quotations/{won_id}/status",
+            headers=auth_headers,
+            json={"status": "won"},
+        )
+        assert won_status.status_code == 200
         sent = await async_client.post(
             "/api/v1/quotations",
             headers=auth_headers,
             json={
                 "customer_id": customer_id,
-                "status": "sent",
                 "total_amount": 600,
                 "items": [
                     {
@@ -444,12 +455,17 @@ class TestCustomers:
                 ],
             },
         )
-        await async_client.post(
+        sent_status = await async_client.put(
+            f"/api/v1/quotations/{sent.json()['data']['id']}/status",
+            headers=auth_headers,
+            json={"status": "sent"},
+        )
+        assert sent_status.status_code == 200
+        other_quote = await async_client.post(
             "/api/v1/quotations",
             headers=auth_headers,
             json={
                 "customer_id": other_id,
-                "status": "won",
                 "total_amount": 9999,
                 "items": [
                     {
@@ -460,6 +476,17 @@ class TestCustomers:
                     }
                 ],
             },
+        )
+        other_quote_id = other_quote.json()["data"]["id"]
+        await async_client.put(
+            f"/api/v1/quotations/{other_quote_id}/status",
+            headers=auth_headers,
+            json={"status": "sent"},
+        )
+        await async_client.put(
+            f"/api/v1/quotations/{other_quote_id}/status",
+            headers=auth_headers,
+            json={"status": "won"},
         )
 
         resp = await async_client.get(
@@ -485,15 +512,31 @@ class TestCustomers:
             json={"name": "报价状态筛选客户", "type": "终端客户"},
         )
         customer_id = customer.json()["data"]["id"]
-        await async_client.post(
+        won = await async_client.post(
             "/api/v1/quotations",
             headers=auth_headers,
-            json={"customer_id": customer_id, "status": "won", "total_amount": 1200},
+            json={"customer_id": customer_id, "total_amount": 1200},
         )
-        await async_client.post(
+        won_id = won.json()["data"]["id"]
+        await async_client.put(
+            f"/api/v1/quotations/{won_id}/status",
+            headers=auth_headers,
+            json={"status": "sent"},
+        )
+        await async_client.put(
+            f"/api/v1/quotations/{won_id}/status",
+            headers=auth_headers,
+            json={"status": "won"},
+        )
+        sent = await async_client.post(
             "/api/v1/quotations",
             headers=auth_headers,
-            json={"customer_id": customer_id, "status": "sent", "total_amount": 600},
+            json={"customer_id": customer_id, "total_amount": 600},
+        )
+        await async_client.put(
+            f"/api/v1/quotations/{sent.json()['data']['id']}/status",
+            headers=auth_headers,
+            json={"status": "sent"},
         )
 
         resp = await async_client.get(

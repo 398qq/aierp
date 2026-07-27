@@ -29,7 +29,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import { getCustomer360, getCustomerQuotationHistory, getCustomerLogs, getContacts, getCustomerTags, getApiErrorMessage } from "@/api";
 import type { CustomerLog, CustomerQuotationHistory } from "@/types";
 import { StatusTag } from "@/ui";

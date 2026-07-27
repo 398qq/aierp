@@ -11,7 +11,7 @@ import {
   ShoppingCartOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/router";
 import {
   Bar,
   BarChart,

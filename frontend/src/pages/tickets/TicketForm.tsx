@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "@/router";
 import { Card, Form, Input, Select, Button, message, Spin } from "antd";
 import { getTicket, createTicket, updateTicket, getApiErrorMessage } from "../../api";
 import { getCustomers } from "../../api";
