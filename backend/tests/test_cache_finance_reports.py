@@ -419,16 +419,17 @@ class TestCacheMetricsIncrement:
         order_id = await _seed_sales_order(
             async_client, auth_headers, test_customer["id"]
         )
-        await async_client.post(
+        created = await async_client.post(
             "/api/v1/payments",
             headers=auth_headers,
             json={
                 "sales_order_id": order_id,
                 "customer_id": test_customer["id"],
                 "amount": 200,
-                "status": "completed",
+                "status": "pending",
             },
         )
+        assert created.status_code == 200, created.text
         after_epoch = _l1_epochs.get("payments:stats", 0)
         assert after_epoch > before_epoch
 

@@ -155,7 +155,7 @@ class QuotationCreate(BaseModel):
     opportunity_id: int | None = None
     title: str | None = None
     total_amount: float = 0
-    status: QuotationStatus = "draft"
+    status: Literal["draft"] = "draft"
     currency: str = "CNY"
     incoterms: str | None = None
     payment_terms: str | None = None
