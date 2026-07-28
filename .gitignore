@@ -57,6 +57,9 @@ htmlcov/
 # Node
 node_modules/
 frontend/dist/
+frontend/src/.umi/
+frontend/src/.umi-production/
+frontend/node_modules/.cache/
 
 # OS
 .DS_Store
