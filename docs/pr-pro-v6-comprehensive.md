@@ -14,27 +14,34 @@
   - CustomerNew / ProductEdit / BrandEdit
 - **ProTable 迁移**：4 个列表页
   - OpportunityList / ProductsList / BrandsList / WarehouseList
-  - 类型修复 + 列定义标准化
 - **Dashboard 迁移**：ProCard + Statistic
   - Dashboard KPI cards / Watchtower / Global360
 - **TypeScript 修复**：批量修复 ProTable column 类型、normalize arg 类型、main.tsx 清理
+- **react-router-dom 迁移**：Umi 4.6 与 react-router v8 解析冲突修复（见下）
 
 ## 验证
 
-- ✅ `npx tsc --noEmit` — 0 错误
+- ✅ `npx tsc --noEmit` — 0 errors
 - ✅ `npx vitest run` — 150/150 tests pass
-- ✅ `max dev` — HTTP 200，Webpack 673 modules 编译
-- ⚠️ `max build` — 阻塞：Umi 4.6 内嵌 react-router@6.3.0 与项目 react-router@8.3.0 webpack 解析冲突
+- ✅ `max dev` — HTTP 200，673 modules 编译
+- ✅ `max build` — SUCCESS, dist/ = 6.6M, 178 chunks
+- ⚠️ `eslint` — 36 pre-existing errors（@ts-nocheck 等），与本 PR 无关
 
-## 已知问题
+## react-router 冲突解决方案
 
-**`max build` 失败**：webpack 解析 `react-router` 到 Umi 内嵌 v6.3.0（不导出 Link），需替换为项目 v8.3.0。已尝试 `config.alias` 但破坏 Umi 的 `renderer-react`（内部用 react-router-dom）。需要进一步调研，可能方案：
+Umi 4.6.82 内嵌 `react-router@6.3.0`（在 `@umijs/preset-umi/node_modules/`）。
+Webpack 解析 `react-router` 优先到内嵌 v6，而 v6 的 main entry 不导出 Link。
 
-1. Umi 5 + React 19 兼容性升级
-2. 用 webpack resolve 配置（需 Umi 插件）
-3. 替换 react-router 导入路径（影响范围大）
+**修复**：将 78 个应用文件 + 10 个测试文件的导入从 `react-router` 改为 `react-router-dom`（顶层 v6.3.0 有 Link，hooks API 兼容）。
 
-## 25 commits 包含
+```diff
+- import { Link, useNavigate } from "react-router";
++ import { Link, useNavigate } from "react-router-dom";
+```
+
+Tests 同步迁移以避免 `<MemoryRouter>` context 不匹配。
+
+## 27 commits 包含
 
 ```
 build(frontend): add @umijs/max ^4.6.51
@@ -62,19 +69,23 @@ refactor(dashboard): use ProCard + Statistic for watchtower
 refactor(dashboard): use ProCard + Statistic for global 360
 fix(dashboard,sales,customers,inventory,suppliers): batch fix TS errors
 fix(frontend): tsc fixes + placeholder index pages
+fix(frontend): migrate imports from react-router to react-router-dom
+fix(tests): migrate test imports from react-router to react-router-dom
 ```
 
 ## 测试计划
 
-- [ ] 浏览器访问 http://localhost:3002（或 8002）验证 Login 页加载
-- [ ] 验证 ProLayout + 侧边栏导航
-- [ ] 验证 ProTable 在 customers/sales/products/brands 列表
-- [ ] 验证 ProForm 在 opportunity/quotation/order 创建/编辑
-- [ ] 验证 Statistic 在 dashboard 显示
-- [ ] 验证认证守卫（未登录跳转）
+- [x] `tsc --noEmit` clean
+- [x] `vitest run` 150/150 pass
+- [x] `max dev` HTTP 200
+- [x] `max build` SUCCESS
+- [ ] 浏览器手动验证 ProLayout 渲染
+- [ ] 浏览器手动验证 ProTable 列表
+- [ ] 浏览器手动验证 ProForm 创建/编辑
+- [ ] 浏览器手动验证 Statistic dashboard
 
-## 后续工作
+## 后续工作（独立 PR）
 
-- 修复 `max build` react-router v8 vs Umi v6 冲突（阻塞生产部署）
-- 删除残留 Vite 文件（vite.config.ts + vitest 引用）
-- Playwright e2e 关键流验证
+- ESLint 清理（36 个 pre-existing 错误）
+- Playwright e2e 关键流
+- 删除残留 Vite 配置（vite.config.ts + vitest 配置）
