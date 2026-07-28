@@ -1,11 +1,51 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Button, Input, Space, message, Card, Modal, Form, Tag, Popconfirm, Typography, Select, Tabs, Row, Col, Switch, Progress, Tooltip, Segmented, Alert } from "antd";
+import {
+  Button,
+  Input,
+  Space,
+  message,
+  Card,
+  Modal,
+  Form,
+  Tag,
+  Popconfirm,
+  Typography,
+  Select,
+  Tabs,
+  Row,
+  Col,
+  Switch,
+  Progress,
+  Tooltip,
+  Segmented,
+  Alert,
+} from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import type { ActionType } from "@ant-design/pro-components";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { BankOutlined, PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, ImportOutlined, DownOutlined, DownloadOutlined, RobotOutlined } from "@ant-design/icons";
-import { getBrands, createBrand, updateBrand, deleteBrand, importBrandFromText, batchUpdateBrands, batchDeleteBrands, getBrandStats, getApiErrorMessage } from "../../api";
+import {
+  BankOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ImportOutlined,
+  DownOutlined,
+  DownloadOutlined,
+  RobotOutlined,
+} from "@ant-design/icons";
+import {
+  getBrands,
+  createBrand,
+  updateBrand,
+  deleteBrand,
+  importBrandFromText,
+  batchUpdateBrands,
+  batchDeleteBrands,
+  getBrandStats,
+  getApiErrorMessage,
+} from "../../api";
 import type { Brand } from "../../types";
 import { getBatchAiSummary, getBrandNextAction } from "./brandAiOrchestration";
 
@@ -53,9 +93,21 @@ const statusColor: Record<string, string> = { active: "green", inactive: "orange
 const statusLabel: Record<string, string> = { active: "启用", inactive: "停用", frozen: "冻结" };
 const levelColor: Record<string, string> = { A: "red", B: "blue", C: "default" };
 const typeLabel: Record<string, string> = { own_brand: "自有", agency: "代理", oem: "OEM" };
-const riskTagColor: Record<string, string> = { low: "green", medium: "orange", high: "red", critical: "purple" };
+const riskTagColor: Record<string, string> = {
+  low: "green",
+  medium: "orange",
+  high: "red",
+  critical: "purple",
+};
 const lcTagColor: Record<string, string> = { active: "green", nrnd: "orange", eol: "red" };
-type BrandScene = "all" | "high_risk" | "eol_nrnd" | "pending_completion" | "no_products" | "automotive" | "unauthorized";
+type BrandScene =
+  | "all"
+  | "high_risk"
+  | "eol_nrnd"
+  | "pending_completion"
+  | "no_products"
+  | "automotive"
+  | "unauthorized";
 
 const SCENE_OPTIONS: { label: string; value: BrandScene }[] = [
   { label: "全部", value: "all" },
@@ -76,9 +128,13 @@ const SORT_OPTIONS = [
 ];
 
 interface BrandStats {
-  total: number; recent_30d: number; eol_nrnd_count: number;
-  automotive_count: number; high_risk_count: number;
-  pending_completion_count?: number; no_product_count?: number;
+  total: number;
+  recent_30d: number;
+  eol_nrnd_count: number;
+  automotive_count: number;
+  high_risk_count: number;
+  pending_completion_count?: number;
+  no_product_count?: number;
   by_status: { status: string; count: number }[];
   by_level: { level: string; count: number }[];
   by_risk: { level: string; count: number }[];
@@ -123,10 +179,14 @@ export default function BrandList() {
     try {
       const resp = await getBrandStats();
       setStats(resp.data.data as unknown as BrandStats);
-    } catch { /* non-blocking */ }
+    } catch {
+      /* non-blocking */
+    }
   };
 
-  useEffect(() => { fetchStats(); }, [filterStatus, filterLevel, filterType, filterLifecycle, filterRisk, scene]);
+  useEffect(() => {
+    fetchStats();
+  }, [filterStatus, filterLevel, filterType, filterLifecycle, filterRisk, scene]);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     setSearch(params.get("q") || params.get("keyword") || "");
@@ -169,8 +229,11 @@ export default function BrandList() {
       }
       setModalOpen(false);
       actionRef.current?.reload();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
-    finally { setSubmitting(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "操作失败"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -178,7 +241,9 @@ export default function BrandList() {
       await deleteBrand(id);
       message.success("删除成功");
       actionRef.current?.reload();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "删除失败"));
+    }
   };
 
   const handleImport = async () => {
@@ -194,8 +259,11 @@ export default function BrandList() {
       }
       setImportOpen(false);
       setImportText("");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败")); }
-    finally { setImportLoading(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "导入失败"));
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const handleBatchUpdate = async () => {
@@ -212,8 +280,11 @@ export default function BrandList() {
       setBatchValue("");
       setSelectedRowKeys([]);
       actionRef.current?.reload();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); }
-    finally { setBatchSubmitting(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量更新失败"));
+    } finally {
+      setBatchSubmitting(false);
+    }
   };
 
   const handleBatchDelete = async () => {
@@ -224,8 +295,11 @@ export default function BrandList() {
       message.success(`已删除 ${selectedRowKeys.length} 个品牌`);
       setSelectedRowKeys([]);
       actionRef.current?.reload();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
-    finally { setBatchSubmitting(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量删除失败"));
+    } finally {
+      setBatchSubmitting(false);
+    }
   };
 
   const resetFilters = () => {
@@ -245,7 +319,22 @@ export default function BrandList() {
       message.warning("当前无可导出数据");
       return;
     }
-    const headers = ["编码", "名称", "中文名", "状态", "类型", "等级", "生命周期", "风险", "风险分", "完整度", "产品数", "授权", "负责人", "产品线"];
+    const headers = [
+      "编码",
+      "名称",
+      "中文名",
+      "状态",
+      "类型",
+      "等级",
+      "生命周期",
+      "风险",
+      "风险分",
+      "完整度",
+      "产品数",
+      "授权",
+      "负责人",
+      "产品线",
+    ];
     const rows = data.map((b) => [
       b.code || "",
       b.name || "",
@@ -262,7 +351,9 @@ export default function BrandList() {
       b.owner || "",
       b.product_lines || "",
     ]);
-    const csv = [headers, ...rows].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = [headers, ...rows]
+      .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -278,84 +369,181 @@ export default function BrandList() {
     return <StatusTag tone={action.color}>{action.label}</StatusTag>;
   };
 
-  const columns: any = [
+  const columns: ProColumns<Brand>[] = [
     { title: "ID", dataIndex: "id", width: 50 },
     { title: "编码", dataIndex: "code", width: 80, render: (v: any) => v || "-" },
     {
-      title: "名称", dataIndex: "name", width: 160,
+      title: "名称",
+      dataIndex: "name",
+      width: 160,
       render: (v: any, r: any) => <a onClick={() => navigate(`/brands/${r.id}`)}>{v}</a>,
     },
     { title: "中文名", dataIndex: "name_cn", width: 100, render: (v: any) => v || "-" },
     {
-      title: "状态", dataIndex: "status", width: 70,
-      render: (v: any) => <StatusTag tone={statusColor[v] || "neutral"}>{statusLabel[v] || v}</StatusTag>,
+      title: "状态",
+      dataIndex: "status",
+      width: 70,
+      render: (v: any) => (
+        <StatusTag tone={statusColor[v] || "neutral"}>{statusLabel[v] || v}</StatusTag>
+      ),
     },
     {
-      title: "类型", dataIndex: "brand_type", width: 70,
-      render: (v: any) => v ? <StatusTag>{typeLabel[v] || v}</StatusTag> : "-",
+      title: "类型",
+      dataIndex: "brand_type",
+      width: 70,
+      render: (v: any) => (v ? <StatusTag>{typeLabel[v] || v}</StatusTag> : "-"),
     },
     {
-      title: "等级", dataIndex: "level", width: 60,
-      render: (v: any) => v ? <StatusTag tone={levelColor[v]}>{v}级</StatusTag> : "-",
+      title: "等级",
+      dataIndex: "level",
+      width: 60,
+      render: (v: any) => (v ? <StatusTag tone={levelColor[v]}>{v}级</StatusTag> : "-"),
     },
     {
-      title: "生命周期", dataIndex: "lifecycle_stage", width: 80,
-      render: (v: any) => v ? <StatusTag tone={lcTagColor[v] || "neutral"}>{v.toUpperCase()}</StatusTag> : "-",
+      title: "生命周期",
+      dataIndex: "lifecycle_stage",
+      width: 80,
+      render: (v: any) =>
+        v ? <StatusTag tone={lcTagColor[v] || "neutral"}>{v.toUpperCase()}</StatusTag> : "-",
     },
     {
-      title: "风险", dataIndex: "risk_level", width: 70,
-      render: (v: any, r: any) => v ? (
-        <Space size={4}>
-          <StatusTag tone={riskTagColor[v] || "neutral"}>{v === "low" ? "低" : v === "medium" ? "中" : v === "high" ? "高" : "严重"}</StatusTag>
-          {r.risk_score != null && <Progress percent={r.risk_score} size="small" style={{ width: 40 }} showInfo={false} status={r.risk_score > 70 ? "exception" : "normal"} />}
-        </Space>
-      ) : "-",
+      title: "风险",
+      dataIndex: "risk_level",
+      width: 70,
+      render: (v: any, r: any) =>
+        v ? (
+          <Space size={4}>
+            <StatusTag tone={riskTagColor[v] || "neutral"}>
+              {v === "low" ? "低" : v === "medium" ? "中" : v === "high" ? "高" : "严重"}
+            </StatusTag>
+            {r.risk_score != null && (
+              <Progress
+                percent={r.risk_score}
+                size="small"
+                style={{ width: 40 }}
+                showInfo={false}
+                status={r.risk_score > 70 ? "exception" : "normal"}
+              />
+            )}
+          </Space>
+        ) : (
+          "-"
+        ),
     },
     {
-      title: "RoHS", dataIndex: "rohs_status", width: 65,
-      render: (v: any) => v === "compliant" ? <StatusTag tone="success">合规</StatusTag> : v === "exempt" ? <StatusTag tone="warning">豁免</StatusTag> : v === "non_compliant" ? <StatusTag tone="danger">不合规</StatusTag> : "-",
+      title: "RoHS",
+      dataIndex: "rohs_status",
+      width: 65,
+      render: (v: any) =>
+        v === "compliant" ? (
+          <StatusTag tone="success">合规</StatusTag>
+        ) : v === "exempt" ? (
+          <StatusTag tone="warning">豁免</StatusTag>
+        ) : v === "non_compliant" ? (
+          <StatusTag tone="danger">不合规</StatusTag>
+        ) : (
+          "-"
+        ),
     },
     {
-      title: "定位", dataIndex: "positioning", width: 60,
-      render: (v: any) => v === "high" ? <StatusTag tone="success">高端</StatusTag> : v === "mid" ? <StatusTag>中端</StatusTag> : v === "low" ? <StatusTag tone="warning">低端</StatusTag> : "-",
+      title: "定位",
+      dataIndex: "positioning",
+      width: 60,
+      render: (v: any) =>
+        v === "high" ? (
+          <StatusTag tone="success">高端</StatusTag>
+        ) : v === "mid" ? (
+          <StatusTag>中端</StatusTag>
+        ) : v === "low" ? (
+          <StatusTag tone="warning">低端</StatusTag>
+        ) : (
+          "-"
+        ),
     },
     {
-      title: "MOQ", dataIndex: "moq", width: 60, align: "right",
-      render: (v: any) => v != null ? v : "-",
+      title: "MOQ",
+      dataIndex: "moq",
+      width: 60,
+      align: "right",
+      render: (v: any) => (v != null ? v : "-"),
     },
     {
-      title: "完整度", dataIndex: "completion_score", width: 95,
-      render: (v: number | null, r: any) => {
+      title: "完整度",
+      dataIndex: "completion_score",
+      width: 95,
+      render: (_, r) => {
+        const v = r.completion_score;
         const score = v ?? 0;
-        const missing = r.missing_fields?.length ? `缺少：${r.missing_fields.join("、")}` : "资料完整";
+        const missing = r.missing_fields?.length
+          ? `缺少：${r.missing_fields.join("、")}`
+          : "资料完整";
         return (
           <Tooltip title={missing}>
-            <Progress percent={score} size="small" showInfo={false} strokeColor={score >= 80 ? "#52c41a" : score >= 50 ? "#faad14" : "#ff4d4f"} />
+            <Progress
+              percent={score}
+              size="small"
+              showInfo={false}
+              strokeColor={score >= 80 ? "#52c41a" : score >= 50 ? "#faad14" : "#ff4d4f"}
+            />
           </Tooltip>
         );
       },
     },
     {
-      title: "车规", dataIndex: "is_automotive", width: 55,
-      render: (v: any) => v ? <StatusTag tone="info" style={{padding: "0 4px"}}>车规</StatusTag> : <Text type="secondary">-</Text>,
+      title: "车规",
+      dataIndex: "is_automotive",
+      width: 55,
+      render: (v: any) =>
+        v ? (
+          <StatusTag tone="info" style={{ padding: "0 4px" }}>
+            车规
+          </StatusTag>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
     },
     {
-      title: "授权", dataIndex: "authorization_status", width: 70,
-      render: (v: any) => v ? <StatusTag tone={v === "authorized" ? "success" : v === "unauthorized" ? "danger" : "neutral"}>{v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}</StatusTag> : "-",
+      title: "授权",
+      dataIndex: "authorization_status",
+      width: 70,
+      render: (v: any) =>
+        v ? (
+          <StatusTag
+            tone={v === "authorized" ? "success" : v === "unauthorized" ? "danger" : "neutral"}
+          >
+            {v === "authorized" ? "已授权" : v === "unauthorized" ? "未授权" : "未知"}
+          </StatusTag>
+        ) : (
+          "-"
+        ),
     },
     {
-      title: "产品", dataIndex: "product_count", width: 55,
-      render: (v: any) => v != null && v > 0 ? <Text style={{ fontSize: 12 }}>{v}</Text> : <StatusTag tone="warning">未铺货</StatusTag>,
+      title: "产品",
+      dataIndex: "product_count",
+      width: 55,
+      render: (v: any) =>
+        v != null && v > 0 ? (
+          <Text style={{ fontSize: 12 }}>{v}</Text>
+        ) : (
+          <StatusTag tone="warning">未铺货</StatusTag>
+        ),
     },
     {
-      title: "建议", key: "next_action", width: 90,
+      title: "建议",
+      key: "next_action",
+      width: 90,
       render: (_: unknown, r: any) => getBrandAction(r),
     },
     {
-      title: "操作", key: "action", width: 120, fixed: "right",
+      title: "操作",
+      key: "action",
+      width: 120,
+      fixed: "right",
       render: (_: unknown, r: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
+            编辑
+          </Button>
           <Popconfirm title="确认删除？" onConfirm={() => handleDelete(r.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -374,13 +562,68 @@ export default function BrandList() {
   };
 
   const activeFilterTags = [
-    search ? { key: "search", label: `搜索: ${search}`, onClose: () => { setSearch(""); setDebouncedSearch(""); } } : null,
-    filterStatus ? { key: "status", label: `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}`, onClose: () => { setFilterStatus(undefined); } } : null,
-    filterLevel ? { key: "level", label: `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}`, onClose: () => { setFilterLevel(undefined); } } : null,
-    filterType ? { key: "type", label: `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}`, onClose: () => { setFilterType(undefined); } } : null,
-    filterLifecycle ? { key: "lifecycle", label: `生命周期: ${filterLifecycle.toUpperCase()}`, onClose: () => { setFilterLifecycle(undefined); } } : null,
-    filterRisk ? { key: "risk", label: `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}`, onClose: () => { setFilterRisk(undefined); } } : null,
-    scene !== "all" ? { key: "scene", label: `场景: ${SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}`, onClose: () => applyScene("all") } : null,
+    search
+      ? {
+          key: "search",
+          label: `搜索: ${search}`,
+          onClose: () => {
+            setSearch("");
+            setDebouncedSearch("");
+          },
+        }
+      : null,
+    filterStatus
+      ? {
+          key: "status",
+          label: `状态: ${STATUS_OPTIONS.find((o) => o.value === filterStatus)?.label || filterStatus}`,
+          onClose: () => {
+            setFilterStatus(undefined);
+          },
+        }
+      : null,
+    filterLevel
+      ? {
+          key: "level",
+          label: `等级: ${LEVEL_OPTIONS.find((o) => o.value === filterLevel)?.label || filterLevel}`,
+          onClose: () => {
+            setFilterLevel(undefined);
+          },
+        }
+      : null,
+    filterType
+      ? {
+          key: "type",
+          label: `类型: ${TYPE_OPTIONS.find((o) => o.value === filterType)?.label || filterType}`,
+          onClose: () => {
+            setFilterType(undefined);
+          },
+        }
+      : null,
+    filterLifecycle
+      ? {
+          key: "lifecycle",
+          label: `生命周期: ${filterLifecycle.toUpperCase()}`,
+          onClose: () => {
+            setFilterLifecycle(undefined);
+          },
+        }
+      : null,
+    filterRisk
+      ? {
+          key: "risk",
+          label: `风险: ${RISK_OPTIONS.find((o) => o.value === filterRisk)?.label || filterRisk}`,
+          onClose: () => {
+            setFilterRisk(undefined);
+          },
+        }
+      : null,
+    scene !== "all"
+      ? {
+          key: "scene",
+          label: `场景: ${SCENE_OPTIONS.find((o) => o.value === scene)?.label || scene}`,
+          onClose: () => applyScene("all"),
+        }
+      : null,
   ].filter((item): item is { key: string; label: string; onClose: () => void } => Boolean(item));
   const hasCustomView = activeFilterTags.length > 0 || sort !== "created_at_desc";
   const startIndex = total > 0 ? (page - 1) * pageSize + 1 : 0;
@@ -395,16 +638,46 @@ export default function BrandList() {
   const operationTasks = useMemo(() => {
     if (!stats) return [];
     return [
-      { key: "high_risk" as BrandScene, label: "高风险复核", count: stats.high_risk_count, color: "red", note: "风险评分或风险等级异常" },
-      { key: "eol_nrnd" as BrandScene, label: "生命周期处理", count: stats.eol_nrnd_count, color: "orange", note: "EOL/NRND 替代与库存影响" },
-      { key: "pending_completion" as BrandScene, label: "资料补全", count: stats.pending_completion_count ?? 0, color: "gold", note: "主数据字段仍不完整" },
-      { key: "no_products" as BrandScene, label: "铺货规划", count: stats.no_product_count ?? 0, color: "blue", note: "尚未关联产品" },
-      { key: "automotive" as BrandScene, label: "车规品牌", count: stats.automotive_count, color: "geekblue", note: "车规认证和交期跟踪" },
+      {
+        key: "high_risk" as BrandScene,
+        label: "高风险复核",
+        count: stats.high_risk_count,
+        color: "red",
+        note: "风险评分或风险等级异常",
+      },
+      {
+        key: "eol_nrnd" as BrandScene,
+        label: "生命周期处理",
+        count: stats.eol_nrnd_count,
+        color: "orange",
+        note: "EOL/NRND 替代与库存影响",
+      },
+      {
+        key: "pending_completion" as BrandScene,
+        label: "资料补全",
+        count: stats.pending_completion_count ?? 0,
+        color: "gold",
+        note: "主数据字段仍不完整",
+      },
+      {
+        key: "no_products" as BrandScene,
+        label: "铺货规划",
+        count: stats.no_product_count ?? 0,
+        color: "blue",
+        note: "尚未关联产品",
+      },
+      {
+        key: "automotive" as BrandScene,
+        label: "车规品牌",
+        count: stats.automotive_count,
+        color: "geekblue",
+        note: "车规认证和交期跟踪",
+      },
     ];
   }, [stats]);
   const healthMetrics = useMemo(() => {
     const totalCount = stats?.total || 0;
-    const pct = (value: number) => totalCount > 0 ? Math.round((value / totalCount) * 100) : 0;
+    const pct = (value: number) => (totalCount > 0 ? Math.round((value / totalCount) * 100) : 0);
     return {
       highRiskRate: pct(stats?.high_risk_count || 0),
       lifecycleRate: pct(stats?.eol_nrnd_count || 0),
@@ -718,26 +991,52 @@ export default function BrandList() {
             </Text>
           </div>
           <div className="brand-command-actions">
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增品牌</Button>
-            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
-            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>品牌看板</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新增品牌
+            </Button>
+            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+              AI 导入
+            </Button>
+            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>
+              品牌看板
+            </Button>
           </div>
         </div>
         <div className="brand-command-metric" onClick={() => applyScene("all")}>
-          <Text type="secondary" className="brand-metric-label">品牌总数</Text>
-          <span className="brand-metric-value">{stats?.total ?? 0}<small>个</small></span>
+          <Text type="secondary" className="brand-metric-label">
+            品牌总数
+          </Text>
+          <span className="brand-metric-value">
+            {stats?.total ?? 0}
+            <small>个</small>
+          </span>
         </div>
         <div className="brand-command-metric" onClick={() => applyScene("high_risk")}>
-          <Text type="secondary" className="brand-metric-label">高风险占比</Text>
-          <span className="brand-metric-value">{healthMetrics.highRiskRate}<small>%</small></span>
+          <Text type="secondary" className="brand-metric-label">
+            高风险占比
+          </Text>
+          <span className="brand-metric-value">
+            {healthMetrics.highRiskRate}
+            <small>%</small>
+          </span>
         </div>
         <div className="brand-command-metric" onClick={() => applyScene("eol_nrnd")}>
-          <Text type="secondary" className="brand-metric-label">生命周期风险</Text>
-          <span className="brand-metric-value">{healthMetrics.lifecycleRate}<small>%</small></span>
+          <Text type="secondary" className="brand-metric-label">
+            生命周期风险
+          </Text>
+          <span className="brand-metric-value">
+            {healthMetrics.lifecycleRate}
+            <small>%</small>
+          </span>
         </div>
         <div className="brand-command-metric" onClick={() => applyScene("no_products")}>
-          <Text type="secondary" className="brand-metric-label">未铺货占比</Text>
-          <span className="brand-metric-value">{healthMetrics.noProductRate}<small>%</small></span>
+          <Text type="secondary" className="brand-metric-label">
+            未铺货占比
+          </Text>
+          <span className="brand-metric-value">
+            {healthMetrics.noProductRate}
+            <small>%</small>
+          </span>
         </div>
       </div>
 
@@ -745,7 +1044,9 @@ export default function BrandList() {
         <aside className="brand-ops-panel">
           <div className="brand-panel-head">
             <Text strong>运营队列</Text>
-            <Button size="small" type="link" onClick={() => navigate("/brands/stats")}>看板</Button>
+            <Button size="small" type="link" onClick={() => navigate("/brands/stats")}>
+              看板
+            </Button>
           </div>
           <div className="brand-task-list">
             {operationTasks.map((item) => (
@@ -765,140 +1066,248 @@ export default function BrandList() {
         </aside>
 
         <main className="brand-table-zone erp-table">
-
-      <Card
-        className="brand-list-card"
-        title={
-          <Space>
-            品牌列表
-            {selectedRowKeys.length > 0 && (
-              <StatusTag tone="info">{selectedRowKeys.length} 已选</StatusTag>
-            )}
-          </Space>
-        }
-        extra={
-          <Space wrap>
-            <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>看板</Button>
-            <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>导出</Button>
-            <Button icon={<ReloadOutlined />} onClick={() => { actionRef.current?.reload(); fetchStats(); }}>刷新</Button>
-            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>AI 导入</Button>
-            {selectedRowKeys.length > 0 && (
-              <>
-                <Button icon={<RobotOutlined />} onClick={() => setAiPlanOpen(true)}>AI 编排</Button>
-                <Button icon={<EditOutlined />} onClick={() => setBatchModalOpen(true)}>批量更新</Button>
-                <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个品牌？`} onConfirm={handleBatchDelete}>
-                  <Button danger icon={<DeleteOutlined />}>批量删除</Button>
-                </Popconfirm>
-              </>
-            )}
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
-          </Space>
-        }
-      >
-        <div className="brand-toolbar">
-          <div className="brand-toolbar-row">
-            <Segmented
-              className="brand-scene-switch"
-              options={SCENE_OPTIONS}
-              value={scene}
-              onChange={(v) => applyScene(v as BrandScene)}
-            />
-            <Space wrap>
-              <Select value={sort} style={{ width: 120 }} onChange={(v) => { setSort(v); }} options={SORT_OPTIONS} />
-              <Button onClick={resetFilters}>重置</Button>
-            </Space>
-          </div>
-          <div className="brand-filter-row">
-            <Input.Search
-              placeholder="搜索品牌、产品线、关键词"
-              allowClear
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onSearch={(v) => {
-                setSearch(v);
-                setDebouncedSearch(v);
-              }}
-              className="brand-filter-search"
-            />
-            <Select className="brand-filter-select" placeholder="状态" allowClear value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} />
-            <Select className="brand-filter-select" placeholder="等级" allowClear value={filterLevel} onChange={setFilterLevel} options={LEVEL_OPTIONS} />
-            <Select className="brand-filter-select" placeholder="类型" allowClear value={filterType} onChange={setFilterType} options={TYPE_OPTIONS} />
-            <Select className="brand-filter-select" placeholder="生命周期" allowClear value={filterLifecycle} onChange={setFilterLifecycle} options={LIFECYCLE_OPTIONS} />
-            <Select className="brand-filter-select" placeholder="风险" allowClear value={filterRisk} onChange={setFilterRisk} options={RISK_OPTIONS} />
-          </div>
-          <div className="brand-filter-tags">
-            {activeFilterTags.length > 0 ? (
-              <Space wrap>
-                {activeFilterTags.map((item) => (
-                  <StatusTag key={item.key} tone="info" closable onClose={item.onClose}>
-                    {item.label}
-                  </StatusTag>
-                ))}
+          <Card
+            className="brand-list-card"
+            title={
+              <Space>
+                品牌列表
+                {selectedRowKeys.length > 0 && (
+                  <StatusTag tone="info">{selectedRowKeys.length} 已选</StatusTag>
+                )}
               </Space>
-            ) : (
-              <Text type="secondary">当前显示全部品牌</Text>
-            )}
-          </div>
-        </div>
-        <div className="brand-table-meta">
-          <Text type="secondary">
-            {total > 0 ? `显示 ${startIndex}-${endIndex} / 共 ${total} 个品牌` : "暂无品牌数据"}
-          </Text>
-          <Space wrap size={6}>
-            {sort !== "created_at_desc" && <StatusTag tone="info">排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}</StatusTag>}
-            {hasCustomView && <Button size="small" onClick={resetFilters}>清空视图</Button>}
-          </Space>
-        </div>
-        <ProTable
-          actionRef={actionRef}
-          rowKey="id" columns={columns} dataSource={data}
-          rowSelection={rowSelection}
-          rowClassName={(record) => {
-            if (activeBrand?.id === record.id) return "brand-row-active";
-            if (record.risk_level === "critical" || (record.risk_score ?? 0) >= 80) return "brand-row-critical";
-            if (record.lifecycle_stage === "eol") return "brand-row-eol";
-            return "";
-          }}
-          onRow={(record) => ({
-            onClick: () => setActiveBrandId(record.id),
-          })}
-          loading={loading} size="small" search={false}
-          options={{ reload: true, density: true, setting: true }}
-          pagination={{ current: page, total, pageSize, showSizeChanger: true,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
-          }}
-          locale={{
-            emptyText: (
-              <div className="brand-empty">
-                <Text strong>{hasCustomView ? "没有匹配的品牌" : "还没有品牌"}</Text>
-                <br />
-                <Text type="secondary">{hasCustomView ? "调整筛选条件后再查看" : "点击右上角新增或使用 AI 导入创建品牌"}</Text>
+            }
+            extra={
+              <Space wrap>
+                <Button icon={<DownOutlined />} onClick={() => navigate("/brands/stats")}>
+                  看板
+                </Button>
+                <Button icon={<DownloadOutlined />} onClick={exportCurrentPage}>
+                  导出
+                </Button>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    actionRef.current?.reload();
+                    fetchStats();
+                  }}
+                >
+                  刷新
+                </Button>
+                <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+                  AI 导入
+                </Button>
+                {selectedRowKeys.length > 0 && (
+                  <>
+                    <Button icon={<RobotOutlined />} onClick={() => setAiPlanOpen(true)}>
+                      AI 编排
+                    </Button>
+                    <Button icon={<EditOutlined />} onClick={() => setBatchModalOpen(true)}>
+                      批量更新
+                    </Button>
+                    <Popconfirm
+                      title={`确认删除选中的 ${selectedRowKeys.length} 个品牌？`}
+                      onConfirm={handleBatchDelete}
+                    >
+                      <Button danger icon={<DeleteOutlined />}>
+                        批量删除
+                      </Button>
+                    </Popconfirm>
+                  </>
+                )}
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                  新增
+                </Button>
+              </Space>
+            }
+          >
+            <div className="brand-toolbar">
+              <div className="brand-toolbar-row">
+                <Segmented
+                  className="brand-scene-switch"
+                  options={SCENE_OPTIONS}
+                  value={scene}
+                  onChange={(v) => applyScene(v as BrandScene)}
+                />
+                <Space wrap>
+                  <Select
+                    value={sort}
+                    style={{ width: 120 }}
+                    onChange={(v) => {
+                      setSort(v);
+                    }}
+                    options={SORT_OPTIONS}
+                  />
+                  <Button onClick={resetFilters}>重置</Button>
+                </Space>
               </div>
-            ),
-          }}
-          scroll={{ x: 1300 }}
-        />
-      </Card>
+              <div className="brand-filter-row">
+                <Input.Search
+                  placeholder="搜索品牌、产品线、关键词"
+                  allowClear
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onSearch={(v) => {
+                    setSearch(v);
+                    setDebouncedSearch(v);
+                  }}
+                  className="brand-filter-search"
+                />
+                <Select
+                  className="brand-filter-select"
+                  placeholder="状态"
+                  allowClear
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  options={STATUS_OPTIONS}
+                />
+                <Select
+                  className="brand-filter-select"
+                  placeholder="等级"
+                  allowClear
+                  value={filterLevel}
+                  onChange={setFilterLevel}
+                  options={LEVEL_OPTIONS}
+                />
+                <Select
+                  className="brand-filter-select"
+                  placeholder="类型"
+                  allowClear
+                  value={filterType}
+                  onChange={setFilterType}
+                  options={TYPE_OPTIONS}
+                />
+                <Select
+                  className="brand-filter-select"
+                  placeholder="生命周期"
+                  allowClear
+                  value={filterLifecycle}
+                  onChange={setFilterLifecycle}
+                  options={LIFECYCLE_OPTIONS}
+                />
+                <Select
+                  className="brand-filter-select"
+                  placeholder="风险"
+                  allowClear
+                  value={filterRisk}
+                  onChange={setFilterRisk}
+                  options={RISK_OPTIONS}
+                />
+              </div>
+              <div className="brand-filter-tags">
+                {activeFilterTags.length > 0 ? (
+                  <Space wrap>
+                    {activeFilterTags.map((item) => (
+                      <StatusTag key={item.key} tone="info" closable onClose={item.onClose}>
+                        {item.label}
+                      </StatusTag>
+                    ))}
+                  </Space>
+                ) : (
+                  <Text type="secondary">当前显示全部品牌</Text>
+                )}
+              </div>
+            </div>
+            <div className="brand-table-meta">
+              <Text type="secondary">
+                {total > 0 ? `显示 ${startIndex}-${endIndex} / 共 ${total} 个品牌` : "暂无品牌数据"}
+              </Text>
+              <Space wrap size={6}>
+                {sort !== "created_at_desc" && (
+                  <StatusTag tone="info">
+                    排序: {SORT_OPTIONS.find((o) => o.value === sort)?.label || sort}
+                  </StatusTag>
+                )}
+                {hasCustomView && (
+                  <Button size="small" onClick={resetFilters}>
+                    清空视图
+                  </Button>
+                )}
+              </Space>
+            </div>
+            <ProTable
+              actionRef={actionRef}
+              rowKey="id"
+              columns={columns}
+              dataSource={data}
+              rowSelection={rowSelection}
+              rowClassName={(record) => {
+                if (activeBrand?.id === record.id) return "brand-row-active";
+                if (record.risk_level === "critical" || (record.risk_score ?? 0) >= 80)
+                  return "brand-row-critical";
+                if (record.lifecycle_stage === "eol") return "brand-row-eol";
+                return "";
+              }}
+              onRow={(record) => ({
+                onClick: () => setActiveBrandId(record.id),
+              })}
+              loading={loading}
+              size="small"
+              search={false}
+              options={{ reload: true, density: true, setting: true }}
+              pagination={{
+                current: page,
+                total,
+                pageSize,
+                showSizeChanger: true,
+                onChange: (p, ps) => {
+                  setPage(ps !== pageSize ? 1 : p);
+                  setPageSize(ps);
+                },
+              }}
+              locale={{
+                emptyText: (
+                  <div className="brand-empty">
+                    <Text strong>{hasCustomView ? "没有匹配的品牌" : "还没有品牌"}</Text>
+                    <br />
+                    <Text type="secondary">
+                      {hasCustomView
+                        ? "调整筛选条件后再查看"
+                        : "点击右上角新增或使用 AI 导入创建品牌"}
+                    </Text>
+                  </div>
+                ),
+              }}
+              scroll={{ x: 1300 }}
+            />
+          </Card>
         </main>
 
         <aside className="brand-context-panel">
           <div className="brand-panel-head">
             <Text strong>品牌上下文</Text>
-            {activeBrand && <StatusTag tone={activeBrandAction?.color}>{activeBrandAction?.label}</StatusTag>}
+            {activeBrand && (
+              <StatusTag tone={activeBrandAction?.color}>{activeBrandAction?.label}</StatusTag>
+            )}
           </div>
           {activeBrand ? (
             <div className="brand-context-body">
               <div className="brand-context-title">
                 <div className="brand-context-name">
                   <a onClick={() => navigate(`/brands/${activeBrand.id}`)}>{activeBrand.name}</a>
-                  <div className="brand-context-note">{activeBrand.name_cn || activeBrand.code || "未补充中文名/编码"}</div>
+                  <div className="brand-context-note">
+                    {activeBrand.name_cn || activeBrand.code || "未补充中文名/编码"}
+                  </div>
                 </div>
-                {activeBrand.level && <StatusTag tone={levelColor[activeBrand.level]}>{activeBrand.level}级</StatusTag>}
+                {activeBrand.level && (
+                  <StatusTag tone={levelColor[activeBrand.level]}>{activeBrand.level}级</StatusTag>
+                )}
               </div>
               <Space wrap size={6}>
-                {activeBrand.status && <StatusTag tone={statusColor[activeBrand.status] || "neutral"}>{statusLabel[activeBrand.status] || activeBrand.status}</StatusTag>}
-                {activeBrand.brand_type && <StatusTag>{typeLabel[activeBrand.brand_type] || activeBrand.brand_type}</StatusTag>}
-                {activeBrand.lifecycle_stage && <StatusTag tone={lcTagColor[activeBrand.lifecycle_stage] || "neutral"}>{activeBrand.lifecycle_stage.toUpperCase()}</StatusTag>}
+                {activeBrand.status && (
+                  <StatusTag tone={statusColor[activeBrand.status] || "neutral"}>
+                    {statusLabel[activeBrand.status] || activeBrand.status}
+                  </StatusTag>
+                )}
+                {activeBrand.brand_type && (
+                  <StatusTag>
+                    {typeLabel[activeBrand.brand_type] || activeBrand.brand_type}
+                  </StatusTag>
+                )}
+                {activeBrand.lifecycle_stage && (
+                  <StatusTag tone={lcTagColor[activeBrand.lifecycle_stage] || "neutral"}>
+                    {activeBrand.lifecycle_stage.toUpperCase()}
+                  </StatusTag>
+                )}
                 {activeBrand.is_automotive && <StatusTag tone="info">车规</StatusTag>}
               </Space>
               <div className="brand-context-score">
@@ -922,7 +1331,9 @@ export default function BrandList() {
               <div className="brand-context-action">
                 <Text strong>建议动作</Text>
                 <div style={{ marginTop: 6 }}>
-                  {activeBrandAction && <StatusTag tone={activeBrandAction.color}>{activeBrandAction.label}</StatusTag>}
+                  {activeBrandAction && (
+                    <StatusTag tone={activeBrandAction.color}>{activeBrandAction.label}</StatusTag>
+                  )}
                 </div>
                 <div className="brand-context-note" style={{ marginTop: 6 }}>
                   {activeBrand.missing_fields?.length
@@ -931,9 +1342,21 @@ export default function BrandList() {
                 </div>
               </div>
               <Space direction="vertical" style={{ width: "100%" }}>
-                <Button block onClick={() => navigate(`/brands/${activeBrand.id}`)}>打开详情</Button>
-                <Button block onClick={() => openEdit(activeBrand)}>编辑主数据</Button>
-                <Button block onClick={() => { setSelectedRowKeys([activeBrand.id]); setAiPlanOpen(true); }}>AI 编排</Button>
+                <Button block onClick={() => navigate(`/brands/${activeBrand.id}`)}>
+                  打开详情
+                </Button>
+                <Button block onClick={() => openEdit(activeBrand)}>
+                  编辑主数据
+                </Button>
+                <Button
+                  block
+                  onClick={() => {
+                    setSelectedRowKeys([activeBrand.id]);
+                    setAiPlanOpen(true);
+                  }}
+                >
+                  AI 编排
+                </Button>
               </Space>
             </div>
           ) : (
@@ -956,22 +1379,33 @@ export default function BrandList() {
             defaultActiveKey="basic"
             items={[
               {
-                key: "basic", label: "基础信息",
+                key: "basic",
+                label: "基础信息",
                 children: (
                   <Row gutter={16}>
                     <Col span={8}>
-                      <Form.Item name="code" label="编码"><Input placeholder="唯一编码" /></Form.Item>
+                      <Form.Item name="code" label="编码">
+                        <Input placeholder="唯一编码" />
+                      </Form.Item>
                     </Col>
                     <Col span={16}>
-                      <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入品牌名称" }]}>
+                      <Form.Item
+                        name="name"
+                        label="名称"
+                        rules={[{ required: true, message: "请输入品牌名称" }]}
+                      >
                         <Input placeholder="如 TI / STMicroelectronics" />
                       </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="name_cn" label="中文名"><Input placeholder="如 德州仪器" /></Form.Item>
+                      <Form.Item name="name_cn" label="中文名">
+                        <Input placeholder="如 德州仪器" />
+                      </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="short_name" label="简称"><Input placeholder="系统显示用" /></Form.Item>
+                      <Form.Item name="short_name" label="简称">
+                        <Input placeholder="系统显示用" />
+                      </Form.Item>
                     </Col>
                     <Col span={8}>
                       <Form.Item name="status" label="状态">
@@ -984,95 +1418,146 @@ export default function BrandList() {
                       </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="category" label="分类"><Input placeholder="半导体/被动器件" /></Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="logo" label="Logo URL"><Input placeholder="https://..." /></Form.Item>
-                    </Col>
-                    <Col span={24}>
-                      <Form.Item name="description" label="品牌介绍"><Input.TextArea rows={2} /></Form.Item>
-                    </Col>
-                    <Col span={24}>
-                      <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-                    </Col>
-                  </Row>
-                ),
-              },
-              {
-                key: "business", label: "商业信息",
-                children: (
-                  <Row gutter={16}>
-                    <Col span={8}>
-                      <Form.Item name="level" label="品牌等级"><Select placeholder="选择等级" allowClear options={LEVEL_OPTIONS} /></Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="positioning" label="品牌定位">
-                        <Select placeholder="选择定位" allowClear options={[
-                          { label: "高端", value: "high" }, { label: "中端", value: "mid" }, { label: "低端", value: "low" },
-                        ]} />
+                      <Form.Item name="category" label="分类">
+                        <Input placeholder="半导体/被动器件" />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="owner" label="负责人"><Input /></Form.Item>
+                      <Form.Item name="logo" label="Logo URL">
+                        <Input placeholder="https://..." />
+                      </Form.Item>
                     </Col>
-                    <Col span={12}>
-                      <Form.Item name="product_lines" label="产品线"><Input.TextArea rows={2} placeholder="MCU, MOS, 连接器..." /></Form.Item>
+                    <Col span={24}>
+                      <Form.Item name="description" label="品牌介绍">
+                        <Input.TextArea rows={2} />
+                      </Form.Item>
                     </Col>
-                    <Col span={12}>
-                      <Form.Item name="target_markets" label="目标市场"><Input.TextArea rows={2} placeholder="工业、医疗、车规..." /></Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item name="website" label="官网"><Input placeholder="https://..." /></Form.Item>
+                    <Col span={24}>
+                      <Form.Item name="notes" label="备注">
+                        <Input.TextArea rows={2} />
+                      </Form.Item>
                     </Col>
                   </Row>
                 ),
               },
               {
-                key: "supply", label: "供应链",
+                key: "business",
+                label: "商业信息",
+                children: (
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item name="level" label="品牌等级">
+                        <Select placeholder="选择等级" allowClear options={LEVEL_OPTIONS} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="positioning" label="品牌定位">
+                        <Select
+                          placeholder="选择定位"
+                          allowClear
+                          options={[
+                            { label: "高端", value: "high" },
+                            { label: "中端", value: "mid" },
+                            { label: "低端", value: "low" },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="owner" label="负责人">
+                        <Input />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="product_lines" label="产品线">
+                        <Input.TextArea rows={2} placeholder="MCU, MOS, 连接器..." />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="target_markets" label="目标市场">
+                        <Input.TextArea rows={2} placeholder="工业、医疗、车规..." />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="website" label="官网">
+                        <Input placeholder="https://..." />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                ),
+              },
+              {
+                key: "supply",
+                label: "供应链",
                 children: (
                   <Row gutter={16}>
                     <Col span={12}>
-                      <Form.Item name="manufacturer_name" label="原厂名称"><Input /></Form.Item>
+                      <Form.Item name="manufacturer_name" label="原厂名称">
+                        <Input />
+                      </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="supplier_id" label="关联供应商"><Input type="number" /></Form.Item>
+                      <Form.Item name="supplier_id" label="关联供应商">
+                        <Input type="number" />
+                      </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="authorization_status" label="授权状态"><Select placeholder="选择" allowClear options={AUTH_OPTIONS} /></Form.Item>
+                      <Form.Item name="authorization_status" label="授权状态">
+                        <Select placeholder="选择" allowClear options={AUTH_OPTIONS} />
+                      </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="lifecycle_stage" label="生命周期"><Select placeholder="选择" allowClear options={LIFECYCLE_OPTIONS} /></Form.Item>
+                      <Form.Item name="lifecycle_stage" label="生命周期">
+                        <Select placeholder="选择" allowClear options={LIFECYCLE_OPTIONS} />
+                      </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="is_automotive" label="车规" valuePropName="checked"><Switch /></Form.Item>
+                      <Form.Item name="is_automotive" label="车规" valuePropName="checked">
+                        <Switch />
+                      </Form.Item>
                     </Col>
                     <Col span={6}>
-                      <Form.Item name="moq" label="MOQ"><Input type="number" /></Form.Item>
+                      <Form.Item name="moq" label="MOQ">
+                        <Input type="number" />
+                      </Form.Item>
                     </Col>
                     <Col span={6}>
-                      <Form.Item name="lead_time_days" label="交期(天)"><Input type="number" /></Form.Item>
+                      <Form.Item name="lead_time_days" label="交期(天)">
+                        <Input type="number" />
+                      </Form.Item>
                     </Col>
                     <Col span={6}>
-                      <Form.Item name="risk_level" label="风险等级"><Select placeholder="选择" allowClear options={RISK_OPTIONS} /></Form.Item>
+                      <Form.Item name="risk_level" label="风险等级">
+                        <Select placeholder="选择" allowClear options={RISK_OPTIONS} />
+                      </Form.Item>
                     </Col>
                     <Col span={6}>
-                      <Form.Item name="rohs_status" label="RoHS"><Select placeholder="选择" allowClear options={ROHS_OPTIONS} /></Form.Item>
+                      <Form.Item name="rohs_status" label="RoHS">
+                        <Select placeholder="选择" allowClear options={ROHS_OPTIONS} />
+                      </Form.Item>
                     </Col>
                   </Row>
                 ),
               },
               {
-                key: "ai", label: "AI参数",
+                key: "ai",
+                label: "AI参数",
                 children: (
                   <Row gutter={16}>
                     <Col span={24}>
-                      <Form.Item name="ai_keywords" label="AI关键词"><Input.TextArea rows={2} placeholder="逗号分隔，用于AI搜索匹配" /></Form.Item>
+                      <Form.Item name="ai_keywords" label="AI关键词">
+                        <Input.TextArea rows={2} placeholder="逗号分隔，用于AI搜索匹配" />
+                      </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="risk_score" label="风险评分 (0-100)"><Input type="number" min={0} max={100} /></Form.Item>
+                      <Form.Item name="risk_score" label="风险评分 (0-100)">
+                        <Input type="number" min={0} max={100} />
+                      </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="alternative_brands" label="替代品牌"><Input.TextArea rows={2} placeholder="逗号分隔品牌名或编码" /></Form.Item>
+                      <Form.Item name="alternative_brands" label="替代品牌">
+                        <Input.TextArea rows={2} placeholder="逗号分隔品牌名或编码" />
+                      </Form.Item>
                     </Col>
                   </Row>
                 ),
@@ -1092,7 +1577,8 @@ export default function BrandList() {
       >
         <Text>粘贴品牌描述文本（公司介绍、官网About、供应商目录等），AI 自动提取品牌信息：</Text>
         <Input.TextArea
-          rows={6} value={importText}
+          rows={6}
+          value={importText}
           onChange={(e) => setImportText(e.target.value)}
           placeholder="例如：意法半导体 (STMicroelectronics) 是全球领先的半导体公司，专注于MCU、电源管理、传感器等产品线..."
           style={{ marginTop: 8 }}
@@ -1102,7 +1588,11 @@ export default function BrandList() {
       <Modal
         title={`批量更新 ${selectedRowKeys.length} 个品牌`}
         open={batchModalOpen}
-        onCancel={() => { setBatchModalOpen(false); setBatchField(""); setBatchValue(""); }}
+        onCancel={() => {
+          setBatchModalOpen(false);
+          setBatchField("");
+          setBatchValue("");
+        }}
         onOk={handleBatchUpdate}
         confirmLoading={batchSubmitting}
         okText="更新"
@@ -1128,30 +1618,87 @@ export default function BrandList() {
             />
           </div>
           {batchField === "status" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={STATUS_OPTIONS} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={STATUS_OPTIONS}
+            />
           )}
           {batchField === "level" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={LEVEL_OPTIONS} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={LEVEL_OPTIONS}
+            />
           )}
           {batchField === "risk_level" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={RISK_OPTIONS} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={RISK_OPTIONS}
+            />
           )}
           {batchField === "lifecycle_stage" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={LIFECYCLE_OPTIONS} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={LIFECYCLE_OPTIONS}
+            />
           )}
           {batchField === "authorization_status" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={AUTH_OPTIONS} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={AUTH_OPTIONS}
+            />
           )}
           {batchField === "rohs_status" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={ROHS_OPTIONS} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={ROHS_OPTIONS}
+            />
           )}
           {batchField === "positioning" && (
-            <Select style={{ width: "100%" }} placeholder="选择值" value={batchValue} onChange={setBatchValue} options={[
-              { label: "高端", value: "high" }, { label: "中端", value: "mid" }, { label: "低端", value: "low" },
-            ]} />
+            <Select
+              style={{ width: "100%" }}
+              placeholder="选择值"
+              value={batchValue}
+              onChange={setBatchValue}
+              options={[
+                { label: "高端", value: "high" },
+                { label: "中端", value: "mid" },
+                { label: "低端", value: "low" },
+              ]}
+            />
           )}
-          {(batchField === "owner" || !["status", "level", "risk_level", "lifecycle_stage", "authorization_status", "rohs_status", "positioning"].includes(batchField)) && (
-            <Input placeholder="输入值" value={batchValue} onChange={(e) => setBatchValue(e.target.value)} />
+          {(batchField === "owner" ||
+            ![
+              "status",
+              "level",
+              "risk_level",
+              "lifecycle_stage",
+              "authorization_status",
+              "rohs_status",
+              "positioning",
+            ].includes(batchField)) && (
+            <Input
+              placeholder="输入值"
+              value={batchValue}
+              onChange={(e) => setBatchValue(e.target.value)}
+            />
           )}
         </Space>
       </Modal>
@@ -1161,37 +1708,80 @@ export default function BrandList() {
         open={aiPlanOpen}
         onCancel={() => setAiPlanOpen(false)}
         footer={[
-          <Button key="close" onClick={() => setAiPlanOpen(false)}>关闭</Button>,
-          <Button key="risk" onClick={() => { setAiPlanOpen(false); applyScene("high_risk"); }}>查看高风险</Button>,
-          <Button key="eol" type="primary" onClick={() => { setAiPlanOpen(false); applyScene("eol_nrnd"); }}>处理生命周期</Button>,
+          <Button key="close" onClick={() => setAiPlanOpen(false)}>
+            关闭
+          </Button>,
+          <Button
+            key="risk"
+            onClick={() => {
+              setAiPlanOpen(false);
+              applyScene("high_risk");
+            }}
+          >
+            查看高风险
+          </Button>,
+          <Button
+            key="eol"
+            type="primary"
+            onClick={() => {
+              setAiPlanOpen(false);
+              applyScene("eol_nrnd");
+            }}
+          >
+            处理生命周期
+          </Button>,
         ]}
       >
         <Space direction="vertical" style={{ width: "100%" }} size={12}>
-          <Text type="secondary">基于当前选中品牌的风险、完整度、生命周期、授权和产品覆盖自动生成处理队列。</Text>
+          <Text type="secondary">
+            基于当前选中品牌的风险、完整度、生命周期、授权和产品覆盖自动生成处理队列。
+          </Text>
           <div className="brand-ai-plan-grid">
             <div className="brand-ai-plan-item">
-              <Text type="secondary" className="brand-ai-plan-label">选中品牌</Text>
+              <Text type="secondary" className="brand-ai-plan-label">
+                选中品牌
+              </Text>
               <Text strong>{batchAiSummary.total}</Text>
             </div>
             <div className="brand-ai-plan-item">
-              <Text type="secondary" className="brand-ai-plan-label">风险复核</Text>
-              <StatusTag tone={batchAiSummary.highRisk > 0 ? "danger" : "success"}>{batchAiSummary.highRisk}</StatusTag>
+              <Text type="secondary" className="brand-ai-plan-label">
+                风险复核
+              </Text>
+              <StatusTag tone={batchAiSummary.highRisk > 0 ? "danger" : "success"}>
+                {batchAiSummary.highRisk}
+              </StatusTag>
             </div>
             <div className="brand-ai-plan-item">
-              <Text type="secondary" className="brand-ai-plan-label">生命周期处理</Text>
-              <StatusTag tone={batchAiSummary.lifecycleRisk > 0 ? "warning" : "success"}>{batchAiSummary.lifecycleRisk}</StatusTag>
+              <Text type="secondary" className="brand-ai-plan-label">
+                生命周期处理
+              </Text>
+              <StatusTag tone={batchAiSummary.lifecycleRisk > 0 ? "warning" : "success"}>
+                {batchAiSummary.lifecycleRisk}
+              </StatusTag>
             </div>
             <div className="brand-ai-plan-item">
-              <Text type="secondary" className="brand-ai-plan-label">资料补全</Text>
-              <StatusTag tone={batchAiSummary.missingData > 0 ? "processing" : "success"}>{batchAiSummary.missingData}</StatusTag>
+              <Text type="secondary" className="brand-ai-plan-label">
+                资料补全
+              </Text>
+              <StatusTag tone={batchAiSummary.missingData > 0 ? "processing" : "success"}>
+                {batchAiSummary.missingData}
+              </StatusTag>
             </div>
             <div className="brand-ai-plan-item">
-              <Text type="secondary" className="brand-ai-plan-label">铺货规划</Text>
-              <StatusTag tone={batchAiSummary.noProducts > 0 ? "info" : "success"}>{batchAiSummary.noProducts}</StatusTag>
+              <Text type="secondary" className="brand-ai-plan-label">
+                铺货规划
+              </Text>
+              <StatusTag tone={batchAiSummary.noProducts > 0 ? "info" : "success"}>
+                {batchAiSummary.noProducts}
+              </StatusTag>
             </div>
             <div className="brand-ai-plan-item">
-              <Text type="secondary" className="brand-ai-plan-label">授权核验</Text>
-              <StatusTag tone={batchAiSummary.unauthorized > 0 ? "volcano" : "success"}>{batchAiSummary.unauthorized}</StatusTag>
+              <Text type="secondary" className="brand-ai-plan-label">
+                授权核验
+              </Text>
+              <StatusTag tone={batchAiSummary.unauthorized > 0 ? "volcano" : "success"}>
+                {batchAiSummary.unauthorized}
+              </StatusTag>
             </div>
           </div>
           <Alert

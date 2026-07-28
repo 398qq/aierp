@@ -14,12 +14,13 @@ import {
   Row,
   Select,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
   message,
 } from "antd";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import {
@@ -36,7 +37,6 @@ import {
   TeamOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
 import {
   createSupplier,
   getSupplierStats,
@@ -53,13 +53,7 @@ const SUPPLIER_TYPES = ["原厂", "代理商", "贸易商", "OEM", "代工厂", 
 const PAGE_SIZE = 20;
 
 type SupplierTaskKey =
-  | "all"
-  | "factory"
-  | "agency"
-  | "missing_contact"
-  | "missing_profile"
-  | "rated"
-  | "overseas";
+  "all" | "factory" | "agency" | "missing_contact" | "missing_profile" | "rated" | "overseas";
 
 interface SupplierStats {
   total: number;
@@ -147,6 +141,7 @@ const isFormValidationError = (error: unknown) =>
   Boolean(error && typeof error === "object" && "errorFields" in error);
 
 export default function SupplierList() {
+  const actionRef = useRef<ActionType>(null);
   const [data, setData] = useState<Supplier[]>([]);
   const [stats, setStats] = useState<SupplierStats | null>(null);
   const [total, setTotal] = useState(0);
@@ -405,7 +400,7 @@ export default function SupplierList() {
     try {
       await client.delete(`/suppliers/${id}`);
       message.success("已删除");
-      fetch();
+      actionRef.current?.reload();
       fetchStats();
     } catch (e: unknown) {
       message.error(getApiErrorMessage(e, "删除失败"));
@@ -429,7 +424,7 @@ export default function SupplierList() {
     setSelectedRowKeys([]);
     if (failed === 0) message.success(`已删除 ${success} 条`);
     else message.warning(`删除 ${success} 条，失败 ${failed} 条`);
-    fetch();
+    actionRef.current?.reload();
     fetchStats();
   };
 
@@ -475,7 +470,7 @@ export default function SupplierList() {
     message.success("导出成功");
   };
 
-  const columns: ColumnsType<Supplier> = [
+  const columns: ProColumns<Supplier>[] = [
     {
       title: "供应商",
       dataIndex: "name",
@@ -965,12 +960,15 @@ export default function SupplierList() {
           )}
 
           <Card bodyStyle={{ padding: 0 }}>
-            <Table
+            <ProTable
+              actionRef={actionRef}
               rowKey="id"
               columns={columns}
               dataSource={visibleData}
               loading={loading}
-              size="middle"
+              size="small"
+              search={false}
+              options={{ reload: true, density: true, setting: true }}
               rowSelection={{
                 selectedRowKeys,
                 onChange: (keys) => setSelectedRowKeys(keys as number[]),
@@ -986,12 +984,12 @@ export default function SupplierList() {
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无供应商数据" />
                 ),
               }}
-              scroll={{ x: 1260 }}
+              scroll={{ x: "max-content" }}
               pagination={erpPagination({
                 current: page,
                 total: task === "all" ? total : visibleData.length,
                 pageSize,
-                onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+                showQuickJumper: total > pageSize,
               })}
             />
           </Card>
