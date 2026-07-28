@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
-import { Spin } from 'antd';
-import { ProLayout } from '@ant-design/pro-components';
-import { Outlet, Navigate, useLocation } from 'react-router';
-import { useAuthStore } from '@/store/auth';
-import { menuItems } from './menuConfig';
+import { useEffect } from "react";
+import { Spin } from "antd";
+import type { ReactElement } from "react";
+// @ts-expect-error - Outlet/Navigate/useLocation are re-exported from react-router
+// by @umijs/max at runtime, but @umijs/max type definitions do not include them.
+import { Outlet, Navigate, useLocation } from "@umijs/max";
+import { ProLayout, type MenuDataItem } from "@ant-design/pro-components";
+import { useAuthStore } from "@/store/auth";
+import { menuItems } from "./menuConfig";
 
-export default function ErpRouteLayout(): React.JSX.Element {
+export default function ErpRouteLayout(): ReactElement {
   const username = useAuthStore((s) => s.username);
   const loading = useAuthStore((s) => s.loading);
   const init = useAuthStore((s) => s.init);
@@ -16,7 +19,7 @@ export default function ErpRouteLayout(): React.JSX.Element {
   }, [init]);
 
   if (loading) {
-    return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
+    return <Spin size="large" style={{ display: "block", margin: "120px auto" }} />;
   }
   if (!username) {
     return <Navigate to="/login" replace />;
@@ -28,7 +31,7 @@ export default function ErpRouteLayout(): React.JSX.Element {
       title="AIERP"
       logo="/icon-192.png"
       location={location}
-      menuDataRender={() => menuItems as never}
+      menuDataRender={() => menuItems as unknown as MenuDataItem[]}
       contentWidth="Fluid"
       siderWidth={224}
       fixedHeader

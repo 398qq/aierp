@@ -7,7 +7,6 @@ Follows the ERP Operational Screens design (DESIGN.md):
 - `<MoneyCell>` (numeric style with tnum + color) for money columns
 - `<ErrorBoundary>` for page-level failure containment
 - `size="middle"` table with fixed action column
-- Lazy-loaded in App.tsx
 */
 
 import { useRef, useState } from "react";
@@ -15,7 +14,6 @@ import { Button, Drawer, Form, InputNumber, Space, App as AntdApp } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ActionType } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-
 
 import { PageHeader } from "@/ui/PageHeader";
 import { SearchBar } from "@/ui/SearchBar";
@@ -54,7 +52,11 @@ function MoneyCell({ value }: { value: number }) {
   const isNegative = value < 0;
   return (
     <span style={{ ...numericStyle, color: isNegative ? "#ef4444" : "#10b981" }}>
-      {isNegative ? "-" : ""}¥ {Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+      {isNegative ? "-" : ""}¥{" "}
+      {Math.abs(value).toLocaleString("zh-CN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      })}
     </span>
   );
 }
@@ -144,9 +146,7 @@ function CommissionList() {
       dataIndex: "rate",
       width: 80,
       align: "right",
-      render: (v: number) => (
-        <span style={numericStyle}>{(v * 100).toFixed(2)}%</span>
-      ),
+      render: (v: number) => <span style={numericStyle}>{(v * 100).toFixed(2)}%</span>,
     },
     {
       title: "佣金金额",
@@ -174,7 +174,7 @@ function CommissionList() {
       title: "操作",
       width: 220,
       fixed: "right",
-            render: (_: any, row: any) => (
+      render: (_: any, row: any) => (
         <Space size="small">
           {row.status === "draft" && (
             <Button
@@ -205,11 +205,7 @@ function CommissionList() {
             </>
           )}
           {row.status === "approved" && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => void onTransition(row.id, "paid")}
-            >
+            <Button type="link" size="small" onClick={() => void onTransition(row.id, "paid")}>
               标记发放
             </Button>
           )}
@@ -268,13 +264,29 @@ function CommissionList() {
           selectedRowKeys.length > 0
             ? [
                 <span key="count">已选 {selectedRowKeys.length} 条</span>,
-                <Button key="approve" size="small" onClick={() => void onBatchTransition("approved")} loading={batchLoading}>
+                <Button
+                  key="approve"
+                  size="small"
+                  onClick={() => void onBatchTransition("approved")}
+                  loading={batchLoading}
+                >
                   批量审批
                 </Button>,
-                <Button key="reject" size="small" onClick={() => void onBatchTransition("rejected")} loading={batchLoading}>
+                <Button
+                  key="reject"
+                  size="small"
+                  onClick={() => void onBatchTransition("rejected")}
+                  loading={batchLoading}
+                >
                   批量拒绝
                 </Button>,
-                <Button key="pay" size="small" type="primary" onClick={() => void onBatchTransition("paid")} loading={batchLoading}>
+                <Button
+                  key="pay"
+                  size="small"
+                  type="primary"
+                  onClick={() => void onBatchTransition("paid")}
+                  loading={batchLoading}
+                >
                   批量发放
                 </Button>,
                 <Button key="clear" size="small" type="text" onClick={() => setSelectedRowKeys([])}>
@@ -284,11 +296,7 @@ function CommissionList() {
             : []
         }
         locale={{
-          emptyText: (
-            <EmptyState
-              description="还没有佣金记录 — 从已完成的销售订单创建第一条"
-            />
-          ),
+          emptyText: <EmptyState description="还没有佣金记录 — 从已完成的销售订单创建第一条" />,
         }}
       />
       <Drawer

@@ -1,10 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router";
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Statistic, Typography, message } from "antd";
-import { ProTable } from "@ant-design/pro-components";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Alert,
+  Button,
+  Card,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Statistic,
+  Typography,
+  message,
+} from "antd";
+import { ProForm, ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { ArrowLeftOutlined, CalculatorOutlined, DeleteOutlined, FileDoneOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
-import { getProductCustomerCodes, getSalesOrder, createSalesOrder, updateSalesOrder } from "../../api";
+import {
+  ArrowLeftOutlined,
+  CalculatorOutlined,
+  DeleteOutlined,
+  FileDoneOutlined,
+  PlusOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
+import {
+  getProductCustomerCodes,
+  getSalesOrder,
+  createSalesOrder,
+  updateSalesOrder,
+} from "../../api";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { CustomerSelect, ProductSelect, QuotationSelect, SalesModuleShell, money } from "./salesUi";
@@ -43,15 +68,15 @@ export default function SalesOrderForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
   const [loading, setLoading] = useState(false);
   const [originalStatus, setOriginalStatus] = useState("pending");
   const isEdit = !!id;
-  const watchedItems = Form.useWatch("items", form) as OrderItemForm[] | undefined;
-  const watchedTotal = Form.useWatch("total_amount", form) as number | undefined;
-  const watchedStatus = Form.useWatch("status", form) as string | undefined;
-  const watchedDeliveryDate = Form.useWatch("delivery_date", form) as Dayjs | undefined;
-  const watchedCustomerId = Form.useWatch("customer_id", form) as number | undefined;
+  const watchedItems = ProForm.useWatch("items", form) as OrderItemForm[] | undefined;
+  const watchedTotal = ProForm.useWatch("total_amount", form) as number | undefined;
+  const watchedStatus = ProForm.useWatch("status", form) as string | undefined;
+  const watchedDeliveryDate = ProForm.useWatch("delivery_date", form) as Dayjs | undefined;
+  const watchedCustomerId = ProForm.useWatch("customer_id", form) as number | undefined;
 
   const summary = useMemo(() => {
     const items = watchedItems || [];
@@ -108,7 +133,9 @@ export default function SalesOrderForm() {
   };
 
   const onFinish = async (values: Record<string, unknown>) => {
-    const items = ((values.items || []) as OrderItemForm[]).filter((item) => item.product_id || item.product_name);
+    const items = ((values.items || []) as OrderItemForm[]).filter(
+      (item) => item.product_id || item.product_name,
+    );
     if (!items.length) {
       message.warning("至少添加一条产品订单明细");
       return;
@@ -133,28 +160,37 @@ export default function SalesOrderForm() {
       setLoading(false);
       navigate("/sales/orders");
     } catch (err: any) {
-      message.error(err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "保存失败");
+      message.error(
+        err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "保存失败",
+      );
       setLoading(false);
     }
   };
 
-  const deliveryDays = watchedDeliveryDate ? watchedDeliveryDate.startOf("day").diff(dayjs().startOf("day"), "day") : null;
-  const deliveryRisk = deliveryDays == null
-    ? { color: "default", text: "未设置交期", type: "warning" as const }
-    : deliveryDays < 0
-      ? { color: "red", text: `已逾期 ${Math.abs(deliveryDays)} 天`, type: "error" as const }
-      : deliveryDays <= 3
-        ? { color: "orange", text: `${deliveryDays} 天内交付`, type: "warning" as const }
-        : { color: "blue", text: `${deliveryDays} 天后交付`, type: "info" as const };
+  const deliveryDays = watchedDeliveryDate
+    ? watchedDeliveryDate.startOf("day").diff(dayjs().startOf("day"), "day")
+    : null;
+  const deliveryRisk =
+    deliveryDays == null
+      ? { color: "default", text: "未设置交期", type: "warning" as const }
+      : deliveryDays < 0
+        ? { color: "red", text: `已逾期 ${Math.abs(deliveryDays)} 天`, type: "error" as const }
+        : deliveryDays <= 3
+          ? { color: "orange", text: `${deliveryDays} 天内交付`, type: "warning" as const }
+          : { color: "blue", text: `${deliveryDays} 天后交付`, type: "info" as const };
 
   return (
     <SalesModuleShell
       title={isEdit ? "编辑销售订单" : "新增销售订单"}
       subtitle="按 ERP 单据录入订单抬头、产品明细、交付计划和执行状态"
       activeKey="orders"
-      extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/orders")}>返回</Button>}
+      extra={
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/sales/orders")}>
+          返回
+        </Button>
+      }
     >
-      <Form
+      <ProForm
         form={form}
         layout="vertical"
         onFinish={onFinish}
@@ -167,26 +203,43 @@ export default function SalesOrderForm() {
           delivery_date: dayjs().add(7, "day"),
         }}
       >
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) 320px",
+            gap: 16,
+            alignItems: "start",
+          }}
+        >
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
             <Card
               size="small"
-              title={<span style={sectionTitleStyle}><FileDoneOutlined /> 单据抬头</span>}
+              title={
+                <span style={sectionTitleStyle}>
+                  <FileDoneOutlined /> 单据抬头
+                </span>
+              }
               extra={<StatusTag tone="processing">销售订单</StatusTag>}
               style={{ borderColor: "#d9e2ec" }}
             >
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 16,
-                paddingBottom: 12,
-                marginBottom: 12,
-                borderBottom: "1px solid #eef2f7",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 16,
+                  paddingBottom: 12,
+                  marginBottom: 12,
+                  borderBottom: "1px solid #eef2f7",
+                }}
+              >
                 <div>
-                  <Typography.Title level={4} style={{ margin: 0 }}>销售订单</Typography.Title>
-                  <Typography.Text type="secondary">客户、来源报价、订单号、日期和交期在抬头集中维护</Typography.Text>
+                  <Typography.Title level={4} style={{ margin: 0 }}>
+                    销售订单
+                  </Typography.Title>
+                  <Typography.Text type="secondary">
+                    客户、来源报价、订单号、日期和交期在抬头集中维护
+                  </Typography.Text>
                 </div>
                 <Space wrap>
                   <StatusTag tone="info">订单执行</StatusTag>
@@ -195,49 +248,74 @@ export default function SalesOrderForm() {
               </div>
 
               <div style={compactFormGrid}>
-                <Form.Item name="customer_id" label="客户" rules={[{ required: true, message: "请选择客户" }]}>
+                <ProForm.Item
+                  name="customer_id"
+                  label="客户"
+                  rules={[{ required: true, message: "请选择客户" }]}
+                >
                   <CustomerSelect />
-                </Form.Item>
-                <Form.Item name="quotation_id" label="来源报价">
+                </ProForm.Item>
+                <ProForm.Item name="quotation_id" label="来源报价">
                   <QuotationSelect customerId={watchedCustomerId} />
-                </Form.Item>
-                <Form.Item name="order_no" label="订单号">
+                </ProForm.Item>
+                <ProForm.Item name="order_no" label="订单号">
                   <Input placeholder="系统自动生成 / 手工编号" />
-                </Form.Item>
-                <Form.Item name="status" label="执行状态">
+                </ProForm.Item>
+                <ProForm.Item name="status" label="执行状态">
                   <Select options={getSalesOrderStatusOptions(originalStatus, isEdit)} />
-                </Form.Item>
-                <Form.Item name="order_date" label="下单日期">
+                </ProForm.Item>
+                <ProForm.Item name="order_date" label="下单日期">
                   <DatePicker style={{ width: "100%" }} />
-                </Form.Item>
-                <Form.Item
+                </ProForm.Item>
+                <ProForm.Item
                   name="delivery_date"
                   label="预计交货"
-                  rules={[{
-                    validator: (_, value: Dayjs | null) => {
-                      const orderDate = form.getFieldValue("order_date") as Dayjs | null;
-                      if (!value || !orderDate || value.endOf("day").isAfter(orderDate.startOf("day"))) return Promise.resolve();
-                      return Promise.reject(new Error("预计交货不能早于下单日期"));
+                  rules={[
+                    {
+                      validator: (_: unknown, value: Dayjs | null) => {
+                        const orderDate = form.getFieldValue("order_date") as Dayjs | null;
+                        if (
+                          !value ||
+                          !orderDate ||
+                          value.endOf("day").isAfter(orderDate.startOf("day"))
+                        )
+                          return Promise.resolve();
+                        return Promise.reject(new Error("预计交货不能早于下单日期"));
+                      },
                     },
-                  }]}
+                  ]}
                 >
                   <DatePicker style={{ width: "100%" }} />
-                </Form.Item>
+                </ProForm.Item>
               </div>
             </Card>
 
             <Card
               size="small"
-              title={<span style={sectionTitleStyle}><CalculatorOutlined /> 订单明细</span>}
-              extra={(
+              title={
+                <span style={sectionTitleStyle}>
+                  <CalculatorOutlined /> 订单明细
+                </span>
+              }
+              extra={
                 <Space size={8}>
-                  <StatusTag tone={summary.itemCount > 0 ? "info" : "danger"}>{summary.itemCount} 行</StatusTag>
+                  <StatusTag tone={summary.itemCount > 0 ? "info" : "danger"}>
+                    {summary.itemCount} 行
+                  </StatusTag>
                   <StatusTag>数量 {summary.quantity}</StatusTag>
                 </Space>
-              )}
+              }
               style={{ borderColor: "#d9e2ec" }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginBottom: 12,
+                  flexWrap: "wrap",
+                }}
+              >
                 <Typography.Text type="secondary">
                   明细行自动计算订单金额；确认订单后将进入库存锁定、发货、开票和回款链路。
                 </Typography.Text>
@@ -246,7 +324,9 @@ export default function SalesOrderForm() {
               <Form.List name="items">
                 {(fields, { add, remove }) => (
                   <>
-                    <ProTable search={false} options={false}
+                    <ProTable
+                      search={false}
+                      options={false}
                       rowKey="key"
                       size="small"
                       bordered
@@ -277,15 +357,17 @@ export default function SalesOrderForm() {
                           width: 340,
                           render: (_: unknown, field) => (
                             <>
-                              <Form.Item name={[field.name, "product_name"]} hidden />
-                              <Form.Item
+                              <ProForm.Item name={[field.name, "product_name"]} hidden />
+                              <ProForm.Item
                                 name={[field.name, "product_id"]}
                                 rules={[{ required: true, message: "请选择产品" }]}
                                 style={{ marginBottom: 0 }}
                               >
                                 <ProductSelect
                                   onProductPicked={(product) => {
-                                    const items = [...(form.getFieldValue("items") || [])] as OrderItemForm[];
+                                    const items = [
+                                      ...(form.getFieldValue("items") || []),
+                                    ] as OrderItemForm[];
                                     const current = items[field.name] || {};
                                     items[field.name] = {
                                       ...current,
@@ -296,27 +378,40 @@ export default function SalesOrderForm() {
                                     form.setFieldValue("items", items);
                                     syncLineTotals();
                                     const customerId = Number(form.getFieldValue("customer_id"));
-                                    if (customerId) void getProductCustomerCodes(product.id).then((response) => {
-                                      const mapping = response.data.data.find((link) => link.customer_id === customerId && link.is_active);
-                                      if (!mapping) return;
-                                      const currentItems = [...(form.getFieldValue("items") || [])] as OrderItemForm[];
-                                      currentItems[field.name] = {
-                                        ...currentItems[field.name],
-                                        customer_part_no: currentItems[field.name]?.customer_part_no || mapping.customer_part_no,
-                                        customer_product_name: currentItems[field.name]?.customer_product_name || mapping.customer_product_name || undefined,
-                                      };
-                                      form.setFieldValue("items", currentItems);
-                                    }).catch(() => {});
+                                    if (customerId)
+                                      void getProductCustomerCodes(product.id)
+                                        .then((response) => {
+                                          const mapping = response.data.data.find(
+                                            (link) =>
+                                              link.customer_id === customerId && link.is_active,
+                                          );
+                                          if (!mapping) return;
+                                          const currentItems = [
+                                            ...(form.getFieldValue("items") || []),
+                                          ] as OrderItemForm[];
+                                          currentItems[field.name] = {
+                                            ...currentItems[field.name],
+                                            customer_part_no:
+                                              currentItems[field.name]?.customer_part_no ||
+                                              mapping.customer_part_no,
+                                            customer_product_name:
+                                              currentItems[field.name]?.customer_product_name ||
+                                              mapping.customer_product_name ||
+                                              undefined,
+                                          };
+                                          form.setFieldValue("items", currentItems);
+                                        })
+                                        .catch(() => {});
                                   }}
                                 />
-                              </Form.Item>
+                              </ProForm.Item>
                               <Space.Compact block style={{ marginTop: 6 }}>
-                                <Form.Item name={[field.name, "customer_part_no"]} noStyle>
+                                <ProForm.Item name={[field.name, "customer_part_no"]} noStyle>
                                   <Input placeholder="客户料号（自动带出，可调整）" />
-                                </Form.Item>
-                                <Form.Item name={[field.name, "customer_product_name"]} noStyle>
+                                </ProForm.Item>
+                                <ProForm.Item name={[field.name, "customer_product_name"]} noStyle>
                                   <Input placeholder="客户品名" />
-                                </Form.Item>
+                                </ProForm.Item>
                               </Space.Compact>
                             </>
                           ),
@@ -325,48 +420,77 @@ export default function SalesOrderForm() {
                           title: "数量",
                           width: 120,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "quantity"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item name={[field.name, "quantity"]} style={{ marginBottom: 0 }}>
                               <InputNumber min={1} precision={0} style={{ width: "100%" }} />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "销售单价",
                           width: 150,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "unit_price"]} style={{ marginBottom: 0 }}>
-                              <InputNumber min={0} precision={4} prefix="¥" style={{ width: "100%" }} />
-                            </Form.Item>
+                            <ProForm.Item
+                              name={[field.name, "unit_price"]}
+                              style={{ marginBottom: 0 }}
+                            >
+                              <InputNumber
+                                min={0}
+                                precision={4}
+                                prefix="¥"
+                                style={{ width: "100%" }}
+                              />
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "订单金额",
                           width: 150,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "total_price"]} style={{ marginBottom: 0 }}>
-                              <InputNumber disabled precision={2} prefix="¥" style={{ width: "100%" }} />
-                            </Form.Item>
+                            <ProForm.Item
+                              name={[field.name, "total_price"]}
+                              style={{ marginBottom: 0 }}
+                            >
+                              <InputNumber
+                                disabled
+                                precision={2}
+                                prefix="¥"
+                                style={{ width: "100%" }}
+                              />
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "交付备注",
                           width: 260,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "notes"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item name={[field.name, "notes"]} style={{ marginBottom: 0 }}>
                               <Input placeholder="批次 / 交期 / 包装等交付说明" />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "",
                           width: 54,
                           render: (_: unknown, field) => (
-                            <Button danger type="text" icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                            <Button
+                              danger
+                              type="text"
+                              icon={<DeleteOutlined />}
+                              onClick={() => remove(field.name)}
+                            />
                           ),
                         },
                       ]}
                     />
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                        marginTop: 12,
+                      }}
+                    >
                       <Button
                         type="dashed"
                         icon={<PlusOutlined />}
@@ -388,13 +512,20 @@ export default function SalesOrderForm() {
               title={<span style={sectionTitleStyle}>交付条款与备注</span>}
               style={{ borderColor: "#d9e2ec" }}
             >
-              <Form.Item name="notes" label="订单备注">
-                <Input.TextArea rows={5} placeholder="客户 PO 号、交付批次、付款条件、发货要求、特殊包装或验收说明" />
-              </Form.Item>
+              <ProForm.Item name="notes" label="订单备注">
+                <Input.TextArea
+                  rows={5}
+                  placeholder="客户 PO 号、交付批次、付款条件、发货要求、特殊包装或验收说明"
+                />
+              </ProForm.Item>
             </Card>
           </Space>
 
-          <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
+          <Space
+            direction="vertical"
+            size={12}
+            style={{ width: "100%", position: "sticky", top: 8 }}
+          >
             <Card
               size="small"
               title="单据控制台"
@@ -414,7 +545,16 @@ export default function SalesOrderForm() {
                   </div>
                   <div>
                     <div style={labelTextStyle}>执行状态</div>
-                    <StatusTag tone={watchedStatus === "confirmed" ? "info" : watchedStatus === "cancelled" ? "danger" : "neutral"} style={{ margin: 0 }}>
+                    <StatusTag
+                      tone={
+                        watchedStatus === "confirmed"
+                          ? "info"
+                          : watchedStatus === "cancelled"
+                            ? "danger"
+                            : "neutral"
+                      }
+                      style={{ margin: 0 }}
+                    >
                       {SALES_ORDER_STATUS_LABELS[watchedStatus || ""] || watchedStatus || "待确认"}
                     </StatusTag>
                   </div>
@@ -423,9 +563,9 @@ export default function SalesOrderForm() {
                     <Typography.Text strong>{deliveryRisk.text}</Typography.Text>
                   </div>
                 </div>
-                <Form.Item name="total_amount" hidden>
+                <ProForm.Item name="total_amount" hidden>
                   <InputNumber />
-                </Form.Item>
+                </ProForm.Item>
                 <Alert
                   showIcon
                   type={summary.itemCount > 0 ? deliveryRisk.type : "warning"}
@@ -441,10 +581,18 @@ export default function SalesOrderForm() {
             </Card>
             <Card size="small">
               <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                <Button block type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
+                <Button
+                  block
+                  type="primary"
+                  htmlType="submit"
+                  icon={<SaveOutlined />}
+                  loading={loading}
+                >
                   {isEdit ? "保存单据" : "创建单据"}
                 </Button>
-                <Button block onClick={() => navigate("/sales/orders")}>取消</Button>
+                <Button block onClick={() => navigate("/sales/orders")}>
+                  取消
+                </Button>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   订单确认后建议在详情页执行库存锁定，再转发货单推进交付。
                 </Typography.Text>
@@ -452,7 +600,7 @@ export default function SalesOrderForm() {
             </Card>
           </Space>
         </div>
-      </Form>
+      </ProForm>
     </SalesModuleShell>
   );
 }

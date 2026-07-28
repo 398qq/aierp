@@ -1,15 +1,23 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
-import { Alert, Button, Card, Col, Row, Spin, Tabs, Typography, message } from "antd";
+import { useNavigate, useParams } from "react-router-dom";
 import {
-  ProForm,
-  ProFormSelect,
-  ProFormText,
-  ProFormDigit,
-  ProFormSwitch,
-  ProFormTextArea,
-} from "@ant-design/pro-components";
+  Alert,
+  Button,
+  Card,
+  Col,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Switch,
+  Tabs,
+  Typography,
+  message,
+} from "antd";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
+import { ProForm, ProFormItem } from "@ant-design/pro-components";
 import { getBrand, getApiErrorMessage, updateBrand } from "../../api";
 import type { Brand } from "../../types";
 
@@ -45,15 +53,11 @@ const ROHS_OPTIONS = [
   { label: "豁免", value: "exempt" },
   { label: "未知", value: "unknown" },
 ];
-const POSITIONING_OPTIONS = [
-  { label: "高端", value: "high" },
-  { label: "中端", value: "mid" },
-  { label: "低端", value: "low" },
-];
 
-export default function BrandEdit(): React.JSX.Element {
+export default function BrandEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [form] = ProForm.useForm();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -68,10 +72,25 @@ export default function BrandEdit(): React.JSX.Element {
       .then((response) => {
         const data = response.data.data as Brand;
         setBrand(data);
+        form.setFieldsValue(data);
       })
       .catch((error: unknown) => message.error(getApiErrorMessage(error, "加载品牌失败")))
       .finally(() => setLoading(false));
-  }, [brandId]);
+  }, [brandId, form]);
+
+  const handleSave = async (values: Record<string, unknown>) => {
+    if (!brandId) return;
+    setSaving(true);
+    try {
+      await updateBrand(brandId, values);
+      message.success("更新成功");
+      navigate(`/brands/${brandId}`);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "更新品牌失败"));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <Spin style={{ margin: 40 }} />;
   if (!brand) return <Alert type="error" message="品牌未找到" showIcon />;
@@ -86,38 +105,19 @@ export default function BrandEdit(): React.JSX.Element {
           编辑品牌主数据
         </Typography.Title>
       </Space>
-      <Card title={`${brand.name} · 主数据维护`}>
-        <ProForm<Brand>
-          layout="vertical"
-          initialValues={brand as unknown as Record<string, unknown>}
-          onFinish={async (values) => {
-            setSaving(true);
-            try {
-              await updateBrand(brandId, values as unknown as Brand);
-              message.success("更新成功");
-              navigate(`/brands/${brandId}`);
-            } catch (error: unknown) {
-              message.error(getApiErrorMessage(error, "更新品牌失败"));
-            } finally {
-              setSaving(false);
-            }
-          }}
-          submitter={{
-            render: () => [
-              <Button key="cancel" onClick={() => navigate(`/brands/${brandId}`)}>
-                取消
-              </Button>,
-              <Button
-                key="submit"
-                type="primary"
-                icon={<SaveOutlined />}
-                loading={saving}
-                htmlType="submit"
-              >
-                保存
-              </Button>,
-            ],
-          }}
+      <ProForm form={form} layout="vertical" onFinish={handleSave}>
+        <Card
+          title={`${brand.name} · 主数据维护`}
+          extra={
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving}
+              onClick={() => form.submit()}
+            >
+              保存
+            </Button>
+          }
         >
           <Tabs
             items={[
@@ -127,43 +127,58 @@ export default function BrandEdit(): React.JSX.Element {
                 children: (
                   <Row gutter={16}>
                     <Col xs={24} md={8}>
-                      <ProFormText name="code" label="品牌编码" placeholder="唯一编码" />
+                      <ProFormItem name="code" label="品牌编码">
+                        <Input placeholder="唯一编码" />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={16}>
-                      <ProFormText
+                      <ProFormItem
                         name="name"
                         label="品牌名称"
                         rules={[{ required: true, message: "请输入品牌名称" }]}
-                      />
+                      >
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={12}>
-                      <ProFormText name="name_cn" label="中文名" />
+                      <ProFormItem name="name_cn" label="中文名">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={12}>
-                      <ProFormText name="short_name" label="简称" />
+                      <ProFormItem name="short_name" label="简称">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormSelect name="status" label="状态" options={STATUS_OPTIONS} />
+                      <ProFormItem name="status" label="状态">
+                        <Select options={STATUS_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormSelect
-                        name="brand_type"
-                        label="类型"
-                        allowClear
-                        options={TYPE_OPTIONS}
-                      />
+                      <ProFormItem name="brand_type" label="类型">
+                        <Select allowClear options={TYPE_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormText name="category" label="分类" />
+                      <ProFormItem name="category" label="分类">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col span={24}>
-                      <ProFormText name="logo" label="Logo URL" />
+                      <ProFormItem name="logo" label="Logo URL">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col span={24}>
-                      <ProFormTextArea name="description" label="品牌介绍" rows={3} />
+                      <ProFormItem name="description" label="品牌介绍">
+                        <Input.TextArea rows={3} />
+                      </ProFormItem>
                     </Col>
                     <Col span={24}>
-                      <ProFormTextArea name="notes" label="备注" rows={3} />
+                      <ProFormItem name="notes" label="备注">
+                        <Input.TextArea rows={3} />
+                      </ProFormItem>
                     </Col>
                   </Row>
                 ),
@@ -174,32 +189,41 @@ export default function BrandEdit(): React.JSX.Element {
                 children: (
                   <Row gutter={16}>
                     <Col xs={24} md={8}>
-                      <ProFormSelect
-                        name="level"
-                        label="品牌等级"
-                        allowClear
-                        options={LEVEL_OPTIONS}
-                      />
+                      <ProFormItem name="level" label="品牌等级">
+                        <Select allowClear options={LEVEL_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormSelect
-                        name="positioning"
-                        label="品牌定位"
-                        allowClear
-                        options={POSITIONING_OPTIONS}
-                      />
+                      <ProFormItem name="positioning" label="品牌定位">
+                        <Select
+                          allowClear
+                          options={[
+                            { label: "高端", value: "high" },
+                            { label: "中端", value: "mid" },
+                            { label: "低端", value: "low" },
+                          ]}
+                        />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormText name="owner" label="负责人" />
+                      <ProFormItem name="owner" label="负责人">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={12}>
-                      <ProFormTextArea name="product_lines" label="产品线" rows={3} />
+                      <ProFormItem name="product_lines" label="产品线">
+                        <Input.TextArea rows={3} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={12}>
-                      <ProFormTextArea name="target_markets" label="目标市场" rows={3} />
+                      <ProFormItem name="target_markets" label="目标市场">
+                        <Input.TextArea rows={3} />
+                      </ProFormItem>
                     </Col>
                     <Col span={24}>
-                      <ProFormText name="website" label="官网" />
+                      <ProFormItem name="website" label="官网">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                   </Row>
                 ),
@@ -210,66 +234,49 @@ export default function BrandEdit(): React.JSX.Element {
                 children: (
                   <Row gutter={16}>
                     <Col xs={24} md={12}>
-                      <ProFormText name="manufacturer_name" label="原厂名称" />
+                      <ProFormItem name="manufacturer_name" label="原厂名称">
+                        <Input />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={12}>
-                      <ProFormDigit
-                        name="supplier_id"
-                        label="关联供应商"
-                        min={1}
-                        fieldProps={{ style: { width: "100%" } }}
-                      />
+                      <ProFormItem name="supplier_id" label="关联供应商">
+                        <InputNumber min={1} style={{ width: "100%" }} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormSelect
-                        name="authorization_status"
-                        label="授权状态"
-                        allowClear
-                        options={AUTH_OPTIONS}
-                      />
+                      <ProFormItem name="authorization_status" label="授权状态">
+                        <Select allowClear options={AUTH_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormSelect
-                        name="lifecycle_stage"
-                        label="生命周期"
-                        allowClear
-                        options={LIFECYCLE_OPTIONS}
-                      />
+                      <ProFormItem name="lifecycle_stage" label="生命周期">
+                        <Select allowClear options={LIFECYCLE_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormSwitch name="is_automotive" label="车规" />
+                      <ProFormItem name="is_automotive" label="车规" valuePropName="checked">
+                        <Switch />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={6}>
-                      <ProFormDigit
-                        name="moq"
-                        label="MOQ"
-                        min={0}
-                        fieldProps={{ style: { width: "100%" } }}
-                      />
+                      <ProFormItem name="moq" label="MOQ">
+                        <InputNumber min={0} style={{ width: "100%" }} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={6}>
-                      <ProFormDigit
-                        name="lead_time_days"
-                        label="交期（天）"
-                        min={0}
-                        fieldProps={{ style: { width: "100%" } }}
-                      />
+                      <ProFormItem name="lead_time_days" label="交期（天）">
+                        <InputNumber min={0} style={{ width: "100%" }} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={6}>
-                      <ProFormSelect
-                        name="risk_level"
-                        label="风险等级"
-                        allowClear
-                        options={RISK_OPTIONS}
-                      />
+                      <ProFormItem name="risk_level" label="风险等级">
+                        <Select allowClear options={RISK_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={6}>
-                      <ProFormSelect
-                        name="rohs_status"
-                        label="RoHS"
-                        allowClear
-                        options={ROHS_OPTIONS}
-                      />
+                      <ProFormItem name="rohs_status" label="RoHS">
+                        <Select allowClear options={ROHS_OPTIONS} />
+                      </ProFormItem>
                     </Col>
                   </Row>
                 ),
@@ -280,27 +287,33 @@ export default function BrandEdit(): React.JSX.Element {
                 children: (
                   <Row gutter={16}>
                     <Col span={24}>
-                      <ProFormTextArea name="ai_keywords" label="AI 关键词" rows={3} />
+                      <ProFormItem name="ai_keywords" label="AI 关键词">
+                        <Input.TextArea rows={3} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={8}>
-                      <ProFormDigit
-                        name="risk_score"
-                        label="风险评分"
-                        min={0}
-                        max={100}
-                        fieldProps={{ style: { width: "100%" } }}
-                      />
+                      <ProFormItem name="risk_score" label="风险评分">
+                        <InputNumber min={0} max={100} style={{ width: "100%" }} />
+                      </ProFormItem>
                     </Col>
                     <Col xs={24} md={16}>
-                      <ProFormTextArea name="alternative_brands" label="替代品牌" rows={3} />
+                      <ProFormItem name="alternative_brands" label="替代品牌">
+                        <Input.TextArea rows={3} />
+                      </ProFormItem>
                     </Col>
                   </Row>
                 ),
               },
             ]}
           />
-        </ProForm>
-      </Card>
+          <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+            <Button onClick={() => navigate(`/brands/${brandId}`)}>取消</Button>
+            <Button type="primary" icon={<SaveOutlined />} loading={saving} htmlType="submit">
+              保存
+            </Button>
+          </Space>
+        </Card>
+      </ProForm>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Button, Dropdown, Form, InputNumber, Modal, Select, Space, Typography, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ActionType } from "@ant-design/pro-components";

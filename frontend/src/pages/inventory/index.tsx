@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Table,
   message,
@@ -22,7 +22,8 @@ import {
   ShoppingCartOutlined,
   DownloadOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import {
   getInventory,
   getInventoryOverview,
@@ -61,6 +62,7 @@ export default function InventoryList() {
   const [restocking, setRestocking] = useState(false);
   const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
   const navigate = useNavigate();
+  const actionRef = useRef<ActionType | null>(null);
 
   const fetch = async (p = page) => {
     setLoading(true);
@@ -81,6 +83,9 @@ export default function InventoryList() {
 
   useEffect(() => {
     fetch();
+    return () => {
+      actionRef.current?.reload();
+    };
   }, [page, pageSize]);
 
   useEffect(() => {
@@ -229,7 +234,7 @@ export default function InventoryList() {
     }
   };
 
-  const columns: ColumnsType<InventoryItem> = [
+  const columns: ProColumns<InventoryItem>[] = [
     {
       title: "仓库",
       dataIndex: "warehouse_name",
@@ -274,10 +279,10 @@ export default function InventoryList() {
       dataIndex: "sku",
       key: "sku",
       width: 100,
-      render: (v: string) =>
+      render: (v: unknown) =>
         v ? (
           <span style={{ fontFamily: "var(--nb-font-mono)", fontSize: "0.8rem", fontWeight: 700 }}>
-            {v}
+            {v as React.ReactNode}
           </span>
         ) : null,
     },
@@ -294,9 +299,9 @@ export default function InventoryList() {
       dataIndex: "quantity",
       key: "qty",
       width: 60,
-      render: (v: number) => (
+      render: (v: unknown) => (
         <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900, fontSize: "0.9rem" }}>
-          {v}
+          {v as React.ReactNode}
         </span>
       ),
     },
@@ -305,12 +310,14 @@ export default function InventoryList() {
       dataIndex: "locked_quantity",
       key: "locked",
       width: 50,
-      render: (v: number) =>
-        v > 0 ? (
-          <span className="nb-tag nb-tag--warning">{v}</span>
+      render: (v: unknown) => {
+        const num = Number(v);
+        return num > 0 ? (
+          <span className="nb-tag nb-tag--warning">{v as React.ReactNode}</span>
         ) : (
           <Text type="secondary">0</Text>
-        ),
+        );
+      },
     },
     {
       title: "可用",
@@ -337,7 +344,7 @@ export default function InventoryList() {
       dataIndex: "safety_stock",
       key: "safe",
       width: 70,
-      render: (v: number) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v}</span>,
+      render: (v: unknown) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v as React.ReactNode}</span>,
     },
     {
       title: "库存水位",
@@ -526,17 +533,20 @@ export default function InventoryList() {
             <button className="nb-btn nb-btn--small" onClick={handleBatchExport}>
               <DownloadOutlined /> 全部导出
             </button>
-            <button className="nb-btn nb-btn--small" onClick={() => fetch()}>
+            <button className="nb-btn nb-btn--small" onClick={() => { actionRef.current?.reload(); fetch(); }}>
               <ReloadOutlined /> 刷新
             </button>
           </Space>
         </div>
-        <Table
+        <ProTable
+          actionRef={actionRef}
           rowKey="id"
-          columns={columns}
+          columns={columns as ProColumns<InventoryItem>[]}
           dataSource={data}
           loading={loading}
           size="small"
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
@@ -545,7 +555,10 @@ export default function InventoryList() {
             current: page,
             total,
             pageSize,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+            onChange: (p, ps) => {
+              setPage(ps !== pageSize ? 1 : p);
+              setPageSize(ps);
+            },
           })}
         />
       </div>
@@ -560,9 +573,9 @@ export default function InventoryList() {
         {forecastLoading ? (
           <div className="nb-empty">LOADING...</div>
         ) : forecastData.length > 0 ? (
-          <Table
+          <Table<Record<string, unknown>>
             size="small"
-            dataSource={forecastData as Record<string, unknown>[]}
+            dataSource={forecastData}
             rowKey="product_id"
             pagination={false}
             columns={[
@@ -571,8 +584,10 @@ export default function InventoryList() {
                 dataIndex: "sku",
                 width: 100,
                 ellipsis: true,
-                render: (v: string) => (
-                  <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 700 }}>{v}</span>
+                render: (v: unknown) => (
+                  <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 700 }}>
+                    {v as React.ReactNode}
+                  </span>
                 ),
               },
               { title: "产品名", dataIndex: "name", ellipsis: true },
@@ -580,10 +595,10 @@ export default function InventoryList() {
                 title: "月预测需求",
                 dataIndex: "monthly_forecast",
                 width: 110,
-                render: (v: number) =>
+                render: (v: unknown) =>
                   v != null ? (
                     <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900 }}>
-                      {v.toFixed(0)}
+                      {Number(v).toFixed(0)}
                     </span>
                   ) : (
                     "-"
@@ -609,7 +624,7 @@ export default function InventoryList() {
                 title: "安全库存",
                 dataIndex: "suggested_safety_stock",
                 width: 90,
-                render: (v: number, r: Record<string, unknown>) => {
+                render: (v: unknown, r: Record<string, unknown>) => {
                   const current = Number(r.current_safety_stock) || 0;
                   const suggested = Number(v) || 0;
                   const gap = suggested - current;

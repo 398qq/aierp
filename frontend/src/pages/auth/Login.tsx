@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Form, Input, App as AntdApp } from "antd";
 import { useAuthStore } from "../../store/auth";
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
   Button,
@@ -19,6 +19,7 @@ import {
   message,
 } from "antd";
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
+import { ProForm, ProFormItem } from "@ant-design/pro-components";
 import { UomSelect } from "../../ui";
 import client from "../../api/client";
 import { getApiErrorMessage, getBrands, getProduct, getWarehouses, updateProduct } from "../../api";
@@ -70,8 +71,8 @@ export default function ProductEdit() {
   const { id } = useParams<{ id: string }>();
   const productId = Number(id);
   const navigate = useNavigate();
-  const [form] = Form.useForm();
-  const status = Form.useWatch("status", form) as string | undefined;
+  const [form] = ProForm.useForm();
+  const status = ProForm.useWatch("status", form) as string | undefined;
   const [product, setProduct] = useState<Product | null>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -180,55 +181,55 @@ export default function ProductEdit() {
         />
       ) : null}
 
-      <Form form={form} layout="vertical" onFinish={handleSave} requiredMark="optional">
+      <ProForm form={form} layout="vertical" onFinish={handleSave}>
         <Card size="small" title="基础标识">
           <Row gutter={16}>
             <Col xs={24} md={12}>
-              <Form.Item
+              <ProFormItem
                 name="name"
                 label="产品名称"
                 rules={[{ required: true, message: "请输入产品名称" }]}
               >
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="sku" label="SKU / 料号">
+              <ProFormItem name="sku" label="SKU / 料号">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="mpn" label="MPN">
+              <ProFormItem name="mpn" label="MPN">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="barcode" label="条码">
+              <ProFormItem name="barcode" label="条码">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="datecode" label="生产日期">
+              <ProFormItem name="datecode" label="生产日期">
                 <Input placeholder="如 2026-07-16 / 2026W18" />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="status" label="产品状态">
+              <ProFormItem name="status" label="产品状态">
                 <Select options={statusOptions} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="product_type" label="产品类型">
+              <ProFormItem name="product_type" label="产品类型">
                 <Select options={productTypeOptions} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="owner" label="产品负责人">
+              <ProFormItem name="owner" label="产品负责人">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="brand_id" label="品牌">
+              <ProFormItem name="brand_id" label="品牌">
                 <Select
                   allowClear
                   showSearch
@@ -238,17 +239,17 @@ export default function ProductEdit() {
                     label: getBrandSelectLabel(brand),
                   }))}
                 />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="category" label="分类">
+              <ProFormItem name="category" label="分类">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="unit" label="单位">
+              <ProFormItem name="unit" label="单位">
                 <UomSelect uomType="count" />
-              </Form.Item>
+              </ProFormItem>
             </Col>
           </Row>
         </Card>
@@ -256,39 +257,39 @@ export default function ProductEdit() {
         <Card size="small" title="技术参数">
           <Row gutter={16}>
             <Col xs={24} md={8}>
-              <Form.Item name="package_type" label="封装">
+              <ProFormItem name="package_type" label="封装">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="package_case" label="封装尺寸">
+              <ProFormItem name="package_case" label="封装尺寸">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="pin_count" label="针脚数">
+              <ProFormItem name="pin_count" label="针脚数">
                 <InputNumber min={0} precision={0} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="voltage_rating" label="额定电压">
+              <ProFormItem name="voltage_rating" label="额定电压">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="tolerance_pct" label="容差">
+              <ProFormItem name="tolerance_pct" label="容差">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="temperature_range" label="温度范围">
+              <ProFormItem name="temperature_range" label="温度范围">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="power_rating" label="额定功率">
+              <ProFormItem name="power_rating" label="额定功率">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
           </Row>
           <Form.List name="spec_parameters">
@@ -304,24 +305,24 @@ export default function ProductEdit() {
                   fields.map((field) => (
                     <Row key={field.key} gutter={12} align="middle" className="product-spec-row">
                       <Col xs={24} md={8}>
-                        <Form.Item
+                        <ProFormItem
                           {...field}
                           name={[field.name, "name"]}
                           label="参数名称"
                           rules={[{ required: true, message: "请输入参数名称" }]}
                         >
                           <Input placeholder="如 工作电压" />
-                        </Form.Item>
+                        </ProFormItem>
                       </Col>
                       <Col xs={21} md={14}>
-                        <Form.Item
+                        <ProFormItem
                           {...field}
                           name={[field.name, "value"]}
                           label="参数值"
                           rules={[{ required: true, message: "请输入参数值" }]}
                         >
                           <Input placeholder="如 2.7V～3.6V" />
-                        </Form.Item>
+                        </ProFormItem>
                       </Col>
                       <Col xs={3} md={2}>
                         <Button
@@ -348,7 +349,7 @@ export default function ProductEdit() {
         <Card size="small" title="库存控制">
           <Row gutter={16} align="middle">
             <Col xs={24} md={10}>
-              <Form.Item name="default_warehouse_id" label="默认仓库">
+              <ProFormItem name="default_warehouse_id" label="默认仓库">
                 <Select
                   allowClear
                   showSearch
@@ -358,19 +359,19 @@ export default function ProductEdit() {
                     label: `${warehouse.name}${warehouse.location ? ` · ${warehouse.location}` : ""}`,
                   }))}
                 />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={14}>
               <Space wrap size={20}>
-                <Form.Item name="batch_control" valuePropName="checked">
+                <ProFormItem name="batch_control" valuePropName="checked">
                   <Checkbox>启用批次管理</Checkbox>
-                </Form.Item>
-                <Form.Item name="serial_control" valuePropName="checked">
+                </ProFormItem>
+                <ProFormItem name="serial_control" valuePropName="checked">
                   <Checkbox>启用序列号管理</Checkbox>
-                </Form.Item>
-                <Form.Item name="shelf_life_control" valuePropName="checked">
+                </ProFormItem>
+                <ProFormItem name="shelf_life_control" valuePropName="checked">
                   <Checkbox>启用保质期管理</Checkbox>
-                </Form.Item>
+                </ProFormItem>
               </Space>
             </Col>
           </Row>
@@ -389,7 +390,9 @@ export default function ProductEdit() {
                 width: 100,
                 render: (_: unknown, r: PackLevel) => {
                   const labels = ["基本单位", "内包装", "外包装"];
-                  return <Typography.Text strong>{labels[r.pack_level] || r.pack_level}</Typography.Text>;
+                  return (
+                    <Typography.Text strong>{labels[r.pack_level] || r.pack_level}</Typography.Text>
+                  );
                 },
               },
               {
@@ -430,7 +433,8 @@ export default function ProductEdit() {
               {
                 title: "含义",
                 render: (_: unknown, r: PackLevel) => {
-                  if (r.pack_level === 0) return <Typography.Text type="secondary">基础计数单位</Typography.Text>;
+                  if (r.pack_level === 0)
+                    return <Typography.Text type="secondary">基础计数单位</Typography.Text>;
                   const parentLabel =
                     packLevels.find((p) => p.pack_level === r.pack_level - 1)?.uom_code || "父单位";
                   return (
@@ -447,56 +451,56 @@ export default function ProductEdit() {
         <Card size="small" title="价格与成本">
           <Row gutter={16}>
             <Col xs={12} md={4}>
-              <Form.Item name="currency" label="币种">
+              <ProFormItem name="currency" label="币种">
                 <Select
                   options={["CNY", "USD", "EUR", "HKD"].map((value) => ({ value, label: value }))}
                 />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={12} md={4}>
-              <Form.Item name="tax_rate" label="税率(%)">
+              <ProFormItem name="tax_rate" label="税率(%)">
                 <InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={4}>
-              <Form.Item name="standard_cost" label="标准成本">
+              <ProFormItem name="standard_cost" label="标准成本">
                 <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={4}>
-              <Form.Item name="list_price" label="目录价">
+              <ProFormItem name="list_price" label="目录价">
                 <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={4}>
-              <Form.Item name="wholesale_price" label="批发价">
+              <ProFormItem name="wholesale_price" label="批发价">
                 <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={4}>
-              <Form.Item name="minimum_sale_price" label="最低销售价">
+              <ProFormItem name="minimum_sale_price" label="最低销售价">
                 <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="latest_purchase_cost" label="最新采购成本">
+              <ProFormItem name="latest_purchase_cost" label="最新采购成本">
                 <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="weighted_avg_cost" label="加权平均成本">
+              <ProFormItem name="weighted_avg_cost" label="加权平均成本">
                 <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="price_valid_from" label="价格生效日">
+              <ProFormItem name="price_valid_from" label="价格生效日">
                 <Input placeholder="YYYY-MM-DD" />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="price_valid_to" label="价格失效日">
+              <ProFormItem name="price_valid_to" label="价格失效日">
                 <Input placeholder="YYYY-MM-DD" />
-              </Form.Item>
+              </ProFormItem>
             </Col>
           </Row>
         </Card>
@@ -504,7 +508,7 @@ export default function ProductEdit() {
         <Card size="small" title="生命周期与合规">
           <Row gutter={16}>
             <Col xs={24} md={6}>
-              <Form.Item name="lifecycle_status" label="生命周期">
+              <ProFormItem name="lifecycle_status" label="生命周期">
                 <Select
                   allowClear
                   options={["active", "nrnd", "eol", "obsolete"].map((value) => ({
@@ -512,44 +516,44 @@ export default function ProductEdit() {
                     label: value.toUpperCase(),
                   }))}
                 />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="eol_date" label="EOL 日期">
+              <ProFormItem name="eol_date" label="EOL 日期">
                 <Input placeholder="YYYY-MM-DD" />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="alternative_mpn" label="替代料 MPN">
+              <ProFormItem name="alternative_mpn" label="替代料 MPN">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="msl_level" label="MSL 等级">
+              <ProFormItem name="msl_level" label="MSL 等级">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="origin_country" label="原产国">
+              <ProFormItem name="origin_country" label="原产国">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="hs_code" label="HS 编码">
+              <ProFormItem name="hs_code" label="HS 编码">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={8}>
               <Space wrap size={18} style={{ paddingTop: 30 }}>
-                <Form.Item name="rohs_compliant" valuePropName="checked">
+                <ProFormItem name="rohs_compliant" valuePropName="checked">
                   <Checkbox>RoHS</Checkbox>
-                </Form.Item>
-                <Form.Item name="reach_compliant" valuePropName="checked">
+                </ProFormItem>
+                <ProFormItem name="reach_compliant" valuePropName="checked">
                   <Checkbox>REACH</Checkbox>
-                </Form.Item>
-                <Form.Item name="esd_sensitive" valuePropName="checked">
+                </ProFormItem>
+                <ProFormItem name="esd_sensitive" valuePropName="checked">
                   <Checkbox>ESD 敏感</Checkbox>
-                </Form.Item>
+                </ProFormItem>
               </Space>
             </Col>
           </Row>
@@ -558,29 +562,29 @@ export default function ProductEdit() {
         <Card size="small" title="文档与备注">
           <Row gutter={16}>
             <Col xs={24} md={12}>
-              <Form.Item name="datasheet_url" label="Datasheet URL">
+              <ProFormItem name="datasheet_url" label="Datasheet URL">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="image_url" label="产品图片 URL">
+              <ProFormItem name="image_url" label="产品图片 URL">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="rohs_cert_url" label="RoHS 证书 URL">
+              <ProFormItem name="rohs_cert_url" label="RoHS 证书 URL">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="reach_cert_url" label="REACH 证书 URL">
+              <ProFormItem name="reach_cert_url" label="REACH 证书 URL">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
           </Row>
-          <Form.Item name="notes" label="备注">
+          <ProFormItem name="notes" label="备注">
             <Input.TextArea rows={3} />
-          </Form.Item>
+          </ProFormItem>
         </Card>
 
         <div className="product-edit-footer">
@@ -589,7 +593,7 @@ export default function ProductEdit() {
             保存修改
           </Button>
         </div>
-      </Form>
+      </ProForm>
     </div>
   );
 }

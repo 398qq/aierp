@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Checkbox, Descriptions, Divider, Empty, Form, Input, Modal, Progress, Select, Space, Spin, Switch, Tooltip, Typography, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import {
