@@ -5,6 +5,7 @@ const backendPort = process.env.BACKEND_PORT ?? "8080";
 export default defineConfig({
   title: "AIERP",
   npmClient: "npm",
+  esbuildMinifyIIFE: true,
   proxy: {
     "/api": {
       target: `http://localhost:${backendPort}`,
