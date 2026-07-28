@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button, Card, Popconfirm, Progress, Space, Tag, Tooltip, Typography, message } from "antd";
 import { DeleteOutlined, EditOutlined, EyeOutlined, FileTextOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import AIInlineBadge from "./AIInlineBadge";
 import type { Opportunity, OpportunityAI } from "../../types";
 import { deleteOpportunity } from "../../api";

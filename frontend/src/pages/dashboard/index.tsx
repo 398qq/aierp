@@ -36,7 +36,7 @@ import {
 } from "@ant-design/icons";
 import { ProCard, ProTable } from "@ant-design/pro-components";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import {
   getDailyReport,
   getDashboardStats,

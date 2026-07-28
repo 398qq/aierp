@@ -4,7 +4,7 @@
  *      /customers/:customerId/follow-ups/:followupId/edit
  */
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Form, Input, Select, DatePicker, Button, Card, Spin, Space } from "antd";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";

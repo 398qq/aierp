@@ -1,6 +1,6 @@
 import { Segmented, Space, Typography } from "antd";
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 
 export interface ModuleNavItem {
   key: string;

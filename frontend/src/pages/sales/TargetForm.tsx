@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card, Form, Input, Select, InputNumber, DatePicker, Button, message } from "antd";
 import { getTarget, createTarget, updateTarget, getApiErrorMessage } from "../../api";
 import { SalesModuleShell } from "./salesUi";

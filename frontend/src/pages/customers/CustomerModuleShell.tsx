@@ -1,7 +1,7 @@
 import { AppstoreOutlined, BarChartOutlined, DownOutlined, FileTextOutlined, HeartOutlined, PieChartOutlined, PlusOutlined, RobotOutlined, TeamOutlined } from "@ant-design/icons";
 import { Button, Dropdown, Segmented, Space, Typography } from "antd";
 import type { ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/auth";
 import "./customer-module.css";
 

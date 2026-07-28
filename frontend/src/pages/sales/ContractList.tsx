@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Select, Space, Tag, Typography, Upload, message } from "antd";
 import { StatusTag } from "../../ui";
 import type { ActionType } from "@ant-design/pro-components";
