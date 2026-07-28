@@ -9,8 +9,11 @@ import {
   Flex,
   List,
   Progress,
+  Row,
+  Col,
   Space,
   Spin,
+  Statistic,
   Switch,
   Tabs,
   Tag,
@@ -31,7 +34,7 @@ import {
   ThunderboltOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { ProTable } from "@ant-design/pro-components";
+import { ProCard, ProTable } from "@ant-design/pro-components";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useNavigate } from "react-router";
 import {
@@ -455,18 +458,33 @@ export default function Dashboard() {
       </section>
 
       {widgetPrefs.kpi_overview?.enabled !== false && kpiItems.length > 0 && (
-        <section className="dashboard-kpi-grid">
-          {kpiItems.map((item) => (
-            <Card key={item.label} className={`dashboard-kpi dashboard-kpi-${item.tone}`}>
-              <div className="dashboard-kpi-top">
-                <span className="dashboard-kpi-icon">{item.icon}</span>
-                <Text type="secondary">{item.hint}</Text>
-              </div>
-              <div className="dashboard-kpi-value">{item.value}</div>
-              <Text className="dashboard-kpi-label">{item.label}</Text>
-            </Card>
-          ))}
-        </section>
+        <ProCard split="vertical">
+          <Row gutter={16}>
+            {kpiItems.map((item) => (
+              <Col span={6} key={item.label}>
+                <ProCard>
+                  <Statistic
+                    title={item.hint}
+                    value={item.value}
+                    prefix={item.icon}
+                    valueStyle={{
+                      color:
+                        item.tone === "danger"
+                          ? "#cf1322"
+                          : item.tone === "success"
+                            ? "#3f8600"
+                            : item.tone === "warning"
+                              ? "#cf1322"
+                              : item.tone === "info"
+                                ? "#1890ff"
+                                : "#1890ff",
+                    }}
+                  />
+                </ProCard>
+              </Col>
+            ))}
+          </Row>
+        </ProCard>
       )}
 
       {widgetPrefs.customer_stats?.enabled !== false && (
