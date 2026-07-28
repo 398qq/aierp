@@ -3,18 +3,15 @@ import { useNavigate, useSearchParams } from "react-router";
 import {
   Button,
   Card,
-  Checkbox,
   Col,
   Descriptions,
   Empty,
   Form,
   Input,
-  InputNumber,
   Alert,
   Modal,
   Popconfirm,
   Popover,
-  Progress,
   Row,
   Segmented,
   Select,
@@ -24,6 +21,9 @@ import {
   Tooltip,
   message,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import { StatusTag, UomSelect } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import {
@@ -41,9 +41,28 @@ import {
   ThunderboltOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { TablePaginationConfig } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
-import { aiParseBom, aiParseProduct, aiSearchProducts, batchDeleteProducts, batchUpdateProducts, createProduct, deleteProduct, getBrands, getProduct, getProductInventories, getProducts, getProductSales, getProductStats, getWarehouses, importProducts, updateProduct, updateProductInventory, getApiErrorMessage } from "../../api";
+import {
+  aiParseBom,
+  aiParseProduct,
+  aiSearchProducts,
+  batchDeleteProducts,
+  batchUpdateProducts,
+  createProduct,
+  deleteProduct,
+  getBrands,
+  getProduct,
+  getProductInventories,
+  getProducts,
+  getProductSales,
+  getProductStats,
+  getWarehouses,
+  importProducts,
+  updateProduct,
+  updateProductInventory,
+  getApiErrorMessage,
+} from "../../api";
 import type { Brand, InventoryItem, Product, Warehouse } from "../../types";
 import {
   BatchTaskType,
@@ -76,6 +95,7 @@ import ProductDetailDrawer from "./ProductDetailDrawer";
 import "./products.css";
 
 export default function ProductList() {
+  const actionRef = useRef<ActionType>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [data, setData] = useState<Product[]>([]);
@@ -173,9 +193,22 @@ export default function ProductList() {
     "actions",
   ];
   const defaultColKeys = [
-    "sku", "name", "status", "brand_name", "category", "specs", "unit",
-    "stock_state", "available", "safety_stock", "default_warehouse_name",
-    "supplier_count", "list_price", "owner", "completion_score", "actions",
+    "sku",
+    "name",
+    "status",
+    "brand_name",
+    "category",
+    "specs",
+    "unit",
+    "stock_state",
+    "available",
+    "safety_stock",
+    "default_warehouse_name",
+    "supplier_count",
+    "list_price",
+    "owner",
+    "completion_score",
+    "actions",
   ];
   const [visibleCols, setVisibleCols] = useState<string[]>(defaultColKeys);
   const searchText = q.trim();
@@ -380,7 +413,9 @@ export default function ProductList() {
       } else {
         message.error(r.data.msg || "搜索失败");
       }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 搜索失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "AI 搜索失败"));
+    } finally {
       setAiSearching(false);
     }
   };
@@ -478,7 +513,7 @@ export default function ProductList() {
         message.success("已创建");
       }
       closeEditor();
-      await Promise.all([fetch(), loadStats()]);
+      await Promise.all([actionRef.current?.reload(), loadStats()]);
     } catch {
       message.error(editing ? "更新失败" : "创建失败");
     }
@@ -488,8 +523,10 @@ export default function ProductList() {
     try {
       await deleteProduct(id);
       message.success("已删除");
-      await Promise.all([fetch(), loadStats()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+      await Promise.all([actionRef.current?.reload(), loadStats()]);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "删除失败"));
+    }
   };
 
   const handleBatchDelete = async () => {
@@ -497,8 +534,10 @@ export default function ProductList() {
       await batchDeleteProducts(selectedRowKeys);
       message.success(`已删除 ${selectedRowKeys.length} 个产品`);
       setSelectedRowKeys([]);
-      await Promise.all([fetch(), loadStats()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
+      await Promise.all([actionRef.current?.reload(), loadStats()]);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量删除失败"));
+    }
   };
 
   const handleBatchUpdate = async (values: Record<string, unknown>) => {
@@ -516,8 +555,10 @@ export default function ProductList() {
       setBatchTaskModalOpen(false);
       setSelectedRowKeys([]);
       setBatchTaskConfirm(false);
-      await Promise.all([fetch(), loadStats()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量更新失败")); } finally {
+      await Promise.all([actionRef.current?.reload(), loadStats()]);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量更新失败"));
+    } finally {
       setBatchEditing(false);
     }
   };
@@ -606,7 +647,9 @@ export default function ProductList() {
       setDetailProduct(prodResp.data.data);
       setDetailInventories((invResp.data.data.list || []) as InventoryItem[]);
       setDetailSales((salesResp.data.data || null) as ProductSalesData | null);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载产品详情失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载产品详情失败"));
+    } finally {
       setDetailLoading(false);
     }
   };
@@ -633,7 +676,9 @@ export default function ProductList() {
       const first = invList[0];
       setQuickInventoryId(first.id);
       setQuickValue(type === "price" ? (first.unit_price ?? 0) : (first.safety_stock ?? 0));
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存记录失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "加载库存记录失败"));
+    } finally {
       setQuickActionLoading(false);
     }
   };
@@ -660,11 +705,13 @@ export default function ProductList() {
       }
       message.success("已保存");
       setQuickActionOpen(false);
-      await Promise.all([fetch(), loadStats()]);
+      await Promise.all([actionRef.current?.reload(), loadStats()]);
       if (detailProduct && quickActionProduct && detailProduct.id === quickActionProduct.id) {
         await openDetail(quickActionProduct);
       }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "保存失败"));
+    } finally {
       setQuickActionSaving(false);
     }
   };
@@ -703,7 +750,9 @@ export default function ProductList() {
       setAiText("");
       setModalOpen(true);
       message.success("AI 解析完成，请确认后保存");
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "AI 解析失败")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "AI 解析失败"));
+    } finally {
       setAiParsing(false);
     }
   };
@@ -733,8 +782,10 @@ export default function ProductList() {
       setBomModalOpen(false);
       setBomText("");
       message.success(`BOM 解析完成，成功创建 ${created}/${items.length} 个产品`);
-      await Promise.all([fetch(1), loadStats()]);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "BOM 解析失败")); } finally {
+      await Promise.all([actionRef.current?.reload(), loadStats()]);
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "BOM 解析失败"));
+    } finally {
       setBomParsing(false);
     }
   };
@@ -755,34 +806,15 @@ export default function ProductList() {
         }
         setImportModalOpen(false);
         setImportFile(null);
-        await Promise.all([fetch(1), loadStats()]);
+        await Promise.all([actionRef.current?.reload(), loadStats()]);
       } else {
         message.error(resp.data.msg || "导入失败");
       }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败，请检查文件格式")); } finally {
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "导入失败，请检查文件格式"));
+    } finally {
       setImporting(false);
     }
-  };
-
-  const handleTableChange = (
-    pagination: TablePaginationConfig,
-    _filters: unknown,
-    sorter: SorterResult<Product> | SorterResult<Product>[],
-  ) => {
-    if (!aiSearchMode && pagination.pageSize && pagination.pageSize !== pageSize) {
-      setPageSize(pagination.pageSize);
-      setPage(1);
-    }
-    if (!aiSearchMode && pagination.current && pagination.current !== page) {
-      setPage(pagination.current);
-    }
-    const s = Array.isArray(sorter) ? sorter[0] : sorter;
-    if (!s.field) return;
-    const fieldMap: Record<string, string> = { name: "name_asc", created_at: "created_at_asc" };
-    const field = String(s.field);
-    if (s.order === "ascend") setSort(fieldMap[field] || "created_at_asc");
-    else if (s.order === "descend")
-      setSort(fieldMap[field]?.replace("_asc", "_desc") || "created_at_desc");
   };
 
   useEffect(() => {
@@ -892,7 +924,6 @@ export default function ProductList() {
               </button>
             ))}
           </div>
-
         </aside>
 
         <main className="product-command-main">
@@ -978,8 +1009,16 @@ export default function ProductList() {
                   placeholder="产品状态"
                   style={{ width: 108 }}
                   value={productStatus}
-                  onChange={(v) => { setProductStatus(v); setPage(1); }}
-                  options={[{ value: "active", label: "已启用" }, { value: "draft", label: "草稿" }, { value: "frozen", label: "已冻结" }, { value: "inactive", label: "已停用" }]}
+                  onChange={(v) => {
+                    setProductStatus(v);
+                    setPage(1);
+                  }}
+                  options={[
+                    { value: "active", label: "已启用" },
+                    { value: "draft", label: "草稿" },
+                    { value: "frozen", label: "已冻结" },
+                    { value: "inactive", label: "已停用" },
+                  ]}
                 />
                 <Select
                   value={sort}
@@ -1222,7 +1261,7 @@ export default function ProductList() {
                   size="small"
                   icon={<ReloadOutlined />}
                   onClick={() => {
-                    fetch();
+                    actionRef.current?.reload();
                     loadStats();
                   }}
                 >
@@ -1230,14 +1269,17 @@ export default function ProductList() {
                 </Button>
               </Space>
             </div>
-            <Table
+            <ProTable
+              actionRef={actionRef}
               rowKey="id"
-              columns={columns.filter((c) => visibleCols.includes(String(c.key)))}
+              columns={
+                columns.filter((c) => visibleCols.includes(String(c.key))) as ProColumns<Product>[]
+              }
               dataSource={tableProducts}
               loading={aiSearchMode ? aiSearching : loading}
               size="small"
-              tableLayout="fixed"
-              onChange={handleTableChange}
+              search={false}
+              options={{ reload: true, density: true, setting: true }}
               rowSelection={
                 aiSearchMode
                   ? undefined
@@ -1347,27 +1389,70 @@ export default function ProductList() {
             <Alert
               showIcon
               type={watchedEditorStatus === "frozen" ? "warning" : "info"}
-              message={watchedEditorStatus === "frozen" ? "产品已冻结" : watchedEditorStatus === "inactive" ? "产品已停用" : "产品尚未启用"}
+              message={
+                watchedEditorStatus === "frozen"
+                  ? "产品已冻结"
+                  : watchedEditorStatus === "inactive"
+                    ? "产品已停用"
+                    : "产品尚未启用"
+              }
               description="该状态会影响报价、销售订单及后续业务单据，请确认状态变更符合审批及业务规则。"
               style={{ marginBottom: 12 }}
             />
           ) : null}
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="name" label="产品名称" rules={[{ required: true, message: "请输入产品名称" }, { max: 200, message: "名称不能超过 200 个字符" }]}>
+              <Form.Item
+                name="name"
+                label="产品名称"
+                rules={[
+                  { required: true, message: "请输入产品名称" },
+                  { max: 200, message: "名称不能超过 200 个字符" },
+                ]}
+              >
                 <Input />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="sku" label="SKU / 料号" rules={[{ max: 100, message: "SKU 不能超过 100 个字符" }]}>
+              <Form.Item
+                name="sku"
+                label="SKU / 料号"
+                rules={[{ max: 100, message: "SKU 不能超过 100 个字符" }]}
+              >
                 <Input placeholder="企业内部唯一料号" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={8}><Form.Item name="status" label="产品状态" initialValue="active"><Select options={[{ value: "draft", label: "草稿" }, { value: "active", label: "已启用" }, { value: "frozen", label: "已冻结" }, { value: "inactive", label: "已停用" }]} /></Form.Item></Col>
-            <Col span={8}><Form.Item name="product_type" label="产品类型" initialValue="finished_good"><Select options={[{ value: "finished_good", label: "成品" }, { value: "raw_material", label: "原材料" }, { value: "semi_finished", label: "半成品" }, { value: "service", label: "服务" }]} /></Form.Item></Col>
-            <Col span={8}><Form.Item name="owner" label="产品负责人"><Input /></Form.Item></Col>
+            <Col span={8}>
+              <Form.Item name="status" label="产品状态" initialValue="active">
+                <Select
+                  options={[
+                    { value: "draft", label: "草稿" },
+                    { value: "active", label: "已启用" },
+                    { value: "frozen", label: "已冻结" },
+                    { value: "inactive", label: "已停用" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="product_type" label="产品类型" initialValue="finished_good">
+                <Select
+                  options={[
+                    { value: "finished_good", label: "成品" },
+                    { value: "raw_material", label: "原材料" },
+                    { value: "semi_finished", label: "半成品" },
+                    { value: "service", label: "服务" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="owner" label="产品负责人">
+                <Input />
+              </Form.Item>
+            </Col>
           </Row>
           <Row gutter={12}>
             <Col span={12}>
@@ -1398,28 +1483,85 @@ export default function ProductList() {
           </Form.Item>
           <Card size="small" title="库存控制" style={{ marginBottom: 12 }}>
             <Row gutter={12}>
-              <Col span={8}><Form.Item name="default_warehouse_id" label="默认仓库"><Select allowClear showSearch optionFilterProp="label" placeholder="选择默认仓库" options={warehouses.map((w) => ({ value: w.id, label: `${w.name}${w.location ? ` · ${w.location}` : ""}` }))} /></Form.Item></Col>
-              <Col span={5}><Form.Item name="batch_control" valuePropName="checked" label="批次管理"><Checkbox>启用</Checkbox></Form.Item></Col>
-              <Col span={5}><Form.Item name="serial_control" valuePropName="checked" label="序列号管理"><Checkbox>启用</Checkbox></Form.Item></Col>
-              <Col span={6}><Form.Item name="shelf_life_control" valuePropName="checked" label="保质期管理"><Checkbox>启用</Checkbox></Form.Item></Col>
+              <Col span={8}>
+                <Form.Item name="default_warehouse_id" label="默认仓库">
+                  <Select
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择默认仓库"
+                    options={warehouses.map((w) => ({
+                      value: w.id,
+                      label: `${w.name}${w.location ? ` · ${w.location}` : ""}`,
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={5}>
+                <Form.Item name="batch_control" valuePropName="checked" label="批次管理">
+                  <Checkbox>启用</Checkbox>
+                </Form.Item>
+              </Col>
+              <Col span={5}>
+                <Form.Item name="serial_control" valuePropName="checked" label="序列号管理">
+                  <Checkbox>启用</Checkbox>
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item name="shelf_life_control" valuePropName="checked" label="保质期管理">
+                  <Checkbox>启用</Checkbox>
+                </Form.Item>
+              </Col>
             </Row>
-            <div style={{ color: "#8c8c8c", fontSize: 12 }}>库存控制会影响收货、发货及库存台账的批次/序列号校验。</div>
+            <div style={{ color: "#8c8c8c", fontSize: 12 }}>
+              库存控制会影响收货、发货及库存台账的批次/序列号校验。
+            </div>
           </Card>
           <Card size="small" title="价格与成本" style={{ marginBottom: 12 }}>
             <Row gutter={12}>
-              <Col span={8}><Form.Item name="list_price" label="目录价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
-              <Col span={8}><Form.Item name="wholesale_price" label="批发价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
-              <Col span={8}><Form.Item name="minimum_sale_price" label="最低销售价"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+              <Col span={8}>
+                <Form.Item name="list_price" label="目录价">
+                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="wholesale_price" label="批发价">
+                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="minimum_sale_price" label="最低销售价">
+                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
+                </Form.Item>
+              </Col>
             </Row>
             <Row gutter={12}>
-              <Col span={12}><Form.Item name="latest_purchase_cost" label="最新采购成本"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
-              <Col span={12}><Form.Item name="weighted_avg_cost" label="加权平均成本"><InputNumber min={0} precision={4} style={{ width: "100%" }} /></Form.Item></Col>
+              <Col span={12}>
+                <Form.Item name="latest_purchase_cost" label="最新采购成本">
+                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="weighted_avg_cost" label="加权平均成本">
+                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
+                </Form.Item>
+              </Col>
             </Row>
             <Row gutter={12}>
-              <Col span={12}><Form.Item name="price_valid_from" label="价格生效日"><Input placeholder="YYYY-MM-DD" /></Form.Item></Col>
-              <Col span={12}><Form.Item name="price_valid_to" label="价格失效日"><Input placeholder="YYYY-MM-DD（可留空）" /></Form.Item></Col>
+              <Col span={12}>
+                <Form.Item name="price_valid_from" label="价格生效日">
+                  <Input placeholder="YYYY-MM-DD" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="price_valid_to" label="价格失效日">
+                  <Input placeholder="YYYY-MM-DD（可留空）" />
+                </Form.Item>
+              </Col>
             </Row>
-            <div style={{ color: "#8c8c8c", fontSize: 12 }}>最低销售价用于报价与销售订单校验；成本字段用于毛利和采购分析。</div>
+            <div style={{ color: "#8c8c8c", fontSize: 12 }}>
+              最低销售价用于报价与销售订单校验；成本字段用于毛利和采购分析。
+            </div>
           </Card>
           <Row gutter={12}>
             <Col span={12}>
