@@ -7,7 +7,7 @@ for representative inputs.
 
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter } from "react-router-dom";
 import {
   EmptyState,
   ErrorBoundary,
