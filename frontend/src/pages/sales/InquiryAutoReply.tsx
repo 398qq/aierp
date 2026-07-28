@@ -1,16 +1,40 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Card, Form, Input, Button, Space, Tag, Table, Typography,
-  message, Spin, Alert, Badge, Row, Col, Modal,
+  Input,
+  Button,
+  Space,
+  Tag,
+  Typography,
+  message,
+  Spin,
+  Alert,
+  Badge,
+  Row,
+  Col,
+  Modal,
 } from "antd";
+import type { ProColumns } from "@ant-design/pro-components";
+import { ProCard, ProForm, ProTable } from "@ant-design/pro-components";
 import { StatusTag, type StatusTone } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import {
-  SendOutlined, HistoryOutlined, CheckCircleOutlined,
-  WarningOutlined, ExclamationCircleOutlined, FileTextOutlined,
+  SendOutlined,
+  HistoryOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+  ExclamationCircleOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
-import { inquiryAutoReply, getInquiries, createQuotationFromInquiry, type InquiryAutoReplyResponse, type InquiryRecord, type InquiryMatchedProduct, type InquiryAlternative } from "../../api";
+import {
+  inquiryAutoReply,
+  getInquiries,
+  createQuotationFromInquiry,
+  type InquiryAutoReplyResponse,
+  type InquiryRecord,
+  type InquiryMatchedProduct,
+  type InquiryAlternative,
+} from "../../api";
 import dayjs from "dayjs";
 import { CustomerSelect, SalesModuleShell } from "./salesUi";
 
@@ -28,9 +52,7 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
     color = "orange";
     icon = <ExclamationCircleOutlined />;
   }
-  return (
-    <StatusTag status={`${pct}%`} color={color} icon={icon} style={{ fontWeight: 600 }} />
-  );
+  return <StatusTag status={`${pct}%`} color={color} icon={icon} style={{ fontWeight: 600 }} />;
 }
 
 function StockStatusTag({ status }: { status: string }) {
@@ -45,7 +67,7 @@ function StockStatusTag({ status }: { status: string }) {
 }
 
 export default function InquiryAutoReply() {
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<InquiryAutoReplyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +106,12 @@ export default function InquiryAutoReply() {
     }
   };
 
-  const handleSubmit = async (values: { inquiry_text: string; customer_id?: number; contact_name?: string; contact_info?: string }) => {
+  const handleSubmit = async (values: {
+    inquiry_text: string;
+    customer_id?: number;
+    contact_name?: string;
+    contact_info?: string;
+  }) => {
     setLoading(true);
     setResult(null);
     setError(null);
@@ -104,7 +131,9 @@ export default function InquiryAutoReply() {
         setError(resp.data.msg || "处理失败");
       }
     } catch (err: any) {
-      setError(err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "请求失败");
+      setError(
+        err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "请求失败",
+      );
     } finally {
       setLoading(false);
     }
@@ -126,14 +155,14 @@ export default function InquiryAutoReply() {
       dataIndex: "stock_quantity",
       key: "stock_quantity",
       width: 100,
-      render: (qty?: number) => qty != null ? qty.toLocaleString() : "-",
+      render: (qty?: number) => (qty != null ? qty.toLocaleString() : "-"),
     },
     {
       title: "单价(¥)",
       dataIndex: "unit_price",
       key: "unit_price",
       width: 100,
-      render: (p?: number) => p != null ? p.toFixed(2) : "-",
+      render: (p?: number) => (p != null ? p.toFixed(2) : "-"),
     },
   ];
 
@@ -171,7 +200,7 @@ export default function InquiryAutoReply() {
       dataIndex: "confidence",
       key: "confidence",
       width: 80,
-      render: (v?: number) => v != null ? <ConfidenceBadge confidence={v} /> : "-",
+      render: (v?: number) => (v != null ? <ConfidenceBadge confidence={v} /> : "-"),
     },
     {
       title: "状态",
@@ -179,7 +208,11 @@ export default function InquiryAutoReply() {
       key: "status",
       width: 80,
       render: (v: string) => {
-        const toneMap: Record<string, StatusTone> = { processed: "success", pending: "warning", failed: "danger" };
+        const toneMap: Record<string, StatusTone> = {
+          processed: "success",
+          pending: "warning",
+          failed: "danger",
+        };
         return <StatusTag status={v} tone={toneMap[v] || "neutral"} />;
       },
     },
@@ -206,136 +239,147 @@ export default function InquiryAutoReply() {
       activeKey="inquiry"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Input Form */}
-      <Card title="询价输入" size="small">
-        <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ channel: "wechat" }}>
-          <Row gutter={16}>
-            <Col span={16}>
-              <Form.Item
-                name="inquiry_text"
-                label="询价内容"
-                rules={[{ required: true, message: "请输入询价内容" }]}
-              >
-                <TextArea
-                  rows={3}
-                  placeholder="例如：需要 QMI8658，1K片，单价多少？"
-                  autoSize={{ minRows: 2, maxRows: 5 }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="customer_id" label="客户（可选）">
-                <CustomerSelect />
-              </Form.Item>
-              <Form.Item name="contact_name" label="联系人（可选）">
-                <Input placeholder="手动输入联系人姓名" />
-              </Form.Item>
-              <Form.Item name="contact_info" label="联系方式（可选）">
-                <Input placeholder="手机/微信/邮箱" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Space>
-              <Button
-                type="primary"
-                icon={<SendOutlined />}
-                htmlType="submit"
-                loading={loading}
-              >
-                发送询价
-              </Button>
-              <Button onClick={() => { form.resetFields(); setResult(null); setError(null); }}>
-                重置
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ textAlign: "center", padding: 32 }}>
-          <Spin tip="AI 正在处理询价..." size="large" />
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <Alert
-          type="error"
-          message="处理失败"
-          description={error}
-          showIcon
-          closable
-          onClose={() => setError(null)}
-        />
-      )}
-
-      {/* Result */}
-      {result && !loading && (
-        <>
-          {/* AI Reply */}
-          <Card
-            title="AI 回复"
-            size="small"
-            extra={<ConfidenceBadge confidence={result.confidence} />}
+        {/* Input Form */}
+        <ProCard title="询价输入" size="small">
+          <ProForm
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={{ channel: "wechat" }}
+            submitter={false}
           >
-            <Paragraph style={{ marginBottom: 0, whiteSpace: "pre-wrap", fontSize: 15 }}>
-              {result.reply_text}
-            </Paragraph>
-          </Card>
+            <Row gutter={16}>
+              <Col span={16}>
+                <ProForm.Item
+                  name="inquiry_text"
+                  label="询价内容"
+                  rules={[{ required: true, message: "请输入询价内容" }]}
+                >
+                  <TextArea
+                    rows={3}
+                    placeholder="例如：需要 QMI8658，1K片，单价多少？"
+                    autoSize={{ minRows: 2, maxRows: 5 }}
+                  />
+                </ProForm.Item>
+              </Col>
+              <Col span={8}>
+                <ProForm.Item name="customer_id" label="客户（可选）">
+                  <CustomerSelect />
+                </ProForm.Item>
+                <ProForm.Item name="contact_name" label="联系人（可选）">
+                  <Input placeholder="手动输入联系人姓名" />
+                </ProForm.Item>
+                <ProForm.Item name="contact_info" label="联系方式（可选）">
+                  <Input placeholder="手机/微信/邮箱" />
+                </ProForm.Item>
+              </Col>
+            </Row>
+            <ProForm.Item style={{ marginBottom: 0 }}>
+              <Space>
+                <Button type="primary" icon={<SendOutlined />} htmlType="submit" loading={loading}>
+                  发送询价
+                </Button>
+                <Button
+                  onClick={() => {
+                    form.resetFields();
+                    setResult(null);
+                    setError(null);
+                  }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </ProForm.Item>
+          </ProForm>
+        </ProCard>
 
-          {/* Matched Products */}
-          {result.matched_products.length > 0 && (
-            <Card title={`匹配产品 (${result.matched_products.length})`} size="small">
-              <Table
-                dataSource={result.matched_products}
-                columns={matchedProductColumns}
-                rowKey="product_id"
-                pagination={false}
-                size="small"
-                scroll={{ x: 760 }}
-              />
-            </Card>
-          )}
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: "center", padding: 32 }}>
+            <Spin tip="AI 正在处理询价..." size="large" />
+          </div>
+        )}
 
-          {/* Alternatives */}
-          {result.alternatives.length > 0 && (
-            <Card title={`替代料建议 (${result.alternatives.length})`} size="small">
-              <Table
-                dataSource={result.alternatives}
-                columns={alternativeColumns}
-                rowKey="alternative_sku"
-                pagination={false}
-                size="small"
-                scroll={{ x: 700 }}
-              />
-            </Card>
-          )}
-        </>
-      )}
+        {/* Error */}
+        {error && (
+          <Alert
+            type="error"
+            message="处理失败"
+            description={error}
+            showIcon
+            closable
+            onClose={() => setError(null)}
+          />
+        )}
 
-      {/* History */}
-      <Card
-        title={<><HistoryOutlined /> 询价历史</>}
-        size="small"
-        extra={
-          <Button size="small" onClick={fetchHistory} loading={historyLoading}>
-            刷新
-          </Button>
-        }
-      >
-        <Table
-          dataSource={history}
-          columns={historyColumns}
-          rowKey="id"
-          loading={historyLoading}
-          pagination={erpPagination({ size: "small" })}
+        {/* Result */}
+        {result && !loading && (
+          <>
+            {/* AI Reply */}
+            <ProCard
+              title="AI 回复"
+              size="small"
+              extra={<ConfidenceBadge confidence={result.confidence} />}
+            >
+              <Paragraph style={{ marginBottom: 0, whiteSpace: "pre-wrap", fontSize: 15 }}>
+                {result.reply_text}
+              </Paragraph>
+            </ProCard>
+
+            {/* Matched Products */}
+            {result.matched_products.length > 0 && (
+              <ProCard title={`匹配产品 (${result.matched_products.length})`} size="small">
+                <ProTable
+                  dataSource={result.matched_products}
+                  columns={matchedProductColumns as ProColumns<InquiryMatchedProduct>[]}
+                  rowKey="product_id"
+                  pagination={false}
+                  size="small"
+                  scroll={{ x: 760 }}
+                />
+              </ProCard>
+            )}
+
+            {/* Alternatives */}
+            {result.alternatives.length > 0 && (
+              <ProCard title={`替代料建议 (${result.alternatives.length})`} size="small">
+                <ProTable
+                  dataSource={result.alternatives}
+                  columns={alternativeColumns as ProColumns<InquiryAlternative>[]}
+                  rowKey="alternative_sku"
+                  pagination={false}
+                  size="small"
+                  scroll={{ x: 700 }}
+                />
+              </ProCard>
+            )}
+          </>
+        )}
+
+        {/* History */}
+        <ProCard
+          title={
+            <>
+              <HistoryOutlined /> 询价历史
+            </>
+          }
           size="small"
-          scroll={{ x: 700 }}
-        />
-      </Card>
+          extra={
+            <Button size="small" onClick={fetchHistory} loading={historyLoading}>
+              刷新
+            </Button>
+          }
+        >
+          <ProTable
+            dataSource={history}
+            columns={historyColumns as ProColumns<InquiryRecord>[]}
+            rowKey="id"
+            loading={historyLoading}
+            pagination={erpPagination({ size: "small" })}
+            size="small"
+            scroll={{ x: 700 }}
+          />
+        </ProCard>
       </div>
     </SalesModuleShell>
   );

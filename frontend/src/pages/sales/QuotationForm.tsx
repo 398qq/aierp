@@ -3,20 +3,18 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Button,
-  Card,
-  DatePicker,
   Form,
+  DatePicker,
   Input,
   InputNumber,
   Select,
   Space,
   Statistic,
-  Table,
   Tag,
   Typography,
   message,
 } from "antd";
-import { ProForm } from "@ant-design/pro-components";
+import { ProCard, ProForm, ProTable } from "@ant-design/pro-components";
 import { StatusTag, UomSelect } from "../../ui";
 import {
   ArrowLeftOutlined,
@@ -244,7 +242,7 @@ export default function QuotationForm() {
           }}
         >
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Card
+            <ProCard
               size="small"
               title={
                 <span style={sectionTitleStyle}>
@@ -330,9 +328,9 @@ export default function QuotationForm() {
                   <DatePicker style={{ width: "100%" }} />
                 </ProForm.Item>
               </div>
-            </Card>
+            </ProCard>
 
-            <Card
+            <ProCard
               size="small"
               title={
                 <span style={sectionTitleStyle}>
@@ -373,7 +371,7 @@ export default function QuotationForm() {
               <Form.List name="items">
                 {(fields, { add, remove }) => (
                   <>
-                    <Table
+                    <ProTable
                       rowKey="key"
                       size="small"
                       bordered
@@ -381,9 +379,9 @@ export default function QuotationForm() {
                       dataSource={fields}
                       scroll={{ x: "max-content" }}
                       summary={() => (
-                        <Table.Summary fixed>
-                          <Table.Summary.Row>
-                            <Table.Summary.Cell index={0} colSpan={showCostColumns ? 16 : 13}>
+                        <ProTable.Summary fixed>
+                          <ProTable.Summary.Row>
+                            <ProTable.Summary.Cell index={0} colSpan={showCostColumns ? 16 : 13}>
                               <div
                                 style={{
                                   display: "flex",
@@ -422,9 +420,9 @@ export default function QuotationForm() {
                                   价税合计：{money(summary.amount)}
                                 </Typography.Text>
                               </div>
-                            </Table.Summary.Cell>
-                          </Table.Summary.Row>
-                        </Table.Summary>
+                            </ProTable.Summary.Cell>
+                          </ProTable.Summary.Row>
+                        </ProTable.Summary>
                       )}
                       columns={[
                         {
@@ -747,9 +745,9 @@ export default function QuotationForm() {
                   </>
                 )}
               </Form.List>
-            </Card>
+            </ProCard>
 
-            <Card
+            <ProCard
               size="small"
               title={<span style={sectionTitleStyle}>交易条款与备注</span>}
               style={{ borderColor: "#d9e2ec" }}
@@ -757,7 +755,7 @@ export default function QuotationForm() {
               <ProForm.Item name="notes" label="报价条款">
                 <Input.TextArea rows={6} placeholder="付款条件、交期、运输、价格有效期、特别说明" />
               </ProForm.Item>
-            </Card>
+            </ProCard>
           </Space>
 
           <Space
@@ -765,7 +763,7 @@ export default function QuotationForm() {
             size={12}
             style={{ width: "100%", position: "sticky", top: 8 }}
           >
-            <Card
+            <ProCard
               size="small"
               title="单据控制台"
               extra={<StatusTag tone={marginColor}>毛利率 {formatPercent(marginRate)}</StatusTag>}
@@ -818,8 +816,8 @@ export default function QuotationForm() {
                   }
                 />
               </Space>
-            </Card>
-            <Card size="small">
+            </ProCard>
+            <ProCard size="small">
               <Space direction="vertical" size={8} style={{ width: "100%" }}>
                 <Button
                   block
@@ -837,7 +835,7 @@ export default function QuotationForm() {
                   报价成交后在详情页执行“转订单”，保持报价、订单、发货链路一致。
                 </Typography.Text>
               </Space>
-            </Card>
+            </ProCard>
           </Space>
         </div>
       </ProForm>

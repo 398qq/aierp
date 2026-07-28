@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   Alert,
   Button,
-  Card,
   Descriptions,
   Divider,
   Empty,
@@ -12,11 +11,12 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography,
 } from "antd";
+import type { ProColumns } from "@ant-design/pro-components";
+import { ProCard, ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import {
   ArrowLeftOutlined,
@@ -241,7 +241,7 @@ export default function DeliveryNoteDetail() {
 
       <div className="erp-detail-two-column">
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Card title="发货信息" extra={<SalesStatusTag value={note.status} />} size="small">
+          <ProCard title="发货信息" extra={<SalesStatusTag value={note.status} />} size="small">
             <Descriptions column={2} size="small">
               <Descriptions.Item label="关联订单">
                 <Typography.Link onClick={() => navigate(`/sales/orders/${note.sales_order_id}`)}>
@@ -261,71 +261,85 @@ export default function DeliveryNoteDetail() {
                 {note.notes || "-"}
               </Descriptions.Item>
             </Descriptions>
-          </Card>
+          </ProCard>
 
           {note.items.length > 0 && (
-            <Card title="发货明细" size="small">
-              <Table
+            <ProCard title="发货明细" size="small">
+              <ProTable
                 rowKey="id"
                 dataSource={note.items}
                 size="small"
                 pagination={false}
-                columns={[
-                  { title: "客户料号", dataIndex: "customer_part_no", width: 170, render: (value: string | null) => value || "-" },
-                  { title: "产品", ellipsis: true, render: (_: unknown, row) => row.customer_product_name || row.product_name || "-" },
-                  { title: "数量", dataIndex: "quantity", width: 90 },
-                  { title: "备注", dataIndex: "notes", ellipsis: true },
-                ]}
+                columns={
+                  [
+                    {
+                      title: "客户料号",
+                      dataIndex: "customer_part_no",
+                      width: 170,
+                      render: (value: string | null) => value || "-",
+                    },
+                    {
+                      title: "产品",
+                      ellipsis: true,
+                      render: (_: unknown, row) =>
+                        row.customer_product_name || row.product_name || "-",
+                    },
+                    { title: "数量", dataIndex: "quantity", width: 90 },
+                    { title: "备注", dataIndex: "notes", ellipsis: true },
+                  ] as ProColumns<DeliveryNote["items"][number]>[]
+                }
               />
-            </Card>
+            </ProCard>
           )}
 
-          <Card title="回款信息" size="small">
+          <ProCard title="回款信息" size="small">
             {payments.length === 0 ? (
               <Typography.Text type="secondary">暂无回款记录</Typography.Text>
             ) : (
-              <Table
+              <ProTable
                 rowKey="id"
                 dataSource={payments}
                 size="small"
                 pagination={false}
-                columns={[
-                  {
-                    title: "金额",
-                    dataIndex: "amount",
-                    width: 120,
-                    render: (v: number) => money(v),
-                  },
-                  { title: "方式", dataIndex: "payment_method", width: 80 },
-                  {
-                    title: "日期",
-                    dataIndex: "payment_date",
-                    width: 110,
-                    render: (v: string) => v?.slice(0, 10) || "-",
-                  },
-                  {
-                    title: "状态",
-                    dataIndex: "status",
-                    width: 80,
-                    render: (v: string) => {
-                      const m: Record<string, { color: string; label: string }> = {
-                        pending: { color: "orange", label: "待收款" },
-                        completed: { color: "green", label: "已收款" },
-                        overdue: { color: "red", label: "逾期" },
-                      };
-                      return <StatusTag tone={m[v]?.color}>{m[v]?.label || v}</StatusTag>;
+                columns={
+                  [
+                    {
+                      title: "金额",
+                      dataIndex: "amount",
+                      width: 120,
+                      render: (v: number) => money(v),
                     },
-                  },
-                ]}
+                    { title: "方式", dataIndex: "payment_method", width: 80 },
+                    {
+                      title: "日期",
+                      dataIndex: "payment_date",
+                      width: 110,
+                      render: (v: string) => v?.slice(0, 10) || "-",
+                    },
+                    {
+                      title: "状态",
+                      dataIndex: "status",
+                      width: 80,
+                      render: (v: string) => {
+                        const m: Record<string, { color: string; label: string }> = {
+                          pending: { color: "orange", label: "待收款" },
+                          completed: { color: "green", label: "已收款" },
+                          overdue: { color: "red", label: "逾期" },
+                        };
+                        return <StatusTag tone={m[v]?.color}>{m[v]?.label || v}</StatusTag>;
+                      },
+                    },
+                  ] as ProColumns<PaymentRecord>[]
+                }
               />
             )}
-          </Card>
+          </ProCard>
 
           {includeAi && <SalesAIInsight aiData={note.ai} />}
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-          <Card
+          <ProCard
             size="small"
             title={
               <>
@@ -362,18 +376,18 @@ export default function DeliveryNoteDetail() {
                 <Typography.Text>{shortDate(note.received_date)}</Typography.Text>
               </div>
             </Space>
-          </Card>
+          </ProCard>
 
-          <Card size="small" title="状态流转">
+          <ProCard size="small" title="状态流转">
             <ErpStatusTimeline
               currentStatus={note.status}
               steps={STATUS_STEPS}
               createdAt={note.created_at}
               lostStatus="returned"
             />
-          </Card>
+          </ProCard>
 
-          <Card size="small" title="下一步动作">
+          <ProCard size="small" title="下一步动作">
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
               {note.status === "pending" ? (
                 <Alert showIcon type="info" message="发货单待发货，确认产品明细后执行发货。" />
@@ -393,7 +407,7 @@ export default function DeliveryNoteDetail() {
                 </Button>
               ) : null}
             </Space>
-          </Card>
+          </ProCard>
         </Space>
       </div>
     </SalesModuleShell>

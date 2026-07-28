@@ -3,12 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   Alert,
   Button,
-  Card,
   Checkbox,
   Descriptions,
   Divider,
   Empty,
-  Form,
   Input,
   Modal,
   Popconfirm,
@@ -17,12 +15,13 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography,
   message,
 } from "antd";
+import type { ProColumns } from "@ant-design/pro-components";
+import { ProCard, ProForm, ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import {
   ArrowLeftOutlined,
@@ -90,7 +89,7 @@ export default function QuotationDetail() {
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [customerName, setCustomerName] = useState("");
-  const [pdfForm] = Form.useForm<QuotationPDFOptions>();
+  const [pdfForm] = ProForm.useForm<QuotationPDFOptions>();
 
   const load = async () => {
     setLoading(true);
@@ -291,7 +290,7 @@ export default function QuotationDetail() {
         />
       )}
 
-      <Card size="small" style={{ marginBottom: 12 }}>
+      <ProCard size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
           {quote.status === "draft" && (
             <Button
@@ -386,7 +385,7 @@ export default function QuotationDetail() {
             </Space>
           )}
         </Space>
-      </Card>
+      </ProCard>
 
       <Modal
         title="自定义智能 PDF"
@@ -397,9 +396,10 @@ export default function QuotationDetail() {
         okText="下载 PDF"
         width={680}
       >
-        <Form
+        <ProForm
           form={pdfForm}
           layout="vertical"
+          submitter={false}
           onValuesChange={(changed) => {
             if (!("template" in changed)) return;
             if (changed.template === "smart") {
@@ -453,7 +453,7 @@ export default function QuotationDetail() {
               gap: 12,
             }}
           >
-            <Form.Item name="template" label="PDF 形式">
+            <ProForm.Item name="template" label="PDF 形式">
               <Select
                 options={[
                   { value: "smart", label: "智能版：含摘要和提示" },
@@ -461,14 +461,14 @@ export default function QuotationDetail() {
                   { value: "compact", label: "紧凑版：适合打印" },
                 ]}
               />
-            </Form.Item>
-            <Form.Item name="company_name" label="抬头公司">
+            </ProForm.Item>
+            <ProForm.Item name="company_name" label="抬头公司">
               <Input placeholder="默认取客户公司名称" />
-            </Form.Item>
+            </ProForm.Item>
           </div>
-          <Form.Item name="document_title" label="文档标题">
+          <ProForm.Item name="document_title" label="文档标题">
             <Input />
-          </Form.Item>
+          </ProForm.Item>
           <div
             style={{
               display: "grid",
@@ -476,12 +476,12 @@ export default function QuotationDetail() {
               gap: 12,
             }}
           >
-            <Form.Item name="prepared_by" label="报价经办">
+            <ProForm.Item name="prepared_by" label="报价经办">
               <Input placeholder="销售 / 商务负责人" />
-            </Form.Item>
-            <Form.Item name="contact_phone" label="联系电话">
+            </ProForm.Item>
+            <ProForm.Item name="contact_phone" label="联系电话">
               <Input placeholder="对外联系号码" />
-            </Form.Item>
+            </ProForm.Item>
           </div>
           <div
             style={{
@@ -490,25 +490,25 @@ export default function QuotationDetail() {
               gap: 8,
             }}
           >
-            <Form.Item name="show_smart_summary" valuePropName="checked">
+            <ProForm.Item name="show_smart_summary" valuePropName="checked">
               <Checkbox>智能摘要</Checkbox>
-            </Form.Item>
-            <Form.Item name="show_line_hints" valuePropName="checked">
+            </ProForm.Item>
+            <ProForm.Item name="show_line_hints" valuePropName="checked">
               <Checkbox>行项目提示</Checkbox>
-            </Form.Item>
-            <Form.Item name="show_terms" valuePropName="checked">
+            </ProForm.Item>
+            <ProForm.Item name="show_terms" valuePropName="checked">
               <Checkbox>商务条款</Checkbox>
-            </Form.Item>
-            <Form.Item name="show_notes" valuePropName="checked">
+            </ProForm.Item>
+            <ProForm.Item name="show_notes" valuePropName="checked">
               <Checkbox>报价备注</Checkbox>
-            </Form.Item>
-            <Form.Item name="show_signature" valuePropName="checked">
+            </ProForm.Item>
+            <ProForm.Item name="show_signature" valuePropName="checked">
               <Checkbox>签署确认栏</Checkbox>
-            </Form.Item>
+            </ProForm.Item>
             {!isCustomerView ? (
-              <Form.Item name="show_internal_metrics" valuePropName="checked">
+              <ProForm.Item name="show_internal_metrics" valuePropName="checked">
                 <Checkbox>内部成本毛利</Checkbox>
-              </Form.Item>
+              </ProForm.Item>
             ) : null}
           </div>
           <Alert
@@ -517,15 +517,15 @@ export default function QuotationDetail() {
             message="勾选“内部成本毛利”会把含税成本、销售毛利和毛利率写入 PDF，请仅用于内部评审。"
             style={{ marginBottom: 12 }}
           />
-          <Form.Item name="terms" label="商务条款">
+          <ProForm.Item name="terms" label="商务条款">
             <Input.TextArea rows={5} />
-          </Form.Item>
-        </Form>
+          </ProForm.Item>
+        </ProForm>
       </Modal>
 
       <div className="erp-detail-two-column">
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Card
+          <ProCard
             title="报价信息"
             size="small"
             extra={
@@ -563,9 +563,9 @@ export default function QuotationDetail() {
                 {quote.notes || "-"}
               </Descriptions.Item>
             </Descriptions>
-          </Card>
+          </ProCard>
 
-          <Card
+          <ProCard
             title="报价明细"
             size="small"
             extra={
@@ -585,186 +585,192 @@ export default function QuotationDetail() {
               )
             }
           >
-            <Table
+            <ProTable
               rowKey={(record) => record.id || `${record.product_id}-${record.product_name}`}
               dataSource={quote.items}
               size="small"
               pagination={false}
-              columns={[
-                {
-                  title: "序号",
-                  width: 56,
-                  fixed: "left",
-                  align: "center" as const,
-                  render: (_: unknown, __: QuotationItem, index: number) => index + 1,
-                },
-                {
-                  title: "产品 / 规格",
-                  dataIndex: "product_name",
-                  ellipsis: true,
-                  width: 240,
-                  fixed: "left",
-                  render: (value: string | null, record) => (
-                    <Space direction="vertical" size={0}>
-                      <Typography.Text>
-                        {record.customer_product_name || value || "-"}
-                      </Typography.Text>
-                      {record.product_id && (
-                        <Typography.Link
-                          style={{ fontSize: 12 }}
-                          onClick={() => navigate(`/products/${record.product_id}`)}
-                        >
-                          查看产品资料
-                        </Typography.Link>
-                      )}
-                    </Space>
-                  ),
-                },
-                {
-                  title: "客户料号",
-                  dataIndex: "customer_part_no",
-                  width: 170,
-                  render: (value: string | null) =>
-                    value ? <Typography.Text copyable>{value}</Typography.Text> : "-",
-                },
-                { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
-                {
-                  title: "单位",
-                  dataIndex: "unit",
-                  width: 70,
-                  render: (value: string | null) => value || "-",
-                },
-                {
-                  title: "批次 / D/C",
-                  dataIndex: "datecode",
-                  width: 140,
-                  render: (value: string | null) => value || "-",
-                },
-                {
-                  title: "交期",
-                  dataIndex: "lead_time",
-                  width: 120,
-                  render: (value: string | null) => value || "-",
-                },
-                {
-                  title: "含税单价",
-                  dataIndex: "unit_price",
-                  width: 110,
-                  align: "right" as const,
-                  render: (value: number | null) => (value != null ? money(value) : "-"),
-                },
-                {
-                  title: "折扣",
-                  dataIndex: "discount_rate",
-                  width: 75,
-                  align: "right" as const,
-                  render: (value: number | null) => (value != null ? `${value}%` : "-"),
-                },
-                {
-                  title: "税率",
-                  dataIndex: "tax_rate",
-                  width: 75,
-                  align: "right" as const,
-                  render: (value: number | null) =>
-                    value != null ? (
-                      `${value}%`
-                    ) : (
-                      <Typography.Text type="warning">未设置</Typography.Text>
+              columns={
+                [
+                  {
+                    title: "序号",
+                    width: 56,
+                    fixed: "left",
+                    align: "center" as const,
+                    render: (_: unknown, __: QuotationItem, index: number) => index + 1,
+                  },
+                  {
+                    title: "产品 / 规格",
+                    dataIndex: "product_name",
+                    ellipsis: true,
+                    width: 240,
+                    fixed: "left",
+                    render: (value: string | null, record) => (
+                      <Space direction="vertical" size={0}>
+                        <Typography.Text>
+                          {record.customer_product_name || value || "-"}
+                        </Typography.Text>
+                        {record.product_id && (
+                          <Typography.Link
+                            style={{ fontSize: 12 }}
+                            onClick={() => navigate(`/products/${record.product_id}`)}
+                          >
+                            查看产品资料
+                          </Typography.Link>
+                        )}
+                      </Space>
                     ),
-                },
-                {
-                  title: "未税金额",
-                  width: 110,
-                  align: "right" as const,
-                  render: (_: unknown, record) => {
-                    const gross = Number(record.total_price || 0);
-                    const rate = Number(record.tax_rate || 0) / 100;
-                    return money(rate > 0 ? gross / (1 + rate) : gross);
                   },
-                },
-                {
-                  title: "税额",
-                  width: 100,
-                  align: "right" as const,
-                  render: (_: unknown, record) => {
-                    const gross = Number(record.total_price || 0);
-                    const rate = Number(record.tax_rate || 0) / 100;
-                    return money(rate > 0 ? gross - gross / (1 + rate) : 0);
+                  {
+                    title: "客户料号",
+                    dataIndex: "customer_part_no",
+                    width: 170,
+                    render: (value: string | null) =>
+                      value ? <Typography.Text copyable>{value}</Typography.Text> : "-",
                   },
-                },
-                {
-                  title: "价税合计",
-                  dataIndex: "total_price",
-                  width: 120,
-                  align: "right" as const,
-                  render: (value: number | null) =>
-                    value != null ? <Typography.Text strong>{money(value)}</Typography.Text> : "-",
-                },
-                ...(!isCustomerView && showCostColumns
-                  ? [
-                      {
-                        title: "含税成本单价",
-                        dataIndex: "cost_price",
-                        width: 130,
-                        align: "right" as const,
-                        render: (value: number | null) => (value != null ? money(value) : "-"),
-                      },
-                      {
-                        title: "未税成本",
-                        dataIndex: "untaxed_cost",
-                        width: 110,
-                        align: "right" as const,
-                        render: (value: number | null) => (value != null ? money(value) : "-"),
-                      },
-                      {
-                        title: "含税成本",
-                        dataIndex: "taxed_cost",
-                        width: 110,
-                        align: "right" as const,
-                        render: (value: number | null) => (value != null ? money(value) : "-"),
-                      },
-                      {
-                        title: "销售利润",
-                        dataIndex: "sales_profit",
-                        width: 110,
-                        align: "right" as const,
-                        render: (value: number | null) =>
-                          value != null ? (
-                            <Typography.Text type={value < 0 ? "danger" : undefined}>
-                              {money(value)}
-                            </Typography.Text>
-                          ) : (
-                            "-"
-                          ),
-                      },
-                      {
-                        title: "毛利率",
-                        width: 90,
-                        align: "right" as const,
-                        render: (_: unknown, record: QuotationItem) => {
-                          const amount = Number(record.total_price || 0);
-                          const margin =
-                            amount > 0 ? (Number(record.sales_profit || 0) / amount) * 100 : 0;
-                          return (
-                            <Typography.Text type={margin < 10 ? "warning" : undefined}>
-                              {margin.toFixed(1)}%
-                            </Typography.Text>
-                          );
+                  { title: "数量", dataIndex: "quantity", width: 70, align: "right" as const },
+                  {
+                    title: "单位",
+                    dataIndex: "unit",
+                    width: 70,
+                    render: (value: string | null) => value || "-",
+                  },
+                  {
+                    title: "批次 / D/C",
+                    dataIndex: "datecode",
+                    width: 140,
+                    render: (value: string | null) => value || "-",
+                  },
+                  {
+                    title: "交期",
+                    dataIndex: "lead_time",
+                    width: 120,
+                    render: (value: string | null) => value || "-",
+                  },
+                  {
+                    title: "含税单价",
+                    dataIndex: "unit_price",
+                    width: 110,
+                    align: "right" as const,
+                    render: (value: number | null) => (value != null ? money(value) : "-"),
+                  },
+                  {
+                    title: "折扣",
+                    dataIndex: "discount_rate",
+                    width: 75,
+                    align: "right" as const,
+                    render: (value: number | null) => (value != null ? `${value}%` : "-"),
+                  },
+                  {
+                    title: "税率",
+                    dataIndex: "tax_rate",
+                    width: 75,
+                    align: "right" as const,
+                    render: (value: number | null) =>
+                      value != null ? (
+                        `${value}%`
+                      ) : (
+                        <Typography.Text type="warning">未设置</Typography.Text>
+                      ),
+                  },
+                  {
+                    title: "未税金额",
+                    width: 110,
+                    align: "right" as const,
+                    render: (_: unknown, record) => {
+                      const gross = Number(record.total_price || 0);
+                      const rate = Number(record.tax_rate || 0) / 100;
+                      return money(rate > 0 ? gross / (1 + rate) : gross);
+                    },
+                  },
+                  {
+                    title: "税额",
+                    width: 100,
+                    align: "right" as const,
+                    render: (_: unknown, record) => {
+                      const gross = Number(record.total_price || 0);
+                      const rate = Number(record.tax_rate || 0) / 100;
+                      return money(rate > 0 ? gross - gross / (1 + rate) : 0);
+                    },
+                  },
+                  {
+                    title: "价税合计",
+                    dataIndex: "total_price",
+                    width: 120,
+                    align: "right" as const,
+                    render: (value: number | null) =>
+                      value != null ? (
+                        <Typography.Text strong>{money(value)}</Typography.Text>
+                      ) : (
+                        "-"
+                      ),
+                  },
+                  ...(!isCustomerView && showCostColumns
+                    ? [
+                        {
+                          title: "含税成本单价",
+                          dataIndex: "cost_price",
+                          width: 130,
+                          align: "right" as const,
+                          render: (value: number | null) => (value != null ? money(value) : "-"),
                         },
-                      },
-                    ]
-                  : []),
-                {
-                  title: "备注",
-                  dataIndex: "notes",
-                  width: 160,
-                  ellipsis: true,
-                  render: (value: string | null) => value || "-",
-                },
-              ]}
+                        {
+                          title: "未税成本",
+                          dataIndex: "untaxed_cost",
+                          width: 110,
+                          align: "right" as const,
+                          render: (value: number | null) => (value != null ? money(value) : "-"),
+                        },
+                        {
+                          title: "含税成本",
+                          dataIndex: "taxed_cost",
+                          width: 110,
+                          align: "right" as const,
+                          render: (value: number | null) => (value != null ? money(value) : "-"),
+                        },
+                        {
+                          title: "销售利润",
+                          dataIndex: "sales_profit",
+                          width: 110,
+                          align: "right" as const,
+                          render: (value: number | null) =>
+                            value != null ? (
+                              <Typography.Text type={value < 0 ? "danger" : undefined}>
+                                {money(value)}
+                              </Typography.Text>
+                            ) : (
+                              "-"
+                            ),
+                        },
+                        {
+                          title: "毛利率",
+                          width: 90,
+                          align: "right" as const,
+                          render: (_: unknown, record: QuotationItem) => {
+                            const amount = Number(record.total_price || 0);
+                            const margin =
+                              amount > 0 ? (Number(record.sales_profit || 0) / amount) * 100 : 0;
+                            return (
+                              <Typography.Text type={margin < 10 ? "warning" : undefined}>
+                                {margin.toFixed(1)}%
+                              </Typography.Text>
+                            );
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    title: "备注",
+                    dataIndex: "notes",
+                    width: 160,
+                    ellipsis: true,
+                    render: (value: string | null) => value || "-",
+                  },
+                ] as ProColumns<QuotationItem>[]
+              }
               summary={() => (
-                <Table.Summary.Row>
-                  <Table.Summary.Cell
+                <ProTable.Summary.Row>
+                  <ProTable.Summary.Cell
                     index={0}
                     colSpan={!isCustomerView && showCostColumns ? 19 : 14}
                   >
@@ -790,18 +796,18 @@ export default function QuotationDetail() {
                         价税合计：{money(itemSummary.amount)}
                       </Typography.Text>
                     </div>
-                  </Table.Summary.Cell>
-                </Table.Summary.Row>
+                  </ProTable.Summary.Cell>
+                </ProTable.Summary.Row>
               )}
               scroll={{ x: "max-content" }}
             />
-          </Card>
+          </ProCard>
 
           {includeAi && !isCustomerView && <SalesAIInsight aiData={quote.ai} />}
         </Space>
 
         <Space direction="vertical" size={12} style={{ width: "100%", position: "sticky", top: 8 }}>
-          <Card
+          <ProCard
             size="small"
             title={
               <>
@@ -867,10 +873,10 @@ export default function QuotationDetail() {
                 </Typography.Text>
               </div>
             </Space>
-          </Card>
+          </ProCard>
 
           {!isCustomerView && (
-            <Card size="small" title="报价风险控制">
+            <ProCard size="small" title="报价风险控制">
               <Space direction="vertical" size={8} style={{ width: "100%" }}>
                 {due.risk ? (
                   <Alert
@@ -907,10 +913,10 @@ export default function QuotationDetail() {
                   <Alert showIcon type="success" message="价格、税率、成本和有效期检查正常" />
                 ) : null}
               </Space>
-            </Card>
+            </ProCard>
           )}
 
-          <Card size="small" title="状态流转">
+          <ProCard size="small" title="状态流转">
             <ErpStatusTimeline
               currentStatus={quote.status}
               steps={[
@@ -922,9 +928,9 @@ export default function QuotationDetail() {
               createdAt={quote.created_at}
               lostStatus="lost"
             />
-          </Card>
+          </ProCard>
 
-          <Card size="small" title="下一步动作">
+          <ProCard size="small" title="下一步动作">
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
               {quote.status === "draft" && (
                 <Alert showIcon type="info" message="建议先确认有效期和产品行，再发送给客户。" />
@@ -970,7 +976,7 @@ export default function QuotationDetail() {
                 查看客户
               </Button>
             </Space>
-          </Card>
+          </ProCard>
         </Space>
       </div>
     </SalesModuleShell>
