@@ -18,12 +18,12 @@ import {
   Collapse,
   Flex,
   Modal,
-  Form,
   Input,
   Select,
   Switch,
   Popconfirm,
 } from "antd";
+import { ProForm, ProFormItem, ProFormDigit } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import {
   ArrowLeftOutlined,
@@ -113,7 +113,7 @@ export default function ProductDetail() {
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [editingSupplierLink, setEditingSupplierLink] = useState<SupplierProductLink | null>(null);
   const [supplierLinkSaving, setSupplierLinkSaving] = useState(false);
-  const [supplierForm] = Form.useForm();
+  const [supplierForm] = ProForm.useForm();
   const [batchAddingSuppliers, setBatchAddingSuppliers] = useState(false);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<number[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -1082,10 +1082,10 @@ export default function ProductDetail() {
         okText="保存"
         width={720}
       >
-        <Form form={supplierForm} layout="vertical">
+        <ProForm form={supplierForm} layout="vertical" submitter={false}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item
+              <ProFormItem
                 name={batchAddingSuppliers ? "supplier_ids" : "supplier_id"}
                 label={batchAddingSuppliers ? "供应商（可多选）" : "供应商"}
                 rules={[{ required: true, message: "请选择供应商" }]}
@@ -1103,52 +1103,44 @@ export default function ProductDetail() {
                     )
                     .map((supplier) => ({ value: supplier.id, label: supplier.name }))}
                 />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col span={12}>
-              <Form.Item name="supplier_sku" label="供应商料号">
+              <ProFormItem name="supplier_sku" label="供应商料号">
                 <Input />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col span={8}>
-              <Form.Item name="cost_price" label="采购价">
-                <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit name="cost_price" label="采购价" min={0} precision={4} fieldProps={{ style: { width: "100%" } }} />
             </Col>
             <Col span={8}>
-              <Form.Item name="currency" label="币种">
+              <ProFormItem name="currency" label="币种">
                 <Select
                   options={["CNY", "USD", "EUR", "HKD"].map((value) => ({ value, label: value }))}
                 />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col span={8}>
-              <Form.Item name="lead_time_days" label="交期（天）">
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit name="lead_time_days" label="交期（天）" min={0} fieldProps={{ style: { width: "100%" } }} />
             </Col>
             <Col span={8}>
-              <Form.Item name="moq" label="MOQ">
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit name="moq" label="MOQ" min={0} fieldProps={{ style: { width: "100%" } }} />
             </Col>
             <Col span={8}>
-              <Form.Item name="spq" label="SPQ">
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit name="spq" label="SPQ" min={0} fieldProps={{ style: { width: "100%" } }} />
             </Col>
             <Col span={8}>
-              <Form.Item name="is_preferred" label="首选供应商" valuePropName="checked">
+              <ProFormItem name="is_preferred" label="首选供应商" valuePropName="checked">
                 <Switch />
-              </Form.Item>
+              </ProFormItem>
             </Col>
             <Col span={24}>
-              <Form.Item name="notes" label="备注">
+              <ProFormItem name="notes" label="备注">
                 <Input.TextArea rows={3} />
-              </Form.Item>
+              </ProFormItem>
             </Col>
           </Row>
-        </Form>
+        </ProForm>
       </Modal>
 
       <Modal

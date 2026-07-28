@@ -3,7 +3,6 @@ import {
   Card,
   Upload,
   Button,
-  Table,
   Select,
   Space,
   Result,
@@ -13,6 +12,8 @@ import {
   Alert,
   Divider,
 } from "antd";
+import { ProTable } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { CloudUploadOutlined, InboxOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import type { UploadFile, UploadProps } from "antd/es/upload/interface";
@@ -253,19 +254,22 @@ export default function PriceImport() {
     }
   };
 
-  const previewColumns = [
+  const previewColumns: ProColumns<ParsedRow>[] = [
     { title: "SKU", dataIndex: "sku", key: "sku" },
     {
       title: "仓库名称",
       dataIndex: "warehouse_id",
       key: "warehouse_id",
-      render: (warehouseId: number) => warehouseNames.get(warehouseId) || "未知仓库",
+      render: (_: unknown, record: ParsedRow) =>
+        warehouseNames.get(record.warehouse_id) || "未知仓库",
     },
     { title: "含税单价", dataIndex: "unit_price", key: "unit_price" },
     { title: "库存数量", dataIndex: "quantity", key: "quantity" },
   ];
 
-  const rawPreviewColumns = headers.map((h) => ({ title: h, dataIndex: h, key: h, width: 120 }));
+  const rawPreviewColumns: ProColumns<Record<string, string | number | null>>[] = headers.map(
+    (h) => ({ title: h, dataIndex: h, key: h, width: 120 }),
+  );
 
   return (
     <div>
@@ -336,23 +340,27 @@ export default function PriceImport() {
             showIcon
             style={{ marginBottom: 16 }}
           />
-          <Table
+          <ProTable<ParsedRow>
             rowKey={(_, i) => String(i)}
             columns={previewColumns}
             dataSource={previewRows}
             pagination={false}
             size="small"
+            search={false}
+            options={false}
             scroll={{ x: 800 }}
           />
           {headers.length > 0 && (
             <>
               <Divider titlePlacement="left">原始数据预览</Divider>
-              <Table
+              <ProTable<Record<string, string | number | null>>
                 rowKey={(_, i) => String(i)}
                 columns={rawPreviewColumns}
                 dataSource={previewRows.map((r) => r._raw)}
                 pagination={false}
                 size="small"
+                search={false}
+                options={false}
                 scroll={{ x: headers.length * 120 }}
               />
             </>

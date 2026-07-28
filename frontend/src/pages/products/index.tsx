@@ -7,7 +7,6 @@ import {
   Col,
   Descriptions,
   Empty,
-  Form,
   Input,
   InputNumber,
   Alert,
@@ -18,14 +17,13 @@ import {
   Segmented,
   Select,
   Space,
-  Table,
   Tag,
   Tooltip,
   message,
 } from "antd";
-import type { ColumnsType } from "antd/es/table";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
+import type { ColumnsType } from "antd/es/table";
+import { ProForm, ProFormItem, ProFormText, ProFormTextArea, ProFormDigit, ProFormSelect, ProTable } from "@ant-design/pro-components";
 import { StatusTag, UomSelect } from "../../ui";
 import { erpPagination } from "../../ui/pagination";
 import {
@@ -44,7 +42,6 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import type { TablePaginationConfig } from "antd/es/table";
-import type { SorterResult } from "antd/es/table/interface";
 import {
   aiParseBom,
   aiParseProduct,
@@ -132,7 +129,7 @@ export default function ProductList() {
   const [batchTaskModalOpen, setBatchTaskModalOpen] = useState(false);
   const [batchTaskType, setBatchTaskType] = useState<BatchTaskType>("update");
   const [batchTaskConfirm, setBatchTaskConfirm] = useState(false);
-  const [batchEditForm] = Form.useForm();
+  const [batchEditForm] = ProForm.useForm();
   const [batchEditing, setBatchEditing] = useState(false);
   const [saveViewModalOpen, setSaveViewModalOpen] = useState(false);
   const [saveViewName, setSaveViewName] = useState("");
@@ -164,8 +161,8 @@ export default function ProductList() {
     no_supplier_count: 0,
   });
 
-  const [form] = Form.useForm();
-  const watchedEditorStatus = Form.useWatch("status", form) as string | undefined;
+  const [form] = ProForm.useForm();
+  const watchedEditorStatus = ProForm.useWatch("status", form) as string | undefined;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const allColKeys = [
     "sku",
@@ -1275,7 +1272,7 @@ export default function ProductList() {
               actionRef={actionRef}
               rowKey="id"
               columns={
-                columns.filter((c) => visibleCols.includes(String(c.key))) as ProColumns<Product>[]
+                columns.filter((c: ColumnsType<Product>[number]) => visibleCols.includes(String(c.key))) as ProColumns<Product>[]
               }
               dataSource={tableProducts}
               loading={aiSearchMode ? aiSearching : loading}
@@ -1335,10 +1332,12 @@ export default function ProductList() {
               }
               size="small"
             >
-              <Table
+              <ProTable<Product>
                 rowKey="id"
                 size="small"
                 pagination={false}
+                search={false}
+                options={false}
                 dataSource={selectedProducts}
                 columns={[
                   { title: "SKU", dataIndex: "sku", width: 100 },
@@ -1351,7 +1350,7 @@ export default function ProductList() {
                     title: "完整度",
                     dataIndex: "completion_score",
                     width: 80,
-                    render: (v: number | null) => `${v ?? 0}%`,
+                    render: (_: unknown, r: Product) => `${r.completion_score ?? 0}%`,
                   },
                   { title: "供应商", dataIndex: "supplier_count", width: 70 },
                   { title: "分仓", dataIndex: "inventory_location_count", width: 60 },
@@ -1360,18 +1359,19 @@ export default function ProductList() {
                     title: "可用",
                     dataIndex: "available",
                     width: 60,
-                    render: (_: number, r: Product) => getAvailableQty(r),
+                    render: (_: unknown, r: Product) => getAvailableQty(r),
                   },
                   { title: "安全库存", dataIndex: "safety_stock", width: 80 },
                   {
                     title: "单价",
                     dataIndex: "unit_price",
                     width: 80,
-                    render: (v: number | null) => (v != null ? `¥${v.toFixed(2)}` : "-"),
+                    render: (_: unknown, r: Product) =>
+                      r.unit_price != null ? `¥${r.unit_price.toFixed(2)}` : "-",
                   },
                 ]}
                 scroll={{ x: true }}
-                style={{ overflowX: "auto" }}
+                cardBordered={false}
               />
             </Card>
           )}
@@ -1386,7 +1386,7 @@ export default function ProductList() {
         width={760}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" onFinish={handleSave}>
+        <ProForm form={form} layout="vertical" submitter={false} onFinish={handleSave}>
           {editing && watchedEditorStatus && watchedEditorStatus !== "active" ? (
             <Alert
               showIcon
@@ -1404,115 +1404,114 @@ export default function ProductList() {
           ) : null}
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item
+              <ProFormText
                 name="name"
                 label="产品名称"
                 rules={[
                   { required: true, message: "请输入产品名称" },
                   { max: 200, message: "名称不能超过 200 个字符" },
                 ]}
-              >
-                <Input />
-              </Form.Item>
+              />
             </Col>
             <Col span={12}>
-              <Form.Item
+              <ProFormText
                 name="sku"
                 label="SKU / 料号"
                 rules={[{ max: 100, message: "SKU 不能超过 100 个字符" }]}
-              >
-                <Input placeholder="企业内部唯一料号" />
-              </Form.Item>
+                fieldProps={{ placeholder: "企业内部唯一料号" }}
+              />
             </Col>
           </Row>
           <Row gutter={12}>
             <Col span={8}>
-              <Form.Item name="status" label="产品状态" initialValue="active">
-                <Select
-                  options={[
-                    { value: "draft", label: "草稿" },
-                    { value: "active", label: "已启用" },
-                    { value: "frozen", label: "已冻结" },
-                    { value: "inactive", label: "已停用" },
-                  ]}
-                />
-              </Form.Item>
+              <ProFormSelect
+                name="status"
+                label="产品状态"
+                initialValue="active"
+                options={[
+                  { value: "draft", label: "草稿" },
+                  { value: "active", label: "已启用" },
+                  { value: "frozen", label: "已冻结" },
+                  { value: "inactive", label: "已停用" },
+                ]}
+              />
             </Col>
             <Col span={8}>
-              <Form.Item name="product_type" label="产品类型" initialValue="finished_good">
-                <Select
-                  options={[
-                    { value: "finished_good", label: "成品" },
-                    { value: "raw_material", label: "原材料" },
-                    { value: "semi_finished", label: "半成品" },
-                    { value: "service", label: "服务" },
-                  ]}
-                />
-              </Form.Item>
+              <ProFormSelect
+                name="product_type"
+                label="产品类型"
+                initialValue="finished_good"
+                options={[
+                  { value: "finished_good", label: "成品" },
+                  { value: "raw_material", label: "原材料" },
+                  { value: "semi_finished", label: "半成品" },
+                  { value: "service", label: "服务" },
+                ]}
+              />
             </Col>
             <Col span={8}>
-              <Form.Item name="owner" label="产品负责人">
-                <Input />
-              </Form.Item>
+              <ProFormText name="owner" label="产品负责人" />
             </Col>
           </Row>
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="datecode" label="生产日期">
-                <Input maxLength={100} placeholder="如 2026-07-16 / 2026W18" />
-              </Form.Item>
+              <ProFormText
+                name="datecode"
+                label="生产日期"
+                fieldProps={{ maxLength: 100, placeholder: "如 2026-07-16 / 2026W18" }}
+              />
             </Col>
           </Row>
           <Row gutter={12}>
             <Col span={8}>
-              <Form.Item name="category" label="分类">
-                <Input />
-              </Form.Item>
+              <ProFormText name="category" label="分类" />
             </Col>
             <Col span={8}>
-              <Form.Item name="package_type" label="封装">
-                <Input />
-              </Form.Item>
+              <ProFormText name="package_type" label="封装" />
             </Col>
             <Col span={8}>
-              <Form.Item name="unit" label="单位">
+              <ProFormItem name="unit" label="单位">
                 <UomSelect uomType="count" />
-              </Form.Item>
+              </ProFormItem>
             </Col>
           </Row>
-          <Form.Item name="specs" label="规格">
-            <Input.TextArea rows={2} placeholder="填写关键技术参数，支持采购、报价和替代料识别" />
-          </Form.Item>
+          <ProFormTextArea
+            name="specs"
+            label="规格"
+            fieldProps={{ rows: 2, placeholder: "填写关键技术参数，支持采购、报价和替代料识别" }}
+          />
           <Card size="small" title="库存控制" style={{ marginBottom: 12 }}>
             <Row gutter={12}>
               <Col span={8}>
-                <Form.Item name="default_warehouse_id" label="默认仓库">
-                  <Select
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="选择默认仓库"
-                    options={warehouses.map((w) => ({
-                      value: w.id,
-                      label: `${w.name}${w.location ? ` · ${w.location}` : ""}`,
-                    }))}
-                  />
-                </Form.Item>
+                <ProFormSelect
+                  name="default_warehouse_id"
+                  label="默认仓库"
+                  allowClear
+                  showSearch
+                  placeholder="选择默认仓库"
+                  fieldProps={{
+                    optionFilterProp: "label",
+                  }}
+                  options={warehouses.map((w) => ({
+                    value: w.id,
+                    label: `${w.name}${w.location ? ` · ${w.location}` : ""}`,
+                  }))}
+                />
               </Col>
               <Col span={5}>
-                <Form.Item name="batch_control" valuePropName="checked" label="批次管理">
+                <ProFormItem name="batch_control" valuePropName="checked" label="批次管理">
                   <Checkbox>启用</Checkbox>
-                </Form.Item>
+                </ProFormItem>
               </Col>
               <Col span={5}>
-                <Form.Item name="serial_control" valuePropName="checked" label="序列号管理">
+                <ProFormItem name="serial_control" valuePropName="checked" label="序列号管理">
                   <Checkbox>启用</Checkbox>
-                </Form.Item>
+                </ProFormItem>
               </Col>
               <Col span={6}>
-                <Form.Item name="shelf_life_control" valuePropName="checked" label="保质期管理">
+                <ProFormItem name="shelf_life_control" valuePropName="checked" label="保质期管理">
                   <Checkbox>启用</Checkbox>
-                </Form.Item>
+                </ProFormItem>
               </Col>
             </Row>
             <div style={{ color: "#8c8c8c", fontSize: 12 }}>
@@ -1522,43 +1521,33 @@ export default function ProductList() {
           <Card size="small" title="价格与成本" style={{ marginBottom: 12 }}>
             <Row gutter={12}>
               <Col span={8}>
-                <Form.Item name="list_price" label="目录价">
-                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-                </Form.Item>
+                <ProFormDigit name="list_price" label="目录价" min={0} precision={4} fieldProps={{ style: { width: "100%" } }} />
               </Col>
               <Col span={8}>
-                <Form.Item name="wholesale_price" label="批发价">
-                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-                </Form.Item>
+                <ProFormDigit name="wholesale_price" label="批发价" min={0} precision={4} fieldProps={{ style: { width: "100%" } }} />
               </Col>
               <Col span={8}>
-                <Form.Item name="minimum_sale_price" label="最低销售价">
-                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-                </Form.Item>
+                <ProFormDigit name="minimum_sale_price" label="最低销售价" min={0} precision={4} fieldProps={{ style: { width: "100%" } }} />
               </Col>
             </Row>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="latest_purchase_cost" label="最新采购成本">
-                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-                </Form.Item>
+                <ProFormDigit name="latest_purchase_cost" label="最新采购成本" min={0} precision={4} fieldProps={{ style: { width: "100%" } }} />
               </Col>
               <Col span={12}>
-                <Form.Item name="weighted_avg_cost" label="加权平均成本">
-                  <InputNumber min={0} precision={4} style={{ width: "100%" }} />
-                </Form.Item>
+                <ProFormDigit name="weighted_avg_cost" label="加权平均成本" min={0} precision={4} fieldProps={{ style: { width: "100%" } }} />
               </Col>
             </Row>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="price_valid_from" label="价格生效日">
+                <ProFormItem name="price_valid_from" label="价格生效日">
                   <Input placeholder="YYYY-MM-DD" />
-                </Form.Item>
+                </ProFormItem>
               </Col>
               <Col span={12}>
-                <Form.Item name="price_valid_to" label="价格失效日">
+                <ProFormItem name="price_valid_to" label="价格失效日">
                   <Input placeholder="YYYY-MM-DD（可留空）" />
-                </Form.Item>
+                </ProFormItem>
               </Col>
             </Row>
             <div style={{ color: "#8c8c8c", fontSize: 12 }}>
@@ -1567,24 +1556,20 @@ export default function ProductList() {
           </Card>
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="brand_id" label="品牌">
-                <Select
-                  allowClear
-                  placeholder="选择品牌"
-                  options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
-                />
-              </Form.Item>
+              <ProFormSelect
+                name="brand_id"
+                label="品牌"
+                allowClear
+                placeholder="选择品牌"
+                options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
+              />
             </Col>
             <Col span={12}>
-              <Form.Item name="image_url" label="图片URL">
-                <Input />
-              </Form.Item>
+              <ProFormText name="image_url" label="图片URL" />
             </Col>
           </Row>
-          <Form.Item name="notes" label="备注">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-        </Form>
+          <ProFormTextArea name="notes" label="备注" fieldProps={{ rows: 2 }} />
+        </ProForm>
       </Modal>
 
       <Modal
@@ -1613,42 +1598,34 @@ export default function ProductList() {
           />
 
           {batchTaskType === "update" && (
-            <Form form={batchEditForm} layout="vertical">
+            <ProForm form={batchEditForm} layout="vertical" submitter={false}>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="brand_id" label="品牌">
-                    <Select
-                      allowClear
-                      placeholder="保持不变"
-                      options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
-                    />
-                  </Form.Item>
+                  <ProFormSelect
+                    name="brand_id"
+                    label="品牌"
+                    allowClear
+                    placeholder="保持不变"
+                    options={brands.map((b) => ({ value: b.id, label: getBrandSelectLabel(b) }))}
+                  />
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="category" label="分类">
-                    <Input placeholder="保持不变" />
-                  </Form.Item>
+                  <ProFormText name="category" label="分类" fieldProps={{ placeholder: "保持不变" }} />
                 </Col>
               </Row>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="package_type" label="封装">
-                    <Input placeholder="保持不变" />
-                  </Form.Item>
+                  <ProFormText name="package_type" label="封装" fieldProps={{ placeholder: "保持不变" }} />
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="unit" label="单位">
+                  <ProFormItem name="unit" label="单位">
                     <UomSelect uomType="count" placeholder="保持不变" />
-                  </Form.Item>
+                  </ProFormItem>
                 </Col>
               </Row>
-              <Form.Item name="specs" label="规格">
-                <Input.TextArea rows={2} placeholder="保持不变" />
-              </Form.Item>
-              <Form.Item name="notes" label="备注">
-                <Input.TextArea rows={2} placeholder="保持不变" />
-              </Form.Item>
-            </Form>
+              <ProFormTextArea name="specs" label="规格" fieldProps={{ rows: 2, placeholder: "保持不变" }} />
+              <ProFormTextArea name="notes" label="备注" fieldProps={{ rows: 2, placeholder: "保持不变" }} />
+            </ProForm>
           )}
 
           {batchTaskType === "delete" && (
@@ -1707,7 +1684,7 @@ export default function ProductList() {
             min={0}
             precision={quickActionType === "price" ? 2 : 0}
             value={quickValue as number}
-            onChange={(v) => setQuickValue(v)}
+            onChange={(v: number | null) => setQuickValue(v)}
             placeholder={quickActionType === "price" ? "输入单价" : "输入安全库存"}
           />
         </Space>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  Table, Button, Space, message, Card, Input, Select, Modal, Form,
+  Button, Space, message, Card, Input, Select, Modal,
   InputNumber, Popconfirm, Typography, Row, Col, Tag,
 } from "antd";
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import { ProForm, ProFormItem, ProFormDigit, ProFormSelect, ProTable } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { getProductInventories, createProductInventory, updateProductInventory, deleteProductInventory, getProducts, getWarehouses, getApiErrorMessage } from "../../api";
 import type { InventoryItem, Product, Warehouse } from "../../types";
 import { erpPagination } from "../../ui/pagination";
@@ -40,8 +41,8 @@ export default function InventoryManage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [brands, setBrands] = useState<{ id: number; name: string }[]>([]);
 
-  const [form] = Form.useForm();
-  const [editForm] = Form.useForm();
+  const [form] = ProForm.useForm();
+  const [editForm] = ProForm.useForm();
 
   const fetchData = async (p = page, ps = pageSize) => {
     setLoading(true);
@@ -162,24 +163,24 @@ export default function InventoryManage() {
     }
   };
 
-  const columns: ColumnsType<InventoryRecord> = [
+  const columns: ProColumns<InventoryRecord>[] = [
     { title: "ID", dataIndex: "id", key: "id", width: 60 },
     { title: "SKU", dataIndex: "sku", key: "sku", width: 140,
-      render: (v) => <Text code>{v || "-"}</Text> },
+      render: (_, r) => <Text code>{r.sku || "-"}</Text> },
     { title: "产品名称", dataIndex: "product_name", key: "product_name", width: 180,
       ellipsis: true },
     { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 120,
-      render: (v) => v || "-" },
+      render: (_, r) => r.brand_name || "-" },
     { title: "仓库", dataIndex: "warehouse_name", key: "warehouse_name", width: 100 },
     { title: "库存数量", dataIndex: "quantity", key: "quantity", width: 100,
-      render: (v, r) => {
-        const low = v < r.safety_stock;
-        return <Text type={low ? "danger" : undefined}>{v}</Text>;
+      render: (_, r) => {
+        const low = r.quantity < r.safety_stock;
+        return <Text type={low ? "danger" : undefined}>{r.quantity}</Text>;
       },
     },
     { title: "安全库存", dataIndex: "safety_stock", key: "safety_stock", width: 100 },
     { title: "单价 (含税)", dataIndex: "unit_price", key: "unit_price", width: 110,
-      render: (v) => v != null ? `¥${Number(v).toFixed(4)}` : "-" },
+      render: (_, r) => r.unit_price != null ? `¥${Number(r.unit_price).toFixed(4)}` : "-" },
     {
       title: "操作", key: "action", width: 140, fixed: "right",
       render: (_, r) => (
@@ -251,11 +252,13 @@ export default function InventoryManage() {
 
       {/* Table */}
       <Card bodyStyle={{ padding: 0 }}>
-        <Table
+        <ProTable<InventoryRecord>
           columns={columns}
           dataSource={data}
           loading={loading}
           rowKey="id"
+          search={false}
+          options={{ reload: false, density: true, setting: true }}
           scroll={{ x: 1000 }}
           pagination={erpPagination({
             current: page,
@@ -279,53 +282,57 @@ export default function InventoryManage() {
         okText="创建"
         cancelText="取消"
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
+        <ProForm form={form} layout="vertical" submitter={false} style={{ marginTop: 16 }}>
+          <ProFormSelect
             name="product_id"
             label="产品"
             rules={[{ required: true, message: "请选择产品" }]}
-          >
-            <Select
-              showSearch
-              placeholder="选择或搜索产品"
-              optionFilterProp="label"
-              options={products.map((p) => ({
-                value: p.id,
-                label: `${p.sku || ""} - ${p.name} ${p.brand_name ? `(${p.brand_name})` : ""}`.trim(),
-              }))}
-            />
-          </Form.Item>
-          <Form.Item
+            showSearch
+            placeholder="选择或搜索产品"
+            options={products.map((p) => ({
+              value: p.id,
+              label: `${p.sku || ""} - ${p.name} ${p.brand_name ? `(${p.brand_name})` : ""}`.trim(),
+            }))}
+            fieldProps={{
+              optionFilterProp: "label",
+            }}
+          />
+          <ProFormSelect
             name="warehouse_id"
             label="仓库"
             rules={[{ required: true, message: "请选择仓库" }]}
-          >
-            <Select
-              placeholder="选择仓库"
-              options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
-            />
-          </Form.Item>
+            placeholder="选择仓库"
+            options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+          />
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item
+              <ProFormDigit
                 name="quantity"
                 label="库存数量"
                 rules={[{ required: true, message: "请输入数量" }]}
                 initialValue={0}
-              >
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+                min={0}
+                fieldProps={{ style: { width: "100%" } }}
+              />
             </Col>
             <Col span={12}>
-              <Form.Item name="safety_stock" label="安全库存" initialValue={0}>
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit
+                name="safety_stock"
+                label="安全库存"
+                initialValue={0}
+                min={0}
+                fieldProps={{ style: { width: "100%" } }}
+              />
             </Col>
           </Row>
-          <Form.Item name="unit_price" label="单价 (含税)">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} placeholder="0.0000" />
-          </Form.Item>
-        </Form>
+          <ProFormDigit
+            name="unit_price"
+            label="单价 (含税)"
+            min={0}
+            step={0.0001}
+            fieldProps={{ style: { width: "100%" }, placeholder: "0.0000" }}
+          />
+        </ProForm>
       </Modal>
 
       {/* Edit Modal */}
@@ -347,23 +354,34 @@ export default function InventoryManage() {
             </Text>
           </div>
         )}
-        <Form form={editForm} layout="vertical" style={{ marginTop: 8 }}>
+        <ProForm form={editForm} layout="vertical" submitter={false} style={{ marginTop: 8 }}>
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="quantity" label="库存数量" rules={[{ required: true }]}>
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit
+                name="quantity"
+                label="库存数量"
+                rules={[{ required: true }]}
+                min={0}
+                fieldProps={{ style: { width: "100%" } }}
+              />
             </Col>
             <Col span={12}>
-              <Form.Item name="safety_stock" label="安全库存">
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <ProFormDigit
+                name="safety_stock"
+                label="安全库存"
+                min={0}
+                fieldProps={{ style: { width: "100%" } }}
+              />
             </Col>
           </Row>
-          <Form.Item name="unit_price" label="单价 (含税)">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} placeholder="0.0000" />
-          </Form.Item>
-        </Form>
+          <ProFormDigit
+            name="unit_price"
+            label="单价 (含税)"
+            min={0}
+            step={0.0001}
+            fieldProps={{ style: { width: "100%" }, placeholder: "0.0000" }}
+          />
+        </ProForm>
       </Modal>
     </div>
   );
