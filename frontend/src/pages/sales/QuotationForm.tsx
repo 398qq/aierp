@@ -16,6 +16,7 @@ import {
   Typography,
   message,
 } from "antd";
+import { ProForm } from "@ant-design/pro-components";
 import { StatusTag, UomSelect } from "../../ui";
 import {
   ArrowLeftOutlined,
@@ -89,14 +90,14 @@ export default function QuotationForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
   const [loading, setLoading] = useState(false);
   const [showCostColumns, setShowCostColumns] = useState(true);
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const isEdit = !!id;
-  const watchedItems = Form.useWatch("items", form) as QuoteItemForm[] | undefined;
-  const watchedTotal = Form.useWatch("total_amount", form) as number | undefined;
-  const watchedCustomerId = Form.useWatch("customer_id", form) as number | undefined;
+  const watchedItems = ProForm.useWatch("items", form) as QuoteItemForm[] | undefined;
+  const watchedTotal = ProForm.useWatch("total_amount", form) as number | undefined;
+  const watchedCustomerId = ProForm.useWatch("customer_id", form) as number | undefined;
 
   const summary = useMemo(() => {
     const items = watchedItems || [];
@@ -218,7 +219,7 @@ export default function QuotationForm() {
         </Button>
       }
     >
-      <Form
+      <ProForm
         form={form}
         layout="vertical"
         onFinish={onFinish}
@@ -285,14 +286,14 @@ export default function QuotationForm() {
               <FormAIWarning entityType="quotation" formData={formValues} />
 
               <div style={compactFormGrid}>
-                <Form.Item
+                <ProForm.Item
                   name="customer_id"
                   label="客户"
                   rules={[{ required: true, message: "请选择客户" }]}
                 >
                   <CustomerSelect />
-                </Form.Item>
-                <Form.Item name="opportunity_id" label="关联商机">
+                </ProForm.Item>
+                <ProForm.Item name="opportunity_id" label="关联商机">
                   <OpportunitySelect
                     customerId={watchedCustomerId}
                     onOpportunityPicked={(opportunity) => {
@@ -304,22 +305,22 @@ export default function QuotationForm() {
                       }
                     }}
                   />
-                </Form.Item>
-                <Form.Item name="quotation_no" label="报价单号">
+                </ProForm.Item>
+                <ProForm.Item name="quotation_no" label="报价单号">
                   <Input placeholder="系统自动生成 / 手工编号" />
-                </Form.Item>
-                <Form.Item name="status" label="单据状态">
+                </ProForm.Item>
+                <ProForm.Item name="status" label="单据状态">
                   <Select options={STATUS_OPTIONS} />
-                </Form.Item>
-                <Form.Item name="title" label="报价主题">
+                </ProForm.Item>
+                <ProForm.Item name="title" label="报价主题">
                   <Input placeholder="例如：华东客户 MCU 批量报价" />
-                </Form.Item>
-                <Form.Item
+                </ProForm.Item>
+                <ProForm.Item
                   name="valid_until"
                   label="报价有效期"
                   rules={[
                     {
-                      validator: (_, value: Dayjs | null) => {
+                      validator: (_: unknown, value: Dayjs | null) => {
                         if (!value || value.endOf("day").isAfter(dayjs())) return Promise.resolve();
                         return Promise.reject(new Error("有效期不能早于今天"));
                       },
@@ -327,7 +328,7 @@ export default function QuotationForm() {
                   ]}
                 >
                   <DatePicker style={{ width: "100%" }} />
-                </Form.Item>
+                </ProForm.Item>
               </div>
             </Card>
 
@@ -439,8 +440,8 @@ export default function QuotationForm() {
                           fixed: "left",
                           render: (_: unknown, field: { name: number }) => (
                             <>
-                              <Form.Item name={[field.name, "product_name"]} hidden />
-                              <Form.Item
+                              <ProForm.Item name={[field.name, "product_name"]} hidden />
+                              <ProForm.Item
                                 name={[field.name, "product_id"]}
                                 rules={[{ required: true, message: "请选择产品" }]}
                                 style={{ marginBottom: 0 }}
@@ -487,7 +488,7 @@ export default function QuotationForm() {
                                         .catch(() => {});
                                   }}
                                 />
-                              </Form.Item>
+                              </ProForm.Item>
                             </>
                           ),
                         },
@@ -496,12 +497,12 @@ export default function QuotationForm() {
                           width: 220,
                           render: (_: unknown, field: { name: number }) => (
                             <Space direction="vertical" size={6} style={{ width: "100%" }}>
-                              <Form.Item name={[field.name, "customer_part_no"]} noStyle>
+                              <ProForm.Item name={[field.name, "customer_part_no"]} noStyle>
                                 <Input placeholder="客户料号" />
-                              </Form.Item>
-                              <Form.Item name={[field.name, "customer_product_name"]} noStyle>
+                              </ProForm.Item>
+                              <ProForm.Item name={[field.name, "customer_product_name"]} noStyle>
                                 <Input placeholder="客户品名（可选）" />
-                              </Form.Item>
+                              </ProForm.Item>
                             </Space>
                           ),
                         },
@@ -509,25 +510,28 @@ export default function QuotationForm() {
                           title: "数量",
                           width: 110,
                           render: (_: unknown, field: { name: number }) => (
-                            <Form.Item name={[field.name, "quantity"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item
+                              name={[field.name, "quantity"]}
+                              style={{ marginBottom: 0 }}
+                            >
                               <InputNumber min={1} precision={0} style={{ width: "100%" }} />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "单位",
                           width: 90,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "unit"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item name={[field.name, "unit"]} style={{ marginBottom: 0 }}>
                               <UomSelect uomType="count" placeholder="件" />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "含税单价",
                           width: 140,
                           render: (_: unknown, field) => (
-                            <Form.Item
+                            <ProForm.Item
                               name={[field.name, "unit_price"]}
                               style={{ marginBottom: 0 }}
                             >
@@ -537,14 +541,14 @@ export default function QuotationForm() {
                                 prefix="¥"
                                 style={{ width: "100%" }}
                               />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "折扣率",
                           width: 110,
                           render: (_: unknown, field) => (
-                            <Form.Item
+                            <ProForm.Item
                               name={[field.name, "discount_rate"]}
                               style={{ marginBottom: 0 }}
                             >
@@ -555,14 +559,17 @@ export default function QuotationForm() {
                                 suffix="%"
                                 style={{ width: "100%" }}
                               />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "税率",
                           width: 100,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "tax_rate"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item
+                              name={[field.name, "tax_rate"]}
+                              style={{ marginBottom: 0 }}
+                            >
                               <InputNumber
                                 min={0}
                                 max={100}
@@ -570,14 +577,14 @@ export default function QuotationForm() {
                                 suffix="%"
                                 style={{ width: "100%" }}
                               />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "价税合计",
                           width: 140,
                           render: (_: unknown, field) => (
-                            <Form.Item
+                            <ProForm.Item
                               name={[field.name, "total_price"]}
                               style={{ marginBottom: 0 }}
                             >
@@ -587,7 +594,7 @@ export default function QuotationForm() {
                                 prefix="¥"
                                 style={{ width: "100%" }}
                               />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         ...(showCostColumns
@@ -596,7 +603,7 @@ export default function QuotationForm() {
                                 title: "含税成本单价",
                                 width: 130,
                                 render: (_: unknown, field: { name: number }) => (
-                                  <Form.Item
+                                  <ProForm.Item
                                     name={[field.name, "cost_price"]}
                                     style={{ marginBottom: 0 }}
                                   >
@@ -606,7 +613,7 @@ export default function QuotationForm() {
                                       prefix="¥"
                                       style={{ width: "100%" }}
                                     />
-                                  </Form.Item>
+                                  </ProForm.Item>
                                 ),
                               },
                             ]
@@ -615,18 +622,24 @@ export default function QuotationForm() {
                           title: "批次 / D/C",
                           width: 150,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "datecode"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item
+                              name={[field.name, "datecode"]}
+                              style={{ marginBottom: 0 }}
+                            >
                               <Input maxLength={100} placeholder="引用产品 D/C" />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
                           title: "交期",
                           width: 140,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "lead_time"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item
+                              name={[field.name, "lead_time"]}
+                              style={{ marginBottom: 0 }}
+                            >
                               <Input maxLength={100} placeholder="现货 / 7天 / 2–3周" />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         ...(showCostColumns
@@ -635,7 +648,7 @@ export default function QuotationForm() {
                                 title: "销售毛利",
                                 width: 140,
                                 render: (_: unknown, field: { name: number }) => (
-                                  <Form.Item
+                                  <ProForm.Item
                                     name={[field.name, "sales_profit"]}
                                     style={{ marginBottom: 0 }}
                                   >
@@ -645,14 +658,14 @@ export default function QuotationForm() {
                                       prefix="¥"
                                       style={{ width: "100%" }}
                                     />
-                                  </Form.Item>
+                                  </ProForm.Item>
                                 ),
                               },
                               {
                                 title: "毛利率",
                                 width: 110,
                                 render: (_: unknown, field: { name: number }) => (
-                                  <Form.Item noStyle shouldUpdate>
+                                  <ProForm.Item noStyle shouldUpdate>
                                     {() => {
                                       const item = (form.getFieldValue(["items", field.name]) ||
                                         {}) as QuoteItemForm;
@@ -669,7 +682,7 @@ export default function QuotationForm() {
                                         </StatusTag>
                                       );
                                     }}
-                                  </Form.Item>
+                                  </ProForm.Item>
                                 ),
                               },
                             ]
@@ -678,9 +691,9 @@ export default function QuotationForm() {
                           title: "备注",
                           width: 220,
                           render: (_: unknown, field) => (
-                            <Form.Item name={[field.name, "notes"]} style={{ marginBottom: 0 }}>
+                            <ProForm.Item name={[field.name, "notes"]} style={{ marginBottom: 0 }}>
                               <Input placeholder="交期 / 替代料 / 条件" />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
@@ -741,9 +754,9 @@ export default function QuotationForm() {
               title={<span style={sectionTitleStyle}>交易条款与备注</span>}
               style={{ borderColor: "#d9e2ec" }}
             >
-              <Form.Item name="notes" label="报价条款">
+              <ProForm.Item name="notes" label="报价条款">
                 <Input.TextArea rows={6} placeholder="付款条件、交期、运输、价格有效期、特别说明" />
-              </Form.Item>
+              </ProForm.Item>
             </Card>
           </Space>
 
@@ -790,9 +803,9 @@ export default function QuotationForm() {
                     </StatusTag>
                   </div>
                 </div>
-                <Form.Item name="total_amount" hidden>
+                <ProForm.Item name="total_amount" hidden>
                   <InputNumber />
-                </Form.Item>
+                </ProForm.Item>
                 <Alert
                   showIcon
                   type={summary.itemCount > 0 && summary.profit >= 0 ? "info" : "warning"}
@@ -827,7 +840,7 @@ export default function QuotationForm() {
             </Card>
           </Space>
         </div>
-      </Form>
+      </ProForm>
     </SalesModuleShell>
   );
 }
