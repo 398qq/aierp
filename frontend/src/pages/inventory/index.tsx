@@ -279,10 +279,10 @@ export default function InventoryList() {
       dataIndex: "sku",
       key: "sku",
       width: 100,
-      render: (v: string | number | null, r: InventoryItem) =>
+      render: (v: unknown) =>
         v ? (
           <span style={{ fontFamily: "var(--nb-font-mono)", fontSize: "0.8rem", fontWeight: 700 }}>
-            {v}
+            {v as React.ReactNode}
           </span>
         ) : null,
     },
@@ -299,9 +299,9 @@ export default function InventoryList() {
       dataIndex: "quantity",
       key: "qty",
       width: 60,
-      render: (v: string | number | null, r: InventoryItem) => (
+      render: (v: unknown) => (
         <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900, fontSize: "0.9rem" }}>
-          {v}
+          {v as React.ReactNode}
         </span>
       ),
     },
@@ -310,12 +310,14 @@ export default function InventoryList() {
       dataIndex: "locked_quantity",
       key: "locked",
       width: 50,
-      render: (v: string | number | null, r: InventoryItem) =>
-        v > 0 ? (
-          <span className="nb-tag nb-tag--warning">{v}</span>
+      render: (v: unknown) => {
+        const num = Number(v);
+        return num > 0 ? (
+          <span className="nb-tag nb-tag--warning">{v as React.ReactNode}</span>
         ) : (
           <Text type="secondary">0</Text>
-        ),
+        );
+      },
     },
     {
       title: "可用",
@@ -342,7 +344,7 @@ export default function InventoryList() {
       dataIndex: "safety_stock",
       key: "safe",
       width: 70,
-      render: (v: string | number | null, r: InventoryItem) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v}</span>,
+      render: (v: unknown) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v as React.ReactNode}</span>,
     },
     {
       title: "库存水位",
@@ -571,9 +573,9 @@ export default function InventoryList() {
         {forecastLoading ? (
           <div className="nb-empty">LOADING...</div>
         ) : forecastData.length > 0 ? (
-          <Table
+          <Table<Record<string, unknown>>
             size="small"
-            dataSource={forecastData as Record<string, unknown>[]}
+            dataSource={forecastData}
             rowKey="product_id"
             pagination={false}
             columns={[
@@ -582,8 +584,10 @@ export default function InventoryList() {
                 dataIndex: "sku",
                 width: 100,
                 ellipsis: true,
-                render: (v: string | number | null, r: InventoryItem) => (
-                  <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 700 }}>{v}</span>
+                render: (v: unknown) => (
+                  <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 700 }}>
+                    {v as React.ReactNode}
+                  </span>
                 ),
               },
               { title: "产品名", dataIndex: "name", ellipsis: true },
@@ -591,10 +595,10 @@ export default function InventoryList() {
                 title: "月预测需求",
                 dataIndex: "monthly_forecast",
                 width: 110,
-                render: (v: string | number | null, r: InventoryItem) =>
+                render: (v: unknown) =>
                   v != null ? (
                     <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900 }}>
-                      {v.toFixed(0)}
+                      {Number(v).toFixed(0)}
                     </span>
                   ) : (
                     "-"
@@ -620,7 +624,7 @@ export default function InventoryList() {
                 title: "安全库存",
                 dataIndex: "suggested_safety_stock",
                 width: 90,
-                render: (v: number, r: Record<string, unknown>) => {
+                render: (v: unknown, r: Record<string, unknown>) => {
                   const current = Number(r.current_safety_stock) || 0;
                   const suggested = Number(v) || 0;
                   const gap = suggested - current;

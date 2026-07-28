@@ -497,8 +497,10 @@ export default function SupplierList() {
       title: "类型",
       dataIndex: "supplier_type",
       width: 80,
-      render: (v) =>
-        normalizeSupplierType(v) ? <StatusTag>{normalizeSupplierType(v)}</StatusTag> : "-",
+      render: (v: unknown) => {
+        const normalized = normalizeSupplierType(v as string | null | undefined);
+        return normalized ? <StatusTag>{normalized}</StatusTag> : "-";
+      },
     },
     {
       title: "状态",
@@ -535,12 +537,16 @@ export default function SupplierList() {
       dataIndex: "rating_score",
       width: 70,
       align: "center",
-      render: (v) =>
-        v != null ? (
-          <StatusTag tone={v >= 4 ? "success" : v >= 3 ? "warning" : "danger"}>{v}</StatusTag>
+      render: (v: unknown) => {
+        const score = typeof v === "number" ? v : Number(v);
+        return v != null && !Number.isNaN(score) ? (
+          <StatusTag tone={score >= 4 ? "success" : score >= 3 ? "warning" : "danger"}>
+            {v as number}
+          </StatusTag>
         ) : (
           "-"
-        ),
+        );
+      },
     },
     {
       title: "交期(天)",
