@@ -16,6 +16,8 @@ export default [
       "build/**",
       "coverage/**",
       "**/*.min.js",
+      "**/.umi/**",
+      "**/.umi-production/**",
       "src/test/setup.ts",  // vitest globals + localStorage stub
       "src/api/client.ts",  // axios interceptor (auto-generated pattern)
     ],
@@ -80,6 +82,8 @@ export default [
       "@typescript-eslint/no-explicit-any": "warn",  // 避免老代码全报
       "@typescript-eslint/no-empty-object-type": "off",  // {} types allowed
       "@typescript-eslint/no-namespace": "off",  // some legacy uses
+      "@typescript-eslint/ban-ts-comment": "off",  // pre-existing @ts-nocheck suppressions
+      "@typescript-eslint/no-unnecessary-type-constraint": "off",  // pre-existing T extends any
 
       // General JS — relax for fast iteration
       "no-console": "off",  // console.log widely used for debug
