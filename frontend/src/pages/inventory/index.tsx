@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   Table,
@@ -22,7 +22,8 @@ import {
   ShoppingCartOutlined,
   DownloadOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import {
   getInventory,
   getInventoryOverview,
@@ -61,6 +62,7 @@ export default function InventoryList() {
   const [restocking, setRestocking] = useState(false);
   const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
   const navigate = useNavigate();
+  const actionRef = useRef<ActionType | null>(null);
 
   const fetch = async (p = page) => {
     setLoading(true);
@@ -81,6 +83,9 @@ export default function InventoryList() {
 
   useEffect(() => {
     fetch();
+    return () => {
+      actionRef.current?.clear();
+    };
   }, [page, pageSize]);
 
   useEffect(() => {
@@ -526,17 +531,20 @@ export default function InventoryList() {
             <button className="nb-btn nb-btn--small" onClick={handleBatchExport}>
               <DownloadOutlined /> 全部导出
             </button>
-            <button className="nb-btn nb-btn--small" onClick={() => fetch()}>
+            <button className="nb-btn nb-btn--small" onClick={() => { actionRef.current?.reload(); fetch(); }}>
               <ReloadOutlined /> 刷新
             </button>
           </Space>
         </div>
-        <Table
+        <ProTable
+          actionRef={actionRef}
           rowKey="id"
-          columns={columns}
+          columns={columns as ProColumns<InventoryItem>[]}
           dataSource={data}
           loading={loading}
           size="small"
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
@@ -545,7 +553,10 @@ export default function InventoryList() {
             current: page,
             total,
             pageSize,
-            onChange: (p, ps) => { setPage(ps !== pageSize ? 1 : p); setPageSize(ps); },
+            onChange: (p, ps) => {
+              setPage(ps !== pageSize ? 1 : p);
+              setPageSize(ps);
+            },
           })}
         />
       </div>
