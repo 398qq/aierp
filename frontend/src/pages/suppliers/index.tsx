@@ -94,7 +94,7 @@ const normalizeSupplierType = (value?: string | null) => {
     trader: "贸易商",
     trade: "贸易商",
   };
-  return normalized[value.toLowerCase()] || value;
+  return normalized[value.toLowerCase()] || (value as string);
 };
 
 const getSupplierCompletion = (supplier: Supplier) => {

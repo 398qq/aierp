@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   DatePicker,
+  Form,
   Input,
   InputNumber,
   Select,
@@ -253,25 +254,25 @@ export default function SalesOrderForm() {
                   rules={[{ required: true, message: "请选择客户" }]}
                 >
                   <CustomerSelect />
-                </Form.Item>
+                </ProForm.Item>
                 <ProForm.Item name="quotation_id" label="来源报价">
                   <QuotationSelect customerId={watchedCustomerId} />
-                </Form.Item>
+                </ProForm.Item>
                 <ProForm.Item name="order_no" label="订单号">
                   <Input placeholder="系统自动生成 / 手工编号" />
-                </Form.Item>
+                </ProForm.Item>
                 <ProForm.Item name="status" label="执行状态">
                   <Select options={getSalesOrderStatusOptions(originalStatus, isEdit)} />
-                </Form.Item>
+                </ProForm.Item>
                 <ProForm.Item name="order_date" label="下单日期">
                   <DatePicker style={{ width: "100%" }} />
-                </Form.Item>
+                </ProForm.Item>
                 <ProForm.Item
                   name="delivery_date"
                   label="预计交货"
                   rules={[
                     {
-                      validator: (_, value: Dayjs | null) => {
+                      validator: (_: unknown, value: Dayjs | null) => {
                         const orderDate = form.getFieldValue("order_date") as Dayjs | null;
                         if (
                           !value ||
@@ -285,7 +286,7 @@ export default function SalesOrderForm() {
                   ]}
                 >
                   <DatePicker style={{ width: "100%" }} />
-                </Form.Item>
+                </ProForm.Item>
               </div>
             </Card>
 
@@ -403,14 +404,14 @@ export default function SalesOrderForm() {
                                         .catch(() => {});
                                   }}
                                 />
-                              </Form.Item>
+                              </ProForm.Item>
                               <Space.Compact block style={{ marginTop: 6 }}>
                                 <ProForm.Item name={[field.name, "customer_part_no"]} noStyle>
                                   <Input placeholder="客户料号（自动带出，可调整）" />
-                                </Form.Item>
+                                </ProForm.Item>
                                 <ProForm.Item name={[field.name, "customer_product_name"]} noStyle>
                                   <Input placeholder="客户品名" />
-                                </Form.Item>
+                                </ProForm.Item>
                               </Space.Compact>
                             </>
                           ),
@@ -421,7 +422,7 @@ export default function SalesOrderForm() {
                           render: (_: unknown, field) => (
                             <ProForm.Item name={[field.name, "quantity"]} style={{ marginBottom: 0 }}>
                               <InputNumber min={1} precision={0} style={{ width: "100%" }} />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
@@ -438,7 +439,7 @@ export default function SalesOrderForm() {
                                 prefix="¥"
                                 style={{ width: "100%" }}
                               />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
@@ -455,7 +456,7 @@ export default function SalesOrderForm() {
                                 prefix="¥"
                                 style={{ width: "100%" }}
                               />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
@@ -464,7 +465,7 @@ export default function SalesOrderForm() {
                           render: (_: unknown, field) => (
                             <ProForm.Item name={[field.name, "notes"]} style={{ marginBottom: 0 }}>
                               <Input placeholder="批次 / 交期 / 包装等交付说明" />
-                            </Form.Item>
+                            </ProForm.Item>
                           ),
                         },
                         {
@@ -516,7 +517,7 @@ export default function SalesOrderForm() {
                   rows={5}
                   placeholder="客户 PO 号、交付批次、付款条件、发货要求、特殊包装或验收说明"
                 />
-              </Form.Item>
+              </ProForm.Item>
             </Card>
           </Space>
 
@@ -564,7 +565,7 @@ export default function SalesOrderForm() {
                 </div>
                 <ProForm.Item name="total_amount" hidden>
                   <InputNumber />
-                </Form.Item>
+                </ProForm.Item>
                 <Alert
                   showIcon
                   type={summary.itemCount > 0 ? deliveryRisk.type : "warning"}

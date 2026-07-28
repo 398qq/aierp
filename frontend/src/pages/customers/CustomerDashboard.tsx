@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import {
   Alert,
   Button,
-  Card,
   Col,
   Empty,
   List,
@@ -11,8 +10,10 @@ import {
   Row,
   Space,
   Spin,
+  Statistic,
   Typography,
 } from "antd";
+import { ProCard } from "@ant-design/pro-components";
 import { IndustryRanking, StatusTag } from "../../ui";
 import {
   AlertOutlined,
@@ -311,58 +312,67 @@ export default function CustomerDashboard() {
         />
       )}
 
-      <div className="customer-dashboard-kpis">
-        <div className="customer-dashboard-kpi">
-          <div className="customer-dashboard-kpi-title">
-            <span>客户总数</span>
-            <TeamOutlined />
-          </div>
-          <div className="customer-dashboard-kpi-value">{stats.total}</div>
-          <div className="customer-dashboard-kpi-note">A/B级占比 {abRatio}%</div>
-        </div>
-        <div className="customer-dashboard-kpi">
-          <div className="customer-dashboard-kpi-title">
-            <span>A类客户</span>
-            <CheckCircleOutlined />
-          </div>
-          <div className="customer-dashboard-kpi-value">{levelA}</div>
-          <div className="customer-dashboard-kpi-note">B类客户 {levelB}</div>
-        </div>
-        <div className="customer-dashboard-kpi">
-          <div className="customer-dashboard-kpi-title">
-            <span>本月新增</span>
-            <LineChartOutlined />
-          </div>
-          <div className="customer-dashboard-kpi-value">{latestMonthly?.count || 0}</div>
-          <div className="customer-dashboard-kpi-note">
-            {latestMonthly?.month || "暂无月度数据"}
-          </div>
-        </div>
-        <div className={`customer-dashboard-kpi${reminderCounts.overdue > 0 ? " is-risk" : ""}`}>
-          <div className="customer-dashboard-kpi-title">
-            <span>逾期跟进</span>
-            <WarningOutlined />
-          </div>
-          <div className="customer-dashboard-kpi-value">{reminderCounts.overdue}</div>
-          <div className="customer-dashboard-kpi-note">今日待跟进 {reminderCounts.today}</div>
-        </div>
-        <div
-          className={`customer-dashboard-kpi${(aiStats?.high_churn_count || 0) > 0 ? " is-warning" : ""}`}
-        >
-          <div className="customer-dashboard-kpi-title">
-            <span>AI风险客户</span>
-            <RobotOutlined />
-          </div>
-          <div className="customer-dashboard-kpi-value">{aiStats?.high_churn_count ?? "-"}</div>
-          <div className="customer-dashboard-kpi-note">
-            AI覆盖率 {aiStats ? `${aiStats.ai_coverage_pct}%` : "未加载"}
-          </div>
-        </div>
-      </div>
+      <Row gutter={[12, 12]} className="customer-dashboard-section">
+        <Col xs={24} sm={8} md={4}>
+          <ProCard>
+            <Statistic
+              title="客户总数"
+              value={stats.total}
+              prefix={<TeamOutlined />}
+              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>A/B占{abRatio}%</Typography.Text>}
+            />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={8} md={4}>
+          <ProCard>
+            <Statistic
+              title="A类客户"
+              value={levelA}
+              prefix={<CheckCircleOutlined style={{ color: "#52c41a" }} />}
+              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>B级{levelB}</Typography.Text>}
+            />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={8} md={4}>
+          <ProCard>
+            <Statistic
+              title="本月新增"
+              value={latestMonthly?.count || 0}
+              prefix={<LineChartOutlined />}
+              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>{latestMonthly?.month || "-"}</Typography.Text>}
+            />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={8} md={4}>
+          <ProCard
+            style={reminderCounts.overdue > 0 ? { borderColor: "#ffccc7", background: "#fffafa" } : undefined}
+          >
+            <Statistic
+              title="逾期跟进"
+              value={reminderCounts.overdue}
+              prefix={<WarningOutlined style={{ color: reminderCounts.overdue > 0 ? "#ff4d4f" : undefined }} />}
+              valueStyle={{ color: reminderCounts.overdue > 0 ? "#ff4d4f" : undefined }}
+              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>今日{reminderCounts.today}</Typography.Text>}
+            />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={8} md={4}>
+          <ProCard
+            style={(aiStats?.high_churn_count || 0) > 0 ? { borderColor: "#ffe58f", background: "#fffbe6" } : undefined}
+          >
+            <Statistic
+              title="AI风险客户"
+              value={aiStats?.high_churn_count ?? 0}
+              prefix={<RobotOutlined />}
+              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>覆盖率{aiStats ? `${aiStats.ai_coverage_pct}%` : "-"}</Typography.Text>}
+            />
+          </ProCard>
+        </Col>
+      </Row>
 
       <Row gutter={[12, 12]} className="customer-dashboard-section">
         <Col xs={24} xl={14}>
-          <Card size="small" className="customer-dashboard-card" title="风险与行动">
+          <ProCard title="风险与行动">
             <div className="customer-dashboard-action-list">
               {actionItems.map((item) => (
                 <div className="customer-dashboard-action" key={item.key}>
@@ -382,10 +392,10 @@ export default function CustomerDashboard() {
                 </div>
               ))}
             </div>
-          </Card>
+          </ProCard>
         </Col>
         <Col xs={24} xl={10}>
-          <Card size="small" className="customer-dashboard-card" title="优先跟进">
+          <ProCard title="优先跟进">
             {priorityReminders.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无紧急跟进" />
             ) : (
@@ -431,13 +441,13 @@ export default function CustomerDashboard() {
                 )}
               />
             )}
-          </Card>
+          </ProCard>
         </Col>
       </Row>
 
       <Row gutter={[12, 12]} className="customer-dashboard-section">
         <Col xs={24} xl={8}>
-          <Card size="small" className="customer-dashboard-chart" title="客户等级分布">
+          <ProCard title="客户等级分布">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={stats.by_level}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -451,12 +461,10 @@ export default function CustomerDashboard() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </Card>
+          </ProCard>
         </Col>
         <Col xs={24} xl={8}>
-          <Card
-            size="small"
-            className="customer-dashboard-chart"
+          <ProCard
             title="行业分布"
             extra={
               <Text type="secondary">
@@ -470,12 +478,10 @@ export default function CustomerDashboard() {
               primaryColor="#1677ff"
               secondaryColor="#91caff"
             />
-          </Card>
+          </ProCard>
         </Col>
         <Col xs={24} xl={8}>
-          <Card
-            size="small"
-            className="customer-dashboard-chart"
+          <ProCard
             title="区域分布"
             extra={
               <Text type="secondary">
@@ -492,13 +498,13 @@ export default function CustomerDashboard() {
                 <Bar dataKey="value" fill="#52c41a" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </Card>
+          </ProCard>
         </Col>
       </Row>
 
       <Row gutter={[12, 12]}>
         <Col xs={24} xl={15}>
-          <Card size="small" className="customer-dashboard-chart" title="月度新增客户趋势">
+          <ProCard title="月度新增客户趋势">
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={stats.monthly}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -514,10 +520,10 @@ export default function CustomerDashboard() {
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </Card>
+          </ProCard>
         </Col>
         <Col xs={24} xl={9}>
-          <Card size="small" className="customer-dashboard-card" title="客户质量">
+          <ProCard title="客户质量">
             <Space direction="vertical" size={12} style={{ width: "100%" }}>
               <div>
                 <Space style={{ width: "100%", justifyContent: "space-between" }}>
@@ -553,7 +559,7 @@ export default function CustomerDashboard() {
                 查看客户智能分析
               </Button>
             </Space>
-          </Card>
+          </ProCard>
         </Col>
       </Row>
     </CustomerModuleShell>

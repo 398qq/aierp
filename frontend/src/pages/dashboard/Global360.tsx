@@ -164,7 +164,7 @@ export default function Global360Page() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={12}>
-          <Card
+          <ProCard
             title={
               <>
                 <RiseOutlined /> 顶部机会
@@ -182,7 +182,7 @@ export default function Global360Page() {
           </ProCard>
         </Col>
         <Col span={12}>
-          <Card
+          <ProCard
             title={
               <>
                 <WarningOutlined /> 顶部风险
@@ -203,7 +203,7 @@ export default function Global360Page() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={24}>
-          <Card
+          <ProCard
             title={
               <>
                 <ThunderboltOutlined /> 跨领域关联

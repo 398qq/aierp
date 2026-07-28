@@ -84,7 +84,7 @@ export default function InventoryList() {
   useEffect(() => {
     fetch();
     return () => {
-      actionRef.current?.clear();
+      actionRef.current?.reload();
     };
   }, [page, pageSize]);
 
@@ -234,7 +234,7 @@ export default function InventoryList() {
     }
   };
 
-  const columns: ColumnsType<InventoryItem> = [
+  const columns: ProColumns<InventoryItem>[] = [
     {
       title: "仓库",
       dataIndex: "warehouse_name",
@@ -279,7 +279,7 @@ export default function InventoryList() {
       dataIndex: "sku",
       key: "sku",
       width: 100,
-      render: (v: string) =>
+      render: (v: string | number | null, r: InventoryItem) =>
         v ? (
           <span style={{ fontFamily: "var(--nb-font-mono)", fontSize: "0.8rem", fontWeight: 700 }}>
             {v}
@@ -299,7 +299,7 @@ export default function InventoryList() {
       dataIndex: "quantity",
       key: "qty",
       width: 60,
-      render: (v: number) => (
+      render: (v: string | number | null, r: InventoryItem) => (
         <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900, fontSize: "0.9rem" }}>
           {v}
         </span>
@@ -310,7 +310,7 @@ export default function InventoryList() {
       dataIndex: "locked_quantity",
       key: "locked",
       width: 50,
-      render: (v: number) =>
+      render: (v: string | number | null, r: InventoryItem) =>
         v > 0 ? (
           <span className="nb-tag nb-tag--warning">{v}</span>
         ) : (
@@ -342,7 +342,7 @@ export default function InventoryList() {
       dataIndex: "safety_stock",
       key: "safe",
       width: 70,
-      render: (v: number) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v}</span>,
+      render: (v: string | number | null, r: InventoryItem) => <span style={{ fontFamily: "var(--nb-font-mono)" }}>{v}</span>,
     },
     {
       title: "库存水位",
@@ -582,7 +582,7 @@ export default function InventoryList() {
                 dataIndex: "sku",
                 width: 100,
                 ellipsis: true,
-                render: (v: string) => (
+                render: (v: string | number | null, r: InventoryItem) => (
                   <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 700 }}>{v}</span>
                 ),
               },
@@ -591,7 +591,7 @@ export default function InventoryList() {
                 title: "月预测需求",
                 dataIndex: "monthly_forecast",
                 width: 110,
-                render: (v: number) =>
+                render: (v: string | number | null, r: InventoryItem) =>
                   v != null ? (
                     <span style={{ fontFamily: "var(--nb-font-mono)", fontWeight: 900 }}>
                       {v.toFixed(0)}
