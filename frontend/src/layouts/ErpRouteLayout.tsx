@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Spin } from 'antd';
 import { ProLayout } from '@ant-design/pro-components';
-import { Outlet, Navigate, useLocation } from '@umijs/max';
+import { Outlet, Navigate, useLocation } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { menuItems } from './menuConfig';
 
@@ -28,8 +28,7 @@ export default function ErpRouteLayout(): React.JSX.Element {
       title="AIERP"
       logo="/icon-192.png"
       location={location}
-      menu={{ type: 'group', items: menuItems }}
-      menuDataRender={() => menuItems}
+      menuDataRender={() => menuItems as never}
       contentWidth="Fluid"
       siderWidth={224}
       fixedHeader
