@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  Button, Dropdown, Form, Input, message, Segmented, Select, Space, Tag, Typography, Grid,
+  App, Button, Dropdown, Form, Input, Segmented, Select, Space, Tag, Typography, Grid,
 } from "antd";
+import { ProForm } from "@ant-design/pro-components";
 import {
   PlusOutlined, SearchOutlined, EditOutlined, EyeOutlined, EllipsisOutlined, PhoneFilled,
   ThunderboltOutlined, ReloadOutlined, ExportOutlined, FileTextOutlined, MergeCellsOutlined,
@@ -47,6 +48,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 export default function CustomerListPage() {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,7 +62,7 @@ export default function CustomerListPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [followUpCustomer, setFollowUpCustomer] = useState<Customer | null>(null);
   const [followUpSaving, setFollowUpSaving] = useState(false);
-  const [followUpForm] = Form.useForm();
+  const [followUpForm] = ProForm.useForm();
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
