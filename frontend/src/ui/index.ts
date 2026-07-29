@@ -42,6 +42,10 @@ export type { EmptyStateProps } from "./EmptyState";
 
 export { ErrorBoundary } from "./ErrorBoundary";
 
+export { OfflineBanner } from "./OfflineBanner";
+
+export { isChunkLoadError, isOffline } from "./chunkError";
+
 export { FlexBox } from "./FlexBox";
 
 export { useColumnResize } from "./useColumnResize";
