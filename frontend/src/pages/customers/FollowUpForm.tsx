@@ -5,7 +5,14 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { App, Form, Input, Select, DatePicker, Button, Card, Spin, Space } from "antd";
+import { App, Button, Card, Spin, Space } from "antd";
+import {
+  ProForm,
+  ProFormSelect,
+  ProFormDateTimePicker,
+  ProFormText,
+  ProFormTextArea,
+} from "@ant-design/pro-components";
 import { ArrowLeftOutlined, SaveOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { createFollowUp, updateFollowUp, getFollowUps, getApiErrorMessage } from "../../api";
@@ -14,14 +21,13 @@ import { FOLLOW_UP_METHOD_OPTIONS, FOLLOW_UP_PRIORITY_OPTIONS, FOLLOW_UP_STATUS_
 import FollowUpAIRecognizer from "./FollowUpAIRecognizer";
 import CustomerModuleShell from "./CustomerModuleShell";
 
-const { TextArea } = Input;
 
 export default function FollowUpForm() {
   const { message } = App.useApp();
   const { customerId, followupId } = useParams<{ customerId: string; followupId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(false);
 
@@ -134,7 +140,7 @@ export default function FollowUpForm() {
           />
         )}
       >
-        <Form
+        <ProForm
           form={form}
           layout="vertical"
           onFinish={onFinish}
@@ -147,48 +153,76 @@ export default function FollowUpForm() {
             status: "planned",
             priority: "medium",
           }}
+          submitter={{
+            render: () => [
+              <Space key="actions">
+                <Button
+                  key="submit"
+                  type="primary"
+                  htmlType="submit"
+                  icon={<SaveOutlined />}
+                  loading={loading}
+                >
+                  保存
+                </Button>
+                <Button key="cancel" onClick={handleBack}>取消</Button>
+              </Space>,
+            ],
+          }}
         >
-          <Form.Item name="method" label="跟进方式" rules={[{ required: true, message: "请选择跟进方式" }]}>
-            <Select options={FOLLOW_UP_METHOD_OPTIONS} placeholder="选择跟进方式" />
-          </Form.Item>
+          <ProFormSelect
+            name="method"
+            label="跟进方式"
+            rules={[{ required: true, message: "请选择跟进方式" }]}
+            options={FOLLOW_UP_METHOD_OPTIONS}
+            placeholder="选择跟进方式"
+          />
 
-          <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
-            <Select options={FOLLOW_UP_STATUS_OPTIONS} placeholder="选择状态" />
-          </Form.Item>
+          <ProFormSelect
+            name="status"
+            label="状态"
+            rules={[{ required: true, message: "请选择状态" }]}
+            options={FOLLOW_UP_STATUS_OPTIONS}
+            placeholder="选择状态"
+          />
 
-          <Form.Item name="content" label="内容">
-            <TextArea rows={4} placeholder="请输入跟进内容" />
-          </Form.Item>
+          <ProFormTextArea
+            name="content"
+            label="内容"
+            fieldProps={{ rows: 4, placeholder: "请输入跟进内容" }}
+          />
 
-          <Form.Item name="result" label="结果">
-            <TextArea rows={3} placeholder="请输入跟进结果" />
-          </Form.Item>
+          <ProFormTextArea
+            name="result"
+            label="结果"
+            fieldProps={{ rows: 3, placeholder: "请输入跟进结果" }}
+          />
 
-          <Form.Item name="planned_at" label="计划时间">
-            <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
-          </Form.Item>
+          <ProFormDateTimePicker
+            name="planned_at"
+            label="计划时间"
+            fieldProps={{ format: "YYYY-MM-DD HH:mm", style: { width: "100%" } }}
+          />
 
-          <Form.Item name="completed_at" label="完成时间">
-            <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
-          </Form.Item>
+          <ProFormDateTimePicker
+            name="completed_at"
+            label="完成时间"
+            fieldProps={{ format: "YYYY-MM-DD HH:mm", style: { width: "100%" } }}
+          />
 
-          <Form.Item name="priority" label="优先级">
-            <Select options={FOLLOW_UP_PRIORITY_OPTIONS} placeholder="选择优先级" />
-          </Form.Item>
+          <ProFormSelect
+            name="priority"
+            label="优先级"
+            options={FOLLOW_UP_PRIORITY_OPTIONS}
+            placeholder="选择优先级"
+          />
 
-          <Form.Item name="assigned_to" label="负责人">
-            <Input placeholder="请输入负责人" />
-          </Form.Item>
-
-          <Form.Item className="customer-form-actions">
-            <Space>
-              <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
-                保存
-              </Button>
-              <Button onClick={handleBack}>取消</Button>
-            </Space>
-          </Form.Item>
-        </Form>
+          <ProFormText
+            name="assigned_to"
+            label="负责人"
+            placeholder="请输入负责人"
+          />
+        </ProForm>
       </Card>
     </CustomerModuleShell>
   );

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Modal, Form, Input, Select, message } from "antd";
+import { Modal, App, Input, Select } from "antd";
+import { ProForm, ProFormText, ProFormTextArea, ProFormSelect } from "@ant-design/pro-components";
 import { createSupplier } from "../../api";
 import type { Customer } from "../../types";
 
@@ -10,39 +11,75 @@ interface Props {
   onSuccess?: (supplierId: number) => void;
 }
 
-export default function VendAsSupplierModal({ customer, open, onCancel, onSuccess }: Props) {
-  const [form] = Form.useForm();
+interface VendAsSupplierValues {
+  name: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  region?: string;
+  product_lines?: string;
+  supplier_type?: string;
+  certifications?: string;
+  payment_terms?: string;
+  website?: string;
+  financial_rating?: string;
+  notes?: string;
+}
+
+const SUPPLIER_TYPE_OPTIONS = [
+  { label: "授权代理", value: "授权代理" },
+  { label: "原厂", value: "原厂" },
+  { label: "贸易商", value: "贸易商" },
+  { label: "OEM", value: "OEM" },
+  { label: "其他", value: "其他" },
+];
+
+const RATING_OPTIONS = ["A", "B", "C", "D"].map((v) => ({ label: v, value: v }));
+
+export default function VendAsSupplierModal({
+  customer,
+  open,
+  onCancel,
+  onSuccess,
+}: Props): React.JSX.Element {
+  const [form] = ProForm.useForm();
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const values = form.getFieldsValue();
+      const values = (await form.validateFields()) as VendAsSupplierValues;
       const resp = await createSupplier(values);
       const newId = (resp.data.data as Record<string, unknown>)?.id as number | undefined;
       message.success(
-        <span>供应商已创建{newId ? <span> — <a href={`/suppliers/${newId}`}>查看详情</a></span> : null}</span>,
+        <span>
+          供应商已创建
+          {newId ? (
+            <span>
+              {" "}
+              — <a href={`/suppliers/${newId}`}>查看详情</a>
+            </span>
+          ) : null}
+        </span>,
         5,
       );
       form.resetFields();
       onCancel();
       if (newId) onSuccess?.(newId);
-    } catch (err: any) {
-      message.error(err?.response?.data?.msg || err?.response?.data?.detail || err?.message || "创建失败");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { msg?: string; detail?: string } } })?.response?.data?.msg ||
+        (err as { response?: { data?: { msg?: string; detail?: string } } })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "创建失败";
+      message.error(msg);
     } finally {
       setLoading(false);
     }
   };
-
-  const supplierTypeOptions = [
-    { label: "授权代理", value: "授权代理" },
-    { label: "原厂", value: "原厂" },
-    { label: "贸易商", value: "贸易商" },
-    { label: "OEM", value: "OEM" },
-    { label: "其他", value: "其他" },
-  ];
-
-  const ratingOptions = ["A", "B", "C", "D"].map((v) => ({ label: v, value: v }));
 
   return (
     <Modal
@@ -67,27 +104,47 @@ export default function VendAsSupplierModal({ customer, open, onCancel, onSucces
         }
       }}
     >
-      <Form form={form} layout="vertical">
-        <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
-          <Input placeholder="供应商名称" />
-        </Form.Item>
-        <Form.Item name="contact_person" label="联系人"><Input /></Form.Item>
-        <Form.Item name="phone" label="电话"><Input /></Form.Item>
-        <Form.Item name="email" label="邮箱"><Input /></Form.Item>
-        <Form.Item name="address" label="地址"><Input /></Form.Item>
-        <Form.Item name="region" label="区域"><Input /></Form.Item>
-        <Form.Item name="product_lines" label="产品线"><Input.TextArea rows={3} placeholder="描述供应商经营的产品线" /></Form.Item>
-        <Form.Item name="supplier_type" label="供应商类型">
-          <Select options={supplierTypeOptions} allowClear placeholder="选择类型" />
-        </Form.Item>
-        <Form.Item name="certifications" label="资质认证"><Input placeholder="如 ISO9001, ISO14001 等" /></Form.Item>
-        <Form.Item name="payment_terms" label="付款条款"><Input placeholder="如 月结30天, 款到发货 等" /></Form.Item>
-        <Form.Item name="website" label="官网"><Input placeholder="https://" /></Form.Item>
-        <Form.Item name="financial_rating" label="财务评级">
-          <Select options={ratingOptions} allowClear placeholder="选择评级" />
-        </Form.Item>
-        <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
-      </Form>
+      <ProForm
+        form={form}
+        layout="vertical"
+        submitter={false}
+        onFinish={handleSubmit}
+      >
+        <ProFormText
+          name="name"
+          label="名称"
+          rules={[{ required: true, message: "请输入名称" }]}
+          placeholder="供应商名称"
+        />
+        <ProFormText name="contact_person" label="联系人" />
+        <ProFormText name="phone" label="电话" />
+        <ProFormText name="email" label="邮箱" />
+        <ProFormText name="address" label="地址" />
+        <ProFormText name="region" label="区域" />
+        <ProFormTextArea
+          name="product_lines"
+          label="产品线"
+          fieldProps={{ rows: 3, placeholder: "描述供应商经营的产品线" }}
+        />
+        <ProFormSelect
+          name="supplier_type"
+          label="供应商类型"
+          options={SUPPLIER_TYPE_OPTIONS}
+          allowClear
+          placeholder="选择类型"
+        />
+        <ProFormText name="certifications" label="资质认证" placeholder="如 ISO9001, ISO14001 等" />
+        <ProFormText name="payment_terms" label="付款条款" placeholder="如 月结30天, 款到发货 等" />
+        <ProFormText name="website" label="官网" placeholder="https://" />
+        <ProFormSelect
+          name="financial_rating"
+          label="财务评级"
+          options={RATING_OPTIONS}
+          allowClear
+          placeholder="选择评级"
+        />
+        <ProFormTextArea name="notes" label="备注" fieldProps={{ rows: 2 }} />
+      </ProForm>
     </Modal>
   );
 }

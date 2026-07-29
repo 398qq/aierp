@@ -7,17 +7,14 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
+import { App, Button, Collapse, Drawer, Input, Select, Typography } from "antd";
 import {
-  Button,
-  Collapse,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  message,
-  Select,
-  Typography,
-} from "antd";
+  ProForm,
+  ProFormText,
+  ProFormSelect,
+  ProFormDigit,
+  ProFormTextArea,
+} from "@ant-design/pro-components";
 import { SaveOutlined } from "@ant-design/icons";
 import { createCustomer, updateCustomer } from "@/api";
 
@@ -41,6 +38,28 @@ const INDUSTRIES = [
 const REGIONS = ["华北", "华东", "华南", "华中", "西南", "西北", "东北", "海外"].map(
   (v) => ({ value: v, label: v })
 );
+
+const CONTACT_METHOD_OPTIONS = [
+  { value: "phone", label: "电话" },
+  { value: "email", label: "邮箱" },
+];
+
+const PAYMENT_TERMS_OPTIONS = [
+  { value: "Net 30", label: "Net 30" },
+  { value: "Net 60", label: "Net 60" },
+  { value: "T/T in advance", label: "T/T 预付" },
+  { value: "月结30天", label: "月结30天" },
+];
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "T/T", label: "T/T" },
+  { value: "L/C", label: "L/C" },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: "CNY", label: "CNY" },
+  { value: "USD", label: "USD" },
+];
 
 const DRAFT_KEY = "customer_form_draft";
 
@@ -82,8 +101,9 @@ function clearDraft(): void {
 export const CustomerFormDrawer: React.FC<CustomerFormDrawerProps> = ({
   open, onClose, onSuccess, initialValues, customerId,
 }) => {
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
   const [saving, setSaving] = useState(false);
+  const { message } = App.useApp();
   const isEdit = Boolean(customerId);
 
   useEffect(() => {
@@ -104,7 +124,7 @@ export const CustomerFormDrawer: React.FC<CustomerFormDrawerProps> = ({
         }
       }
     }
-  }, [open, initialValues, isEdit, form]);
+  }, [open, initialValues, isEdit, form, message]);
 
   // 自动草稿 3s
   useEffect(() => {
@@ -138,7 +158,7 @@ export const CustomerFormDrawer: React.FC<CustomerFormDrawerProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [form, isEdit, customerId, onSuccess, onClose]);
+  }, [form, isEdit, customerId, onSuccess, onClose, message]);
 
   return (
     <Drawer
@@ -152,74 +172,83 @@ export const CustomerFormDrawer: React.FC<CustomerFormDrawerProps> = ({
         </Button>
       }
     >
-      <Form form={form} layout="vertical"
-        initialValues={{ contact_method: "phone", currency: "CNY", credit_limit: 100000 }}>
-        {/* ── 必填区（5 个） ── */}
-        <Form.Item name="name" label="客户名称 *"
-          rules={[{ required: true, message: "请输入" }, { max: 100 }]}>
-          <Input placeholder="公司全称" />
-        </Form.Item>
-        <Form.Item name="industry" label="行业 *"
-          rules={[{ required: true, message: "请选择" }]}>
-          <Select options={INDUSTRIES} placeholder="选择行业" showSearch />
-        </Form.Item>
-        <Form.Item name="region" label="地区 *"
-          rules={[{ required: true, message: "请选择" }]}>
-          <Select options={REGIONS} placeholder="选择地区" />
-        </Form.Item>
-        <Form.Item name="contact_method" label="主要联系方式 *">
-          <Select options={[
-            { value: "phone", label: "电话" },
-            { value: "email", label: "邮箱" },
-          ]} />
-        </Form.Item>
-        <Form.Item name="contact_info" label="联系信息 *"
-          rules={[{ required: true, message: "请输入电话或邮箱" }]}>
-          <Input placeholder="13800001111 或 name@company.com" />
-        </Form.Item>
-        <Form.Item name="credit_limit" label="信用额度 *"
-          rules={[{ required: true }, { type: "number", min: 0 }]}>
-          <InputNumber style={{ width: "100%" }} prefix="¥" placeholder="100000" min={0} precision={2} />
-        </Form.Item>
+      <ProForm
+        form={form}
+        layout="vertical"
+        initialValues={{ contact_method: "phone", currency: "CNY", credit_limit: 100000 }}
+        submitter={false}
+      >
+        <ProFormText
+          name="name"
+          label="客户名称 *"
+          rules={[{ required: true, message: "请输入" }, { max: 100 }]}
+          placeholder="公司全称"
+        />
+        <ProFormSelect
+          name="industry"
+          label="行业 *"
+          rules={[{ required: true, message: "请选择" }]}
+          options={INDUSTRIES}
+          placeholder="选择行业"
+          showSearch
+        />
+        <ProFormSelect
+          name="region"
+          label="地区 *"
+          rules={[{ required: true, message: "请选择" }]}
+          options={REGIONS}
+          placeholder="选择地区"
+        />
+        <ProFormSelect
+          name="contact_method"
+          label="主要联系方式 *"
+          options={CONTACT_METHOD_OPTIONS}
+        />
+        <ProFormText
+          name="contact_info"
+          label="联系信息 *"
+          rules={[{ required: true, message: "请输入电话或邮箱" }]}
+          placeholder="13800001111 或 name@company.com"
+        />
+        <ProFormDigit
+          name="credit_limit"
+          label="信用额度 *"
+          rules={[{ required: true }, { type: "number", min: 0 }]}
+          fieldProps={{ prefix: "¥", placeholder: "100000", min: 0, precision: 2, style: { width: "100%" } }}
+        />
 
-        {/* ── 高级字段（可折叠） ── */}
         <Collapse ghost>
           <Collapse.Panel header={<Text type="secondary">高级字段</Text>} key="adv">
-            <Form.Item name="tax_id" label="纳税人识别号">
-              <Input placeholder="18位税号" maxLength={18} />
-            </Form.Item>
-            <Form.Item name="registration_number" label="统一社会信用代码">
-              <Input placeholder="18位代码" maxLength={18} />
-            </Form.Item>
-            <Form.Item name="payment_terms" label="付款条款">
-              <Select placeholder="选择" options={[
-                { value: "Net 30", label: "Net 30" },
-                { value: "Net 60", label: "Net 60" },
-                { value: "T/T in advance", label: "T/T 预付" },
-                { value: "月结30天", label: "月结30天" },
-              ]} />
-            </Form.Item>
-            <Form.Item name="payment_method" label="支付方式">
-              <Select placeholder="选择" options={[
-                { value: "T/T", label: "T/T" },
-                { value: "L/C", label: "L/C" },
-              ]} />
-            </Form.Item>
-            <Form.Item name="delivery_address" label="送货地址">
-              <Input.TextArea rows={2} />
-            </Form.Item>
-            <Form.Item name="currency" label="币种">
-              <Select options={[
-                { value: "CNY", label: "CNY" },
-                { value: "USD", label: "USD" },
-              ]} />
-            </Form.Item>
-            <Form.Item name="notes" label="备注">
-              <Input.TextArea rows={2} />
-            </Form.Item>
+            <ProFormText
+              name="tax_id"
+              label="纳税人识别号"
+              placeholder="18位税号"
+              fieldProps={{ maxLength: 18 }}
+            />
+            <ProFormText
+              name="registration_number"
+              label="统一社会信用代码"
+              placeholder="18位代码"
+              fieldProps={{ maxLength: 18 }}
+            />
+            <ProFormSelect
+              name="payment_terms"
+              label="付款条款"
+              placeholder="选择"
+              options={PAYMENT_TERMS_OPTIONS}
+            />
+            <ProFormSelect
+              name="payment_method"
+              label="支付方式"
+              placeholder="选择"
+              options={PAYMENT_METHOD_OPTIONS}
+            />
+            <ProFormTextArea name="delivery_address" label="送货地址" fieldProps={{ rows: 2 }} />
+            <ProFormSelect name="currency" label="币种" options={CURRENCY_OPTIONS} />
+            <ProFormTextArea name="notes" label="备注" fieldProps={{ rows: 2 }} />
           </Collapse.Panel>
         </Collapse>
-      </Form>
+      </ProForm>
     </Drawer>
   );
 };
