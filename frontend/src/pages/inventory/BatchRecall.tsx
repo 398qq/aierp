@@ -21,8 +21,6 @@ import {
   Col,
   Descriptions,
   Empty,
-  Form,
-  Input,
   Row,
   Space,
   Spin,
@@ -31,11 +29,11 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { ProForm, ProFormTextArea } from "@ant-design/pro-components";
 import type { ColumnsType } from "antd/es/table";
 import client from "../../api/client";
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
 
 interface BatchInfo {
   id: number;
@@ -288,36 +286,33 @@ export default function BatchRecall() {
             showIcon
             style={{ marginBottom: 16 }}
           />
-          <Form layout="vertical" onFinish={handleSubmit}>
-            <Form.Item
+          <ProForm layout="vertical" onFinish={handleSubmit} submitter={false}>
+            <ProFormTextArea
               label="召回原因"
               name="reason"
               rules={[
                 { required: true, message: "请填写召回原因" },
                 { min: 4, message: "至少 4 个字符" },
               ]}
-            >
-              <TextArea
-                rows={3}
-                placeholder="例：供应商批次检测不达标，需召回所有已发货客户"
-              />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button
-                  type="primary"
-                  danger
-                  htmlType="submit"
-                  loading={submitting}
-                >
-                  确认召回
-                </Button>
-                <Link to={`/inventory/batches/${batchId}/traceability`}>
-                  <Button>先看追溯</Button>
-                </Link>
-              </Space>
-            </Form.Item>
-          </Form>
+              fieldProps={{
+                rows: 3,
+                placeholder: "例：供应商批次检测不达标，需召回所有已发货客户",
+              }}
+            />
+            <Space>
+              <Button
+                type="primary"
+                danger
+                htmlType="submit"
+                loading={submitting}
+              >
+                确认召回
+              </Button>
+              <Link to={`/inventory/batches/${batchId}/traceability`}>
+                <Button>先看追溯</Button>
+              </Link>
+            </Space>
+          </ProForm>
         </Card>
       )}
     </div>
