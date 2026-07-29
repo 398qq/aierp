@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { Button, Space, Modal, Form, Input, Tree, message, Popconfirm, Card, Tooltip } from "antd";
-import { ProTable } from "@ant-design/pro-components";
+import { App, Button, Space, Modal, Form, Input, Tree, Popconfirm, Card, Tooltip } from "antd";
+import {
+  ProForm,
+  ProFormText,
+  ProFormTextArea,
+  ProTable,
+} from "@ant-design/pro-components";
 import type { ActionType } from "@ant-design/pro-components";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
@@ -15,13 +20,14 @@ interface Role {
 interface PermGroup { resource: string; resource_label: string; actions: { id: number; action: string; name: string; description: string }[]; }
 
 export default function Roles() {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>(null);
   const [permGroups, setPermGroups] = useState<PermGroup[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [saving, setSaving] = useState(false);
   const [checkedKeys, setCheckedKeys] = useState<number[]>([]);
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
 
   const fetchPerms = async () => {
     try {
@@ -130,13 +136,18 @@ export default function Roles() {
         confirmLoading={saving}
         width={520}
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="name" label="角色名" rules={[{ required: true }]}>
-            <Input placeholder="如: sales_manager" />
-          </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={2} placeholder="角色用途说明" />
-          </Form.Item>
+        <ProForm form={form} layout="vertical" submitter={false}>
+          <ProFormText
+            name="name"
+            label="角色名"
+            rules={[{ required: true }]}
+            placeholder="如: sales_manager"
+          />
+          <ProFormTextArea
+            name="description"
+            label="描述"
+            fieldProps={{ rows: 2, placeholder: "角色用途说明" }}
+          />
           <Form.Item label="权限">
             <Tree
               checkable
@@ -148,7 +159,7 @@ export default function Roles() {
           <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
             悬停权限名称可查看权限说明
           </div>
-        </Form>
+        </ProForm>
       </Modal>
     </Card>
   );
