@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  App,
   Button,
   Card,
   Col,
@@ -15,7 +16,6 @@ import {
   Spin,
   Switch,
   Typography,
-  message,
 } from "antd";
 import { StatusTag } from "../../ui";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
@@ -72,6 +72,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function OpportunityList() {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>(null);
   const [data, setData] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(false);
