@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Form, Input, App as AntdApp } from "antd";
+import { App as AntdApp } from "antd";
+import { ProForm, ProFormText } from "@ant-design/pro-components";
+import type { ProFormTextProps } from "@ant-design/pro-components";
 import { useAuthStore } from "../../store/auth";
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const [form] = ProForm.useForm();
   const { message } = AntdApp.useApp();
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
@@ -354,46 +357,51 @@ export default function Login() {
               <div className="login-rule-dot"/>
             </div>
 
-            <Form
+            <ProForm
               className="login-form"
               layout="vertical"
               onFinish={onFinish}
               size="large"
+              form={form}
+              submitter={false}
             >
-              <Form.Item
+              <ProFormText
                 name="username"
                 rules={[{ required: true, message: "请输入用户名" }]}
-              >
-                <Input
-                  prefix={<span style={{ color: "#6B6B6B", fontSize: 13 }}>◼</span>}
-                  placeholder="admin"
-                  autoComplete="username"
-                  spellCheck={false}
-                />
-              </Form.Item>
+                fieldProps={
+                  {
+                    prefix: <span style={{ color: "#6B6B6B", fontSize: 13 }}>◼</span>,
+                    placeholder: "admin",
+                    autoComplete: "username",
+                    spellCheck: false,
+                  } as ProFormTextProps["fieldProps"]
+                }
+              />
 
-              <Form.Item
+              <ProFormText.Password
                 name="password"
                 rules={[{ required: true, message: "请输入密码" }]}
-              >
-                <Input.Password
-                  prefix={<span style={{ color: "#6B6B6B", fontSize: 13 }}>◼</span>}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
-              </Form.Item>
+                fieldProps={
+                  {
+                    prefix: <span style={{ color: "#6B6B6B", fontSize: 13 }}>◼</span>,
+                    placeholder: "••••••••",
+                    autoComplete: "current-password",
+                  } as ProFormTextProps["fieldProps"]
+                }
+              />
 
-              <Form.Item style={{ marginBottom: 0 }}>
+              <div style={{ marginBottom: 0 }}>
                 <button
                   type="submit"
                   className="login-submit"
                   disabled={loading}
+                  onClick={() => form.submit()}
                 >
                   {loading && <span className="login-loading-bar"/>}
                   {loading ? "正在登录…" : "登录"}
                 </button>
-              </Form.Item>
-            </Form>
+              </div>
+            </ProForm>
 
             <div className="login-form-footer">
               AIERP · 智能电子元器件分销管理系统
