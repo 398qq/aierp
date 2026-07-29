@@ -1,38 +1,54 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Table, Button, Space, message, Card, Input, Select, Modal, Form,
-  InputNumber, Popconfirm, Typography, Row, Col, Tag,
+  Button,
+  Space,
+  message,
+  Card,
+  Input,
+  Select,
+  Modal,
+  Form,
+  InputNumber,
+  Popconfirm,
+  Typography,
+  Row,
+  Col,
 } from "antd";
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
-import { getProductInventories, createProductInventory, updateProductInventory, deleteProductInventory, getProducts, getWarehouses, getApiErrorMessage } from "../../api";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import {
+  getProductInventories,
+  createProductInventory,
+  updateProductInventory,
+  deleteProductInventory,
+  getProducts,
+  getWarehouses,
+  getApiErrorMessage,
+} from "../../api";
 import type { InventoryItem, Product, Warehouse } from "../../types";
-import { erpPagination } from "../../ui/pagination";
 
 const { Title, Text } = Typography;
 
-interface InventoryRecord extends InventoryItem {
-  key?: React.Key;
-}
-
 export default function InventoryManage() {
-  const [data, setData] = useState<InventoryRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [loading, setLoading] = useState(true);
+  const actionRef = useRef<ActionType>(null);
 
-  // Search/filter state
-  const [searchQ, setSearchQ] = useState("");
+  // Search/filter state — searchText is the input value; q/warehouse/brand are the applied filters
+  const [searchText, setSearchText] = useState("");
+  const [q, setQ] = useState("");
   const [searchWarehouse, setSearchWarehouse] = useState<number | undefined>();
   const [searchBrand, setSearchBrand] = useState<number | undefined>();
 
   // Modal state
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<InventoryRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<InventoryItem | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Dropdown options
@@ -43,65 +59,46 @@ export default function InventoryManage() {
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
-  const fetchData = async (p = page, ps = pageSize) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page: p, page_size: ps };
-      if (searchQ) params.q = searchQ;
-      if (searchWarehouse) params.warehouse_id = searchWarehouse;
-      if (searchBrand) params.brand_id = searchBrand;
-
-      const resp = await getProductInventories(params);
-      if (resp.data.code === 0) {
-        const list = (resp.data.data.list as InventoryItem[]).map((item) => ({
-          ...item,
-          key: item.id,
-        }));
-        setData(list);
-        setTotal(resp.data.data.total as number);
-      }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载库存数据失败")); } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [page, pageSize]);
-
   // Load filter options
   useEffect(() => {
-    getWarehouses({ page: 1, page_size: 200 }).then((r) => {
-      if (r.data.code === 0) setWarehouses(r.data.data.list as Warehouse[]);
-    }).catch(() => {});
+    getWarehouses({ page: 1, page_size: 200 })
+      .then((r) => {
+        if (r.data.code === 0) setWarehouses(r.data.data.list as Warehouse[]);
+      })
+      .catch(() => {});
 
-    getProducts({ page: 1, page_size: 200 }).then((r) => {
-      if (r.data.code === 0) {
-        const list = r.data.data.list as Product[];
-        setProducts(list);
-        // Extract unique brands
-        const brandMap = new Map<number, { id: number; name: string }>();
-        list.forEach((p) => {
-          if (p.brand_id && p.brand_name && !brandMap.has(p.brand_id)) {
-            brandMap.set(p.brand_id, { id: p.brand_id, name: p.brand_name });
-          }
-        });
-        setBrands(Array.from(brandMap.values()));
-      }
-    }).catch(() => {});
+    getProducts({ page: 1, page_size: 200 })
+      .then((r) => {
+        if (r.data.code === 0) {
+          const list = r.data.data.list as Product[];
+          setProducts(list);
+          // Extract unique brands
+          const brandMap = new Map<number, { id: number; name: string }>();
+          list.forEach((p) => {
+            if (p.brand_id && p.brand_name && !brandMap.has(p.brand_id)) {
+              brandMap.set(p.brand_id, { id: p.brand_id, name: p.brand_name });
+            }
+          });
+          setBrands(Array.from(brandMap.values()));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleSearch = () => {
-    setPage(1);
-    fetchData(1, pageSize);
+    const next = searchText.trim();
+    if (next === q) {
+      actionRef.current?.reload();
+    } else {
+      setQ(next);
+    }
   };
 
   const handleReset = () => {
-    setSearchQ("");
+    setSearchText("");
+    setQ("");
     setSearchWarehouse(undefined);
     setSearchBrand(undefined);
-    setPage(1);
-    fetchData(1, pageSize);
   };
 
   const handleCreate = async () => {
@@ -112,10 +109,10 @@ export default function InventoryManage() {
       message.success("库存记录创建成功");
       setCreateOpen(false);
       form.resetFields();
-      fetchData();
-    } catch (err: any) {
-      if (!err?.errorFields) {
-        message.error(err?.response?.data?.msg || "创建失败");
+      actionRef.current?.reload();
+    } catch (err: unknown) {
+      if (!(err as { errorFields?: unknown })?.errorFields) {
+        message.error(getApiErrorMessage(err, "创建失败"));
       }
     } finally {
       setSaving(false);
@@ -132,17 +129,17 @@ export default function InventoryManage() {
       setEditOpen(false);
       setEditingRecord(null);
       editForm.resetFields();
-      fetchData();
-    } catch (err: any) {
-      if (!err?.errorFields) {
-        message.error(err?.response?.data?.msg || "更新失败");
+      actionRef.current?.reload();
+    } catch (err: unknown) {
+      if (!(err as { errorFields?: unknown })?.errorFields) {
+        message.error(getApiErrorMessage(err, "更新失败"));
       }
     } finally {
       setSaving(false);
     }
   };
 
-  const openEdit = (record: InventoryRecord) => {
+  const openEdit = (record: InventoryItem) => {
     setEditingRecord(record);
     editForm.setFieldsValue({
       quantity: record.quantity,
@@ -156,32 +153,44 @@ export default function InventoryManage() {
     try {
       await deleteProductInventory(id);
       message.success("库存记录已删除");
-      fetchData();
-    } catch (err: any) {
-      message.error(err?.response?.data?.msg || "删除失败");
+      actionRef.current?.reload();
+    } catch (err: unknown) {
+      message.error(getApiErrorMessage(err, "删除失败"));
     }
   };
 
-  const columns: ColumnsType<InventoryRecord> = [
-    { title: "ID", dataIndex: "id", key: "id", width: 60 },
-    { title: "SKU", dataIndex: "sku", key: "sku", width: 140,
-      render: (v) => <Text code>{v || "-"}</Text> },
-    { title: "产品名称", dataIndex: "product_name", key: "product_name", width: 180,
-      ellipsis: true },
-    { title: "品牌", dataIndex: "brand_name", key: "brand_name", width: 120,
-      render: (v) => v || "-" },
-    { title: "仓库", dataIndex: "warehouse_name", key: "warehouse_name", width: 100 },
-    { title: "库存数量", dataIndex: "quantity", key: "quantity", width: 100,
-      render: (v, r) => {
-        const low = v < r.safety_stock;
-        return <Text type={low ? "danger" : undefined}>{v}</Text>;
+  const columns: ProColumns<InventoryItem>[] = [
+    { title: "ID", dataIndex: "id", width: 60 },
+    {
+      title: "SKU",
+      dataIndex: "sku",
+      width: 140,
+      render: (_, r) => <Text code>{r.sku || "-"}</Text>,
+    },
+    { title: "产品名称", dataIndex: "product_name", width: 180, ellipsis: true },
+    { title: "品牌", dataIndex: "brand_name", width: 120, render: (_, r) => r.brand_name || "-" },
+    { title: "仓库", dataIndex: "warehouse_name", width: 100 },
+    {
+      title: "库存数量",
+      dataIndex: "quantity",
+      width: 100,
+      render: (_, r) => {
+        const low = r.quantity < r.safety_stock;
+        return <Text type={low ? "danger" : undefined}>{r.quantity}</Text>;
       },
     },
-    { title: "安全库存", dataIndex: "safety_stock", key: "safety_stock", width: 100 },
-    { title: "单价 (含税)", dataIndex: "unit_price", key: "unit_price", width: 110,
-      render: (v) => v != null ? `¥${Number(v).toFixed(4)}` : "-" },
+    { title: "安全库存", dataIndex: "safety_stock", width: 100 },
     {
-      title: "操作", key: "action", width: 140, fixed: "right",
+      title: "单价 (含税)",
+      dataIndex: "unit_price",
+      width: 110,
+      render: (_, r) => (r.unit_price != null ? `¥${Number(r.unit_price).toFixed(4)}` : "-"),
+    },
+    {
+      title: "操作",
+      key: "action",
+      width: 140,
+      fixed: "right",
       render: (_, r) => (
         <Space size="small">
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -208,8 +217,11 @@ export default function InventoryManage() {
           <Col>
             <Input
               placeholder="搜索 SKU / 产品名称"
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
+              value={searchText}
+              onChange={(e) => {
+                setSearchText(e.target.value);
+                if (!e.target.value) setQ("");
+              }}
               onPressEnter={handleSearch}
               style={{ width: 200 }}
               allowClear
@@ -237,8 +249,12 @@ export default function InventoryManage() {
           </Col>
           <Col>
             <Space>
-              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
-              <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
+              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+                搜索
+              </Button>
+              <Button icon={<ReloadOutlined />} onClick={handleReset}>
+                重置
+              </Button>
             </Space>
           </Col>
           <Col style={{ marginLeft: "auto" }}>
@@ -251,21 +267,34 @@ export default function InventoryManage() {
 
       {/* Table */}
       <Card bodyStyle={{ padding: 0 }}>
-        <Table
-          columns={columns}
-          dataSource={data}
-          loading={loading}
+        <ProTable<InventoryItem>
+          actionRef={actionRef}
           rowKey="id"
+          columns={columns}
+          search={false}
+          options={{ reload: true, density: true, setting: true }}
           scroll={{ x: 1000 }}
-          pagination={erpPagination({
-            current: page,
-            pageSize,
-            total,
-            onChange: (p, ps) => {
-              setPage(ps !== pageSize ? 1 : p);
-              setPageSize(ps);
-            },
-          })}
+          params={{ q, searchWarehouse, searchBrand }}
+          request={async (params) => {
+            try {
+              const apiParams: Record<string, unknown> = {
+                page: params.current,
+                page_size: params.pageSize,
+              };
+              if (q) apiParams.q = q;
+              if (searchWarehouse) apiParams.warehouse_id = searchWarehouse;
+              if (searchBrand) apiParams.brand_id = searchBrand;
+
+              const resp = await getProductInventories(apiParams);
+              const list = (resp.data.data?.list || []) as InventoryItem[];
+              const total = (resp.data.data?.total || 0) as number;
+              return { data: list, success: true, total };
+            } catch (e: unknown) {
+              message.error(getApiErrorMessage(e, "加载库存数据失败"));
+              return { data: [], success: false, total: 0 };
+            }
+          }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         />
       </Card>
 
@@ -274,7 +303,10 @@ export default function InventoryManage() {
         title="新增库存记录"
         open={createOpen}
         onOk={handleCreate}
-        onCancel={() => { setCreateOpen(false); form.resetFields(); }}
+        onCancel={() => {
+          setCreateOpen(false);
+          form.resetFields();
+        }}
         confirmLoading={saving}
         okText="创建"
         cancelText="取消"
@@ -291,7 +323,8 @@ export default function InventoryManage() {
               optionFilterProp="label"
               options={products.map((p) => ({
                 value: p.id,
-                label: `${p.sku || ""} - ${p.name} ${p.brand_name ? `(${p.brand_name})` : ""}`.trim(),
+                label:
+                  `${p.sku || ""} - ${p.name} ${p.brand_name ? `(${p.brand_name})` : ""}`.trim(),
               }))}
             />
           </Form.Item>
@@ -333,7 +366,11 @@ export default function InventoryManage() {
         title="编辑库存记录"
         open={editOpen}
         onOk={handleEdit}
-        onCancel={() => { setEditOpen(false); setEditingRecord(null); editForm.resetFields(); }}
+        onCancel={() => {
+          setEditOpen(false);
+          setEditingRecord(null);
+          editForm.resetFields();
+        }}
         confirmLoading={saving}
         okText="保存"
         cancelText="取消"
