@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Form, Input, message, Modal, Popconfirm, Select, Space, Switch, Typography } from "antd";
-import { ProTable } from "@ant-design/pro-components";
+import { App, Button, Card, Input, Modal, Popconfirm, Space, Typography } from "antd";
+import {
+  ProForm,
+  ProFormSelect,
+  ProFormSwitch,
+  ProFormText,
+  ProFormTextArea,
+  ProTable,
+} from "@ant-design/pro-components";
 import { DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined } from "@ant-design/icons";
 import {
   createProductCustomerCode,
@@ -18,13 +25,14 @@ interface Props {
 }
 
 export default function ProductCustomerCodesCard({ productId }: Props) {
+  const { message } = App.useApp();
   const [links, setLinks] = useState<CustomerProductCode[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [editing, setEditing] = useState<CustomerProductCode | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
 
   const load = async () => {
     setLoading(true);
@@ -115,27 +123,35 @@ export default function ProductCustomerCodesCard({ productId }: Props) {
         ] as any}
       />
       <Modal title={editing ? "编辑客户料号" : "添加客户料号"} open={open} onCancel={() => setOpen(false)} onOk={save} confirmLoading={saving} okText="保存">
-        <Form form={form} layout="vertical">
-          <Form.Item name="customer_id" label="客户" rules={[{ required: true, message: "请选择客户" }]}>
-            <Select
-              disabled={Boolean(editing)}
-              showSearch
-              optionFilterProp="label"
-              placeholder="选择客户"
-              options={customers
+        <ProForm form={form} layout="vertical" submitter={false}>
+          <ProFormSelect
+            name="customer_id"
+            label="客户"
+            rules={[{ required: true, message: "请选择客户" }]}
+            showSearch
+            disabled={Boolean(editing)}
+            placeholder="选择客户"
+            fieldProps={{
+              optionFilterProp: "label",
+              options: customers
                 .filter((customer) => editing?.customer_id === customer.id || !links.some((link) => link.customer_id === customer.id))
-                .map((customer) => ({ value: customer.id, label: customer.code ? `${customer.code} · ${customer.name}` : customer.name }))}
-            />
-          </Form.Item>
-          <Form.Item name="customer_part_no" label="客户料号" rules={[{ required: true, whitespace: true, message: "请输入客户料号" }]}>
-            <Input maxLength={150} placeholder="客户采购、收货和对账使用的料号" />
-          </Form.Item>
-          <Form.Item name="customer_product_name" label="客户品名">
-            <Input maxLength={255} placeholder="可选，客户侧对该产品的名称" />
-          </Form.Item>
-          <Form.Item name="is_active" label="启用" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="notes" label="备注"><Input.TextArea rows={3} /></Form.Item>
-        </Form>
+                .map((customer) => ({ value: customer.id, label: customer.code ? `${customer.code} · ${customer.name}` : customer.name })),
+            }}
+          />
+          <ProFormText
+            name="customer_part_no"
+            label="客户料号"
+            rules={[{ required: true, whitespace: true, message: "请输入客户料号" }]}
+            fieldProps={{ maxLength: 150, placeholder: "客户采购、收货和对账使用的料号" }}
+          />
+          <ProFormText
+            name="customer_product_name"
+            label="客户品名"
+            fieldProps={{ maxLength: 255, placeholder: "可选，客户侧对该产品的名称" }}
+          />
+          <ProFormSwitch name="is_active" label="启用" />
+          <ProFormTextArea name="notes" label="备注" fieldProps={{ rows: 3 }} />
+        </ProForm>
       </Modal>
     </Card>
   );
