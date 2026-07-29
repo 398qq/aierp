@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { Button, message, Modal, Form, Input, Select, Tag, Space, Popconfirm, Descriptions } from "antd";
+import { App, Button, Modal, Form, Input, Tag, Space, Popconfirm, Descriptions } from "antd";
 import { PlusOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import type { ProColumns, ActionType } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
+import { ProForm, ProFormText, ProFormTextArea, ProTable } from "@ant-design/pro-components";
 import { getApiErrorMessage } from "@/api/client";
 import client from "@/api/client";
 import type { APIResponse } from "@/types";
@@ -18,14 +18,15 @@ const STATUS_LABELS: Record<string, string> = { pending: "待审批", approved: 
 const STATUS_COLORS: Record<string, string> = { pending: "gold", approved: "green", rejected: "red", cancelled: "default" };
 
 export default function OwnerTransferRequestsPage() {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedReq, setSelectedReq] = useState<TransferRequest | null>(null);
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [form] = Form.useForm();
-  const [reviewForm] = Form.useForm();
+  const [form] = ProForm.useForm();
+  const [reviewForm] = ProForm.useForm();
 
   const handleCreate = () => { form.resetFields(); setModalOpen(true); };
 
@@ -136,17 +137,26 @@ export default function OwnerTransferRequestsPage() {
 
       <Modal title="提交转移申请" open={modalOpen} okText="提交" cancelText="取消"
         confirmLoading={saving} onOk={handleSave} onCancel={() => setModalOpen(false)}>
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="customer_id" label="客户 ID" rules={[{ required: true, message: "请输入客户 ID" }]}>
-            <Input type="number" min={1} placeholder="输入客户编号" />
-          </Form.Item>
-          <Form.Item name="to_owner" label="目标负责人" rules={[{ required: true, message: "请输入目标负责人用户名" }]}>
-            <Input placeholder="输入用户名" />
-          </Form.Item>
-          <Form.Item name="reason" label="转移原因">
-            <Input.TextArea rows={3} placeholder="请说明转移原因" maxLength={500} showCount />
-          </Form.Item>
-        </Form>
+        <ProForm form={form} layout="vertical" submitter={false} style={{ marginTop: 16 }}>
+          <ProFormText
+            name="customer_id"
+            label="客户 ID"
+            rules={[{ required: true, message: "请输入客户 ID" }]}
+            fieldProps={{ type: "number", min: 1, placeholder: "输入客户编号" }}
+          />
+          <ProFormText
+            name="to_owner"
+            label="目标负责人"
+            rules={[{ required: true, message: "请输入目标负责人用户名" }]}
+            placeholder="输入用户名"
+          />
+          <ProFormTextArea
+            name="reason"
+            label="转移原因"
+            placeholder="请说明转移原因"
+            fieldProps={{ rows: 3, maxLength: 500, showCount: true }}
+          />
+        </ProForm>
       </Modal>
 
       <Modal title="转移申请详情" open={detailOpen} footer={null} onCancel={() => setDetailOpen(false)} width={560}>
@@ -169,10 +179,12 @@ export default function OwnerTransferRequestsPage() {
               )}
             </Descriptions>
             {selectedReq.status === "pending" && (
-              <Form form={reviewForm} layout="vertical">
-                <Form.Item name="comment" label="审批意见">
-                  <Input.TextArea rows={2} placeholder="可选，输入审批意见" maxLength={500} showCount />
-                </Form.Item>
+              <ProForm form={reviewForm} layout="vertical" submitter={false}>
+                <ProFormTextArea
+                  name="comment"
+                  label="审批意见"
+                  fieldProps={{ rows: 2, placeholder: "可选，输入审批意见", maxLength: 500, showCount: true }}
+                />
                 <Space>
                   <Button type="primary" icon={<CheckCircleOutlined />}
                     onClick={async () => { const v = await reviewForm.validateFields(); handleApprove(v.comment || null); }}>
@@ -183,7 +195,7 @@ export default function OwnerTransferRequestsPage() {
                     驳回
                   </Button>
                 </Space>
-              </Form>
+              </ProForm>
             )}
           </>
         )}
