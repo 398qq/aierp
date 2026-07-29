@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Form, Input, DatePicker, Button, Space, InputNumber, Select, message, Tag } from "antd";
-import { ProTable } from "@ant-design/pro-components";
+import { App, Card, Form, DatePicker, Button, Space, InputNumber, Select, Tag } from "antd";
+import {
+  ProForm,
+  ProFormDatePicker,
+  ProFormTextArea,
+  ProTable,
+} from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import client from "../../api/client";
@@ -13,8 +18,9 @@ interface Account { id: number; code: string; name: string; type: string; }
 export default function JournalEntryForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { message } = App.useApp();
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
   const [saving, setSaving] = useState(false);
   const isEdit = !!id;
 
@@ -88,14 +94,10 @@ export default function JournalEntryForm() {
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/finance/journal-entries")}>返回</Button>
       </Space>
       <Card title={isEdit ? "凭证详情" : "新建凭证"}>
-        <Form form={form} layout="vertical" initialValues={{ lines: [{}, {}] }}>
+        <ProForm form={form} layout="vertical" initialValues={{ lines: [{}, {}] }} submitter={false}>
           <Space>
-            <Form.Item name="entry_date" label="日期" rules={[{ required: true }]}>
-              <DatePicker />
-            </Form.Item>
-            <Form.Item name="description" label="摘要">
-              <Input style={{ width: 300 }} />
-            </Form.Item>
+            <ProFormDatePicker name="entry_date" label="日期" rules={[{ required: true }]} />
+            <ProFormTextArea name="description" label="摘要" fieldProps={{ style: { width: 300 } }} />
           </Space>
           <Form.List name="lines">
             {(fields, { add, remove }) => (
@@ -137,7 +139,7 @@ export default function JournalEntryForm() {
               保存凭证
             </Button>
           )}
-        </Form>
+        </ProForm>
       </Card>
     </div>
   );
