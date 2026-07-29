@@ -1,26 +1,12 @@
-import { useEffect, useState } from "react";
-import {
-  Card, Descriptions, Typography, Tabs, Table, Button, Modal, Form, Input, InputNumber,
-  Select, Switch, Space, message, Popconfirm, Badge,
-} from "antd";
-import { StatusTag, type StatusTone } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
-import { PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { useState } from "react";
+import { Card, Descriptions, Typography, Tabs, Button, Form, Input, Space, message } from "antd";
 import { useAuthStore } from "../../store/auth";
-import { getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule, getAlertEvents, markAlertRead, markAllAlertsRead, checkAlerts, getLevelRules, createLevelRule, updateLevelRule, deleteLevelRule, autoLevel, changePassword, getApiErrorMessage } from "../../api";
-import type { AlertRule, AlertEvent, LevelRule } from "../../types";
+import { changePassword } from "../../api";
+import AlertRulesTable from "./AlertRulesTable";
+import AlertEventsTable from "./AlertEventsTable";
+import LevelRulesTable from "./LevelRulesTable";
 
-const { Title, Text } = Typography;
-
-const RULE_TYPE_LABELS: Record<string, string> = {
-  no_order: "长期未下单", credit_over: "信用额度使用率", order_drop: "订单下降", ar_overdue: "应收逾期",
-};
-const SEVERITY_TONES: Record<string, StatusTone> = { info: "info", warning: "warning", critical: "danger" };
-const CONDITION_LABELS: Record<string, string> = {
-  revenue: "累计营收", order_count: "订单数", no_order_days: "未下单天数",
-};
-const OPERATOR_LABELS: Record<string, string> = { ">": ">", "<": "<", ">=": ">=", "<=": "<=" };
-const LEVEL_TONES: Record<string, StatusTone> = { A: "danger", B: "warning", C: "info", D: "neutral" };
+const { Title } = Typography;
 
 export default function Settings() {
   const username = useAuthStore((s) => s.username);
@@ -28,140 +14,10 @@ export default function Settings() {
   const [passwordForm] = Form.useForm();
   const [passwordSaving, setPasswordSaving] = useState(false);
 
-  // Alert Rules
-  const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
-  const [arLoading, setArLoading] = useState(false);
-  const [arModalOpen, setArModalOpen] = useState(false);
-  const [editingAR, setEditingAR] = useState<AlertRule | null>(null);
-  const [arForm] = Form.useForm();
-
-  // Alert Events
-  const [alertEvents, setAlertEvents] = useState<AlertEvent[]>([]);
-  const [aeTotal, setAeTotal] = useState(0);
-  const [aePage, setAePage] = useState(1);
-  const [aePageSize, setAePageSize] = useState(20);
-  const [aeLoading, setAeLoading] = useState(false);
-  const [aeReadFilter, setAeReadFilter] = useState<boolean | undefined>();
-  const [checkLoading, setCheckLoading] = useState(false);
-
-  // Level Rules
-  const [levelRules, setLevelRules] = useState<LevelRule[]>([]);
-  const [lrLoading, setLrLoading] = useState(false);
-  const [lrModalOpen, setLrModalOpen] = useState(false);
-  const [editingLR, setEditingLR] = useState<LevelRule | null>(null);
-  const [lrForm] = Form.useForm();
-  const [autoLevelLoading, setAutoLevelLoading] = useState(false);
-
-  // ---- Data loading ----
-  const loadAlertRules = async () => {
-    setArLoading(true);
-    try { const r = await getAlertRules(); setAlertRules(r.data.data); } catch { /* */ }
-    finally { setArLoading(false); }
-  };
-
-  const loadAlertEvents = async () => {
-    setAeLoading(true);
-    try {
-      const params: Record<string, unknown> = { page: aePage, page_size: aePageSize };
-      if (aeReadFilter !== undefined) params.is_read = aeReadFilter;
-      const r = await getAlertEvents(params);
-      setAlertEvents(r.data.data.list);
-      setAeTotal(r.data.data.total);
-    } catch { /* */ }
-    finally { setAeLoading(false); }
-  };
-
-  const loadLevelRules = async () => {
-    setLrLoading(true);
-    try { const r = await getLevelRules(); setLevelRules(r.data.data); } catch { /* */ }
-    finally { setLrLoading(false); }
-  };
-
-  useEffect(() => { if (activeTab === "alert-rules") loadAlertRules(); }, [activeTab]);
-  useEffect(() => { if (activeTab === "alert-events") loadAlertEvents(); }, [activeTab, aePage, aePageSize, aeReadFilter]);
-  useEffect(() => { if (activeTab === "level-rules") loadLevelRules(); }, [activeTab]);
-
-  // ---- Alert Rules CRUD ----
-  const openARForm = (rule?: AlertRule) => {
-    setEditingAR(rule || null);
-    if (rule) arForm.setFieldsValue(rule);
-    else arForm.resetFields();
-    setArModalOpen(true);
-  };
-
-  const onARFinish = async (values: Record<string, unknown>) => {
-    try {
-      if (editingAR) {
-        await updateAlertRule(editingAR.id, values as Record<string, unknown>);
-        message.success("更新成功");
-      } else {
-        await createAlertRule(values as Record<string, unknown>);
-        message.success("创建成功");
-      }
-      setArModalOpen(false);
-      loadAlertRules();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
-  };
-
-  const handleDeleteAR = async (id: number) => {
-    try { await deleteAlertRule(id); message.success("已删除"); loadAlertRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
-  };
-
-  // ---- Alert Events ----
-  const handleMarkRead = async (id: number) => {
-    try { await markAlertRead(id); loadAlertEvents(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
-  };
-
-  const handleMarkAllRead = async () => {
-    try { await markAllAlertsRead(); message.success("已全部标记已读"); loadAlertEvents(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
-  };
-
-  const handleCheckAlerts = async () => {
-    setCheckLoading(true);
-    try {
-      const resp = await checkAlerts();
-      message.success(`预警检查完成，生成 ${resp.data.data.generated} 条预警`);
-      loadAlertEvents();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "预警检查失败")); }
-    finally { setCheckLoading(false); }
-  };
-
-  // ---- Level Rules CRUD ----
-  const openLRForm = (rule?: LevelRule) => {
-    setEditingLR(rule || null);
-    if (rule) lrForm.setFieldsValue(rule);
-    else lrForm.resetFields();
-    setLrModalOpen(true);
-  };
-
-  const onLRFinish = async (values: Record<string, unknown>) => {
-    try {
-      if (editingLR) {
-        await updateLevelRule(editingLR.id, values as Record<string, unknown>);
-        message.success("更新成功");
-      } else {
-        await createLevelRule(values as Record<string, unknown>);
-        message.success("创建成功");
-      }
-      setLrModalOpen(false);
-      loadLevelRules();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "保存失败")); }
-  };
-
-  const handleDeleteLR = async (id: number) => {
-    try { await deleteLevelRule(id); message.success("已删除"); loadLevelRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
-  };
-
-  const handleAutoLevel = async () => {
-    setAutoLevelLoading(true);
-    try {
-      const resp = await autoLevel();
-      message.success(`自动分级完成，更新 ${resp.data.data.updated} 个客户`);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "自动分级失败")); }
-    finally { setAutoLevelLoading(false); }
-  };
-
-  const handleChangePassword = async (values: { current_password: string; new_password: string }) => {
+  const handleChangePassword = async (values: {
+    current_password: string;
+    new_password: string;
+  }) => {
     setPasswordSaving(true);
     try {
       await changePassword(values.current_password, values.new_password);
@@ -174,106 +30,28 @@ export default function Settings() {
     }
   };
 
-  // ---- Column definitions ----
-  const arColumns = [
-    { title: "名称", dataIndex: "name", width: 160 },
-    { title: "规则类型", dataIndex: "rule_type", width: 120, render: (v: string) => RULE_TYPE_LABELS[v] || v },
-    { title: "阈值天数", dataIndex: "threshold_days", width: 90 },
-    { title: "阈值%", dataIndex: "threshold_pct", width: 80 },
-    { title: "阈值金额", dataIndex: "threshold_amount", width: 90 },
-    {
-      title: "严重级别", dataIndex: "severity", width: 90,
-      render: (v: string) => <StatusTag status={v} tone={SEVERITY_TONES[v] || "neutral"} />,
-    },
-    {
-      title: "启用", dataIndex: "enabled", width: 60,
-      render: (v: boolean, r: AlertRule) => (
-        <Switch size="small" checked={v} onChange={async () => {
-          try { await updateAlertRule(r.id, { enabled: !v }); loadAlertRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
-        }} />
-      ),
-    },
-    {
-      title: "操作", key: "actions", width: 120,
-      render: (_: unknown, r: AlertRule) => (
-        <Space>
-          <Button size="small" onClick={() => openARForm(r)}>编辑</Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDeleteAR(r.id)}>
-            <Button size="small" danger>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
-  const aeColumns = [
-    { title: "客户ID", dataIndex: "customer_id", width: 80 },
-    { title: "规则名称", dataIndex: "rule_name", width: 120 },
-    {
-      title: "严重级别", dataIndex: "severity", width: 80,
-      render: (v: string) => <StatusTag status={v} tone={SEVERITY_TONES[v] || "neutral"} />,
-    },
-    { title: "预警消息", dataIndex: "message", ellipsis: true },
-    { title: "时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19) },
-    {
-      title: "状态", dataIndex: "is_read", width: 70,
-      render: (v: boolean) => v ? <StatusTag status="已读" tone="neutral" /> : <Badge status="processing" text="未读" />,
-    },
-    {
-      title: "操作", key: "actions", width: 80,
-      render: (_: unknown, r: AlertEvent) => (
-        r.is_read ? null : <Button size="small" onClick={() => handleMarkRead(r.id)}>已读</Button>
-      ),
-    },
-  ];
-
-  const lrColumns = [
-    { title: "名称", dataIndex: "name", width: 160 },
-    {
-      title: "目标等级", dataIndex: "target_level", width: 80,
-      render: (v: string) => <StatusTag status={v} tone={LEVEL_TONES[v] || "neutral"} />,
-    },
-    { title: "条件", dataIndex: "condition_type", width: 100, render: (v: string) => CONDITION_LABELS[v] || v },
-    { title: "运算符", dataIndex: "operator", width: 60, render: (v: string) => OPERATOR_LABELS[v] || v },
-    { title: "阈值", dataIndex: "threshold_value", width: 80 },
-    { title: "周期(天)", dataIndex: "period_days", width: 80 },
-    { title: "优先级", dataIndex: "priority", width: 60 },
-    {
-      title: "启用", dataIndex: "enabled", width: 60,
-      render: (v: boolean, r: LevelRule) => (
-        <Switch size="small" checked={v} onChange={async () => {
-          try { await updateLevelRule(r.id, { enabled: !v }); loadLevelRules(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
-        }} />
-      ),
-    },
-    {
-      title: "操作", key: "actions", width: 120,
-      render: (_: unknown, r: LevelRule) => (
-        <Space>
-          <Button size="small" onClick={() => openLRForm(r)}>编辑</Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDeleteLR(r.id)}>
-            <Button size="small" danger>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
   const tabItems = [
     {
-      key: "account", label: "账户信息",
+      key: "account",
+      label: "账户信息",
       children: (
         <Space direction="vertical" size={16} style={{ width: "100%", maxWidth: 720 }}>
           <Card>
             <Descriptions title="账户信息" column={1}>
               <Descriptions.Item label="用户名">{username}</Descriptions.Item>
               <Descriptions.Item label="角色">管理员</Descriptions.Item>
-              <Descriptions.Item label="AI 分析模型">Qwen/Qwen2.5-7B-Instruct (RFM/流失/建议)</Descriptions.Item>
-              <Descriptions.Item label="AI 助手模型">Qwen/Qwen2.5-7B-Instruct (Chat)</Descriptions.Item>
+              <Descriptions.Item label="AI 分析模型">
+                Qwen/Qwen2.5-7B-Instruct (RFM/流失/建议)
+              </Descriptions.Item>
+              <Descriptions.Item label="AI 助手模型">
+                Qwen/Qwen2.5-7B-Instruct (Chat)
+              </Descriptions.Item>
               <Descriptions.Item label="嵌入模型">BAAI/bge-large-zh-v1.5</Descriptions.Item>
               <Descriptions.Item label="数据库">PostgreSQL 16 + pgvector</Descriptions.Item>
               <Descriptions.Item label="后端框架">FastAPI + SQLAlchemy 2.0</Descriptions.Item>
-              <Descriptions.Item label="前端框架">React 19 + TypeScript + Ant Design</Descriptions.Item>
+              <Descriptions.Item label="前端框架">
+                React 19 + TypeScript + Ant Design
+              </Descriptions.Item>
             </Descriptions>
           </Card>
 
@@ -329,56 +107,27 @@ export default function Settings() {
       ),
     },
     {
-      key: "alert-rules", label: "预警规则",
-      children: (
-        <div>
-          <Space style={{ marginBottom: 16 }}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openARForm()}>新建规则</Button>
-          </Space>
-          <Table rowKey="id" columns={arColumns} dataSource={alertRules} loading={arLoading}
-            pagination={false} size="small" />
-        </div>
-      ),
+      key: "alert-rules",
+      label: "预警规则",
+      children: <AlertRulesTable />,
     },
     {
-      key: "alert-events", label: "预警事件",
-      children: (
-        <div>
-          <Space style={{ marginBottom: 16 }}>
-            <Button type="primary" icon={<ThunderboltOutlined />} loading={checkLoading} onClick={handleCheckAlerts}>
-              执行预警检查
-            </Button>
-            <Select allowClear placeholder="读取状态" style={{ width: 110 }}
-              value={aeReadFilter} onChange={(v) => { setAeReadFilter(v); setAePage(1); }}
-              options={[{ value: false, label: "未读" }, { value: true, label: "已读" }]} />
-            <Button onClick={handleMarkAllRead}>全部标记已读</Button>
-          </Space>
-          <Table rowKey="id" columns={aeColumns} dataSource={alertEvents} loading={aeLoading}
-            pagination={erpPagination({ current: aePage, total: aeTotal, pageSize: aePageSize, onChange: (p, ps) => { setAePage(ps !== aePageSize ? 1 : p); setAePageSize(ps); } })}
-            size="small" />
-        </div>
-      ),
+      key: "alert-events",
+      label: "预警事件",
+      children: <AlertEventsTable />,
     },
     {
-      key: "level-rules", label: "客户分级",
-      children: (
-        <div>
-          <Space style={{ marginBottom: 16 }}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openLRForm()}>新建规则</Button>
-            <Button icon={<ThunderboltOutlined />} loading={autoLevelLoading} onClick={handleAutoLevel}>
-              执行自动分级
-            </Button>
-          </Space>
-          <Table rowKey="id" columns={lrColumns} dataSource={levelRules} loading={lrLoading}
-            pagination={false} size="small" />
-        </div>
-      ),
+      key: "level-rules",
+      label: "客户分级",
+      children: <LevelRulesTable />,
     },
   ];
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>系统设置</Title>
+      <Title level={4} style={{ marginBottom: 16 }}>
+        系统设置
+      </Title>
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
     </div>
   );
