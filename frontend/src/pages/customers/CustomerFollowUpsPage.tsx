@@ -1,22 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Empty, Input, message, Select, Space, Tag, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import type { ActionType } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage, getGlobalFollowUps } from "@/api";
-import type { GlobalFollowUp } from "@/types";
+import type { GlobalFollowUp, PageData } from "@/types";
 import CustomerModuleShell from "./CustomerModuleShell";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
 import { getGlobalFollowUpDueMeta, GLOBAL_FOLLOW_UP_BUCKETS, type GlobalFollowUpBucket } from "./constants";
+import { useApiQuery } from "@/lib/queries";
 
 const { Text } = Typography;
 
+interface FollowUpResponse {
+  list: GlobalFollowUp[];
+  total: number;
+  counts: Record<string, number>;
+}
+
 export default function CustomerFollowUpsPage() {
   const navigate = useNavigate();
-  const actionRef = useRef<ActionType>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [status, setStatus] = useState<string | undefined>();
@@ -28,16 +33,32 @@ export default function CustomerFollowUpsPage() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const columns: any = [
+  const params: Record<string, unknown> = {};
+  if (debouncedQ) params.q = debouncedQ;
+  if (status) params.status = status;
+  if (priority) params.priority = priority;
+  if (dueBucket !== "all") params.due_bucket = dueBucket;
+
+  const query = useApiQuery<FollowUpResponse>(
+    ["global-follow-ups", debouncedQ, status ?? "", priority ?? "", dueBucket],
+    "/customers/follow-ups-global",
+    params,
+    { staleTime: 30 * 1000 },
+  );
+
+  const counts = query.data?.counts || {};
+  const dataList = query.data?.list || [];
+
+  const columns: ProColumns<GlobalFollowUp>[] = [
     {
       title: "客户",
       dataIndex: "customer_name",
       width: 220,
       fixed: "left",
-      render: (name: string, record: any) => (
+      render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Button type="link" size="small" onClick={() => navigate(`/customers/${record.customer_id}`)}>
-            {name}
+            {record.customer_name}
           </Button>
           <Text type="secondary" style={{ fontSize: 12 }}>{record.owner || "未分配"}</Text>
         </Space>
@@ -47,7 +68,7 @@ export default function CustomerFollowUpsPage() {
       title: "到期",
       dataIndex: "due_bucket",
       width: 120,
-      render: (_: string, record: any) => {
+      render: (_, record) => {
         const meta = getGlobalFollowUpDueMeta(record);
         return <Tag color={meta.color}>{meta.text}</Tag>;
       },
@@ -56,9 +77,9 @@ export default function CustomerFollowUpsPage() {
       title: "关联商机",
       dataIndex: "opportunity_id",
       width: 120,
-      render: (value: number | null | undefined) => value ? (
-        <Button type="link" size="small" onClick={() => navigate(`/sales/opportunities/${value}`)}>
-          OPP-{String(value).padStart(6, "0")}
+      render: (_, r) => r.opportunity_id ? (
+        <Button type="link" size="small" onClick={() => navigate(`/sales/opportunities/${r.opportunity_id}`)}>
+          OPP-{String(r.opportunity_id).padStart(6, "0")}
         </Button>
       ) : <Text type="secondary">-</Text>,
     },
@@ -66,50 +87,50 @@ export default function CustomerFollowUpsPage() {
       title: "方式",
       dataIndex: "method",
       width: 100,
-      render: (method: string | null) => <FollowUpMethodTag method={method} />,
+      render: (_, r) => <FollowUpMethodTag method={r.method} />,
     },
     {
       title: "状态",
       dataIndex: "status",
       width: 100,
-      render: (value: string | null) => <FollowUpStatusTag status={value} />,
+      render: (_, r) => <FollowUpStatusTag status={r.status} />,
     },
     {
       title: "优先级",
       dataIndex: "priority",
       width: 90,
-      render: (value: string | null) => <FollowUpPriorityTag priority={value} />,
+      render: (_, r) => <FollowUpPriorityTag priority={r.priority} />,
     },
     {
       title: "计划时间",
       dataIndex: "planned_at",
       width: 150,
-      render: (value: string | null) => value ? value.slice(0, 16) : <Text type="secondary">未排期</Text>,
+      render: (_, r) => r.planned_at ? r.planned_at.slice(0, 16) : <Text type="secondary">未排期</Text>,
     },
     {
       title: "负责人",
       dataIndex: "assigned_to",
       width: 120,
-      render: (value: string | null) => value || <Text type="secondary">未分配</Text>,
+      render: (_, r) => r.assigned_to || <Text type="secondary">未分配</Text>,
     },
     {
       title: "跟进内容",
       dataIndex: "content",
       ellipsis: true,
-      render: (value: string | null) => value || <Text type="secondary">-</Text>,
+      render: (_, r) => r.content || <Text type="secondary">-</Text>,
     },
     {
       title: "结果",
       dataIndex: "result",
       ellipsis: true,
-      render: (value: string | null) => value || <Text type="secondary">-</Text>,
+      render: (_, r) => r.result || <Text type="secondary">-</Text>,
     },
     {
       title: "操作",
       key: "actions",
       width: 170,
       fixed: "right",
-      render: (_: unknown, record: any) => (
+      render: (_, record) => (
         <Space size={4}>
           {record.opportunity_id ? (
             <Button size="small" onClick={() => navigate(`/sales/opportunities/${record.opportunity_id}`)}>商机</Button>
@@ -139,7 +160,7 @@ export default function CustomerFollowUpsPage() {
               allowClear
               placeholder="状态"
               value={status}
-              onChange={(value) => { setStatus(value); }}
+              onChange={setStatus}
               style={{ width: 130 }}
               options={[
                 { value: "planned", label: "计划中" },
@@ -152,7 +173,7 @@ export default function CustomerFollowUpsPage() {
               allowClear
               placeholder="优先级"
               value={priority}
-              onChange={(value) => { setPriority(value); }}
+              onChange={setPriority}
               style={{ width: 120 }}
               options={[
                 { value: "high", label: "高" },
@@ -162,13 +183,13 @@ export default function CustomerFollowUpsPage() {
             />
             <Select
               value={dueBucket}
-              onChange={(value) => { setDueBucket(value); }}
+              onChange={setDueBucket}
               style={{ width: 130 }}
               options={GLOBAL_FOLLOW_UP_BUCKETS.map((item) => ({ value: item.key, label: item.label }))}
             />
           </Space>
           <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
+            <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/customers")}>选择客户新建</Button>
           </Space>
         </div>
@@ -184,35 +205,23 @@ export default function CustomerFollowUpsPage() {
 
         <ProTable<GlobalFollowUp>
           className="erp-table followup-ledger-table"
-          actionRef={actionRef}
           rowKey="id"
           columns={columns}
-          request={async (params) => {
-            try {
-              const resp = await getGlobalFollowUps({
-                page: params.current,
-                page_size: params.pageSize,
-                q: params.q || undefined,
-                status: params.status,
-                priority: params.priority,
-                ...(params.due_bucket ? { due_bucket: params.due_bucket } : {}),
-              });
-              const payload = resp.data.data;
-              setCounts(payload.counts || {});
-              return { data: payload.list || [], total: payload.total || 0, success: true };
-            } catch {
-              return { data: [], total: 0, success: false };
-            }
-          }}
-          params={{ q: debouncedQ || undefined, status, priority, due_bucket: dueBucket !== "all" ? dueBucket : undefined }}
+          dataSource={dataList}
+          loading={query.isLoading || query.isFetching}
           search={false}
-          options={{ reload: true, density: true, setting: true }}
+          options={{ reload: () => query.refetch(), density: true, setting: true }}
           size="small"
           bordered
           tableLayout="fixed"
           scroll={{ x: 1500 }}
           rowClassName={(record) => record.due_bucket === "overdue" ? "followup-row-overdue" : ""}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无跟进记录" /> }}
+          pagination={{
+            total: query.data?.total || 0,
+            showSizeChanger: true,
+            onChange: () => query.refetch(),
+          }}
         />
       </div>
     </CustomerModuleShell>

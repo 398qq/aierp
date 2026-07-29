@@ -1,11 +1,13 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button, Space, Modal, Input, message, Card, Tabs, Typography, Timeline, Descriptions } from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import type { ActionType } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { CheckOutlined, CloseOutlined, EyeOutlined } from "@ant-design/icons";
 import client from "../../api/client";
 import { getApiErrorMessage } from "../../api";
+import type { PageData } from "@/types";
+import { useApiQuery, useQueryClient } from "@/lib/queries";
 
 interface ApprovalReq {
   id: number; doc_type: string; doc_id: number;
@@ -25,78 +27,109 @@ const statusColors: Record<string, string> = { pending: "processing", approved: 
 const statusLabels: Record<string, string> = { pending: "待审批", approved: "已通过", rejected: "已驳回" };
 
 export default function ApprovalList() {
-  const actionRef = useRef<ActionType>(null);
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState("all");
-  const [detail, setDetail] = useState<ApprovalDetail | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [acting, setActing] = useState(false);
 
-  const viewDetail = async (id: number) => {
-    try {
-      const resp = await client.get(`/approvals/requests/${id}`);
-      setDetail(resp.data.data);
-      setDetailOpen(true);
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载详情失败")); }
+  const params: Record<string, unknown> = {};
+  if (tab && tab !== "all") params.status = tab;
+
+  const query = useApiQuery<PageData<ApprovalReq>>(
+    ["approvals", tab],
+    "/approvals/requests",
+    params,
+    { staleTime: 30 * 1000 },
+  );
+
+  const detailQuery = useApiQuery<ApprovalDetail>(
+    ["approval-detail", detailId],
+    `/approvals/requests/${detailId}`,
+    undefined,
+    { enabled: detailId !== null, staleTime: 30 * 1000 },
+  );
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["approvals"] });
+    queryClient.invalidateQueries({ queryKey: ["approval-detail"] });
+  };
+
+  const viewDetail = (id: number) => {
+    setDetailId(id);
+    setDetailOpen(true);
   };
 
   const handleAction = async (id: number, action: string) => {
     setActing(true);
     try {
-      await client.post(`/approvals/requests/${id}/${action}`, { comment });
+      const api = client;
+      await api.post(`/approvals/requests/${id}/${action}`, { comment });
       message.success(action === "approve" ? "已通过" : "已驳回");
       setDetailOpen(false);
       setComment("");
-      actionRef.current?.reload();
+      setDetailId(null);
+      invalidate();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
     finally { setActing(false); }
   };
 
-  const columns = [
-    { title: "ID", dataIndex: "id", width: 60, responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
-    { title: "单据类型", dataIndex: "doc_type", width: 100, render: (v: string) => docTypeLabels[v] || v },
-    { title: "单据ID", dataIndex: "doc_id", width: 80, responsive: ["md"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
+  const detail = detailQuery.data;
+
+  const columns: ProColumns<ApprovalReq>[] = [
+    { title: "ID", dataIndex: "id", width: 60, responsive: ["lg"] },
+    { title: "单据类型", dataIndex: "doc_type", width: 100, render: (_, r) => docTypeLabels[r.doc_type] || r.doc_type },
+    { title: "单据ID", dataIndex: "doc_id", width: 80, responsive: ["md"] },
     { title: "提交人", dataIndex: "submitter_name", width: 100 },
     {
       title: "状态", dataIndex: "status", width: 80,
-      render: (v: string) => <StatusTag status={v} color={statusColors[v]} label={statusLabels[v] || v} />,
+      render: (_, r) => <StatusTag status={r.status} color={statusColors[r.status]} label={statusLabels[r.status] || r.status} />,
     },
-    { title: "当前级别", dataIndex: "current_level", width: 80, responsive: ["md"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
-    { title: "提交时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " "), responsive: ["lg"] as unknown as ("xxl" | "xl" | "lg" | "md" | "sm" | "xs")[] },
+    { title: "当前级别", dataIndex: "current_level", width: 80, responsive: ["md"] },
+    { title: "提交时间", dataIndex: "created_at", width: 160, render: (_, r) => r.created_at?.slice(0, 19).replace("T", " "), responsive: ["lg"] },
     {
       title: "操作", key: "op", width: 80,
-      render: (_: any, r: any) => <Button size="small" icon={<EyeOutlined />} onClick={() => viewDetail(r.id)}>详情</Button>,
+      render: (_, r) => <Button size="small" icon={<EyeOutlined />} onClick={() => viewDetail(r.id)}>详情</Button>,
     },
   ];
 
   return (
     <Card title="审批管理">
-      <Tabs activeKey={tab} onChange={(v) => { setTab(v); actionRef.current?.reload(); }} items={[
-        { key: "all", label: "全部" },
-        { key: "pending", label: "待审批" },
-        { key: "approved", label: "已通过" },
-        { key: "rejected", label: "已驳回" },
-      ]} />
-      <ProTable rowKey="id" actionRef={actionRef} search={false} options={{ reload: true }}
-        columns={columns as any}
-        request={async (params) => {
-          const queryParams: Record<string, unknown> = {};
-          if (tab && tab !== "all") queryParams.status = tab;
-          queryParams.page = params.current;
-          queryParams.page_size = params.pageSize;
-          const resp = await client.get("/approvals/requests", { params: queryParams });
-          const d = resp.data.data;
-          return { data: d?.list || [], success: true, total: d?.total || 0 };
-        }} />
+      <Tabs
+        activeKey={tab}
+        onChange={setTab}
+        items={[
+          { key: "all", label: "全部" },
+          { key: "pending", label: "待审批" },
+          { key: "approved", label: "已通过" },
+          { key: "rejected", label: "已驳回" },
+        ]}
+      />
+      <ProTable<ApprovalReq>
+        rowKey="id"
+        columns={columns}
+        dataSource={query.data?.list || []}
+        loading={query.isLoading || query.isFetching}
+        search={false}
+        options={{ reload: () => query.refetch(), density: true, setting: true }}
+        pagination={{
+          total: query.data?.total || 0,
+          showSizeChanger: true,
+          onChange: () => query.refetch(),
+        }}
+      />
 
-      <Modal title="审批详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null} width={600}>
+      <Modal title="审批详情" open={detailOpen} onCancel={() => { setDetailOpen(false); setDetailId(null); }} footer={null} width={600}>
         {detail && (
           <Space direction="vertical" style={{ width: "100%" }} size="middle">
             <Descriptions column={2} size="small" bordered>
               <Descriptions.Item label="单据类型">{docTypeLabels[detail.doc_type]}</Descriptions.Item>
               <Descriptions.Item label="单据ID">{detail.doc_id}</Descriptions.Item>
               <Descriptions.Item label="提交人">{detail.submitter_name}</Descriptions.Item>
-              <Descriptions.Item label="状态"><StatusTag status={detail.status} color={statusColors[detail.status]} label={statusLabels[detail.status]} /></Descriptions.Item>
+              <Descriptions.Item label="状态">
+                <StatusTag status={detail.status} color={statusColors[detail.status]} label={statusLabels[detail.status]} />
+              </Descriptions.Item>
             </Descriptions>
             {detail.doc_summary && (
               <Descriptions column={1} size="small" bordered>
