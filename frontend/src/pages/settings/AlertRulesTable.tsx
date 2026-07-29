@@ -1,15 +1,13 @@
-import { useRef, useState } from "react";
-import { Button, Form, Space, Switch, message, Popconfirm } from "antd";
+import { useRef } from "react";
+import { Button, Space, Switch, Popconfirm, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
-import { PlusOutlined } from "@ant-design/icons";
 import { StatusTag } from "../../ui";
 import { SEVERITY_TONES } from "./constants";
 import {
   getAlertRules,
-  createAlertRule,
-  updateAlertRule,
   deleteAlertRule,
+  updateAlertRule,
   getApiErrorMessage,
 } from "../../api";
 import type { AlertRule } from "../../types";
@@ -23,32 +21,6 @@ const RULE_TYPE_LABELS: Record<string, string> = {
 
 export default function AlertRulesTable() {
   const actionRef = useRef<ActionType>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
-  const [form] = Form.useForm();
-
-  const openForm = (rule?: AlertRule) => {
-    setEditingRule(rule || null);
-    if (rule) form.setFieldsValue(rule);
-    else form.resetFields();
-    setModalOpen(true);
-  };
-
-  const onFinish = async (values: Record<string, unknown>) => {
-    try {
-      if (editingRule) {
-        await updateAlertRule(editingRule.id, values as Record<string, unknown>);
-        message.success("更新成功");
-      } else {
-        await createAlertRule(values as Record<string, unknown>);
-        message.success("创建成功");
-      }
-      setModalOpen(false);
-      actionRef.current?.reload();
-    } catch (e: unknown) {
-      message.error(getApiErrorMessage(e, "保存失败"));
-    }
-  };
 
   const handleDelete = async (id: number) => {
     try {
@@ -99,43 +71,31 @@ export default function AlertRulesTable() {
     {
       title: "操作",
       key: "actions",
-      width: 120,
+      width: 90,
       render: (_, r) => (
-        <Space>
-          <Button size="small" onClick={() => openForm(r)}>
-            编辑
+        <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
+          <Button size="small" danger>
+            删除
           </Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+        </Popconfirm>
       ),
     },
   ];
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openForm()}>
-          新建规则
-        </Button>
-      </Space>
-      <ProTable<AlertRule>
-        actionRef={actionRef}
-        rowKey="id"
-        columns={columns}
-        search={false}
-        options={{ reload: true, density: true, setting: true }}
-        size="small"
-        pagination={false}
-        request={async () => {
-          const r = await getAlertRules();
-          const list = r.data.data || [];
-          return { data: list, success: true, total: list.length };
-        }}
-      />
-    </div>
+    <ProTable<AlertRule>
+      actionRef={actionRef}
+      rowKey="id"
+      columns={columns}
+      search={false}
+      options={{ reload: true, density: true, setting: true }}
+      size="small"
+      pagination={false}
+      request={async () => {
+        const r = await getAlertRules();
+        const list = r.data.data || [];
+        return { data: list, success: true, total: list.length };
+      }}
+    />
   );
 }

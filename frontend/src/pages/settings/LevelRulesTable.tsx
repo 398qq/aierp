@@ -1,14 +1,13 @@
 import { useRef, useState } from "react";
-import { Button, Form, Space, Switch, message, Popconfirm } from "antd";
+import { Button, Space, Switch, Popconfirm, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
-import { PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { ThunderboltOutlined } from "@ant-design/icons";
 import { StatusTag, type StatusTone } from "../../ui";
 import {
   getLevelRules,
-  createLevelRule,
-  updateLevelRule,
   deleteLevelRule,
+  updateLevelRule,
   autoLevel,
   getApiErrorMessage,
 } from "../../api";
@@ -29,33 +28,7 @@ const LEVEL_TONES: Record<string, StatusTone> = {
 
 export default function LevelRulesTable() {
   const actionRef = useRef<ActionType>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<LevelRule | null>(null);
-  const [form] = Form.useForm();
   const [autoLevelLoading, setAutoLevelLoading] = useState(false);
-
-  const openForm = (rule?: LevelRule) => {
-    setEditingRule(rule || null);
-    if (rule) form.setFieldsValue(rule);
-    else form.resetFields();
-    setModalOpen(true);
-  };
-
-  const onFinish = async (values: Record<string, unknown>) => {
-    try {
-      if (editingRule) {
-        await updateLevelRule(editingRule.id, values as Record<string, unknown>);
-        message.success("更新成功");
-      } else {
-        await createLevelRule(values as Record<string, unknown>);
-        message.success("创建成功");
-      }
-      setModalOpen(false);
-      actionRef.current?.reload();
-    } catch (e: unknown) {
-      message.error(getApiErrorMessage(e, "保存失败"));
-    }
-  };
 
   const handleDelete = async (id: number) => {
     try {
@@ -124,18 +97,13 @@ export default function LevelRulesTable() {
     {
       title: "操作",
       key: "actions",
-      width: 120,
+      width: 90,
       render: (_, r) => (
-        <Space>
-          <Button size="small" onClick={() => openForm(r)}>
-            编辑
+        <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
+          <Button size="small" danger>
+            删除
           </Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+        </Popconfirm>
       ),
     },
   ];
@@ -143,9 +111,6 @@ export default function LevelRulesTable() {
   return (
     <div>
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openForm()}>
-          新建规则
-        </Button>
         <Button icon={<ThunderboltOutlined />} loading={autoLevelLoading} onClick={handleAutoLevel}>
           执行自动分级
         </Button>
