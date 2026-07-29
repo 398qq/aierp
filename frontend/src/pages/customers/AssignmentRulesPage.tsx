@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { Button, message, Modal, Form, Input, InputNumber, Select, Switch, Tag, Space, Popconfirm, Tooltip } from "antd";
+import { App, Button, Modal, Form, Input, InputNumber, Select, Switch, Tag, Space, Popconfirm, Tooltip } from "antd";
 import { PlusOutlined, PlayCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ProColumns, ActionType } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
+import { ProForm, ProTable } from "@ant-design/pro-components";
 import { getApiErrorMessage } from "@/api/client";
 import client from "@/api/client";
 import type { APIResponse } from "@/types";
@@ -20,12 +20,13 @@ const OPERATOR_LABELS: Record<string, string> = { equals: "等于", in: "包含�
 const CONDITION_LOGIC_LABELS: Record<string, string> = { all: "满足全部条件", any: "满足任一条件" };
 
 export default function AssignmentRulesPage() {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AssignmentRule | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
 
   const handleCreate = () => {
     setEditingRule(null);
@@ -182,7 +183,7 @@ export default function AssignmentRulesPage() {
         onCancel={() => setModalOpen(false)}
         width={640}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+        <ProForm form={form} layout="vertical" submitter={false} style={{ marginTop: 16 }}>
           <Form.Item name="name" label="规则名称" rules={[{ required: true, message: "请输入规则名称" }]}>
             <Input placeholder="例：高价值制造业客户自动分配" />
           </Form.Item>
@@ -225,7 +226,7 @@ export default function AssignmentRulesPage() {
               </>
             )}
           </Form.List>
-        </Form>
+        </ProForm>
       </Modal>
     </>
   );
