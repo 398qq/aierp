@@ -13,13 +13,24 @@
  * - loading → isLoading（拼写变化）
  */
 
-import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import client from "../api/client";
 
 export type ApiQueryOptions = {
   enabled?: boolean;
   staleTime?: number;
   refetchOnWindowFocus?: boolean;
+  /**
+   * 翻页/筛选时保留上一页数据，避免列表闪空。
+   * 映射到 React Query v5 的 placeholderData: keepPreviousData。
+   */
+  keepPreviousData?: boolean;
 };
 
 export type ApiMutationOptions<TData, TVariables> = {
@@ -32,7 +43,7 @@ export function useApiQuery<T = unknown>(
   key: readonly unknown[],
   url: string,
   params?: Record<string, unknown>,
-  options?: ApiQueryOptions
+  options?: ApiQueryOptions,
 ) {
   return useQuery<T>({
     queryKey: key,
@@ -50,13 +61,14 @@ export function useApiQuery<T = unknown>(
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime,
     refetchOnWindowFocus: options?.refetchOnWindowFocus,
+    placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
   });
 }
 
 export function useApiMutation<TData = unknown, TVariables = unknown>(
   method: "post" | "put" | "delete" | "patch",
   url: string | ((variables: TVariables) => string),
-  options?: ApiMutationOptions<TData, TVariables>
+  options?: ApiMutationOptions<TData, TVariables>,
 ) {
   const queryClient = useQueryClient();
   return useMutation<TData, Error, TVariables>({

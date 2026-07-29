@@ -27,6 +27,7 @@ Behavior:
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button, Card, Result, Space } from "antd";
 import { ReloadOutlined, HomeOutlined } from "@ant-design/icons";
+import { isChunkLoadError, isOffline } from "./chunkError";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -38,6 +39,18 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+function getFallbackCopy(error: Error | null): { isChunk: boolean; subTitle: string } {
+  if (error && isChunkLoadError(error)) {
+    return {
+      isChunk: true,
+      subTitle: isOffline()
+        ? "网络连接已断开，请检查网络后重新加载。"
+        : "页面资源加载失败（可能是系统已发布新版本），请刷新重试。",
+    };
+  }
+  return { isChunk: false, subTitle: error?.message ?? "发生未知错误" };
+}
+
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
@@ -46,10 +59,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Reserved for future observability hook (e.g. Sentry.capture).
-    // Console-log here so dev-mode catches the error before the
-    // browser swallows it.
-    // eslint-disable-next-line no-console
     console.error(`[ErrorBoundary:${this.props.pageName ?? "?"}]`, error, info);
   }
 
@@ -64,12 +73,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (!this.state.hasError) return this.props.children;
     const pageName = this.props.pageName ?? "页面";
+    const copy = getFallbackCopy(this.state.error);
+    const title = copy.isChunk ? "页面资源加载失败" : `${pageName} 加载失败`;
     return (
       <Card style={{ margin: 24 }}>
         <Result
           status="error"
-          title={`${pageName} 加载失败`}
-          subTitle={this.state.error?.message ?? "发生未知错误"}
+          title={title}
+          subTitle={copy.subTitle}
           extra={
             <Space>
               <Button type="primary" icon={<ReloadOutlined />} onClick={this.handleReload}>
