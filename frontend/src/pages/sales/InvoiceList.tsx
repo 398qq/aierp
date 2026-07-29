@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Dropdown, Modal, Select, Space, Typography, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
@@ -120,7 +120,7 @@ export default function InvoiceList() {
       width: 120,
       align: "right",
       sorter: (a, b) => a.amount - b.amount,
-      render: (v: number) => money(v),
+      render: (_, r) => money(r.amount),
     },
     {
       title: "税额",
@@ -128,7 +128,7 @@ export default function InvoiceList() {
       width: 100,
       align: "right",
       sorter: (a, b) => (a.tax_amount || 0) - (b.tax_amount || 0),
-      render: (v: number) => money(v),
+      render: (_, r) => money(r.tax_amount),
     },
     { title: "类型", dataIndex: "invoice_type", width: 100 },
     {

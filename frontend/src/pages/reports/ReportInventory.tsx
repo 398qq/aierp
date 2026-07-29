@@ -20,9 +20,9 @@ interface InventoryData {
 }
 
 const statusColors: Record<string, string> = {
-  "正常": "green",
-  "低库存": "orange",
-  "缺货": "red",
+  正常: "green",
+  低库存: "orange",
+  缺货: "red",
 };
 
 export default function ReportInventory() {
@@ -52,7 +52,7 @@ export default function ReportInventory() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (v: string) => <StatusTag status={v} color={statusColors[v] || "default"} />,
+      render: (_, r) => <StatusTag status={r.status} color={statusColors[r.status] || "default"} />,
     },
   ];
 

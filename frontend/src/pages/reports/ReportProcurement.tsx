@@ -50,7 +50,7 @@ export default function ReportProcurement() {
       title: "金额",
       dataIndex: "amount",
       key: "amount",
-      render: (v: number) => `¥${v.toLocaleString()}`,
+      render: (_, r) => `¥${r.amount.toLocaleString()}`,
     },
   ];
 

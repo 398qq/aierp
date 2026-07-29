@@ -19,12 +19,9 @@ interface APResponse {
 }
 
 export default function ReportAP() {
-  const query = useApiQuery<APResponse>(
-    ["report-ap"],
-    "/finance/reports/ap",
-    undefined,
-    { staleTime: 5 * 60 * 1000 },
-  );
+  const query = useApiQuery<APResponse>(["report-ap"], "/finance/reports/ap", undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
   const data = query.data;
   const loading = query.isLoading;
 
@@ -37,13 +34,13 @@ export default function ReportAP() {
       title: "金额",
       dataIndex: "amount",
       key: "amount",
-      render: (v: number) => `¥${v.toLocaleString()}`,
+      render: (_, r) => `¥${r.amount.toLocaleString()}`,
     },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (v: string) => <Tag>{v}</Tag>,
+      render: (_, r) => <Tag>{r.status}</Tag>,
     },
     { title: "账龄(天)", dataIndex: "age_days", key: "age_days" },
   ];

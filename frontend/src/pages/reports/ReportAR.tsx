@@ -38,12 +38,9 @@ const agingColors: Record<string, string> = {
 };
 
 export default function ReportAR() {
-  const query = useApiQuery<ARData>(
-    ["report-ar"],
-    "/reports/predefined/ar",
-    undefined,
-    { staleTime: 5 * 60 * 1000 },
-  );
+  const query = useApiQuery<ARData>(["report-ar"], "/reports/predefined/ar", undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
   const data = query.data;
   const loading = query.isLoading;
 
@@ -57,20 +54,20 @@ export default function ReportAR() {
       title: "金额",
       dataIndex: "amount",
       key: "amount",
-      render: (v: number) => `¥${v.toLocaleString()}`,
+      render: (_, r) => `¥${r.amount.toLocaleString()}`,
     },
     { title: "账龄(天)", dataIndex: "age_days", key: "age_days" },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (v: string) => <StatusTag>{v}</StatusTag>,
+      render: (_, r) => <StatusTag>{r.status}</StatusTag>,
     },
     {
       title: "发票日期",
       dataIndex: "invoice_date",
       key: "invoice_date",
-      render: (v: string | null) => v?.slice(0, 10) || "-",
+      render: (_, r) => r.invoice_date?.slice(0, 10) || "-",
     },
   ];
 
