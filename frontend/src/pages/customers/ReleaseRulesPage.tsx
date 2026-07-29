@@ -1,8 +1,15 @@
 import { useRef, useState } from "react";
-import { Button, message, Modal, Form, Input, InputNumber, Select, Switch, Tag, Space, Popconfirm } from "antd";
+import { App, Button, Modal, Tag, Space, Popconfirm } from "antd";
 import { PlusOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import type { ProColumns, ActionType } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
+import {
+  ProForm,
+  ProFormDigit,
+  ProFormSelect,
+  ProFormSwitch,
+  ProFormText,
+  ProTable,
+} from "@ant-design/pro-components";
 import { getApiErrorMessage } from "@/api/client";
 import client from "@/api/client";
 import type { APIResponse } from "@/types";
@@ -23,12 +30,13 @@ const RULE_TYPE_LABELS: Record<string, string> = { no_followup: "无跟进释放
 const RULE_TYPE_COLORS: Record<string, string> = { no_followup: "orange", no_order: "blue" };
 
 export default function ReleaseRulesPage() {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ReleaseRule | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
-  const [form] = Form.useForm();
+  const [form] = ProForm.useForm();
 
   const handleCreate = () => {
     setEditingRule(null);
@@ -150,25 +158,39 @@ export default function ReleaseRulesPage() {
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="规则名称" rules={[{ required: true, message: "请输入规则名称" }]}>
-            <Input placeholder="例：90天无跟进自动释放" />
-          </Form.Item>
-          <Form.Item name="rule_type" label="规则类型" rules={[{ required: true }]}>
-            <Select options={[
+        <ProForm form={form} layout="vertical" submitter={false} style={{ marginTop: 16 }}>
+          <ProFormText
+            name="name"
+            label="规则名称"
+            rules={[{ required: true, message: "请输入规则名称" }]}
+            placeholder="例：90天无跟进自动释放"
+          />
+          <ProFormSelect
+            name="rule_type"
+            label="规则类型"
+            rules={[{ required: true }]}
+            options={[
               { label: "无跟进释放", value: "no_followup" },
               { label: "无订单释放", value: "no_order" },
-            ]} />
-          </Form.Item>
-          <Form.Item name="condition_days" label="触发天数" rules={[{ required: true }]}>
-            <InputNumber min={1} max={9999} style={{ width: "100%" }} placeholder="超过此天数无跟进/订单则释放" />
-          </Form.Item>
-          <Form.Item name="priority" label="优先级（数字越小越优先）">
-            <InputNumber min={0} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="is_enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="notify_owner" label="释放前通知原负责人" valuePropName="checked"><Switch /></Form.Item>
-        </Form>
+            ]}
+          />
+          <ProFormDigit
+            name="condition_days"
+            label="触发天数"
+            rules={[{ required: true }]}
+            min={1}
+            max={9999}
+            fieldProps={{ style: { width: "100%" }, placeholder: "超过此天数无跟进/订单则释放" }}
+          />
+          <ProFormDigit
+            name="priority"
+            label="优先级（数字越小越优先）"
+            min={0}
+            fieldProps={{ style: { width: "100%" } }}
+          />
+          <ProFormSwitch name="is_enabled" label="启用" />
+          <ProFormSwitch name="notify_owner" label="释放前通知原负责人" />
+        </ProForm>
       </Modal>
     </>
   );
