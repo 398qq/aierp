@@ -37,8 +37,15 @@ export function useApiQuery<T = unknown>(
   return useQuery<T>({
     queryKey: key,
     queryFn: async () => {
-      const resp = await client.get<T>(url, { params });
-      return resp.data as T;
+      // FastAPI wraps every response in {code, msg, data}; axios hands us
+      // the body as `resp.data`. Unwrap one level so callers see inner T
+      // and can write `query.data.list`, not `query.data.data.list`.
+      const resp = await client.get<{ code?: number; msg?: string; data: T }>(
+        url,
+        { params },
+      );
+      const body = resp.data as { code?: number; msg?: string; data: T };
+      return body.data;
     },
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime,

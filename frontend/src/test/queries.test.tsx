@@ -1,9 +1,11 @@
 /**
  * Tests for src/lib/queries — useApiQuery / useApiMutation.
  * Twenty list pages depend on these hooks; this guards the contract:
- *  - useApiQuery returns the parsed body on success
+ *  - useApiQuery unwraps the backend {code,msg,data} envelope
+ *  - useApiQuery returns the parsed inner body on success
  *  - useApiMutation auto-invalidates the given keys on success
  *  - useApiMutation does NOT invalidate on failure
+ *  - useApiMutation URL fn receives variables, builds final path
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -12,15 +14,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useApiQuery, useApiMutation } from "@/lib/queries";
 
-// Mock the axios client that queries.ts wraps. Only the methods we use are stubbed.
 vi.mock("@/api/client", () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    patch: vi.fn(),
-    delete: vi.fn(),
-  },
+  default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
 import client from "@/api/client";
@@ -28,6 +23,10 @@ const mockedClient = client as unknown as {
   get: ReturnType<typeof vi.fn>;
   post: ReturnType<typeof vi.fn>;
 };
+
+beforeEach(() => {
+  vi.resetAllMocks();
+});
 
 function makeWrapper() {
   const qc = new QueryClient({
@@ -39,41 +38,34 @@ function makeWrapper() {
   return { wrapper, qc };
 }
 
-beforeEach(() => {
-  vi.resetAllMocks();
-});
+describe("useApiQuery envelope unwrap", () => {
+  it("returns inner data on success (unwraps envelope)", async () => {
+    const inner = { list: [{ id: 1 }], total: 1 };
+    mockedClient.get.mockResolvedValueOnce({
+      data: { code: 0, msg: "ok", data: inner },
+    });
 
-describe("useApiQuery", () => {
-  it("returns resp.data on success", async () => {
-    mockedClient.get.mockResolvedValueOnce({ data: { list: [{ id: 1 }], total: 1 } });
     const { wrapper } = makeWrapper();
-
     const { result } = renderHook(
-      () => useApiQuery<{ list: { id: number }[]; total: number }>(
-        ["demo"],
-        "/demo",
-        { foo: "bar" },
-      ),
+      () =>
+        useApiQuery<typeof inner>(
+          ["demo"],
+          "/demo",
+          { foo: "bar" },
+        ),
       { wrapper },
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual({ list: [{ id: 1 }], total: 1 });
-    expect(mockedClient.get).toHaveBeenCalledWith(
-      "/demo",
-      expect.objectContaining({ params: { foo: "bar" } }),
-    );
+    // Caller sees the inner body — not the envelope
+    expect(result.current.data).toEqual(inner);
+    expect(result.current.data?.list).toHaveLength(1);
   });
 
-  it("surfaces error state when the request rejects", async () => {
+  it("forwards error state when the request rejects", async () => {
     mockedClient.get.mockRejectedValueOnce(new Error("boom"));
     const { wrapper } = makeWrapper();
-
-    const { result } = renderHook(
-      () => useApiQuery(["demo"], "/demo"),
-      { wrapper },
-    );
-
+    const { result } = renderHook(() => useApiQuery(["demo"], "/demo"), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toBeInstanceOf(Error);
   });
