@@ -16,7 +16,7 @@ import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined,
 
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
-import { getFollowUps, deleteFollowUp, updateFollowUp, getApiErrorMessage, type FollowUpListResp } from "../../api";
+import { deleteFollowUp, updateFollowUp, getApiErrorMessage, type FollowUpListResp } from "../../api";
 import type { FollowUp } from "../../types";
 import { useApiQuery, useQueryClient } from "@/lib/queries";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
