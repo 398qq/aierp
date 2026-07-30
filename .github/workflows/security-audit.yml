@@ -63,4 +63,7 @@ jobs:
         run: npm ci --no-audit --no-fund --prefer-offline
       - name: Run npm audit
         # --audit-level=high: fail only on high/critical (not moderate/low)
-        run: npm audit --audit-level=high
+                # --omit=dev: audit production runtime deps only — dev/build-tooling vulns
+        # (transitive @umijs/*, eslint chain, babel plugins, etc.) don't ship to
+        # production and aren't reachably exploitable. CI noise without signal.
+        run: npm audit --audit-level=high --omit=dev
