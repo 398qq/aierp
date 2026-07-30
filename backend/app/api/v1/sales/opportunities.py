@@ -25,7 +25,7 @@ from app.api.v1.sales._shared import (
 )
 from app.database import get_db
 from app.models.customer import CustomerFollowUp
-from app.schemas.common import fail, ok, APIResponse, PageData
+from app.schemas.common import fail, ok, APIResponse
 from app.schemas.sales import (
     OpportunityResponse,
     BatchDeleteRequest,

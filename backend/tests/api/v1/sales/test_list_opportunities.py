@@ -5,9 +5,6 @@ Spec: docs/frontend/opportunity-list-design.md
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
-from httpx import AsyncClient
-
 
 async def _make_customer(client, headers, suffix=""):
     resp = await client.post(
@@ -215,7 +212,7 @@ class TestOpportunitiesListAI:
             await _make_opp(async_client, auth_headers, cid)
 
         # First non-kanban fetch populates cache (MISS)
-        normal = await async_client.get(
+        await async_client.get(
             "/api/v1/opportunities", headers=auth_headers,
         )
         # Second non-kanban fetch should HIT same cache
