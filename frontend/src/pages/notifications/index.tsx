@@ -4,7 +4,7 @@ import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { CheckOutlined } from "@ant-design/icons";
-import { getNotifications, markNotificationsRead, getApiErrorMessage } from "../../api";
+import { markNotificationsRead, getApiErrorMessage } from "../../api";
 import type { NotificationItem, PageData } from "@/types";
 import { useApiQuery, useQueryClient } from "@/lib/queries";
 
