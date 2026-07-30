@@ -1,28 +1,31 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Dropdown, Modal, Select, Space, Tag, Typography, Upload, message } from "antd";
+import { Button, Dropdown, Modal, Select, Space, Typography, Upload, message } from "antd";
 import { StatusTag } from "../../ui";
-import type { ActionType } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import { getContracts, deleteContract, importContractPDF, getApiErrorMessage } from "../../api";
 import client from "../../api/client";
-import type { Contract } from "../../types";
-import { CustomerLink, CustomerSelect, ErpExportButton, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
+import type { Contract, PageData } from "@/types";
+import { useApiQuery, useQueryClient } from "@/lib/queries";
+import { CustomerLink, CustomerSelect, ErpExportButton, SalesModuleShell, erpRowClass, money, statusDot, ERP_STATUS_DOT } from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
-  draft: { color: "default", label: "草稿" }, signed: { color: "blue", label: "已签署" },
-  active: { color: "green", label: "履行中" }, expired: { color: "orange", label: "已到期" }, terminated: { color: "red", label: "已终止" },
+  draft: { color: "default", label: "草稿" },
+  signed: { color: "blue", label: "已签署" },
+  active: { color: "green", label: "履行中" },
+  expired: { color: "orange", label: "已到期" },
+  terminated: { color: "red", label: "已终止" },
 };
 
 export default function ContractList() {
-  const actionRef = useRef<ActionType>(null);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
-  const [currentData, setCurrentData] = useState<Contract[]>([]);
-  const [total, setTotal] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<UploadFile | null>(null);
   const [importing, setImporting] = useState(false);
@@ -31,25 +34,104 @@ export default function ContractList() {
   const [pdfFile, setPdfFile] = useState<UploadFile | null>(null);
   const [pdfImporting, setPdfImporting] = useState(false);
   const [pdfResult, setPdfResult] = useState<{ id: number; parsed: Record<string, unknown>; raw_text_preview: string } | null>(null);
-  const navigate = useNavigate();
 
-  const tableParams = useMemo(() => {
-    const p: Record<string, unknown> = {};
-    if (status) p.status = status;
-    if (customerId) p.customer_id = customerId;
-    return p;
-  }, [status, customerId]);
+  const params: Record<string, unknown> = {};
+  if (status) params.status = status;
+  if (customerId) params.customer_id = customerId;
 
-  const exportData = useMemo(() =>
-    currentData.map((r) => ({
-      contract_no: r.contract_no || `#${r.id}`,
-      title: r.title,
-      amount: r.amount,
-      status: STATUS[r.status]?.label || r.status,
-      signed_date: r.signed_date?.slice(0, 10) || "",
-      expire_date: r.expire_date?.slice(0, 10) || "",
-    })),
-  [currentData]);
+  const query = useApiQuery<PageData<Contract>>(
+    ["sales-contracts", status ?? "", customerId ?? ""],
+    "/sales/contracts",
+    params,
+    { staleTime: 30 * 1000 },
+  );
+
+  const list = query.data?.list || [];
+
+  const exportData = useMemo(
+    () =>
+      list.map((r) => ({
+        contract_no: r.contract_no || `#${r.id}`,
+        title: r.title,
+        amount: r.amount,
+        status: STATUS[r.status]?.label || r.status,
+        signed_date: r.signed_date?.slice(0, 10) || "",
+        expire_date: r.expire_date?.slice(0, 10) || "",
+      })),
+    [list],
+  );
+
+  const invalidateContracts = () =>
+    queryClient.invalidateQueries({ queryKey: ["sales-contracts"] });
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteContract(id);
+      message.success("已删除");
+      invalidateContracts();
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "删除失败"));
+    }
+  };
+
+  const columns: ProColumns<Contract>[] = [
+    { title: "#", width: 45, fixed: "left", render: (_, __, index) => index + 1 },
+    {
+      title: "合同号", dataIndex: "contract_no", width: 140, fixed: "left",
+      render: (_, r) => (
+        <div>
+          <div className="erp-cell-primary">
+            <Typography.Link strong onClick={() => navigate(`/sales/contracts/${r.id}`)}>
+              {r.contract_no || `#${r.id}`}
+            </Typography.Link>
+          </div>
+          <div className="erp-cell-secondary">{r.title}</div>
+        </div>
+      ),
+    },
+    { title: "客户", dataIndex: "customer_id", width: 180, render: (_, r) => <CustomerLink id={r.customer_id} /> },
+    { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (_, r) => <Typography.Text strong>{money(r.amount)}</Typography.Text> },
+    {
+      title: "状态", dataIndex: "status", width: 90,
+      sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+      render: (_, r) => (
+        <>
+          {statusDot(ERP_STATUS_DOT[r.status] || "#d9d9d9")}
+          <StatusTag tone={STATUS[r.status]?.color}>{STATUS[r.status]?.label || r.status}</StatusTag>
+        </>
+      ),
+    },
+    { title: "签署日期", dataIndex: "signed_date", width: 110, sorter: (a, b) => (a.signed_date || "").localeCompare(b.signed_date || ""), render: (_, r) => r.signed_date?.slice(0, 10) || "-" },
+    { title: "到期日期", dataIndex: "expire_date", width: 110, sorter: (a, b) => (a.expire_date || "").localeCompare(b.expire_date || ""), render: (_, r) => r.expire_date?.slice(0, 10) || "-" },
+    {
+      title: "操作", width: 60, fixed: "right",
+      render: (_, r) => {
+        const items: MenuProps["items"] = [
+          { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/contracts/${r.id}`) },
+          { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/contracts/${r.id}/edit`) },
+          { type: "divider" as const },
+          {
+            key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true,
+            onClick: () => {
+              Modal.confirm({
+                title: "确定删除?",
+                content: `删除合同 #${r.id}？`,
+                okText: "删除",
+                cancelText: "取消",
+                okButtonProps: { danger: true },
+                onOk: () => handleDelete(r.id),
+              });
+            },
+          },
+        ];
+        return (
+          <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+            <Button size="small" icon={<EllipsisOutlined />} type="text" />
+          </Dropdown>
+        );
+      },
+    },
+  ];
 
   return (
     <SalesModuleShell
@@ -82,75 +164,22 @@ export default function ContractList() {
         </div>
       </Space>
       <ProTable<Contract>
-        actionRef={actionRef}
         rowKey="id"
+        columns={columns}
+        dataSource={list}
+        loading={query.isLoading || query.isFetching}
         search={false}
-        options={{ reload: true, density: true, setting: true }}
+        options={{ reload: () => query.refetch(), density: true, setting: true }}
         rowClassName={erpRowClass}
         scroll={{ x: "max-content" }}
         className="erp-table"
-        params={tableParams}
-        request={async (params) => {
-          const queryParams: Record<string, unknown> = { page: params.current || 1, page_size: params.pageSize || 20 };
-          if (params.status) queryParams.status = params.status;
-          if (params.customer_id) queryParams.customer_id = params.customer_id;
-          const resp = await getContracts(queryParams);
-          const list: Contract[] = resp.data.data.list || [];
-          const total = resp.data.data.total || 0;
-          setCurrentData(list);
-          setTotal(total);
-          return { data: list, success: true, total };
+        pagination={{
+          total: query.data?.total || 0,
+          showSizeChanger: true,
+          onChange: () => query.refetch(),
         }}
-        columns={[
-          { title: "#", width: 45, fixed: "left", render: (_: unknown, __: Contract, index: number) => index + 1 },
-          {
-            title: "合同号", dataIndex: "contract_no", width: 140, fixed: "left",
-            render: (v: string, r: Contract) => (
-              <div>
-                <div className="erp-cell-primary">
-                  <Typography.Link strong onClick={() => navigate(`/sales/contracts/${r.id}`)}>{v || `#${r.id}`}</Typography.Link>
-                </div>
-                <div className="erp-cell-secondary">{r.title}</div>
-              </div>
-            ),
-          },
-          { title: "客户", dataIndex: "customer_id", width: 180, render: (value: number) => <CustomerLink id={value} /> },
-          { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a: any, b: any) => a.amount - b.amount, render: (v: number) => <Typography.Text strong>{money(v)}</Typography.Text> },
-          {
-            title: "状态", dataIndex: "status", width: 90,
-            sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
-            render: (v: string) => (
-              <>
-                {statusDot(ERP_STATUS_DOT[v] || "#d9d9d9")}
-                <StatusTag tone={STATUS[v]?.color}>{STATUS[v]?.label || v}</StatusTag>
-              </>
-            ),
-          },
-          { title: "签署日期", dataIndex: "signed_date", width: 110, sorter: (a: any, b: any) => (a.signed_date || "").localeCompare(b.signed_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
-          { title: "到期日期", dataIndex: "expire_date", width: 110, sorter: (a: any, b: any) => (a.expire_date || "").localeCompare(b.expire_date || ""), render: (v: string) => v?.slice(0, 10) || "-" },
-          {
-            title: "操作", width: 60, fixed: "right",
-            render: (_: unknown, r: Contract) => {
-              const items: MenuProps["items"] = [
-                { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/contracts/${r.id}`) },
-                { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/contracts/${r.id}/edit`) },
-                { type: "divider" as const },
-                { key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true, onClick: () => {
-                  Modal.confirm({ title: "确定删除?", content: `删除合同 #${r.id}？`, onOk: async () => {
-                    try { await deleteContract(r.id); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
-                  }});
-                }},
-              ];
-              return (
-                <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
-                  <Button size="small" icon={<EllipsisOutlined />} type="text" />
-                </Dropdown>
-              );
-            },
-          },
-        ] as any}
-        summary={(pageData: readonly Contract[]) => {
-          const totalAmt = pageData.reduce((s, r) => s + r.amount, 0);
+        summary={(data: readonly Contract[]) => {
+          const totalAmt = data.reduce((s, r) => s + r.amount, 0);
           return (
             <ProTable.Summary.Row>
               <ProTable.Summary.Cell index={0}>合计</ProTable.Summary.Cell>
@@ -178,7 +207,7 @@ export default function ContractList() {
             });
             const data = resp.data.data;
             setImportResult({ created: data.created, errors: data.errors || [] });
-            if (data.created > 0) { message.success(`成功导入 ${data.created} 条合同`); actionRef.current?.reload(); }
+            if (data.created > 0) { message.success(`成功导入 ${data.created} 条合同`); invalidateContracts(); }
             if (data.errors?.length > 0) { message.warning(`${data.errors.length} 行导入失败`); }
           } catch (e: unknown) { message.error(getApiErrorMessage(e, "导入失败")); }
           finally { setImporting(false); }
@@ -225,7 +254,7 @@ export default function ContractList() {
             }
             setPdfResult(resp.data.data);
             message.success(resp.data.msg || "PDF合同导入成功");
-            actionRef.current?.reload();
+            invalidateContracts();
           } catch (err: unknown) {
             const serverMsg = (err as { response?: { data?: { msg?: string } } })?.response?.data?.msg;
             message.error(serverMsg || "导入失败");
