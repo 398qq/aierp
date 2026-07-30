@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { Button, Space, Tag, message, Card, Popconfirm } from "antd";
+import { useState } from "react";
+import { Button, Space, Card, message } from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import type { ActionType } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-import { CheckOutlined, DeleteOutlined } from "@ant-design/icons";
+import { CheckOutlined } from "@ant-design/icons";
 import { getNotifications, markNotificationsRead, getApiErrorMessage } from "../../api";
-import type { NotificationItem } from "../../types";
+import type { NotificationItem, PageData } from "@/types";
+import { useApiQuery, useQueryClient } from "@/lib/queries";
 
 const TYPE: Record<string, { color: string; label: string }> = {
   followup: { color: "blue", label: "跟进" },
@@ -17,78 +18,86 @@ const TYPE: Record<string, { color: string; label: string }> = {
 };
 
 export default function NotificationList() {
-  const actionRef = useRef<ActionType>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    actionRef.current?.reload();
-  }, [unreadOnly]);
+  const query = useApiQuery<PageData<NotificationItem>>(
+    ["notifications", unreadOnly],
+    "/notifications",
+    unreadOnly ? { unread_only: true } : undefined,
+    { staleTime: 30 * 1000 },
+  );
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
 
   const handleMarkAllRead = async () => {
     try {
       await markNotificationsRead({ all: true });
       message.success("全部已读");
-      actionRef.current?.reload();
+      invalidate();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
 
   const handleMarkRead = async (ids: number[]) => {
     try {
       await markNotificationsRead({ ids });
-      actionRef.current?.reload();
+      invalidate();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
   };
+
+  const columns: ProColumns<NotificationItem>[] = [
+    {
+      title: "类型", dataIndex: "type", width: 80,
+      render: (_, r) => <StatusTag tone={TYPE[r.type]?.color}>{TYPE[r.type]?.label || r.type}</StatusTag>,
+    },
+    { title: "标题", dataIndex: "title", ellipsis: true },
+    { title: "内容", dataIndex: "content", ellipsis: true, render: (_, r) => r.content || "-" },
+    {
+      title: "状态", dataIndex: "is_read", width: 80,
+      render: (_, r) => r.is_read ? <StatusTag>已读</StatusTag> : <StatusTag tone="info">未读</StatusTag>,
+    },
+    {
+      title: "时间", dataIndex: "created_at", width: 160,
+      render: (_, r) => new Date(r.created_at).toLocaleString(),
+    },
+    {
+      title: "操作", width: 80,
+      render: (_, r) => (
+        <Space size="small">
+          {!r.is_read && (
+            <Button size="small" type="link" onClick={() => handleMarkRead([r.id])}>已读</Button>
+          )}
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <Card
       title="通知中心"
       extra={
         <Space>
-          <Button size="small" type={unreadOnly ? "primary" : "default"} onClick={() => { setUnreadOnly(!unreadOnly); }}>
+          <Button size="small" type={unreadOnly ? "primary" : "default"} onClick={() => setUnreadOnly(!unreadOnly)}>
             {unreadOnly ? "显示全部" : "仅未读"}
           </Button>
           <Button size="small" icon={<CheckOutlined />} onClick={handleMarkAllRead}>全部已读</Button>
         </Space>
       }
     >
-      <ProTable
-        actionRef={actionRef}
+      <ProTable<NotificationItem>
         rowKey="id"
-        rowClassName={(r: NotificationItem) => r.is_read ? "" : "ant-table-row-highlight"}
-        request={async (params) => {
-          const p: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
-          if (unreadOnly) p.unread_only = true;
-          const resp = await getNotifications(p);
-          return { data: resp.data.data.list || [], success: true, total: resp.data.data.total || 0 };
-        }}
+        rowClassName={(r) => r?.is_read ? "" : "ant-table-row-highlight"}
+        columns={columns}
+        dataSource={query.data?.list || []}
+        loading={query.isLoading || query.isFetching}
         search={false}
-        options={{ reload: true, density: true, setting: true }}
-        columns={[
-          {
-            title: "类型", dataIndex: "type", width: 80,
-            render: (v: string) => <StatusTag tone={TYPE[v]?.color}>{TYPE[v]?.label || v}</StatusTag>,
-          },
-          { title: "标题", dataIndex: "title", ellipsis: true },
-          { title: "内容", dataIndex: "content", ellipsis: true, render: (v: string | null) => v || "-" },
-          {
-            title: "状态", dataIndex: "is_read", width: 80,
-            render: (v: boolean) => v ? <StatusTag>已读</StatusTag> : <StatusTag tone="info">未读</StatusTag>,
-          },
-          {
-            title: "时间", dataIndex: "created_at", width: 160,
-            render: (v: string) => new Date(v).toLocaleString(),
-          },
-          {
-            title: "操作", width: 80,
-            render: (_: unknown, r: NotificationItem) => (
-              <Space size="small">
-                {!r.is_read && (
-                  <Button size="small" type="link" onClick={() => handleMarkRead([r.id])}>已读</Button>
-                )}
-              </Space>
-            ),
-          },
-          ] as any}
+        options={{ reload: () => query.refetch(), density: true, setting: true }}
+        pagination={{
+          total: query.data?.total || 0,
+          showSizeChanger: true,
+          onChange: () => query.refetch(),
+        }}
       />
     </Card>
   );

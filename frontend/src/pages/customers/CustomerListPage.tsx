@@ -34,11 +34,10 @@ import {
   createFollowUp,
   detectDuplicates,
   exportCustomers,
-  getCustomers,
   getApiErrorMessage,
   mergeCustomers,
 } from "@/api";
-import type { Customer, DuplicatePair } from "@/types";
+import type { Customer, DuplicatePair, PageData } from "@/types";
 import { useApiQuery } from "@/lib/queries";
 import { ErrorBoundary, StatusTag } from "@/ui";
 import CustomerModuleShell from "./CustomerModuleShell";
@@ -98,15 +97,20 @@ export default function CustomerListPage() {
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
-  const [mergePair, setMergePair] = useState<MergePair | null>(null);
+  const [mergePair, setMergePair] = useState<DuplicatePair | null>(null);
   const [mergeLoading, setMergeLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const customersQuery = useApiQuery(
-    ["customers", { ...Object.fromEntries(searchParams), debouncedSearch }],
+  const customersQuery = useApiQuery<PageData<Customer>>(
+    ["customers", { ...Object.fromEntries(searchParams), debouncedSearch, page, pageSize }],
     "/api/v1/customers",
-    { ...Object.fromEntries(searchParams), q: debouncedSearch || undefined },
+    {
+      ...Object.fromEntries(searchParams),
+      q: debouncedSearch || undefined,
+      page,
+      page_size: pageSize,
+    },
     { staleTime: 30 * 1000 },
   );
   const [group, setGroup] = useState<GroupValue>(
@@ -148,6 +152,7 @@ export default function CustomerListPage() {
     if (regionFilter) params.set("region", regionFilter);
     if (missingErp) params.set("missing_erp", "1");
     setSearchParams(params, { replace: true });
+    setPage(1);
   }, [search, group, statusFilter, levelFilter, regionFilter, missingErp, setSearchParams]);
 
   useEffect(() => {
@@ -617,15 +622,7 @@ export default function CustomerListPage() {
                 setPageSize(ps);
               },
             }}
-            search={false}
-            options={isMobile ? false : { reload: true, density: true, setting: true }}
             rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-            pagination={{
-              showSizeChanger: true,
-              pageSizeOptions: isMobile ? undefined : [20, 50, 100],
-              showQuickJumper: !isMobile,
-              showTotal: (t, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${t} 条`,
-            }}
             scroll={{ x: isMobile ? 800 : 1300 }}
             sticky
             tableStyle={{ cursor: "pointer" }}

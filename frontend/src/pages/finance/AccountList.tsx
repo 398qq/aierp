@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
-import { Card, Tag, Typography } from "antd";
+import { Card } from "antd";
+import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
-
-import client from "../../api/client";
+import { useApiQuery } from "@/lib/queries";
 
 interface Account {
   id: number; code: string; name: string; type: string;
@@ -14,34 +13,35 @@ const typeColors: Record<string, string> = { asset: "blue", liability: "orange",
 const typeLabels: Record<string, string> = { asset: "资产", liability: "负债", equity: "权益", income: "收入", expense: "费用" };
 
 export default function AccountList() {
-  const [data, setData] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(true);
+  const query = useApiQuery<Account[]>(
+    ["finance-accounts"],
+    "/finance/accounts",
+    undefined,
+    { staleTime: 5 * 60 * 1000 },
+  );
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const resp = await client.get("/finance/accounts");
-        setData(resp.data.data || []);
-      } catch { /* ignore */ }
-      finally { setLoading(false); }
-    })();
-  }, []);
-
-  const columns: any = [
+  const columns: ProColumns<Account>[] = [
     { title: "编码", dataIndex: "code", width: 100 },
     { title: "名称", dataIndex: "name", width: 180 },
     {
       title: "类型", dataIndex: "type", width: 80,
-      render: (v: string) => <StatusTag tone={typeColors[v]}>{typeLabels[v] || v}</StatusTag>,
+      render: (_, r) => <StatusTag tone={typeColors[r.type]}>{typeLabels[r.type] || r.type}</StatusTag>,
     },
     { title: "说明", dataIndex: "description", ellipsis: true },
   ];
 
   return (
     <Card title="会计科目表">
-      <ProTable rowKey="id" columns={columns} dataSource={data} loading={loading}
-        pagination={false} size="small" search={false} options={false} />
+      <ProTable<Account>
+        rowKey="id"
+        columns={columns}
+        dataSource={query.data || []}
+        loading={query.isLoading || query.isFetching}
+        pagination={false}
+        size="small"
+        search={false}
+        options={false}
+      />
     </Card>
   );
 }

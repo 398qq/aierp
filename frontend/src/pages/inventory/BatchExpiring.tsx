@@ -22,12 +22,12 @@ import {
   Space,
   Spin,
   Statistic,
-  Table,
   Tabs,
   Tag,
   Typography,
 } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { ProTable } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import client from "../../api/client";
 
 const { Title, Text } = Typography;
@@ -116,13 +116,15 @@ export default function BatchExpiring() {
     );
   }
 
-  const columns = (bucketName: string): ColumnsType<ExpiringBatch> => [
+  const columns = (bucketName: string): ProColumns<ExpiringBatch>[] => [
     {
       title: "批次号",
       dataIndex: "batch_no",
       key: "batch_no",
-      render: (v: string, r) => (
-        <Link to={`/inventory/batches/${r.id}/traceability`}>{v}</Link>
+      render: (v: unknown, r) => (
+        <Link to={`/inventory/batches/${r.id}/traceability`}>
+          {(v as string) ?? ""}
+        </Link>
       ),
     },
     { title: "产品 ID", dataIndex: "product_id", key: "product_id", width: 90 },
@@ -138,7 +140,10 @@ export default function BatchExpiring() {
       dataIndex: "expiry_date",
       key: "expiry_date",
       width: 120,
-      render: (v: string | null) => (v ? v.slice(0, 10) : "-"),
+      render: (v: unknown) => {
+        const s = typeof v === "string" ? v : null;
+        return s ? s.slice(0, 10) : "-";
+      },
     },
     {
       title:
@@ -146,13 +151,14 @@ export default function BatchExpiring() {
       dataIndex: "days_until_expiry",
       key: "days_until_expiry",
       width: 120,
-      render: (v: number | null) => {
-        if (v === null) return "-";
-        if (v < 0) return <Tag color="red">{Math.abs(v)} 天</Tag>;
-        if (v === 0) return <Tag color="red">今天到期</Tag>;
-        if (v <= 7) return <Tag color="volcano">{v} 天</Tag>;
-        if (v <= 30) return <Tag color="orange">{v} 天</Tag>;
-        return <Tag>{v} 天</Tag>;
+      render: (v: unknown) => {
+        const days = typeof v === "number" ? v : null;
+        if (days === null) return "-";
+        if (days < 0) return <Tag color="red">{Math.abs(days)} 天</Tag>;
+        if (days === 0) return <Tag color="red">今天到期</Tag>;
+        if (days <= 7) return <Tag color="volcano">{days} 天</Tag>;
+        if (days <= 30) return <Tag color="orange">{days} 天</Tag>;
+        return <Tag>{days} 天</Tag>;
       },
     },
     {
@@ -160,14 +166,14 @@ export default function BatchExpiring() {
       dataIndex: "status",
       key: "status",
       width: 90,
-      render: (v: string) => <Tag>{v}</Tag>,
+      render: (v: unknown) => <Tag>{(v as string) ?? ""}</Tag>,
     },
     {
       title: "MSL",
       dataIndex: "msl_level",
       key: "msl_level",
       width: 70,
-      render: (v: string | null) => v || "-",
+      render: (v: unknown) => (typeof v === "string" ? v : "-"),
     },
   ];
 
@@ -217,12 +223,15 @@ export default function BatchExpiring() {
               </Space>
             ),
             children: (
-              <Table<ExpiringBatch>
+              <ProTable<ExpiringBatch>
                 rowKey="id"
                 columns={columns(b.name)}
                 dataSource={scan.buckets[b.name] ?? []}
                 size="small"
-                pagination={{ pageSize: 20, showSizeChanger: true }}
+                loading={loading}
+                pagination={false}
+                search={false}
+                options={{ density: true, setting: true }}
                 locale={{ emptyText: <Empty description="该桶无批次" /> }}
               />
             ),

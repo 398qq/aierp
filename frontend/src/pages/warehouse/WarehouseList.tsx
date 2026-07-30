@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button, Space, message, Card, Popconfirm, Tooltip, Tag } from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import type { ActionType } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { PlusOutlined, ReloadOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, getApiErrorMessage } from "../../api";
-import type { Warehouse } from "../../types";
+import type { Warehouse, PageData } from "@/types";
+import { useApiQuery, useQueryClient } from "@/lib/queries";
 import WarehouseForm from "./WarehouseForm";
 
 interface WarehouseRecord extends Warehouse {
@@ -12,7 +13,15 @@ interface WarehouseRecord extends Warehouse {
 }
 
 export default function WarehouseList() {
-  const actionRef = useRef<ActionType>(null);
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+
+  const query = useApiQuery<PageData<WarehouseRecord>>(
+    ["warehouses"],
+    "/warehouses",
+    undefined,
+    { staleTime: 30 * 1000 },
+  );
 
   // Create modal
   const [createOpen, setCreateOpen] = useState(false);
@@ -29,7 +38,7 @@ export default function WarehouseList() {
       await createWarehouse(values);
       message.success("创建成功");
       setCreateOpen(false);
-      actionRef.current?.reload();
+      invalidate();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建失败")); } finally {
       setCreateLoading(false);
     }
@@ -48,7 +57,7 @@ export default function WarehouseList() {
       message.success("更新成功");
       setEditOpen(false);
       setEditRecord(null);
-      actionRef.current?.reload();
+      invalidate();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新失败")); } finally {
       setEditLoading(false);
     }
@@ -58,18 +67,18 @@ export default function WarehouseList() {
     try {
       await deleteWarehouse(id);
       message.success("已删除");
-      actionRef.current?.reload();
+      invalidate();
     } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
   };
 
-  const columns: any = [
+  const columns: ProColumns<WarehouseRecord>[] = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "名称", dataIndex: "name", width: 200 },
-    { title: "位置", dataIndex: "location", width: 200, render: (v: string | null) => v || <Tag>未设置</Tag> },
-    { title: "描述", dataIndex: "description", ellipsis: true, render: (v: string | null) => v || "-" },
-    { title: "创建时间", dataIndex: "created_at", width: 100, render: (v: string) => v?.slice(0, 10) || "-" },
+    { title: "位置", dataIndex: "location", width: 200, render: (_, r) => r.location || <Tag>未设置</Tag> },
+    { title: "描述", dataIndex: "description", ellipsis: true, render: (_, r) => r.description || "-" },
+    { title: "创建时间", dataIndex: "created_at", width: 100, render: (_, r) => r.created_at?.slice(0, 10) || "-" },
     {
-      title: "操作", key: "actions", width: 120, render: (_: unknown, r: WarehouseRecord) => (
+      title: "操作", key: "actions", width: 120, render: (_, r) => (
         <Space size={4}>
           <Tooltip title="编辑">
             <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -88,29 +97,27 @@ export default function WarehouseList() {
         title="仓库管理"
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
+            <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新增仓库</Button>
           </Space>
         }
       >
-        <ProTable
-          actionRef={actionRef}
+        <ProTable<WarehouseRecord>
           rowKey="id"
           columns={columns}
-          request={async (params) => {
-            const resp = await getWarehouses({ page: params.current, page_size: params.pageSize });
-            if (resp.data.code === 0) {
-              return { data: resp.data.data.list as WarehouseRecord[], success: true, total: resp.data.data.total };
-            }
-            return { data: [], success: false, total: 0 };
-          }}
+          dataSource={query.data?.list || []}
+          loading={query.isLoading || query.isFetching}
           search={false}
-          options={{ reload: true, density: true, setting: true }}
+          options={{ reload: () => query.refetch(), density: true, setting: true }}
           size="small"
+          pagination={{
+            total: query.data?.total || 0,
+            showSizeChanger: true,
+            onChange: () => query.refetch(),
+          }}
         />
       </Card>
 
-      {/* Create Modal */}
       <WarehouseForm
         open={createOpen}
         loading={createLoading}
@@ -119,7 +126,6 @@ export default function WarehouseList() {
         mode="create"
       />
 
-      {/* Edit Modal */}
       {editRecord && (
         <WarehouseForm
           open={editOpen}

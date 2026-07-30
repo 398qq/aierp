@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { Card, Tag, Select, Input, Space, Typography } from "antd";
+import { useState } from "react";
+import { Card, Select, Input, Space, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import type { ActionType } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { SearchOutlined } from "@ant-design/icons";
-
-import client from "../../api/client";
+import type { PageData } from "@/types";
+import { useApiQuery } from "@/lib/queries";
 
 interface AuditLog {
   id: number; user_id: number; username: string;
@@ -23,33 +23,38 @@ const resourceLabels: Record<string, string> = {
 };
 
 export default function AuditLogList() {
-  const actionRef = useRef<ActionType>(null);
   const [resourceType, setResourceType] = useState<string | undefined>();
   const [userId, setUserId] = useState<string>("");
 
-  useEffect(() => {
-    actionRef.current?.reload();
-  }, [resourceType]);
+  const params: Record<string, unknown> = {};
+  if (resourceType) params.resource_type = resourceType;
+  if (userId) params.user_id = Number(userId);
 
-  const handleSearch = () => {
-    actionRef.current?.reload();
-  };
+  const query = useApiQuery<PageData<AuditLog>>(
+    ["audit-logs", resourceType ?? "", userId],
+    "/permissions/audit-logs",
+    params,
+    { staleTime: 30 * 1000 },
+  );
 
-  const columns: any = [
+  const columns: ProColumns<AuditLog>[] = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "用户", dataIndex: "username", width: 100 },
     {
       title: "操作", dataIndex: "action", width: 100,
-      render: (v: string) => <StatusTag tone={actionColors[v] || "neutral"}>{v}</StatusTag>,
+      render: (_, r) => <StatusTag tone={actionColors[r.action] || "neutral"}>{r.action}</StatusTag>,
     },
     {
       title: "资源类型", dataIndex: "resource_type", width: 100,
-      render: (v: string) => resourceLabels[v] || v,
+      render: (_, r) => resourceLabels[r.resource_type] || r.resource_type,
     },
     { title: "资源ID", dataIndex: "resource_id", width: 80 },
     { title: "摘要", dataIndex: "summary", ellipsis: true },
     { title: "IP", dataIndex: "ip_address", width: 130 },
-    { title: "时间", dataIndex: "created_at", width: 160, render: (v: string) => v?.slice(0, 19).replace("T", " ") },
+    {
+      title: "时间", dataIndex: "created_at", width: 160,
+      render: (_, r) => r.created_at?.slice(0, 19).replace("T", " "),
+    },
   ];
 
   return (
@@ -57,27 +62,31 @@ export default function AuditLogList() {
       <Space style={{ marginBottom: 16 }}>
         <Select
           allowClear placeholder="资源类型" style={{ width: 140 }}
-          value={resourceType} onChange={(v) => setResourceType(v)}
+          value={resourceType} onChange={setResourceType}
           options={Object.entries(resourceLabels).map(([k, v]) => ({ value: k, label: v }))}
         />
         <Input
           placeholder="用户ID" style={{ width: 120 }}
           value={userId} onChange={(e) => setUserId(e.target.value)}
-          onPressEnter={handleSearch}
+          onPressEnter={() => query.refetch()}
         />
-        <Typography.Link onClick={handleSearch}><SearchOutlined /> 搜索</Typography.Link>
+        <Typography.Link onClick={() => query.refetch()}>
+          <SearchOutlined /> 搜索
+        </Typography.Link>
       </Space>
-      <ProTable
-        actionRef={actionRef} rowKey="id" columns={columns}
-        request={async (params) => {
-          const p: Record<string, unknown> = { page: params.current, page_size: params.pageSize };
-          if (resourceType) p.resource_type = resourceType;
-          if (userId) p.user_id = Number(userId);
-          const resp = await client.get("/permissions/audit-logs", { params: p });
-          return { data: resp.data.data?.list || [], success: true, total: resp.data.data?.total || 0 };
-        }}
-        search={false} options={{ reload: true, density: true, setting: true }}
+      <ProTable<AuditLog>
+        rowKey="id"
+        columns={columns}
+        dataSource={query.data?.list || []}
+        loading={query.isLoading || query.isFetching}
+        search={false}
+        options={{ reload: () => query.refetch(), density: true, setting: true }}
         size="small"
+        pagination={{
+          total: query.data?.total || 0,
+          showSizeChanger: true,
+          onChange: () => query.refetch(),
+        }}
       />
     </Card>
   );

@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, Row, Col, Select, Typography, Spin, Empty, Button } from "antd";
+import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import { DownloadOutlined } from "@ant-design/icons";
+import { useApiQuery } from "@/lib/queries";
 import client from "../../api/client";
 import { SalesModuleShell } from "../sales/salesUi";
 
@@ -14,20 +16,16 @@ interface SalesData {
 }
 
 export default function ReportSales() {
-  const [data, setData] = useState<SalesData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState(12);
 
-  const fetch = async (m: number) => {
-    setLoading(true);
-    try {
-      const resp = await client.get("/reports/predefined/sales", { params: { months: m } });
-      setData(resp.data.data);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  };
+  const query = useApiQuery<SalesData>(
+    ["report-sales", months],
+    "/reports/predefined/sales",
+    { months },
+    { staleTime: 5 * 60 * 1000 },
+  );
 
-  useEffect(() => { fetch(months); }, [months]);
+  const loading = query.isLoading || query.isFetching;
 
   const exportCsv = async () => {
     try {
@@ -43,13 +41,13 @@ export default function ReportSales() {
     } catch { /* ignore */ }
   };
 
-  const orderColumns: any = [
+  const orderColumns: ProColumns<MonthlyItem>[] = [
     { title: "月份", dataIndex: "month", key: "month" },
     { title: "订单数", dataIndex: "count", key: "count" },
-    { title: "金额", dataIndex: "amount", key: "amount", render: (v: number) => `¥${v.toLocaleString()}` },
+    { title: "金额", dataIndex: "amount", key: "amount", render: (_, r) => `¥${r.amount.toLocaleString()}` },
   ];
 
-  const productColumns: any = [
+  const productColumns: ProColumns<TopProduct>[] = [
     { title: "产品名", dataIndex: "name", key: "name" },
     { title: "SKU", dataIndex: "sku", key: "sku" },
     { title: "订单数", dataIndex: "order_count", key: "order_count" },
@@ -75,28 +73,52 @@ export default function ReportSales() {
         <Spin size="large" style={{ display: "block", margin: "120px auto" }} />
       ) : (
         <>
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={12}>
-          <Card title="月度销售订单" size="small">
-            {data?.monthly_orders?.length ? (
-              <ProTable rowKey="month" columns={orderColumns} dataSource={data.monthly_orders} pagination={false} size="small" search={false} options={false} />
-            ) : <Empty />}
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card title="月度报价单" size="small">
-            {data?.monthly_quotations?.length ? (
-              <ProTable rowKey="month" columns={orderColumns} dataSource={data.monthly_quotations} pagination={false} size="small" search={false} options={false} />
-            ) : <Empty />}
-          </Card>
-        </Col>
-      </Row>
+          <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Col span={12}>
+              <Card title="月度销售订单" size="small">
+                {query.data?.monthly_orders?.length ? (
+                  <ProTable<MonthlyItem>
+                    rowKey="month"
+                    columns={orderColumns}
+                    dataSource={query.data.monthly_orders}
+                    pagination={false}
+                    size="small"
+                    search={false}
+                    options={false}
+                  />
+                ) : <Empty />}
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card title="月度报价单" size="small">
+                {query.data?.monthly_quotations?.length ? (
+                  <ProTable<MonthlyItem>
+                    rowKey="month"
+                    columns={orderColumns}
+                    dataSource={query.data.monthly_quotations}
+                    pagination={false}
+                    size="small"
+                    search={false}
+                    options={false}
+                  />
+                ) : <Empty />}
+              </Card>
+            </Col>
+          </Row>
 
-      <Card title="热销产品 Top 10" size="small">
-        {data?.top_products?.length ? (
-          <ProTable rowKey="sku" columns={productColumns} dataSource={data.top_products} pagination={false} size="small" search={false} options={false} />
-        ) : <Empty />}
-      </Card>
+          <Card title="热销产品 Top 10" size="small">
+            {query.data?.top_products?.length ? (
+              <ProTable<TopProduct>
+                rowKey="sku"
+                columns={productColumns}
+                dataSource={query.data.top_products}
+                pagination={false}
+                size="small"
+                search={false}
+                options={false}
+              />
+            ) : <Empty />}
+          </Card>
         </>
       )}
     </SalesModuleShell>

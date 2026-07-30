@@ -1,13 +1,13 @@
 /** CommissionSchemeList — 提成方案配置（013 PRD）
 
 ERP Operational Screens 风格：
-- `<PageHeader>`, `<SearchBar>`, `<StatusTag>`, `<EmptyState>`, `<ErrorBoundary>`
-- `size="middle"` 表格，固定操作列
+- `<PageHeader>`, `<SearchBar>`, `<StatusTag>`, `<ErrorBoundary>`
+- ProTable（size="middle"），固定操作列
 - Drawer 720px 方案编辑
 - 阶梯配置实时校验
 */
 
-import { useEffect, useMemo, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   App as AntdApp,
@@ -16,24 +16,19 @@ import {
   Form,
   Input,
   InputNumber,
-  Select,
   Space,
-  Table,
   DatePicker,
   Switch,
   Tabs,
   Popconfirm,
   Tag,
-  Tooltip,
 } from "antd";
-import { PlusOutlined, SettingOutlined, StopOutlined, DeleteOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import { PlusOutlined } from "@ant-design/icons";
+import { ProTable } from "@ant-design/pro-components";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
 import dayjs from "dayjs";
-import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
 import { PageHeader } from "@/ui/PageHeader";
 import { SearchBar } from "@/ui/SearchBar";
-import { EmptyState } from "@/ui/EmptyState";
 import { ErrorBoundary } from "@/ui/ErrorBoundary";
 import { getApiErrorMessage } from "@/api";
 import {
@@ -44,10 +39,7 @@ import {
   activateCommissionScheme,
   deactivateCommissionScheme,
   type CommissionScheme,
-  type SchemeTier,
-  type SchemeStatus,
 } from "@/api/finance";
-import { numericStyle } from "@/design-tokens";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "草稿",
@@ -76,54 +68,40 @@ const TAB_LABELS: Record<string, string> = {
 function SchemeList() {
   const { message } = AntdApp.useApp();
   const navigate = useNavigate();
-  const [data, setData] = useState<CommissionScheme[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [q, setQ] = useState("");
   const [tabKey, setTabKey] = useState<string>("active");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
+  const actionRef = useRef<ActionType>(null);
 
-  const load = async (p?: number, requestedPageSize = pageSize) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page: p ?? page, page_size: requestedPageSize, q: q || undefined };
-      if (tabKey) params.status = tabKey;
-      const resp = await getCommissionSchemes(params);
-      setData(resp.data.data.list);
-      setTotal(resp.data.data.total);
-    } catch (e) {
-      message.error(getApiErrorMessage(e, "加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const reload = () => actionRef.current?.reload();
 
-  useEffect(() => {
-    load(1);
-  }, [tabKey]);
-
-  const columns: ColumnsType<CommissionScheme> = [
+  const columns: ProColumns<CommissionScheme>[] = [
     { title: "方案名称", dataIndex: "name", ellipsis: true, width: 200 },
     { title: "版本", dataIndex: "version_no", width: 60, align: "right" },
     {
       title: "状态",
       dataIndex: "status",
       width: 80,
-      render: (s: string) => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s] || s}</Tag>,
+      render: (_, r) => (
+        <Tag color={STATUS_COLORS[r.status]}>{STATUS_LABELS[r.status] || r.status}</Tag>
+      ),
     },
     { title: "生效日", dataIndex: "effective_from", width: 100 },
     {
       title: "到期日",
       dataIndex: "effective_to",
       width: 100,
-      render: (v: string | null) => v || "—",
+      render: (_, r) => r.effective_to || "—",
     },
-    { title: "默认", dataIndex: "is_default", width: 60, render: (v: boolean) => (v ? "✅" : "—") },
+    {
+      title: "默认",
+      dataIndex: "is_default",
+      width: 60,
+      render: (_, r) => (r.is_default ? "✅" : "—"),
+    },
     {
       title: "操作",
       width: 220,
@@ -149,7 +127,7 @@ function SchemeList() {
                 try {
                   await activateCommissionScheme(r.id);
                   message.success("已激活");
-                  load();
+                  reload();
                 } catch (e) {
                   message.error(getApiErrorMessage(e));
                 }
@@ -165,7 +143,7 @@ function SchemeList() {
                 try {
                   await deactivateCommissionScheme(r.id);
                   message.success("已停用");
-                  load();
+                  reload();
                 } catch (e) {
                   message.error(getApiErrorMessage(e));
                 }
@@ -181,13 +159,15 @@ function SchemeList() {
                 try {
                   await deleteCommissionScheme(r.id);
                   message.success("已删除");
-                  load();
+                  reload();
                 } catch (e) {
                   message.error(getApiErrorMessage(e));
                 }
               }}
             >
-              <a style={{ color: "#ef4444" }}>删除</a>
+              <Button type="link" danger size="small" style={{ padding: 0 }}>
+                删除
+              </Button>
             </Popconfirm>
           )}
         </Space>
@@ -224,7 +204,7 @@ function SchemeList() {
         message.success("方案已创建");
       }
       setDrawerOpen(false);
-      load();
+      reload();
     } catch (e) {
       message.error(getApiErrorMessage(e, "保存失败"));
     } finally {
@@ -253,40 +233,47 @@ function SchemeList() {
           </Button>
         }
       />
-      <SearchBar
-        placeholder="按方案名称搜索…"
-        onSearch={(v) => {
-          setQ(v);
-          load(1);
-        }}
-        onReset={() => {
-          setQ("");
-          load(1);
-        }}
-      />
+      <SearchBar placeholder="按方案名称搜索…" onSearch={(v) => setQ(v)} onReset={() => setQ("")} />
       <Tabs
         activeKey={tabKey}
         onChange={(k) => setTabKey(k)}
         items={TAB_KEYS.map((k) => ({ key: k, label: TAB_LABELS[k] }))}
       />
-      <Table<CommissionScheme>
+      <ProTable<CommissionScheme>
+        actionRef={actionRef}
         rowKey="id"
         columns={columns}
-        dataSource={data}
-        loading={loading}
+        search={false}
+        options={{ reload: true, density: true, setting: true }}
         size="middle"
         scroll={{ x: 900 }}
-        pagination={erpPagination({
-          current: page,
-          pageSize,
-          total,
-          onChange: (p, ps) => {
-            const nextPage = ps !== pageSize ? 1 : p;
-            setPage(nextPage);
-            setPageSize(ps);
-            load(nextPage, ps);
-          },
-        })}
+        params={{ status: tabKey || undefined, q: q || undefined }}
+        request={async (params) => {
+          try {
+            const apiParams: Record<string, unknown> = {
+              page: params.current,
+              page_size: params.pageSize,
+            };
+            if (tabKey) apiParams.status = tabKey;
+            if (q) apiParams.q = q;
+            const resp = await getCommissionSchemes(apiParams);
+            return {
+              data: resp.data.data.list,
+              success: true,
+              total: resp.data.data.total,
+            };
+          } catch (e) {
+            message.error(getApiErrorMessage(e, "加载失败"));
+            return { data: [], success: false, total: 0 };
+          }
+        }}
+        pagination={{
+          defaultPageSize: 20,
+          showSizeChanger: true,
+          pageSizeOptions: [20, 50, 100],
+          showQuickJumper: true,
+          showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`,
+        }}
       />
       <Drawer
         title={editId ? "编辑方案" : "新建方案"}

@@ -20,18 +20,18 @@ import {
   Card,
   Col,
   Descriptions,
-  Empty,
   Form,
   Input,
   Row,
   Space,
   Spin,
   Statistic,
-  Table,
   Tag,
   Typography,
 } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { ProTable } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
+import { EmptyState } from "../../ui";
 import client from "../../api/client";
 
 const { Title, Text } = Typography;
@@ -164,31 +164,31 @@ export default function BatchRecall() {
   const batch = impact.batch;
   const alreadyRecalled = batch.status === "recalled" || recalled;
 
-  const deliveryColumns: ColumnsType<ImpactDelivery> = [
+  const deliveryColumns: ProColumns<ImpactDelivery>[] = [
     {
       title: "时间",
       dataIndex: "transaction_at",
       key: "transaction_at",
       width: 160,
-      render: (v: string | null) => (v ? v.slice(0, 16).replace("T", " ") : "-"),
+      render: (_, r) => (r.transaction_at ? r.transaction_at.slice(0, 16).replace("T", " ") : "-"),
     },
     {
       title: "发货单",
       dataIndex: "delivery_no",
       key: "delivery_no",
-      render: (v: string | null) => v || "-",
+      render: (_, r) => r.delivery_no || "-",
     },
     {
       title: "销售单",
       dataIndex: "sales_order_no",
       key: "sales_order_no",
-      render: (v: string | null) => v || "-",
+      render: (_, r) => r.sales_order_no || "-",
     },
     {
       title: "客户",
       dataIndex: "customer_name",
       key: "customer_name",
-      render: (v: string | null) => v || "-",
+      render: (_, r) => r.customer_name || "-",
     },
     { title: "数量", dataIndex: "quantity", key: "quantity", width: 80 },
   ];
@@ -255,13 +255,18 @@ export default function BatchRecall() {
         )}
 
         <Title level={5}>发货记录</Title>
-        <Table<ImpactDelivery>
+        <ProTable<ImpactDelivery>
           rowKey="transaction_id"
           columns={deliveryColumns}
           dataSource={impact.deliveries}
+          loading={loading}
+          search={false}
+          options={{ density: true, setting: true }}
           size="small"
-          pagination={{ pageSize: 10 }}
-          locale={{ emptyText: <Empty description="此批次尚未出库" /> }}
+          pagination={false}
+          locale={{
+            emptyText: <EmptyState description="此批次尚未出库" compact />,
+          }}
         />
       </Card>
 
