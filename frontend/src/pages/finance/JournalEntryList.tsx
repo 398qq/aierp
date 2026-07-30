@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { App, Button, Card } from "antd";
+import { Button, Card } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
@@ -15,7 +15,6 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function JournalEntryList() {
-  const { message } = App.useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -91,7 +90,7 @@ export default function JournalEntryList() {
         pagination={{
           total: query.data?.total || 0,
           showSizeChanger: true,
-          onChange: () => query.refetch(),
+          onChange: () => queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
         }}
       />
     </Card>
