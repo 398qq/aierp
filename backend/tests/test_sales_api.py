@@ -131,6 +131,9 @@ class TestOpportunities:
             headers=auth_headers,
         )
         assert listed.status_code == 200
+        # NOTE: /opportunities/{id}/follow-ups is out of scope for this PR
+        # (still returns a flat array); only the customer-scoped endpoint
+        # migrates to {list, total, counts}.
         assert listed.json()["data"][0]["opportunity_id"] == opportunity_id
 
         queue = await async_client.get(
