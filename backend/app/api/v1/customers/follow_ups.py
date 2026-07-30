@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.datetime_utils import to_utc
@@ -14,33 +15,148 @@ from app.services.cache_service import cache_bump_version
 
 from .crud import FollowUpCreate, FollowUpUpdate
 
+VALID_DUE_BUCKETS = {"overdue", "today", "upcoming", "unscheduled", "closed"}
+
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 
 @router.get("/{customer_id}/follow-ups")
 async def list_followups(
     customer_id: int,
+    page: int = Query(1, ge=1, le=10_000, description="1-based page index"),
+    page_size: int = Query(20, ge=1, le=100, description="rows per page, max 100"),
+    status: Optional[str] = Query(None, max_length=32, description="exact match on status"),
+    priority: Optional[str] = Query(None, max_length=32, description="exact match on priority"),
+    due_bucket: Optional[str] = Query(
+        None, description="overdue|today|upcoming|unscheduled|closed",
+    ),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
 ):
-    rows = (
-        (
-            await db.execute(
-                select(CustomerFollowUp).where(
-                    CustomerFollowUp.customer_id == customer_id,
-                    CustomerFollowUp.deleted_at.is_(None),
-                )
-                .order_by(
-                    CustomerFollowUp.planned_at.asc().nulls_last(),
-                    CustomerFollowUp.created_at.desc(),
-                )
-            )
+    """List customer follow-ups with pagination, filters, and summary counts.
+
+    Response shape:
+      {
+        "list": [{...follow-up..., "due_bucket": "overdue|..."}],
+        "total": <int>,
+        "counts": {open, completed, high, overdue, today}
+      }
+
+    Bucketing rule (server-side UTC, deterministic):
+      - status in {completed, cancelled}            -> "closed"
+      - planned_at IS NULL                          -> "unscheduled"
+      - planned_at < today_start (UTC midnight)     -> "overdue"
+      - today_start <= planned_at < tomorrow_start  -> "today"
+      - otherwise                                    -> "upcoming"
+
+    Sort: due_bucket weight (overdue < today < upcoming
+    < unscheduled < closed), then earliest of planned_at
+    vs created_at (nullslast), then id as tie-breaker.
+    """
+    if due_bucket is not None and due_bucket not in VALID_DUE_BUCKETS:
+        return fail(
+            f"due_bucket must be one of {sorted(VALID_DUE_BUCKETS)}", 422,
         )
-        .scalars()
-        .all()
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
+    status_terminal = CustomerFollowUp.status.in_(["completed", "cancelled"])
+    planned_at_null = CustomerFollowUp.planned_at.is_(None)
+    planned_before_today = CustomerFollowUp.planned_at < today_start
+    planned_today = and_(
+        CustomerFollowUp.planned_at >= today_start,
+        CustomerFollowUp.planned_at < today_end,
     )
-    return ok(
-        [
+
+    bucket_expr = case(
+        (status_terminal, "closed"),
+        (planned_at_null, "unscheduled"),
+        (planned_before_today, "overdue"),
+        (planned_today, "today"),
+        else_="upcoming",
+    ).label("bucket")
+
+    bucket_weight_expr = case(
+        (status_terminal, 4),
+        (planned_at_null, 3),
+        (planned_before_today, 0),
+        (planned_today, 1),
+        else_=2,
+    ).label("weight")
+
+    base_filters = (
+        CustomerFollowUp.customer_id == customer_id,
+        CustomerFollowUp.deleted_at.is_(None),
+    )
+
+    def apply_filters(q):
+        if status:
+            q = q.where(CustomerFollowUp.status == status)
+        if priority:
+            q = q.where(CustomerFollowUp.priority == priority)
+        if due_bucket:
+            q = q.where(bucket_expr == due_bucket)
+        return q
+
+    main_q = (
+        select(CustomerFollowUp, bucket_expr).where(*base_filters)
+    )
+    main_q = apply_filters(main_q)
+    main_q = main_q.order_by(
+        bucket_weight_expr.asc(),
+        func.coalesce(CustomerFollowUp.planned_at, CustomerFollowUp.created_at).asc(),
+        CustomerFollowUp.id.asc(),
+    )
+
+    rows = (
+        await db.execute(main_q.offset((page - 1) * page_size).limit(page_size))
+    ).all()
+
+    total_subq = apply_filters(
+        select(CustomerFollowUp.id).where(*base_filters)
+    ).subquery()
+    total = await db.scalar(select(func.count()).select_from(total_subq)) or 0
+
+    counts_q = select(
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        or_(
+                            CustomerFollowUp.status.is_(None),
+                            CustomerFollowUp.status.in_(["planned", "in_progress"]),
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("open"),
+        func.coalesce(
+            func.sum(case((CustomerFollowUp.status == "completed", 1), else_=0)),
+            0,
+        ).label("completed"),
+        func.coalesce(
+            func.sum(case((CustomerFollowUp.priority == "high", 1), else_=0)),
+            0,
+        ).label("high"),
+        func.coalesce(
+            func.sum(case((bucket_expr == "overdue", 1), else_=0)),
+            0,
+        ).label("overdue"),
+        func.coalesce(
+            func.sum(case((bucket_expr == "today", 1), else_=0)),
+            0,
+        ).label("today"),
+    ).where(*base_filters)
+    counts_q = apply_filters(counts_q)
+    cnts = (await db.execute(counts_q)).one()
+
+    return ok({
+        "list": [
             {
                 "id": f.id,
                 "opportunity_id": f.opportunity_id,
@@ -53,10 +169,19 @@ async def list_followups(
                 "priority": f.priority,
                 "assigned_to": f.assigned_to,
                 "created_at": str(f.created_at) if f.created_at else None,
+                "due_bucket": bucket,
             }
-            for f in rows
-        ]
-    )
+            for (f, bucket) in rows
+        ],
+        "total": int(total),
+        "counts": {
+            "open": int(cnts.open),
+            "completed": int(cnts.completed),
+            "high": int(cnts.high),
+            "overdue": int(cnts.overdue),
+            "today": int(cnts.today),
+        },
+    })
 
 
 @router.post("/{customer_id}/follow-ups", status_code=201)

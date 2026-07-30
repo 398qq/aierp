@@ -1484,11 +1484,15 @@ class TestCustomerFollowups:
         listed = await async_client.get(
             f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers
         )
-        created = next(item for item in listed.json()["data"] if item["id"] == resp.json()["data"]["id"])
+        created = next(
+            item for item in listed.json()["data"]["list"]
+            if item["id"] == resp.json()["data"]["id"]
+        )
         assert created["planned_at"] is None
         assert created["completed_at"] is None
 
     async def test_list_followups(self, async_client: AsyncClient, auth_headers: dict):
+        """Backward-compat: GET follow-ups returns new shape {list, total, counts}."""
         cust = await async_client.post(
             "/api/v1/customers",
             headers=auth_headers,
@@ -1499,7 +1503,14 @@ class TestCustomerFollowups:
             f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers
         )
         assert resp.status_code == 200
-        assert isinstance(resp.json()["data"], list)
+        data = resp.json()["data"]
+        # New paginated shape
+        assert set(data.keys()) == {"list", "total", "counts"}
+        assert isinstance(data["list"], list)
+        assert isinstance(data["total"], int)
+        assert set(data["counts"].keys()) == {
+            "open", "completed", "high", "overdue", "today"
+        }
 
     async def test_update_followup(self, async_client: AsyncClient, auth_headers: dict):
         cust = await async_client.post(
@@ -1551,7 +1562,10 @@ class TestCustomerFollowups:
         listed = await async_client.get(
             f"/api/v1/customers/{cid}/follow-ups", headers=auth_headers
         )
-        updated = next(item for item in listed.json()["data"] if item["id"] == fup_id)
+        updated = next(
+            item for item in listed.json()["data"]["list"]
+            if item["id"] == fup_id
+        )
         assert updated["planned_at"].startswith("2026-05-27 15:30:00")
 
     async def test_ai_recognize_followup(
