@@ -25,7 +25,7 @@ from app.api.v1.sales._shared import (
 )
 from app.database import get_db
 from app.models.customer import CustomerFollowUp
-from app.schemas.common import fail, ok, APIResponse, PageData
+from app.schemas.common import fail, ok, APIResponse
 from app.schemas.sales import (
     OpportunityResponse,
     BatchDeleteRequest,
@@ -57,7 +57,107 @@ async def _bump_opportunity_caches() -> None:
     await cache_bump_version("dashboard:kpi")
 
 
-@router.get("/opportunities", response_model=APIResponse[PageData[OpportunityResponse]])
+
+async def _compute_opportunity_counts(
+    db: AsyncSession,
+    *,
+    customer_id: int | None = None,
+    status: str | None = None,
+    stage: str | None = None,
+    assigned_to: str | None = None,
+    q: str | None = None,
+) -> dict:
+    """Aggregate (filter-aware) summary counts.
+
+    Replicates the same filter clauses as the list query so totals match
+    the subset the user is viewing. atRisk counts rows where the
+    ai_risk_level column equals 'high' (this column is pre-populated by
+    the AI scoring background job, so a separate include_ai round-trip
+    isn't necessary for the count).
+    """
+    from app.models.sales import Opportunity
+    from sqlalchemy import and_, case, func, or_, select
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    in_14d = today_start + timedelta(days=14)
+
+    base_filters = [Opportunity.deleted_at.is_(None)]
+    if customer_id:
+        base_filters.append(Opportunity.customer_id == customer_id)
+    if status:
+        base_filters.append(Opportunity.status == status)
+    if stage:
+        base_filters.append(Opportunity.stage == stage)
+    if assigned_to:
+        base_filters.append(Opportunity.assigned_to == assigned_to)
+    if q and q.strip():
+        from app.services.sales_service._helpers import _customer_search_ids
+        pattern = f"%{q.strip()}%"
+        base_filters.append(or_(
+            Opportunity.title.ilike(pattern),
+            Opportunity.description.ilike(pattern),
+            Opportunity.notes.ilike(pattern),
+            Opportunity.source.ilike(pattern),
+            Opportunity.assigned_to.ilike(pattern),
+            Opportunity.customer_id.in_(_customer_search_ids(q.strip())),
+        ))
+
+    counts_q = (
+        select(
+            func.count(Opportunity.id).label("count"),
+            func.coalesce(func.sum(Opportunity.amount), 0).label("amount"),
+            func.coalesce(
+                func.sum(
+                    func.coalesce(Opportunity.amount, 0)
+                    * func.coalesce(Opportunity.win_probability, 0) / 100.0
+                ),
+                0,
+            ).label("weighted_amount"),
+            func.coalesce(
+                func.sum(case((Opportunity.status == "active", 1), else_=0)), 0
+            ).label("active"),
+            func.coalesce(
+                func.sum(case((
+                    and_(
+                        Opportunity.status == "active",
+                        Opportunity.expected_close_date.is_not(None),
+                        Opportunity.expected_close_date < today_start,
+                    ),
+                    1,
+                ), else_=0)), 0
+            ).label("overdue"),
+            func.coalesce(
+                func.sum(case((
+                    and_(
+                        Opportunity.status == "active",
+                        Opportunity.expected_close_date.is_not(None),
+                        Opportunity.expected_close_date >= today_start,
+                        Opportunity.expected_close_date < in_14d,
+                    ),
+                    1,
+                ), else_=0)), 0
+            ).label("due_soon"),
+            func.coalesce(
+                func.sum(case((Opportunity.ai_risk_level == "high", 1), else_=0)), 0
+            ).label("at_risk"),
+        )
+        .where(*base_filters)
+    )
+    row = (await db.execute(counts_q)).one()
+    return {
+        "count": int(row.count or 0),
+        "amount": float(row.amount or 0),
+        "weightedAmount": float(row.weighted_amount or 0),
+        "active": int(row.active or 0),
+        "overdue": int(row.overdue or 0),
+        "dueSoon": int(row.due_soon or 0),
+        "atRisk": int(row.at_risk or 0),
+    }
+
+
+@router.get("/opportunities")
 async def list_opportunities(
     response: JSONResponse,
     page: int = Query(1, ge=1),
@@ -72,9 +172,28 @@ async def list_opportunities(
     include_ai: bool = Query(False),
     sort_by: str = "id",
     sort_order: str = "desc",
+    kanban: bool = Query(
+        False,
+        description=(
+            "Board mode: bypass pagination and cap at 200 records on "
+            "page 1 so all six stages are visible without slicing"
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
+    """List opportunities with pagination + filter.
+
+    When `kanban=true`, page is forced to 1 and page_size to 200 — the
+    Response shape includes a top-level `counts` block aggregating the
+    same filter set (count / amount / weightedAmount / active /
+    overdue / dueSoon / atRisk). AI-enrichment metadata is in `ai` when
+    include_ai=true and there are rows; otherwise null.
+    """
+    if kanban:
+        page = 1
+        page_size = 200
+
     cache_key = _opportunities_cache_key(
         page=page,
         page_size=page_size,
@@ -85,13 +204,13 @@ async def list_opportunities(
         q=q,
         sort_by=sort_by,
         sort_order=sort_order,
+        kanban=kanban,
     )
     cached_payload = await cache_get_versioned("opportunities:list", cache_key)
     if cached_payload is not None:
         result = json.loads(cached_payload)
         if include_ai and result.get("list"):
             from app.services.sales_ai_service import enrich_opportunity_list
-
             ai_map = await enrich_opportunity_list(db, result["list"])
             result["ai"] = ai_map
         response.headers["X-Cache"] = "HIT"
@@ -111,18 +230,31 @@ async def list_opportunities(
         sort_by=sort_by,
         sort_order=sort_order,
     )
+
+    counts = await _compute_opportunity_counts(
+        db,
+        customer_id=customer_id,
+        status=status,
+        stage=stage,
+        assigned_to=assigned_to,
+        q=q,
+    )
+
+    ai_map = None
     if include_ai and result["list"]:
         from app.services.sales_ai_service import enrich_opportunity_list
-
         ai_map = await enrich_opportunity_list(db, result["list"])
-        result["ai"] = ai_map
 
     serialized = {
         "list": [
             OpportunityResponse.model_validate(o, from_attributes=True).model_dump(mode="json")
             for o in result["list"]
         ],
-        **{k: v for k, v in result.items() if k != "list"},
+        "total": result["total"],
+        "page": result["page"],
+        "page_size": result["page_size"],
+        "counts": counts,
+        "ai": ai_map,
     }
     await cache_set_versioned(
         "opportunities:list",
