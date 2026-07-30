@@ -156,12 +156,15 @@ export const updatePayment = (id: number, data: Record<string, unknown>) =>
 export const allocatePayment = (
   id: number,
   allocations: Array<{ invoice_id: number; amount: number }>,
-) => client.put<APIResponse<{
-  payment_id: number;
-  allocated_amount: number;
-  unallocated_amount: number;
-  status: string;
-}>>(`/payments/${id}/allocations`, { allocations });
+) =>
+  client.put<
+    APIResponse<{
+      payment_id: number;
+      allocated_amount: number;
+      unallocated_amount: number;
+      status: string;
+    }>
+  >(`/payments/${id}/allocations`, { allocations });
 
 export const deletePayment = (id: number) => client.delete<APIResponse>(`/payments/${id}`);
 
@@ -301,3 +304,39 @@ export const deactivateCommissionScheme = (id: number) =>
 
 export const getMyScheme = () =>
   client.get<APIResponse<CommissionScheme | null>>("/commission-schemes/my-scheme");
+
+// ============================================================
+// Finance — Journal Entries
+// ============================================================
+
+export const getJournalEntries = (params: Record<string, unknown> = {}) =>
+  client.get<
+    APIResponse<
+      PageData<{
+        id: number;
+        entry_no: string;
+        entry_date: string;
+        description: string;
+        status: string;
+        created_at: string;
+      }>
+    >
+  >("/finance/journal-entries", { params });
+
+export const getJournalEntry = (id: number) =>
+  client.get<
+    APIResponse<{
+      id: number;
+      entry_no: string;
+      entry_date: string;
+      description: string;
+      status: string;
+      created_at: string;
+    }>
+  >(`/finance/journal-entries/${id}`);
+
+export const createJournalEntry = (data: Record<string, unknown>) =>
+  client.post<APIResponse<{ id: number; entry_no: string }>>("/finance/journal-entries", data);
+
+export const postJournalEntry = (id: number) =>
+  client.post<APIResponse<unknown>>(`/finance/journal-entries/${id}/post`);
