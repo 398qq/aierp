@@ -151,7 +151,11 @@ pids/
 DESIGN.md.linear.bak
 backups/
 .codex/
-workflows/
+# Only ignore a top-level `workflows/` directory (never existed here, kept
+# historical). `.github/workflows/` must remain tracked — it carries the
+# CI definitions (security-audit.yml etc.) that we actively edit.
+/workflows/
+!.github/workflows/
 
 # Runtime logs (admin-merge, backups, ops-alert) — generated at runtime, never commit
 logs/
