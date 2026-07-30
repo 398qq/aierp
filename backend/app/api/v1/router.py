@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     ai,
+    user_preferences,
     approvals,
     audit,
     auth,
@@ -43,6 +44,7 @@ api_router.include_router(transactions.po_router)
 api_router.include_router(transactions.ticket_router)
 api_router.include_router(transactions.visit_router)
 api_router.include_router(sales.router)
+api_router.include_router(user_preferences.router)
 api_router.include_router(targets.router)
 api_router.include_router(finance.router)
 api_router.include_router(commissions.router)
