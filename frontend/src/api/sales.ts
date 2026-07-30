@@ -101,11 +101,23 @@ import type {
 
 // Sales — Opportunities
 
-export const getOpportunities = (params: Record<string, unknown>) =>
-  client.get<APIResponse<PageData<Opportunity> & { ai?: Record<number, OpportunityAI> }>>(
-    "/opportunities",
-    { params },
-  );
+export type OpportunityCounts = {
+  count: number;
+  amount: number;
+  weightedAmount: number;
+  active: number;
+  overdue: number;
+  dueSoon: number;
+  atRisk: number;
+};
+
+export type OpportunityListResp = PageData<Opportunity> & {
+  counts: OpportunityCounts;
+  ai?: Record<number, OpportunityAI> | null;
+};
+
+export const getOpportunities = (params: Record<string, unknown> = {}) =>
+  client.get<APIResponse<OpportunityListResp>>("/opportunities", { params });
 
 export const getOpportunity = (id: number, includeAi = false) =>
   client.get<APIResponse<Opportunity>>(`/opportunities/${id}?include_ai=${includeAi}`);
