@@ -66,6 +66,7 @@ import {
   updateContact,
   deleteContact,
   getFollowUps,
+  type FollowUpListResp,
   createFollowUp,
   updateFollowUp,
   deleteFollowUp,
@@ -213,7 +214,7 @@ export default function CustomerDetail() {
       if (custResp.status === "fulfilled") setCustomer(custResp.value.data.data as Customer);
       else if (!silent) setError("加载客户信息失败");
       if (contactsResp.status === "fulfilled") setContacts((contactsResp.value.data.data as Contact[]) || []);
-      if (followUpsResp.status === "fulfilled") setFollowUps((followUpsResp.value.data.data as FollowUp[]) || []);
+      if (followUpsResp.status === "fulfilled") setFollowUps(((followUpsResp.value.data.data as FollowUpListResp).list) || []);
       if (tagsResp.status === "fulfilled") setCustomerTags((tagsResp.value.data.data as TagType[]) || []);
     } finally {
       if (!silent) {

@@ -119,8 +119,32 @@ export const getContacts = (customerId: number) =>
 export const createContact = (customerId: number, data: Record<string, unknown>) =>
   client.post<APIResponse>(`/customers/${customerId}/contacts`, data);
 
-export const getFollowUps = (customerId: number) =>
-  client.get<APIResponse<FollowUp[]>>(`/customers/${customerId}/follow-ups`);
+export type FollowUpListResp = {
+  list: FollowUp[];
+  total: number;
+  counts: {
+    open: number;
+    completed: number;
+    high: number;
+    overdue: number;
+    today: number;
+  };
+};
+
+export const getFollowUps = (
+  customerId: number,
+  params: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    priority?: string;
+    due_bucket?: string;
+  } = {},
+) =>
+  client.get<APIResponse<FollowUpListResp>>(
+    `/customers/${customerId}/follow-ups`,
+    { params },
+  );
 
 export const createFollowUp = (customerId: number, data: Record<string, unknown>) =>
   client.post<APIResponse>(`/customers/${customerId}/follow-ups`, data);

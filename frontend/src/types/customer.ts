@@ -313,6 +313,9 @@ export interface FollowUp {
   priority: string | null;
   assigned_to: string | null;
   created_at: string;
+  /** Server-computed due bucket (overdue/today/upcoming/unscheduled/closed).
+   *  Present when read via the list endpoint; absent for AI-created records. */
+  due_bucket?: "overdue" | "today" | "upcoming" | "unscheduled" | "closed" | null;
 }
 
 export interface FollowUpRecognition {

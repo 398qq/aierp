@@ -1,61 +1,56 @@
 /**
  * 客户跟进记录列表页面
  * 路由: /customers/:customerId/follow-ups
+ *
+ * 服务端分页/筛选/计数版本——useApiQuery + 受控 ProTable
+ * （详见 docs/frontend/followup-list-migration-plan.md）。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button, Space, Spin, Card, Popconfirm, Empty, Modal, DatePicker, Input, Select, Tag, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import { ArrowLeftOutlined, CalendarOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
 
-import type { TablePaginationConfig } from "antd/es/table/interface";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
-import { getFollowUps, deleteFollowUp, updateFollowUp, getApiErrorMessage } from "../../api";
+import { getFollowUps, deleteFollowUp, updateFollowUp, getApiErrorMessage, type FollowUpListResp } from "../../api";
 import type { FollowUp } from "../../types";
+import { useApiQuery, useQueryClient } from "@/lib/queries";
 import { FollowUpMethodTag, FollowUpPriorityTag, FollowUpStatusTag } from "./customerUi";
-import { erpPagination } from "../../ui/pagination";
 
 const { Text } = Typography;
 
-type DueFilter = "all" | "overdue" | "today" | "upcoming" | "closed" | "unscheduled";
+type DueBucket = "overdue" | "today" | "upcoming" | "unscheduled" | "closed";
+type DueFilter = "all" | DueBucket;
 
-const OPEN_STATUSES = new Set(["planned", "in_progress", "", null]);
-const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
+const BUCKET_LABEL: Record<DueBucket, string> = {
+  overdue: "逾期",
+  today: "今日",
+  upcoming: "未来",
+  unscheduled: "未排期",
+  closed: "已关闭",
+};
 
-function getDueFilter(record: FollowUp): DueFilter {
-  if (record.status && TERMINAL_STATUSES.has(record.status)) return "closed";
-  if (!record.planned_at) return "unscheduled";
-  const planned = dayjs(record.planned_at);
-  const today = dayjs();
-  if (planned.isBefore(today, "day")) return "overdue";
-  if (planned.isSame(today, "day")) return "today";
-  return "upcoming";
-}
+const BUCKET_COLOR: Record<DueBucket, string> = {
+  overdue: "red",
+  today: "orange",
+  upcoming: "blue",
+  unscheduled: "default",
+  closed: "default",
+};
 
-function dueLabel(bucket: DueFilter) {
-  const labels: Record<DueFilter, string> = {
-    all: "全部",
-    overdue: "逾期",
-    today: "今日",
-    upcoming: "未来",
-    closed: "已关闭",
-    unscheduled: "未排期",
-  };
-  return labels[bucket];
-}
+const PAGE_SIZE = 20;
 
 export default function FollowUpList() {
   const { message } = App.useApp();
   const { customerId } = useParams<{ customerId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [allData, setAllData] = useState<FollowUp[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const queryClient = useQueryClient();
+
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleRecord, setRescheduleRecord] = useState<FollowUp | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState<Dayjs | null>(null);
@@ -68,86 +63,57 @@ export default function FollowUpList() {
   const [updateStatus, setUpdateStatus] = useState("in_progress");
   const [updateNextAt, setUpdateNextAt] = useState<Dayjs | null>(null);
   const [updating, setUpdating] = useState(false);
+
+  // Server-side filter / pagination state
+  const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
   const [dueFilter, setDueFilter] = useState<DueFilter>("all");
 
   const custId = Number(customerId);
 
-  // 加载跟进记录
-  const load = async (options: { silent?: boolean } = {}) => {
-    const silent = options.silent === true;
-    if (!silent) {
-      setLoading(true);
-    }
-    try {
-      const resp = await getFollowUps(custId);
-      const result = resp.data;
-      if (Array.isArray(result.data)) {
-        setAllData(result.data);
-      } else if (result.data && typeof result.data === "object") {
-        const d = result.data as { list?: FollowUp[]; items?: FollowUp[] };
-        setAllData(d.list || d.items || []);
-      } else {
-        setAllData([]);
-      }
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "加载跟进记录失败")); } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
+  // Build query params for backend
+  const apiParams: Record<string, unknown> = {
+    page,
+    page_size: PAGE_SIZE,
   };
+  if (statusFilter) apiParams.status = statusFilter;
+  if (priorityFilter) apiParams.priority = priorityFilter;
+  if (dueFilter !== "all") apiParams.due_bucket = dueFilter;
 
-  useEffect(() => {
-    if (custId && !isNaN(custId)) {
-      load();
-    }
-  }, [custId]);
+  const query = useApiQuery<FollowUpListResp>(
+    [
+      "follow-ups",
+      custId,
+      page,
+      statusFilter ?? "",
+      priorityFilter ?? "",
+      dueFilter,
+    ],
+    `/customers/${custId}/follow-ups`,
+    apiParams,
+    {
+      enabled: !!customerId && !Number.isNaN(custId),
+      staleTime: 30 * 1000,
+    },
+  );
 
-  // 处理分页变化
-  const handleTableChange = (pagination: TablePaginationConfig) => {
-    const nextPageSize = pagination.pageSize || 20;
-    setPage(nextPageSize !== pageSize ? 1 : pagination.current || 1);
-    setPageSize(nextPageSize);
-  };
+  const list = query.data?.list ?? [];
+  const total = query.data?.total ?? 0;
+  const counts = query.data?.counts;
 
-  const filteredData = useMemo(() => {
-    return [...allData]
-      .filter((item) => !statusFilter || item.status === statusFilter)
-      .filter((item) => !priorityFilter || item.priority === priorityFilter)
-      .filter((item) => dueFilter === "all" || getDueFilter(item) === dueFilter)
-      .sort((a, b) => {
-        const aBucket = getDueFilter(a);
-        const bBucket = getDueFilter(b);
-        const weight: Record<DueFilter, number> = {
-          overdue: 0,
-          today: 1,
-          upcoming: 2,
-          unscheduled: 3,
-          closed: 4,
-          all: 5,
-        };
-        if (weight[aBucket] !== weight[bBucket]) return weight[aBucket] - weight[bBucket];
-        return dayjs(a.planned_at || a.created_at).valueOf() - dayjs(b.planned_at || b.created_at).valueOf();
-      });
-  }, [allData, statusFilter, priorityFilter, dueFilter]);
+  // ------- Mutations (invalidate refetch instead of refetch) -------
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["follow-ups", custId] });
 
-  const summary = useMemo(() => {
-    const open = allData.filter((item) => OPEN_STATUSES.has(item.status || "")).length;
-    const overdue = allData.filter((item) => getDueFilter(item) === "overdue").length;
-    const today = allData.filter((item) => getDueFilter(item) === "today").length;
-    const completed = allData.filter((item) => item.status === "completed").length;
-    const high = allData.filter((item) => item.priority === "high").length;
-    return { open, overdue, today, completed, high };
-  }, [allData]);
-
-  // 删除跟进记录
   const handleDelete = async (followupId: number) => {
     try {
       await deleteFollowUp(custId, followupId);
       message.success("删除成功");
-      load();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+      invalidate();
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "删除失败"));
+    }
   };
 
   const handleComplete = async (followupId: number) => {
@@ -157,8 +123,10 @@ export default function FollowUpList() {
         completed_at: new Date().toISOString(),
       });
       message.success("已完成");
-      load();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "操作失败")); }
+      invalidate();
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "操作失败"));
+    }
   };
 
   const openReschedule = (record: FollowUp) => {
@@ -188,8 +156,10 @@ export default function FollowUpList() {
       message.success("跟进时间已更新");
       setRescheduling(false);
       closeReschedule();
-      load({ silent: true });
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进时间失败")); } finally {
+      invalidate();
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "更新跟进时间失败"));
+    } finally {
       setRescheduling(false);
     }
   };
@@ -217,10 +187,12 @@ export default function FollowUpList() {
     }
   };
 
+  // ?update=<id> deep link: open update modal for that record once data is loaded
   useEffect(() => {
+    if (updateOpen) return;
     const updateId = Number(searchParams.get("update"));
-    if (!updateId || loading || updateOpen) return;
-    const record = allData.find((item) => item.id === updateId);
+    if (!updateId || query.isLoading || !query.data) return;
+    const record = list.find((item) => item.id === updateId);
     if (!record) {
       message.warning("未找到要更新的跟进记录");
       const nextParams = new URLSearchParams(searchParams);
@@ -236,7 +208,7 @@ export default function FollowUpList() {
       return;
     }
     openUpdate(record);
-  }, [allData, loading, message, searchParams, setSearchParams, updateOpen]);
+  }, [list, query.isLoading, query.data, message, searchParams, setSearchParams, updateOpen]);
 
   const appendUpdateText = (current: string | null, label: string, next: string) => {
     const text = next.trim();
@@ -247,7 +219,10 @@ export default function FollowUpList() {
 
   const handleUpdateProgress = async () => {
     if (!updateRecord) return;
-    if (!updateContent.trim() && !updateResult.trim() && updateStatus === updateRecord.status && !updateNextAt) {
+    if (
+      !updateContent.trim() && !updateResult.trim() &&
+      updateStatus === updateRecord.status && !updateNextAt
+    ) {
       message.warning("请填写本次更新内容、结果或下一次跟进时间");
       return;
     }
@@ -268,64 +243,64 @@ export default function FollowUpList() {
       message.success("跟进已更新");
       setUpdating(false);
       closeUpdate();
-      load({ silent: true });
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新跟进失败")); } finally {
+      invalidate();
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "更新跟进失败"));
+    } finally {
       setUpdating(false);
     }
   };
 
-  // 跳转到编辑页面
   const handleEdit = (followupId: number) => {
     navigate(`/customers/${custId}/follow-ups/${followupId}/edit`);
   };
-
-  // 跳转到新建页面
   const handleCreate = () => {
     navigate(`/customers/${custId}/follow-ups/new`);
   };
 
-  // 表格列定义
-  const columns: any = [
+  const columns: ProColumns<FollowUp>[] = [
     {
       title: "方式",
       dataIndex: "method",
       key: "method",
       width: 100,
-      render: (method: string | null) => <FollowUpMethodTag method={method} />,
+      render: (_, r) => <FollowUpMethodTag method={r.method} />,
     },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
       width: 100,
-      render: (status: string | null) => <FollowUpStatusTag status={status} />,
+      render: (_, r) => <FollowUpStatusTag status={r.status} />,
     },
     {
       title: "内容",
       dataIndex: "content",
       key: "content",
       ellipsis: true,
-      render: (content: string) => content || "-",
+      render: (_, r) => r.content || "-",
     },
     {
       title: "结果",
       dataIndex: "result",
       key: "result",
       ellipsis: true,
-      render: (result: string) => result || "-",
+      render: (_, r) => r.result || "-",
     },
     {
       title: "计划时间",
       dataIndex: "planned_at",
       key: "planned_at",
       width: 120,
-      render: (planned_at: string, record: any) => {
-        const bucket = getDueFilter(record);
-        const color = bucket === "overdue" ? "red" : bucket === "today" ? "orange" : bucket === "upcoming" ? "blue" : "default";
+      render: (_, r) => {
+        const bucket = r.due_bucket as DueBucket | undefined;
+        const color = bucket ? BUCKET_COLOR[bucket] : "default";
         return (
           <Space direction="vertical" size={0}>
-            <Text>{planned_at ? planned_at.slice(0, 16) : "-"}</Text>
-            <Tag color={color}>{dueLabel(bucket)}</Tag>
+            <Text>{r.planned_at ? r.planned_at.slice(0, 16) : "-"}</Text>
+            {bucket && bucket !== "closed" && (
+              <Tag color={color}>{BUCKET_LABEL[bucket]}</Tag>
+            )}
           </Space>
         );
       },
@@ -335,48 +310,48 @@ export default function FollowUpList() {
       dataIndex: "completed_at",
       key: "completed_at",
       width: 120,
-      render: (completed_at: string) => completed_at ? completed_at.slice(0, 16) : "-",
+      render: (_, r) => r.completed_at ? r.completed_at.slice(0, 16) : "-",
     },
     {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
       width: 80,
-      render: (priority: string | null) => <FollowUpPriorityTag priority={priority} />,
+      render: (_, r) => <FollowUpPriorityTag priority={r.priority} />,
     },
     {
       title: "负责人",
       dataIndex: "assigned_to",
       key: "assigned_to",
       width: 100,
-      render: (assigned_to: string) => assigned_to || "-",
+      render: (_, r) => r.assigned_to || "-",
     },
     {
       title: "操作",
       key: "actions",
       width: 260,
       fixed: "right",
-              render: (_: any, record: any) => (
+      render: (_, r) => (
         <Space size="small">
-          {record.status === "in_progress" && (
-            <Button type="link" size="small" icon={<SyncOutlined />} onClick={() => openUpdate(record)}>
+          {r.status === "in_progress" && (
+            <Button type="link" size="small" icon={<SyncOutlined />} onClick={() => openUpdate(r)}>
               更新跟进
             </Button>
           )}
-          {record.status !== "completed" && (
+          {r.status !== "completed" && (
             <>
-              <Button type="link" size="small" icon={<CalendarOutlined />} onClick={() => openReschedule(record)}>
+              <Button type="link" size="small" icon={<CalendarOutlined />} onClick={() => openReschedule(r)}>
                 改期
               </Button>
-              <Button type="link" size="small" icon={<CheckCircleOutlined />} onClick={() => handleComplete(record.id)}>
+              <Button type="link" size="small" icon={<CheckCircleOutlined />} onClick={() => handleComplete(r.id)}>
                 完成
               </Button>
             </>
           )}
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record.id)}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(r.id)}>
             编辑
           </Button>
-          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(record.id)}>
+          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               删除
             </Button>
@@ -386,8 +361,7 @@ export default function FollowUpList() {
     },
   ];
 
-  // 无效的客户ID
-  if (!customerId || isNaN(custId)) {
+  if (!customerId || Number.isNaN(custId)) {
     return (
       <Card>
         <Empty description="请先选择客户" />
@@ -395,9 +369,11 @@ export default function FollowUpList() {
     );
   }
 
-  // 计算当前页数据
-  const startIndex = (page - 1) * pageSize;
-  const currentData = filteredData.slice(startIndex, startIndex + pageSize);
+  // Reset page to 1 whenever any filter changes
+  const onFilterChange = (setter: () => void) => () => {
+    setter();
+    setPage(1);
+  };
 
   return (
     <div className="followup-ledger">
@@ -406,7 +382,7 @@ export default function FollowUpList() {
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/customers/${custId}`)}>
             返回客户详情
           </Button>
-          <Button icon={<SyncOutlined />} onClick={() => load()} loading={loading}>
+          <Button icon={<SyncOutlined />} onClick={() => query.refetch()} loading={query.isFetching}>
             刷新
           </Button>
         </Space>
@@ -422,7 +398,7 @@ export default function FollowUpList() {
             placeholder="状态"
             style={{ width: 130 }}
             value={statusFilter}
-            onChange={(value) => { setStatusFilter(value); setPage(1); }}
+            onChange={onFilterChange(() => setStatusFilter(undefined as unknown as string))}
             options={[
               { value: "planned", label: "计划中" },
               { value: "in_progress", label: "进行中" },
@@ -435,7 +411,7 @@ export default function FollowUpList() {
             placeholder="优先级"
             style={{ width: 120 }}
             value={priorityFilter}
-            onChange={(value) => { setPriorityFilter(value); setPage(1); }}
+            onChange={onFilterChange(() => setPriorityFilter(undefined as unknown as string))}
             options={[
               { value: "high", label: "高" },
               { value: "medium", label: "中" },
@@ -445,7 +421,7 @@ export default function FollowUpList() {
           <Select
             value={dueFilter}
             style={{ width: 130 }}
-            onChange={(value) => { setDueFilter(value); setPage(1); }}
+            onChange={onFilterChange(() => setDueFilter("all" as DueFilter))}
             options={[
               { value: "all", label: "全部到期" },
               { value: "overdue", label: "逾期" },
@@ -455,45 +431,59 @@ export default function FollowUpList() {
               { value: "closed", label: "已关闭" },
             ]}
           />
-          <Button onClick={() => { setStatusFilter(undefined); setPriorityFilter(undefined); setDueFilter("all"); setPage(1); }}>重置</Button>
+          <Button
+            onClick={() => {
+              setStatusFilter(undefined);
+              setPriorityFilter(undefined);
+              setDueFilter("all");
+              setPage(1);
+            }}
+          >
+            重置
+          </Button>
         </Space>
       </div>
 
       <div className="followup-ledger-metrics">
-        <div><span>全部记录</span><strong>{allData.length}</strong></div>
-        <div><span>未关闭</span><strong>{summary.open}</strong></div>
-        <div className="is-danger"><span>逾期</span><strong>{summary.overdue}</strong></div>
-        <div className="is-warning"><span>今日</span><strong>{summary.today}</strong></div>
-        <div><span>高优先级</span><strong>{summary.high}</strong></div>
-        <div><span>已完成</span><strong>{summary.completed}</strong></div>
+        <div><span>全部记录</span><strong>{total}</strong></div>
+        <div><span>未关闭</span><strong>{counts?.open ?? 0}</strong></div>
+        <div className="is-danger"><span>逾期</span><strong>{counts?.overdue ?? 0}</strong></div>
+        <div className="is-warning"><span>今日</span><strong>{counts?.today ?? 0}</strong></div>
+        <div><span>高优先级</span><strong>{counts?.high ?? 0}</strong></div>
+        <div><span>已完成</span><strong>{counts?.completed ?? 0}</strong></div>
       </div>
 
-      {loading && <Spin style={{ display: "block", margin: "100px auto" }} />}
-
-      {!loading && filteredData.length === 0 && (
+      {query.isLoading ? (
+        <Spin style={{ display: "block", margin: "100px auto" }} />
+      ) : total === 0 ? (
         <Card>
-          <Empty description={allData.length ? "没有符合筛选条件的跟进记录" : "暂无跟进记录"}>
+          <Empty description={
+            (statusFilter || priorityFilter || dueFilter !== "all")
+              ? "没有符合筛选条件的跟进记录"
+              : "暂无跟进记录"
+          }>
             <Button type="primary" onClick={handleCreate}>新建跟进</Button>
           </Empty>
         </Card>
-      )}
-
-      {!loading && filteredData.length > 0 && (
-        <ProTable search={false} options={false}
-          className="erp-table followup-ledger-table"
-          columns={columns}
-          dataSource={currentData}
+      ) : (
+        <ProTable<FollowUp>
           rowKey="id"
-          loading={loading}
+          columns={columns}
+          dataSource={list}
+          loading={query.isFetching}
+          search={false}
+          options={false}
+          className="erp-table followup-ledger-table"
           bordered
           size="small"
-          rowClassName={(record) => getDueFilter(record) === "overdue" ? "followup-row-overdue" : ""}
-          pagination={erpPagination({
+          rowClassName={(r) => r.due_bucket === "overdue" ? "followup-row-overdue" : ""}
+          pagination={{
             current: page,
-            pageSize: pageSize,
-            total: filteredData.length,
-          })}
-          onChange={handleTableChange}
+            pageSize: PAGE_SIZE,
+            total,
+            showSizeChanger: false,
+            onChange: (p) => setPage(p),
+          }}
           scroll={{ x: 1000 }}
         />
       )}
