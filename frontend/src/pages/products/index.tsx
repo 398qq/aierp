@@ -65,6 +65,7 @@ import {
   updateProductInventory,
   getApiErrorMessage,
 } from "../../api";
+import { useUserPreferences } from "../../lib/useUserPreferences";
 import type { Brand, InventoryItem, Product, Warehouse } from "../../types";
 import {
   BatchTaskType,
@@ -136,7 +137,6 @@ export default function ProductList() {
   const [batchEditing, setBatchEditing] = useState(false);
   const [saveViewModalOpen, setSaveViewModalOpen] = useState(false);
   const [saveViewName, setSaveViewName] = useState("");
-  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [activeSavedView, setActiveSavedView] = useState<string>("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -346,24 +346,25 @@ export default function ProductList() {
     };
   }, [stats]);
 
-  const loadSavedViews = () => {
+  // Server-persisted saved views (replaces localStorage; syncs across devices).
+  // On first run, migrate the legacy localStorage entry one time, then clear it.
+  const userPrefs = useUserPreferences("products");
+  const savedViews = (userPrefs.values["saved_views"] as SavedView[] | undefined) ?? [];
+  useEffect(() => {
     try {
-      const raw = localStorage.getItem(SAVED_VIEW_STORAGE_KEY);
-      if (!raw) {
-        setSavedViews([]);
-        return;
+      const legacy = localStorage.getItem(SAVED_VIEW_STORAGE_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy) as SavedView[];
+        if (Array.isArray(parsed) && parsed.length > 0 && savedViews.length === 0) {
+          void userPrefs.upsert("saved_views", parsed);
+        }
+        localStorage.removeItem(SAVED_VIEW_STORAGE_KEY);
       }
-      const parsed = JSON.parse(raw) as SavedView[];
-      setSavedViews(Array.isArray(parsed) ? parsed : []);
     } catch {
-      setSavedViews([]);
+      // ignore malformed legacy payload
     }
-  };
-
-  const persistSavedViews = (next: SavedView[]) => {
-    setSavedViews(next);
-    localStorage.setItem(SAVED_VIEW_STORAGE_KEY, JSON.stringify(next));
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadStats = async () => {
     setStatsLoading(true);
@@ -623,7 +624,7 @@ export default function ProductList() {
     const next = exists
       ? savedViews.map((v) => (v.name === name ? nextView : v))
       : [nextView, ...savedViews];
-    persistSavedViews(next);
+    void userPrefs.upsert("saved_views", next);
     setActiveSavedView(name);
     setSaveViewModalOpen(false);
     message.success("视图已保存");
@@ -632,7 +633,7 @@ export default function ProductList() {
   const deleteCurrentView = () => {
     if (!activeSavedView) return;
     const next = savedViews.filter((v) => v.name !== activeSavedView);
-    persistSavedViews(next);
+    void userPrefs.upsert("saved_views", next);
     setActiveSavedView("");
     message.success("视图已删除");
   };
@@ -820,7 +821,6 @@ export default function ProductList() {
   };
 
   useEffect(() => {
-    loadSavedViews();
     loadBrands();
     loadStats();
   }, []);
