@@ -111,7 +111,7 @@ export default function CustomerListPage() {
       page,
       page_size: pageSize,
     },
-    { staleTime: 30 * 1000 },
+    { staleTime: 30 * 1000, keepPreviousData: true },
   );
   const [group, setGroup] = useState<GroupValue>(
     () => (searchParams.get("group") as GroupValue) || "all",

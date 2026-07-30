@@ -9,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth";
 import { menuItems } from "./menuConfig";
 import { queryClient } from "@/lib/queryClient";
+import { OfflineBanner } from "@/ui";
 
 export default function ErpRouteLayout(): ReactElement {
   const username = useAuthStore((s) => s.username);
@@ -29,6 +30,7 @@ export default function ErpRouteLayout(): ReactElement {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OfflineBanner />
       <ProLayout
         layout="mix"
         title="AIERP"

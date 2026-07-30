@@ -11,15 +11,34 @@
  * - useRequest('/api/x', { manual: true }) + run(...) → useApiMutation('post', '/api/x')
  * - refresh()                    → useQueryClient().invalidateQueries({ queryKey: [...] })
  * - loading → isLoading（拼写变化）
+ *
+ * 分页与列表场景：
+ * - useApiQuery 的 options.keepPreviousData 默认为 **false**。翻页/筛选/重排时，
+ *   旧数据会被设为 undefined，列表闪空一下。
+ * - 列表 + 服务端分页的页面建议开启：见下方 useApiQuery 注释。
+ *   行为参考：分页/筛选触发新请求时，React Query 保留上一页 data，
+ *   新请求返回前 isLoading=true 但 data 仍是上一页，避免 UI 闪烁。
+ *   参考 ant-design-pro v6 #11693 设计；AIERP 首个接入：CustomerListPage。
  */
 
-import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import client from "../api/client";
 
 export type ApiQueryOptions = {
   enabled?: boolean;
   staleTime?: number;
   refetchOnWindowFocus?: boolean;
+  /**
+   * 翻页/筛选时保留上一页数据，避免列表闪空。
+   * 映射到 React Query v5 的 placeholderData: keepPreviousData。
+   */
+  keepPreviousData?: boolean;
 };
 
 export type ApiMutationOptions<TData, TVariables> = {
@@ -28,11 +47,15 @@ export type ApiMutationOptions<TData, TVariables> = {
   invalidateKeys?: readonly QueryKey[];
 };
 
+/**
+ * 通用数据查询 hook。分页列表请把 `keepPreviousData: true`，
+ * 翻页与筛选期间避免闪空 —— 默认 false（旧 useRequest 行为）。
+ */
 export function useApiQuery<T = unknown>(
   key: readonly unknown[],
   url: string,
   params?: Record<string, unknown>,
-  options?: ApiQueryOptions
+  options?: ApiQueryOptions,
 ) {
   return useQuery<T>({
     queryKey: key,
@@ -50,13 +73,14 @@ export function useApiQuery<T = unknown>(
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime,
     refetchOnWindowFocus: options?.refetchOnWindowFocus,
+    placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
   });
 }
 
 export function useApiMutation<TData = unknown, TVariables = unknown>(
   method: "post" | "put" | "delete" | "patch",
   url: string | ((variables: TVariables) => string),
-  options?: ApiMutationOptions<TData, TVariables>
+  options?: ApiMutationOptions<TData, TVariables>,
 ) {
   const queryClient = useQueryClient();
   return useMutation<TData, Error, TVariables>({
