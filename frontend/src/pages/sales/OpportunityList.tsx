@@ -1,24 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+/**
+ * 商机列表（看板 + 列表双视图）
+ *
+ * 服务端化版本——useApiQuery + 受控 ProTable + 共享数据源。
+ * Spec: docs/frontend/opportunity-list-design.md
+ */
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   App,
   Button,
   Card,
-  Col,
   Dropdown,
   Input,
   Modal,
   Progress,
-  Row,
   Segmented,
   Select,
   Space,
-  Spin,
   Switch,
   Typography,
+  message as staticMessage,
 } from "antd";
-import { StatusTag } from "../../ui";
-import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
 import {
@@ -32,14 +35,17 @@ import {
   ReloadOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
+
 import {
   batchUpdateOpportunities,
   deleteOpportunity,
-  getOpportunities,
   getApiErrorMessage,
+  type OpportunityCounts,
+  type OpportunityListResp,
 } from "../../api";
 import PipelineBoard from "../../components/sales/PipelineBoard";
 import type { Opportunity, OpportunityAI } from "../../types";
+import { useApiQuery, useQueryClient } from "@/lib/queries";
 import {
   CustomerLink,
   CustomerSelect,
@@ -55,6 +61,7 @@ import {
   statusDot,
   ERP_STATUS_DOT,
 } from "./salesUi";
+import { StatusTag } from "../../ui";
 
 const STAGE_OPTIONS = [
   { value: "lead", label: "线索" },
@@ -71,117 +78,76 @@ const STATUS_OPTIONS = [
   { value: "lost", label: "已输单" },
 ];
 
+const KANBAN_CAP = 200;
+const PAGE_SIZE = 20;
+
 export default function OpportunityList() {
   const { message } = App.useApp();
-  const actionRef = useRef<ActionType>(null);
-  const [data, setData] = useState<Opportunity[]>([]);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [view, setView] = useState<"board" | "list">("board");
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>();
   const [stage, setStage] = useState<string | undefined>();
-  const [assignedTo, setAssignedTo] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
   const [q, setQ] = useState("");
-  const [view, setView] = useState<"board" | "list">("board");
   const [includeAi, setIncludeAi] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
-  const [aiMap, setAiMap] = useState<Record<number, OpportunityAI>>({});
-  const navigate = useNavigate();
+  const [aiEnabled, setAiEnabled] = useState(false);
 
-  const tableParams = useMemo(() => {
-    const p: Record<string, unknown> = {};
+  // Shared query: board + list views read from this single useApiQuery.
+  // view is in key so toggling board/list isn't free, but params change is.
+  const apiParams = useMemo<Record<string, unknown>>(() => {
+    const p: Record<string, unknown> = view === "board"
+      ? { kanban: "true" } // board mode caps at 200 + bypasses pagination
+      : { page, page_size: PAGE_SIZE };
     if (status) p.status = status;
     if (stage) p.stage = stage;
-    if (assignedTo) p.assigned_to = assignedTo;
+    if (q.trim()) p.q = q.trim();
     if (customerId) p.customer_id = customerId;
-    if (q) p.q = q;
-    if (includeAi) p.include_ai = true;
+    if (aiEnabled) p.include_ai = "true";
     return p;
-  }, [status, stage, assignedTo, customerId, q, includeAi]);
+  }, [view, page, status, stage, q, customerId, aiEnabled]);
 
-  const doFetch = useCallback(
-    async (extraParams: Record<string, unknown> = {}) => {
-      setLoading(true);
-      try {
-        const params: Record<string, unknown> = { page_size: 100, ...extraParams };
-        if (status) params.status = status;
-        if (stage) params.stage = stage;
-        if (assignedTo) params.assigned_to = assignedTo;
-        if (customerId) params.customer_id = customerId;
-        if (q.trim()) params.q = q.trim();
-        if (includeAi) params.include_ai = true;
-        const resp = await getOpportunities(params);
-        const list: Opportunity[] = resp.data.data.list || [];
-        setData(list);
-        setAiMap(
-          includeAi
-            ? (resp.data.data as unknown as { ai?: Record<number, OpportunityAI> }).ai || {}
-            : {},
-        );
-        return list;
-      } catch (e: unknown) {
-        message.error(getApiErrorMessage(e, "加载失败"));
-        return [];
-      } finally {
-        setLoading(false);
-      }
-    },
-    [status, stage, assignedTo, customerId, q, includeAi],
+  const query = useApiQuery<OpportunityListResp>(
+    [
+      "opportunities",
+      view,
+      page,
+      status ?? "",
+      stage ?? "",
+      q,
+      customerId ?? "",
+      aiEnabled,
+    ],
+    "/opportunities",
+    apiParams,
+    { staleTime: 30 * 1000 },
   );
 
-  // Load data on mount and when filters change (used for board view and list view initial state)
-  useEffect(() => {
-    doFetch();
-  }, [doFetch]);
+  const list = query.data?.list ?? [];
+  const total = query.data?.total ?? 0;
+  const counts: OpportunityCounts = query.data?.counts ?? {
+    count: 0, amount: 0, weightedAmount: 0, active: 0,
+    overdue: 0, dueSoon: 0, atRisk: 0,
+  };
+  const aiMap: Record<number, OpportunityAI> = query.data?.ai ?? {};
+  const showKanbanCap = view === "board" && total > KANBAN_CAP;
 
-  const ownerOptions = useMemo(
-    () =>
-      Array.from(new Set(data.map((item) => item.assigned_to).filter(Boolean) as string[]))
-        .sort((a, b) => a.localeCompare(b, "zh-CN"))
-        .map((value) => ({ value, label: value })),
-    [data],
-  );
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["opportunities"] });
 
-  const stats = useMemo(() => {
-    const amount = data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const weightedAmount = data.reduce(
-      (sum, item) => sum + (Number(item.amount || 0) * Number(item.win_probability || 0)) / 100,
-      0,
-    );
-    const avgWin = data.length
-      ? data.reduce((sum, item) => sum + Number(item.win_probability || 0), 0) / data.length
-      : 0;
-    const active = data.filter((item) => item.status === "active").length;
-    const dueSoon = data.filter((item) => {
-      if (!item.expected_close_date || item.status !== "active") return false;
-      const due = new Date(item.expected_close_date).getTime();
-      if (Number.isNaN(due)) return false;
-      const diffDays = Math.ceil((due - Date.now()) / (24 * 60 * 60 * 1000));
-      return diffDays >= 0 && diffDays <= 14;
-    }).length;
-    const overdue = data.filter((item) => {
-      if (!item.expected_close_date || item.status !== "active") return false;
-      const due = new Date(item.expected_close_date).getTime();
-      return !Number.isNaN(due) && due < Date.now();
-    }).length;
-    const atRisk = includeAi
-      ? Object.values(aiMap).filter((item) => item.risk_level === "high").length
-      : 0;
-    return { amount, weightedAmount, avgWin, active, dueSoon, overdue, atRisk };
-  }, [aiMap, data, includeAi]);
-
-  const clearFilters = () => {
-    setStatus(undefined);
-    setStage(undefined);
-    setAssignedTo(undefined);
-    setCustomerId(undefined);
-    setSearchText("");
-    setQ("");
+  // Reset page to 1 whenever any filter or view changes
+  const onFilterChange = (setter: () => void) => () => {
+    setter();
+    setPage(1);
   };
 
   const exportData = useMemo(
     () =>
-      data.map((r) => ({
+      list.map((r) => ({
         id: r.id,
         title: r.title,
         customer_id: r.customer_id,
@@ -195,7 +161,7 @@ export default function OpportunityList() {
         source: r.source || "",
         updated_at: r.updated_at?.slice(0, 10) || r.created_at?.slice(0, 10) || "",
       })),
-    [data],
+    [list],
   );
 
   const batchStage = async (nextStage: string) => {
@@ -204,19 +170,214 @@ export default function OpportunityList() {
       await batchUpdateOpportunities(selected, nextStage);
       message.success("阶段已更新");
       setSelected([]);
-      doFetch();
+      invalidate();
     } catch (e: unknown) {
       message.error(getApiErrorMessage(e, "批量更新失败"));
     }
   };
 
-  const handleRefresh = () => {
-    if (view === "board") {
-      doFetch();
-    } else {
-      actionRef.current?.reload();
-    }
-  };
+  const handleRefresh = () => query.refetch();
+
+  // Inline: only the columns that need `r` access use record-form
+  const columns: ProColumns<Opportunity>[] = [
+    {
+      title: "#",
+      width: 45,
+      fixed: "left",
+      render: (_, __, index) => index + 1,
+    },
+    {
+      title: "商机",
+      dataIndex: "title",
+      ellipsis: true,
+      fixed: "left",
+      render: (_, record) => (
+        <div>
+          <div className="erp-cell-primary">
+            <Typography.Link
+              strong
+              onClick={() => navigate(`/sales/opportunities/${record.id}`)}
+            >
+              {record.title || `#${record.id}`}
+            </Typography.Link>
+          </div>
+          <div className="erp-cell-secondary">
+            <CustomerLink id={record.customer_id} />
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "阶段",
+      dataIndex: "stage",
+      width: 110,
+      sorter: (a, b) => (a.stage || "").localeCompare(b.stage || ""),
+      render: (_, r) => (
+        <StatusTag
+          status={r.stage || "-"}
+          color="blue"
+          label={stageLabel[r.stage || ""] || r.stage || "-"}
+        />
+      ),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 100,
+      sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
+      render: (_, r) => (
+        <>
+          {statusDot(ERP_STATUS_DOT[r.status || ""] || "#d9d9d9")}
+          <SalesStatusTag value={r.status} />
+        </>
+      ),
+    },
+    {
+      title: "金额",
+      dataIndex: "amount",
+      width: 130,
+      align: "right",
+      sorter: (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
+      render: (_, r) => (
+        <Typography.Text strong>{money(r.amount)}</Typography.Text>
+      ),
+    },
+    {
+      title: "加权金额",
+      key: "weighted_amount",
+      width: 130,
+      align: "right",
+      sorter: (a, b) =>
+        Number(a.amount || 0) * Number(a.win_probability || 0) -
+        Number(b.amount || 0) * Number(b.win_probability || 0),
+      render: (_, r) => (
+        <Typography.Text>
+          {money(
+            (Number(r.amount || 0) * Number(r.win_probability || 0)) / 100,
+          )}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: "赢率",
+      dataIndex: "win_probability",
+      width: 150,
+      sorter: (a, b) => Number(a.win_probability || 0) - Number(b.win_probability || 0),
+      render: (_, r) => (
+        <Space direction="vertical" size={0} style={{ width: "100%" }}>
+          <Progress percent={Number(r.win_probability || 0)} size="small" showInfo={false} />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {r.win_probability ?? 0}%
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: "预计成交",
+      dataIndex: "expected_close_date",
+      width: 120,
+      sorter: (a, b) =>
+        (a.expected_close_date || "").localeCompare(b.expected_close_date || ""),
+      render: (_, r) => shortDate(r.expected_close_date || r.created_at),
+    },
+    {
+      title: "负责人",
+      dataIndex: "assigned_to",
+      width: 120,
+      render: (_, r) => r.assigned_to || "-",
+    },
+    {
+      title: "来源",
+      dataIndex: "source",
+      width: 120,
+      ellipsis: true,
+      render: (_, r) => r.source || "-",
+    },
+    {
+      title: "最近更新",
+      dataIndex: "updated_at",
+      width: 120,
+      sorter: (a, b) =>
+        (a.updated_at || a.created_at || "").localeCompare(
+          b.updated_at || b.created_at || "",
+        ),
+      render: (_, r) => shortDate(r.updated_at || r.created_at),
+    },
+    {
+      title: "风险",
+      key: "risk",
+      width: 90,
+      render: (_, r) => {
+        const risk = aiMap[r.id]?.risk_level ?? counts.atRisk > 0 ? null : null;
+        const riskFromMap = aiMap[r.id]?.risk_level;
+        if (!riskFromMap) return <Typography.Text type="secondary">未分析</Typography.Text>;
+        return (
+          <StatusTag
+            tone={
+              riskFromMap === "high" ? "danger" :
+              riskFromMap === "medium" ? "warning" : "success"
+            }
+          >
+            {riskFromMap === "high" ? "高风险" : riskFromMap === "medium" ? "关注" : "正常"}
+          </StatusTag>
+        );
+      },
+    },
+    {
+      title: "操作",
+      width: 60,
+      fixed: "right",
+      render: (_, record) => {
+        const items: MenuProps["items"] = [
+          {
+            key: "view",
+            icon: <EyeOutlined />,
+            label: "查看详情",
+            onClick: () => navigate(`/sales/opportunities/${record.id}`),
+          },
+          {
+            key: "quote",
+            icon: <FileTextOutlined />,
+            label: "创建报价",
+            onClick: () =>
+              navigate(
+                `/sales/quotations/new?customer_id=${record.customer_id}&opportunity_id=${record.id}`,
+              ),
+          },
+          { type: "divider" as const },
+          {
+            key: "delete",
+            icon: <DeleteOutlined />,
+            label: "删除",
+            danger: true,
+            onClick: () => {
+              Modal.confirm({
+                title: "确定删除?",
+                content: `删除商机 #${record.id}？`,
+                okText: "删除",
+                cancelText: "取消",
+                okButtonProps: { danger: true },
+                onOk: async () => {
+                  try {
+                    await deleteOpportunity(record.id);
+                    message.success("已删除");
+                    invalidate();
+                  } catch (e: unknown) {
+                    message.error(getApiErrorMessage(e, "删除失败"));
+                  }
+                },
+              });
+            },
+          },
+        ];
+        return (
+          <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+            <Button size="small" icon={<EllipsisOutlined />} type="text" />
+          </Dropdown>
+        );
+      },
+    },
+  ];
 
   return (
     <SalesModuleShell
@@ -227,17 +388,16 @@ export default function OpportunityList() {
     >
       <MetricBand
         items={[
-          { title: "商机数", value: data.length, suffix: "个", prefix: <ThunderboltOutlined /> },
-          { title: "活跃商机", value: stats.active, suffix: "个" },
-          { title: "预计金额", value: stats.amount, prefix: "¥", precision: 0 },
-          { title: "加权金额", value: stats.weightedAmount, prefix: "¥", precision: 0 },
-          { title: "平均赢率", value: stats.avgWin, suffix: "%", precision: 1 },
-          { title: "已超期", value: stats.overdue, suffix: "个" },
-          { title: "14天内预计成交", value: stats.dueSoon, suffix: "个" },
+          { title: "商机数", value: counts.count, suffix: "个", prefix: <ThunderboltOutlined /> },
+          { title: "活跃商机", value: counts.active, suffix: "个" },
+          { title: "预计金额", value: counts.amount, prefix: "¥", precision: 0 },
+          { title: "加权金额", value: counts.weightedAmount, prefix: "¥", precision: 0 },
+          { title: "已超期", value: counts.overdue, suffix: "个" },
+          { title: "14天内预计成交", value: counts.dueSoon, suffix: "个" },
           {
             title: "高风险",
-            value: includeAi ? stats.atRisk : "-",
-            suffix: includeAi ? "个" : undefined,
+            value: aiEnabled ? counts.atRisk : "-",
+            suffix: aiEnabled ? "个" : undefined,
           },
         ]}
       />
@@ -274,28 +434,17 @@ export default function OpportunityList() {
             style={{ width: 300 }}
           />
           <div style={{ width: 260 }}>
-            <CustomerSelect value={customerId} onChange={setCustomerId} />
+            <CustomerSelect value={customerId} onChange={onFilterChange(() => setCustomerId(undefined))} />
           </div>
           <Segmented
             value={view}
-            onChange={(v) => setView(v as "board" | "list")}
+            onChange={(v) => {
+              setView(v as "board" | "list");
+              setPage(1);
+            }}
             options={[
-              {
-                label: (
-                  <>
-                    <AppstoreOutlined /> 看板
-                  </>
-                ),
-                value: "board",
-              },
-              {
-                label: (
-                  <>
-                    <BarsOutlined /> 列表
-                  </>
-                ),
-                value: "list",
-              },
+              { label: (<><AppstoreOutlined /> 看板</>), value: "board" },
+              { label: (<><BarsOutlined /> 列表</>), value: "list" },
             ]}
           />
           <Select
@@ -303,7 +452,7 @@ export default function OpportunityList() {
             allowClear
             style={{ width: 128 }}
             value={status}
-            onChange={setStatus}
+            onChange={onFilterChange(() => setStatus(undefined))}
             options={STATUS_OPTIONS}
           />
           <Select
@@ -311,22 +460,23 @@ export default function OpportunityList() {
             allowClear
             style={{ width: 140 }}
             value={stage}
-            onChange={setStage}
+            onChange={onFilterChange(() => setStage(undefined))}
             options={STAGE_OPTIONS}
           />
-          <Select
-            placeholder="负责人"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            style={{ width: 140 }}
-            value={assignedTo}
-            onChange={setAssignedTo}
-            options={ownerOptions}
-          />
-          <Button onClick={clearFilters}>清空筛选</Button>
+          <Button onClick={() => {
+            setStatus(undefined);
+            setStage(undefined);
+            setCustomerId(undefined);
+            setSearchText("");
+            setQ("");
+            setPage(1);
+          }}>清空筛选</Button>
           <Space>
-            <Switch checked={includeAi} onChange={setIncludeAi} size="small" />
+            <Switch
+              checked={aiEnabled}
+              onChange={setAiEnabled}
+              size="small"
+            />
             <span style={{ fontSize: 13 }}>AI</span>
           </Space>
           <ErpExportButton
@@ -358,294 +508,58 @@ export default function OpportunityList() {
         </Space>
       </Card>
 
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 60 }}>
-          <Spin size="large" />
-        </div>
-      ) : view === "board" ? (
-        <PipelineBoard opportunities={data} aiMap={aiMap} loading={loading} onRefresh={doFetch} />
+      {showKanbanCap && (
+        <Card size="small" style={{ marginBottom: 12, borderColor: "#faad14" }}>
+          <Space>
+            <Typography.Text type="warning">
+              当前商机数 {total} 超过看板展示上限 {KANBAN_CAP}。看板仅显示前 {KANBAN_CAP} 条；建议切换列表视图以查看全部。
+            </Typography.Text>
+            <Button size="small" onClick={() => { setView("list"); setPage(1); }}>
+              切到列表视图
+            </Button>
+          </Space>
+        </Card>
+      )}
+
+      {view === "board" ? (
+        <PipelineBoard
+          opportunities={list}
+          aiMap={aiMap}
+          loading={query.isLoading || query.isFetching}
+          onRefresh={invalidate}
+        />
       ) : (
         <Card size="small" title="商机清单" className="erp-table">
           <ProTable<Opportunity>
-            actionRef={actionRef}
             rowKey="id"
             search={false}
-            options={{ reload: true, density: true, setting: true }}
+            options={{ reload: () => query.refetch(), density: true, setting: true }}
             rowClassName={erpRowClass}
             rowSelection={{
               selectedRowKeys: selected,
               onChange: (keys) => setSelected(keys as number[]),
             }}
             scroll={{ x: "max-content" }}
-            params={tableParams}
-            request={async (params) => {
-              const queryParams: Record<string, unknown> = { page_size: 100 };
-              if (params.status) queryParams.status = params.status;
-              if (params.stage) queryParams.stage = params.stage;
-              if (params.assigned_to) queryParams.assigned_to = params.assigned_to;
-              if (params.customer_id) queryParams.customer_id = params.customer_id;
-              if (params.q?.trim()) queryParams.q = params.q.trim();
-              if (params.include_ai) queryParams.include_ai = true;
-              const resp = await getOpportunities(queryParams);
-              const list: Opportunity[] = resp.data.data.list || [];
-              setData(list);
-              setAiMap(
-                params.include_ai
-                  ? (resp.data.data as unknown as { ai?: Record<number, OpportunityAI> }).ai || {}
-                  : {},
-              );
-              return { data: list, success: true, total: list.length };
-            }}
-            columns={
-              [
-                {
-                  title: "#",
-                  width: 45,
-                  fixed: "left",
-                  render: (_: unknown, __: Opportunity, index: number) => index + 1,
-                },
-                {
-                  title: "商机",
-                  dataIndex: "title",
-                  ellipsis: true,
-                  fixed: "left",
-                  render: (value: string, record: Opportunity) => (
-                    <div>
-                      <div className="erp-cell-primary">
-                        <Typography.Link
-                          strong
-                          onClick={() => navigate(`/sales/opportunities/${record.id}`)}
-                        >
-                          {value || `#${record.id}`}
-                        </Typography.Link>
-                      </div>
-                      <div className="erp-cell-secondary">
-                        <CustomerLink id={record.customer_id} />
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  title: "阶段",
-                  dataIndex: "stage",
-                  width: 110,
-                  sorter: (a: any, b: any) => (a.stage || "").localeCompare(b.stage || ""),
-                  render: (value: string) => (
-                    <StatusTag
-                      status={value || "-"}
-                      color="blue"
-                      label={stageLabel[value] || value || "-"}
-                    />
-                  ),
-                },
-                {
-                  title: "状态",
-                  dataIndex: "status",
-                  width: 100,
-                  sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
-                  render: (value: string) => (
-                    <>
-                      {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
-                      <SalesStatusTag value={value} />
-                    </>
-                  ),
-                },
-                {
-                  title: "金额",
-                  dataIndex: "amount",
-                  width: 130,
-                  align: "right",
-                  sorter: (a: any, b: any) => Number(a.amount || 0) - Number(b.amount || 0),
-                  render: (value: number | null) => (
-                    <Typography.Text strong>{money(value)}</Typography.Text>
-                  ),
-                },
-                {
-                  title: "加权金额",
-                  key: "weighted_amount",
-                  width: 130,
-                  align: "right",
-                  sorter: (a: any, b: any) =>
-                    Number(a.amount || 0) * Number(a.win_probability || 0) -
-                    Number(b.amount || 0) * Number(b.win_probability || 0),
-                  render: (_: unknown, record: Opportunity) => (
-                    <Typography.Text>
-                      {money(
-                        (Number(record.amount || 0) * Number(record.win_probability || 0)) / 100,
-                      )}
-                    </Typography.Text>
-                  ),
-                },
-                {
-                  title: "赢率",
-                  dataIndex: "win_probability",
-                  width: 150,
-                  sorter: (a: any, b: any) =>
-                    Number(a.win_probability || 0) - Number(b.win_probability || 0),
-                  render: (value: number | null) => (
-                    <Space direction="vertical" size={0} style={{ width: "100%" }}>
-                      <Progress percent={Number(value || 0)} size="small" showInfo={false} />
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {value ?? 0}%
-                      </Typography.Text>
-                    </Space>
-                  ),
-                },
-                {
-                  title: "预计成交",
-                  dataIndex: "expected_close_date",
-                  width: 120,
-                  sorter: (a: any, b: any) =>
-                    (a.expected_close_date || "").localeCompare(b.expected_close_date || ""),
-                  render: shortDate,
-                },
-                {
-                  title: "负责人",
-                  dataIndex: "assigned_to",
-                  width: 120,
-                  render: (value: string | null) => value || "-",
-                },
-                {
-                  title: "来源",
-                  dataIndex: "source",
-                  width: 120,
-                  ellipsis: true,
-                  render: (value: string | null) => value || "-",
-                },
-                {
-                  title: "最近更新",
-                  dataIndex: "updated_at",
-                  width: 120,
-                  sorter: (a: any, b: any) =>
-                    (a.updated_at || a.created_at || "").localeCompare(
-                      b.updated_at || b.created_at || "",
-                    ),
-                  render: (value: string | null, record: Opportunity) =>
-                    shortDate(value || record.created_at),
-                },
-                {
-                  title: "风险",
-                  key: "risk",
-                  width: 90,
-                  render: (_: unknown, record: Opportunity) => {
-                    const risk = aiMap[record.id]?.risk_level;
-                    if (!risk) return <Typography.Text type="secondary">未分析</Typography.Text>;
-                    return (
-                      <StatusTag
-                        tone={
-                          risk === "high" ? "danger" : risk === "medium" ? "warning" : "success"
-                        }
-                      >
-                        {risk === "high" ? "高风险" : risk === "medium" ? "关注" : "正常"}
-                      </StatusTag>
-                    );
-                  },
-                },
-                {
-                  title: "操作",
-                  width: 60,
-                  fixed: "right",
-                  render: (_: unknown, record: Opportunity) => {
-                    const items: MenuProps["items"] = [
-                      {
-                        key: "view",
-                        icon: <EyeOutlined />,
-                        label: "查看详情",
-                        onClick: () => navigate(`/sales/opportunities/${record.id}`),
-                      },
-                      {
-                        key: "quote",
-                        icon: <FileTextOutlined />,
-                        label: "创建报价",
-                        onClick: () =>
-                          navigate(
-                            `/sales/quotations/new?customer_id=${record.customer_id}&opportunity_id=${record.id}`,
-                          ),
-                      },
-                      { type: "divider" as const },
-                      {
-                        key: "delete",
-                        icon: <DeleteOutlined />,
-                        label: "删除",
-                        danger: true,
-                        onClick: () => {
-                          Modal.confirm({
-                            title: "确定删除?",
-                            content: `删除商机 #${record.id}？`,
-                            onOk: async () => {
-                              try {
-                                await deleteOpportunity(record.id);
-                                message.success("已删除");
-                                handleRefresh();
-                              } catch (e: unknown) {
-                                message.error(getApiErrorMessage(e, "删除失败"));
-                              }
-                            },
-                          });
-                        },
-                      },
-                    ];
-                    return (
-                      <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
-                        <Button size="small" icon={<EllipsisOutlined />} type="text" />
-                      </Dropdown>
-                    );
-                  },
-                },
-              ] as ProColumns<Opportunity>[]
-            }
-            summary={(pageData: readonly Opportunity[]) => {
-              const totalAmt = pageData.reduce((s, r) => s + Number(r.amount || 0), 0);
-              const weightedAmt = pageData.reduce(
-                (s, r) => s + (Number(r.amount || 0) * Number(r.win_probability || 0)) / 100,
-                0,
-              );
-              return (
-                <ProTable.Summary.Row>
-                  <ProTable.Summary.Cell index={0} colSpan={2}>
-                    合计 <Typography.Text strong>{pageData.length} 项</Typography.Text>
-                  </ProTable.Summary.Cell>
-                  <ProTable.Summary.Cell index={2} colSpan={2} />
-                  <ProTable.Summary.Cell index={4} align="right">
-                    <Typography.Text strong>{money(totalAmt)}</Typography.Text>
-                  </ProTable.Summary.Cell>
-                  <ProTable.Summary.Cell index={5} align="right">
-                    <Typography.Text strong>{money(weightedAmt)}</Typography.Text>
-                  </ProTable.Summary.Cell>
-                  <ProTable.Summary.Cell index={6} colSpan={7} />
-                </ProTable.Summary.Row>
-              );
+            columns={columns}
+            dataSource={list}
+            loading={query.isLoading || query.isFetching}
+            pagination={{
+              current: page,
+              pageSize: PAGE_SIZE,
+              total,
+              showSizeChanger: false,
+              onChange: (p) => setPage(p),
             }}
           />
         </Card>
       )}
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} md={8}>
-          <Card size="small">
-            <Typography.Text type="secondary">客户推进</Typography.Text>
-            <Typography.Paragraph style={{ marginBottom: 0 }}>
-              优先处理大额、临近预计成交日期且未进入报价阶段的商机。
-            </Typography.Paragraph>
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card size="small">
-            <Typography.Text type="secondary">产品联动</Typography.Text>
-            <Typography.Paragraph style={{ marginBottom: 0 }}>
-              在商机表单选择客户后，用产品选择器把推荐产品沉淀到报价。
-            </Typography.Paragraph>
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card size="small">
-            <Typography.Text type="secondary">成交闭环</Typography.Text>
-            <Typography.Paragraph style={{ marginBottom: 0 }}>
-              商机进入报价中后，从商机直接创建报价并转订单。
-            </Typography.Paragraph>
-          </Card>
-        </Col>
-      </Row>
+      <Card size="small" style={{ marginTop: 16 }} type="inner">
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          指标（金额、加权金额、活跃数、已超期、14天内预计成交、高风险）现在由后端在
+          与列表相同的过滤集上聚合计算，不再受单页数据量限制（之前的 100 条上限被打破）。
+        </Typography.Paragraph>
+      </Card>
     </SalesModuleShell>
   );
 }
