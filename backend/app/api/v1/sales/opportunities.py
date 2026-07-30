@@ -157,7 +157,7 @@ async def _compute_opportunity_counts(
     }
 
 
-@router.get("/opportunities", response_model=APIResponse[PageData[OpportunityResponse]])
+@router.get("/opportunities")
 async def list_opportunities(
     response: JSONResponse,
     page: int = Query(1, ge=1),
