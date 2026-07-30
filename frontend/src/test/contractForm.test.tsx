@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ContractForm from "../pages/sales/ContractForm";
 import * as api from "../api";
 import type { Contract } from "../types";
@@ -18,15 +19,41 @@ vi.mock("../api", () => ({
   getProduct: vi.fn(),
 }));
 
+// useApiQuery wraps client.get; mock it so detail/orders queries resolve empty.
+vi.mock("../api/client", () => {
+  const emptyPage = { data: { list: [], total: 0 } };
+  const fakeClient = {
+    get: vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/sales-orders")) {
+        return Promise.resolve({ data: { data: emptyPage, msg: "ok", code: 0 } });
+      }
+      if (url.includes("/contracts/")) {
+        return Promise.resolve({ data: { data: null, msg: "ok", code: 0 } });
+      }
+      return Promise.resolve({ data: { data: null, msg: "ok", code: 0 } });
+    }),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    patch: vi.fn(),
+  };
+  return { default: fakeClient };
+});
+
 function renderContractForm(isEdit = false) {
   const initialEntry = isEdit ? "/sales/contracts/1/edit" : "/sales/contracts/new";
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <Routes>
-        <Route path="/sales/contracts/new" element={<ContractForm />} />
-        <Route path="/sales/contracts/:id/edit" element={<ContractForm />} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/sales/contracts/new" element={<ContractForm />} />
+          <Route path="/sales/contracts/:id/edit" element={<ContractForm />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -97,13 +124,13 @@ describe("ContractForm", () => {
 
   it("shows submit button with correct label for new form", async () => {
     renderContractForm(false);
-    expect(await findByNormalizedLabel("创建")).toBeInTheDocument();
+    expect(await findByNormalizedLabel("创建合同")).toBeInTheDocument();
   });
 
   it("shows submit button with correct label for edit form", async () => {
     vi.mocked(api.getContract).mockResolvedValue({ data: { data: { id: 1, customer_id: 42, title: "T", amount: 0, status: "draft" } as Contract } } as never);
     renderContractForm(true);
-    expect(await findByNormalizedLabel("保存")).toBeInTheDocument();
+    expect(await findByNormalizedLabel("保存合同")).toBeInTheDocument();
   });
 
   it("renders cancel button", async () => {
