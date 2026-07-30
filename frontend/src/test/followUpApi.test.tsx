@@ -20,7 +20,7 @@ vi.mock("@/api/client", () => ({
 }));
 import client from "@/api/client";
 import { useApiQuery } from "@/lib/queries";
-import { getFollowUps, type FollowUpListResp } from "@/api/customers";
+import { type FollowUpListResp } from "@/api/customers";
 
 const mockedClient = client as unknown as { get: ReturnType<typeof vi.fn> };
 
