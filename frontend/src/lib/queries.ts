@@ -34,6 +34,8 @@ export type ApiQueryOptions = {
   enabled?: boolean;
   staleTime?: number;
   refetchOnWindowFocus?: boolean;
+  /** 禁用自动轮询；设为 number 则开启定时刷新（毫秒）。 */
+  refetchInterval?: number | false;
   /**
    * 翻页/筛选时保留上一页数据，避免列表闪空。
    * 映射到 React Query v5 的 placeholderData: keepPreviousData。
@@ -63,16 +65,14 @@ export function useApiQuery<T = unknown>(
       // FastAPI wraps every response in {code, msg, data}; axios hands us
       // the body as `resp.data`. Unwrap one level so callers see inner T
       // and can write `query.data.list`, not `query.data.data.list`.
-      const resp = await client.get<{ code?: number; msg?: string; data: T }>(
-        url,
-        { params },
-      );
+      const resp = await client.get<{ code?: number; msg?: string; data: T }>(url, { params });
       const body = resp.data as { code?: number; msg?: string; data: T };
       return body.data;
     },
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime,
     refetchOnWindowFocus: options?.refetchOnWindowFocus,
+    refetchInterval: options?.refetchInterval,
     placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
   });
 }

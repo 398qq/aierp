@@ -1,0 +1,72 @@
+/* frontend/src/pages/dashboard/WatchtowerDashboard.module.css */
+.page {
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0;
+}
+
+.kpiRow {
+  margin-bottom: 24px;
+}
+
+.kpiCard {
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 96px;
+}
+
+.kpiValue {
+  font-size: 32px;
+  font-weight: 600;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.section {
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.aiSummary {
+  margin-top: 8px;
+  white-space: pre-wrap;
+}
+
+.topActions {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.anomalyPre {
+  background: var(--ant-color-bg-layout);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.errorAlert {
+  margin: 24px;
+}
+
+.tag {
+  display: inline-block;
+  margin-right: 4px;
+  margin-top: 4px;
+}

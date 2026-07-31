@@ -1,25 +1,17 @@
-import { useEffect, useState } from "react";
-import { Col, Row, Statistic, Tag, Typography, Spin, Alert, List, Button, Space } from "antd";
-import { StatusTag } from "../../ui";
-import { erpPagination } from "../../ui/pagination";
-import {
-  WarningOutlined,
-  SafetyOutlined,
-  AlertOutlined,
-  ThunderboltOutlined,
-  ReloadOutlined,
-} from "@ant-design/icons";
-import { ProCard, ProTable } from "@ant-design/pro-components";
-import { getWatchtowerScan } from "../../api";
+import { Col, Row, Alert, Button, Typography } from "antd";
+import { WarningOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useApiQuery } from "@/lib/queries";
+import { getApiErrorMessage } from "@/api/client";
+import { EmptyState, StatusTag } from "@/ui";
+import FullPageLoader from "@/ui/FullPageLoader";
+import type { WatchtowerScanResponse } from "@/types/watchtower";
+import styles from "./WatchtowerDashboard.module.css";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
+const SCAN_LOOKBACK_DAYS = 90;
 
-const domainIcons: Record<string, React.ReactNode> = {
-  inventory: <AlertOutlined />,
-  finance: <ThunderboltOutlined />,
-  sales: <SafetyOutlined />,
-  customer: <WarningOutlined />,
-};
+const severityTone = (s: string): "success" | "warning" | "danger" =>
+  s === "紧急" ? "danger" : s === "需关注" ? "warning" : "success";
 
 const domainLabels: Record<string, string> = {
   churn_risk: "客户流失风险",
@@ -27,9 +19,6 @@ const domainLabels: Record<string, string> = {
   low_stock: "低库存",
   out_of_stock: "缺货",
 };
-
-const SCAN_LOOKBACK_DAYS = 90;
-const severityColor = (s: string) => (s === "紧急" ? "red" : s === "需关注" ? "orange" : "green");
 
 const safeFormatDate = (d: string | undefined | null): string => {
   if (!d) return "未知时间";
@@ -43,112 +32,63 @@ const safeFormatDate = (d: string | undefined | null): string => {
 };
 
 export default function WatchtowerDashboard() {
-  const [data, setData] = useState<{
-    scanned_at: string;
-    total_alerts: number;
-    severity: string;
-    summary: string;
-    top_actions: string[];
-    risk_areas: string[];
-    anomalies: Record<string, Record<string, unknown>[]>;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const query = useApiQuery<WatchtowerScanResponse>(
+    ["watchtower", "scan", SCAN_LOOKBACK_DAYS],
+    `/ai/watchtower/scan?days_back=${SCAN_LOOKBACK_DAYS}`,
+    undefined,
+    { staleTime: 60 * 1000, refetchInterval: false },
+  );
 
-  const fetchData = () => {
-    setLoading(true);
-    setError("");
-    getWatchtowerScan(SCAN_LOOKBACK_DAYS)
-      .then((r) => setData(r.data.data))
-      .catch(() => setError("监控扫描失败，请稍后重试"))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  if (loading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
-  if (error)
+  if (query.isLoading) return <FullPageLoader />;
+  if (query.error) {
     return (
       <Alert
         type="error"
-        message={error}
-        style={{ margin: 24 }}
-        action={<Button onClick={fetchData}>重试</Button>}
+        message={getApiErrorMessage(query.error)}
+        className={styles.errorAlert}
+        action={<Button onClick={() => query.refetch()}>重试</Button>}
       />
     );
-  if (!data) return null;
+  }
+  if (!query.data) return null;
 
+  const data = query.data;
   const anomalyEntries = Object.entries(data.anomalies || {}).filter(([, v]) => v.length > 0);
 
-  const allAnomalies = anomalyEntries.flatMap(([domain, items]) =>
-    items.map((item: Record<string, unknown>) => ({
-      domain,
-      domainLabel: domainLabels[domain] || domain,
-      ...item,
-    })),
-  );
-
-  const anomalyColumns = [
-    {
-      title: "领域",
-      dataIndex: "domainLabel",
-      width: 100,
-      render: (d: string) => <StatusTag>{d}</StatusTag>,
-    },
-    { title: "名称", dataIndex: "name", ellipsis: true, render: (n: unknown) => n || "-" },
-    {
-      title: "详情",
-      dataIndex: "signal",
-      ellipsis: true,
-      render: (s: unknown) => s || JSON.stringify(s) || "-",
-    },
-  ];
-
   return (
-    <div style={{ padding: 24 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <Title level={4} style={{ margin: 0 }}>
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <Title level={4} className={styles.title}>
           <WarningOutlined /> 全局监控中心
         </Title>
-        <Space>
-          <Text type="secondary">扫描时间: {safeFormatDate(data.scanned_at)}</Text>
-          <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
-            刷新
-          </Button>
-        </Space>
+        <Text type="secondary">扫描时间: {safeFormatDate(data.scanned_at)}</Text>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => query.refetch()}
+          loading={query.isFetching}
+        >
+          刷新
+        </Button>
       </div>
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Row gutter={[16, 16]} className={styles.kpiRow}>
         <Col xs={24} sm={6}>
-          <ProCard>
-            <Statistic
-              title="异常总数"
-              value={data.total_alerts}
-              prefix={<AlertOutlined />}
-              valueStyle={{ color: data.total_alerts > 0 ? "#ff4d4f" : "#52c41a" }}
-            />
-          </ProCard>
+          <div className={styles.kpiCard}>
+            <Text>异常总数</Text>
+            <div className={styles.kpiValue}>{data.total_alerts}</div>
+          </div>
         </Col>
         <Col xs={24} sm={6}>
-          <ProCard>
-            <Statistic
-              title="严重程度"
-              value={data.severity}
-              valueStyle={{ color: severityColor(data.severity) }}
-            />
-          </ProCard>
+          <div className={styles.kpiCard}>
+            <Text>严重程度</Text>
+            <div className={styles.kpiValue}>
+              <StatusTag tone={severityTone(data.severity)}>{data.severity}</StatusTag>
+            </div>
+          </div>
         </Col>
         <Col xs={24} sm={6}>
-          <ProCard title="异常领域">
+          <div className={styles.kpiCard}>
+            <Text>异常领域</Text>
             {data.risk_areas?.length ? (
               data.risk_areas.map((a, i) => (
                 <StatusTag tone="danger" key={i}>
@@ -158,11 +98,12 @@ export default function WatchtowerDashboard() {
             ) : (
               <StatusTag tone="success">无</StatusTag>
             )}
-          </ProCard>
+          </div>
         </Col>
         <Col xs={24} sm={6}>
-          <ProCard title="领域分布">
-            {anomalyEntries.length > 0 ? (
+          <div className={styles.kpiCard}>
+            <Text>领域分布</Text>
+            {anomalyEntries.length ? (
               anomalyEntries.map(([domain, items]) => (
                 <StatusTag key={domain} tone={items.length > 5 ? "danger" : "warning"}>
                   {domainLabels[domain] || domain}: {items.length}
@@ -171,52 +112,42 @@ export default function WatchtowerDashboard() {
             ) : (
               <Text type="secondary">暂无异常</Text>
             )}
-          </ProCard>
+          </div>
         </Col>
       </Row>
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={24}>
-          <ProCard title="AI 分析摘要">
-            <Paragraph>{data.summary}</Paragraph>
-          </ProCard>
-        </Col>
-      </Row>
+      <div className={styles.section}>
+        <Text strong>AI 分析摘要</Text>
+        <div className={styles.aiSummary}>{data.summary}</div>
+      </div>
 
       {data.top_actions?.length > 0 && (
-        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-          <Col span={24}>
-            <ProCard title="优先行动">
-              <List
-                size="small"
-                dataSource={data.top_actions}
-                renderItem={(item, i) => (
-                  <List.Item>
-                    {i + 1}. {item}
-                  </List.Item>
-                )}
-              />
-            </ProCard>
-          </Col>
-        </Row>
+        <div className={styles.section}>
+          <Text strong>优先行动</Text>
+          <ol className={styles.topActions}>
+            {data.top_actions.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ol>
+        </div>
       )}
 
-      <ProCard title="异常详情" style={{ marginBottom: 24 }}>
-        {allAnomalies.length > 0 ? (
-          <ProTable
-            columns={anomalyColumns as any}
-            dataSource={allAnomalies}
-            rowKey={(_r, i) => String(i)}
-            pagination={erpPagination()}
-            search={false}
-            options={false}
-          />
+      <div className={styles.section}>
+        <Text strong>异常详情</Text>
+        {anomalyEntries.length > 0 ? (
+          <pre className={styles.anomalyPre}>
+            {JSON.stringify(
+              anomalyEntries.flatMap(([domain, items]) =>
+                items.map((it) => ({ ...it, domain, domainLabel: domainLabels[domain] || domain })),
+              ),
+              null,
+              2,
+            )}
+          </pre>
         ) : (
-          <Text type="secondary" style={{ display: "block", textAlign: "center", padding: 40 }}>
-            未检测到异常，系统运行正常
-          </Text>
+          <EmptyState description="未检测到异常，系统运行正常" />
         )}
-      </ProCard>
+      </div>
     </div>
   );
 }
