@@ -58,8 +58,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error(`[ErrorBoundary:${this.props.pageName ?? "?"}]`, error, info);
+  componentDidCatch(error: Error, _info: ErrorInfo): void {
+    // TODO: route to observability backend in production
   }
 
   handleReload = (): void => {

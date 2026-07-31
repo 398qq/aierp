@@ -64,14 +64,11 @@ export function createAIERPChatProvider(): AIERPChatProvider {
       manual: true,
       fetch: (baseURL, options) => {
         const params = options.params ?? {};
-        const token = localStorage.getItem("token");
         const url = `${baseURL}?query=${encodeURIComponent(params.message ?? "")}`;
         return globalThis.fetch(url, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ history: params.history ?? [] }),
           signal: options.signal,
         });
