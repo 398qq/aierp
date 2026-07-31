@@ -200,13 +200,15 @@ async def scan_order_drop(
     ]
 
 
-def _inventory_qty_query(qty_filter, *, order_by_qty: bool = False) -> select:
+def _inventory_qty_query(qty_filter, *, order_by_qty: bool = False):
     """Shared SELECT for low-stock and out-of-stock queries.
 
     Always selects 6 columns (id, name, sku, qty, safety, brand_name).
     scan_out_of_stock ignores the last 2 columns in its return mapping.
+    `order_by_qty=True` adds `ORDER BY Inventory.quantity` (low-stock wants the
+    lowest-qty items first); `False` leaves no ordering (out-of-stock doesn't care).
     """
-    return (
+    stmt = (
         select(
             Product.id,
             Product.name,
@@ -222,9 +224,11 @@ def _inventory_qty_query(qty_filter, *, order_by_qty: bool = False) -> select:
             Product.deleted_at.is_(None),
             Inventory.deleted_at.is_(None),
         )
-        .order_by(Inventory.quantity if order_by_qty else None)
         .limit(20)
     )
+    if order_by_qty:
+        stmt = stmt.order_by(Inventory.quantity)
+    return stmt
 
 
 async def scan_low_stock(db: AsyncSession) -> list[dict]:
