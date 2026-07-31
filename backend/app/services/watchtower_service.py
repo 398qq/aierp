@@ -326,10 +326,3 @@ async def generate_ai_summary(anomalies: dict, total_alerts: int) -> dict:
             "top_actions": [],
             "risk_areas": [],
         }
-
-
-async def scan_all(db: AsyncSession, days_back: int = 90) -> dict:
-    """Backward-compatible wrapper. Prefer watchtower_cached_scan in new code."""
-    from app.api.v1.ai._shared import watchtower_cached_scan
-
-    return await watchtower_cached_scan(db, days_back)

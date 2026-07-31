@@ -375,22 +375,6 @@ async def commit_allocation(
         total_cogs = await inventory_batch_service.commit_deduction(
             db, result.allocations
         )
-        await cache_bump_version("watchtower:scan")
-        return ok(
-            {
-                "total_cogs": float(total_cogs),
-                "allocations": [
-                    {
-                        "batch_id": a.batch_id,
-                        "batch_no": a.batch_no,
-                        "quantity": a.quantity,
-                        "unit_cost": a.unit_cost,
-                        "line_cost": round(a.quantity * a.unit_cost, 2),
-                    }
-                    for a in result.allocations
-                ],
-            }
-        )
     except ValueError as e:
         # Stage 17 follow-up: log detail server-side, return generic message
         # to avoid leaking internal state via error strings.
@@ -403,6 +387,26 @@ async def commit_allocation(
             e,
         )
         return fail("Batch allocation rejected — check inputs and retry", 400)
+
+    # Bump after the try/except so a partial-failure path (e.g. allocate succeeded
+    # but commit_deduction raised) still invalidates the watchtower cache — inventory
+    # was already changed by the allocate step.
+    await cache_bump_version("watchtower:scan")
+    return ok(
+        {
+            "total_cogs": float(total_cogs),
+            "allocations": [
+                {
+                    "batch_id": a.batch_id,
+                    "batch_no": a.batch_no,
+                    "quantity": a.quantity,
+                    "unit_cost": a.unit_cost,
+                    "line_cost": round(a.quantity * a.unit_cost, 2),
+                }
+                for a in result.allocations
+            ],
+        }
+    )
 
 
 # ── COGS Report ──────────────────────────────────────────────────────────
