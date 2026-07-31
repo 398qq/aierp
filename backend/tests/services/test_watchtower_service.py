@@ -5,6 +5,7 @@ from app.services.watchtower_service import (
     scan_churn_risk,
     scan_order_drop,
     scan_low_stock,
+    scan_out_of_stock,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -144,13 +145,13 @@ async def test_scan_low_stock_returns_below_safety(db_session: AsyncSession):
                 warehouse_id=warehouse.id,
                 quantity=2,
                 safety_stock=10,
-            ),  # low
+            ),
             Inventory(
                 product_id=p_oos.id,
                 warehouse_id=warehouse.id,
                 quantity=0,
                 safety_stock=5,
-            ),  # out of stock, NOT low
+            ),
         ]
     )
     await db_session.commit()
@@ -162,3 +163,41 @@ async def test_scan_low_stock_returns_below_safety(db_session: AsyncSession):
     match = next(r for r in result if r["product_id"] == p_low.id)
     assert match["qty"] == 2
     assert match["safety"] == 10
+
+
+async def test_scan_out_of_stock_returns_zero_qty(db_session: AsyncSession):
+    """Products with qty<=0 should appear in out_of_stock; qty>0 should NOT."""
+    from app.models.product import Brand, Product, Inventory, Warehouse
+
+    warehouse = Warehouse(name="测试仓库2", location="TEST-LOC2")
+    db_session.add(warehouse)
+    await db_session.flush()
+    brand = Brand(name="BrandY")
+    db_session.add(brand)
+    await db_session.flush()
+    p_oos = Product(name="缺货品", sku="OOS-2", brand_id=brand.id)
+    p_ok = Product(name="正常品", sku="OK-2", brand_id=brand.id)
+    db_session.add_all([p_oos, p_ok])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            Inventory(
+                product_id=p_oos.id,
+                warehouse_id=warehouse.id,
+                quantity=0,
+                safety_stock=5,
+            ),
+            Inventory(
+                product_id=p_ok.id,
+                warehouse_id=warehouse.id,
+                quantity=100,
+                safety_stock=10,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    result = await scan_out_of_stock(db_session)
+    ids = {r["product_id"] for r in result}
+    assert p_oos.id in ids
+    assert p_ok.id not in ids

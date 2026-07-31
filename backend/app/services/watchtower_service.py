@@ -233,7 +233,28 @@ async def scan_low_stock(db: AsyncSession) -> list[dict]:
 
 
 async def scan_out_of_stock(db: AsyncSession) -> list[dict]:
-    raise NotImplementedError
+    """Inventory qty <= 0. Returns 20 rows: product_id, product_name, brand."""
+    rows = (
+        await db.execute(
+            select(Product.id, Product.name, Product.sku, Brand.name)
+            .join(Inventory, Product.id == Inventory.product_id)
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(
+                Inventory.quantity <= 0,
+                Product.deleted_at.is_(None),
+                Inventory.deleted_at.is_(None),
+            )
+            .limit(20)
+        )
+    ).all()
+    return [
+        {
+            "product_id": r[0],
+            "product_name": f"{r[2] or ''} {r[1]}",
+            "brand": r[3] or "未知",
+        }
+        for r in rows
+    ]
 
 
 async def generate_ai_summary(anomalies: dict, total_alerts: int) -> dict | None:
