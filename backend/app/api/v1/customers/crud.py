@@ -580,6 +580,7 @@ async def create_customer(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
     return ok(
         {
             "id": customer.id,
@@ -673,6 +674,7 @@ async def update_customer(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
     return ok({"id": customer.id})
 
 
@@ -702,6 +704,5 @@ async def delete_customer(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
     return ok(msg="deleted")
-
-

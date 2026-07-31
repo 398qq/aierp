@@ -235,6 +235,7 @@ async def import_customers(
         await cache_bump_version("customers:list")
         await cache_bump_version("dashboard:overview")
         await cache_bump_version("dashboard:kpi")
+        await cache_bump_version("watchtower:scan")
         return ok({"imported": imported, "updated": updated})
     except Exception as e:
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -457,6 +458,7 @@ async def merge_customers(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
     return ok({"merged": True, "transferred": transferred})
 
 
@@ -500,6 +502,7 @@ async def batch_delete(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
     return ok({"deleted": len(customers)})
 
 

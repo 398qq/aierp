@@ -203,6 +203,7 @@ async def batch_tag(
                 c.tags.append(t)
     await db.flush()
     await cache_bump_version("customers:list")
+    await cache_bump_version("watchtower:scan")
     return ok({"updated": len(customers), "tags_added": len(tags)})
 
 
