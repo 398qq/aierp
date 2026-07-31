@@ -115,7 +115,7 @@ async def scan_churn_risk(
             )
         )
     ).all()
-    days = (lookback - prev_lookback).days or 90
+    days = (lookback - prev_lookback).days
     return [
         {
             "customer_id": r[0],
@@ -146,7 +146,6 @@ async def scan_order_drop(
                 .group_by(SalesOrder.customer_id)
             )
         ).all()
-        or []
     )
     prev_counts = dict(
         (
@@ -188,7 +187,6 @@ async def scan_order_drop(
                 )
             )
         ).all()
-        or []
     )
     return [
         {**d, "name": cnames.get(d["customer_id"], f"#{d['customer_id']}")}
