@@ -5,6 +5,7 @@ import { EmptyState } from "@/ui";
 import FullPageLoader from "@/ui/FullPageLoader";
 import { ScanHeader } from "./components/ScanHeader";
 import { KpiCards } from "./components/KpiCards";
+import { AiSummary } from "./components/AiSummary";
 import type { WatchtowerScanResponse } from "@/types/watchtower";
 import styles from "./WatchtowerDashboard.module.css";
 
@@ -59,10 +60,7 @@ export default function WatchtowerDashboard() {
         )}
       />
 
-      <div className={styles.section}>
-        <Text strong>AI 分析摘要</Text>
-        <div className={styles.aiSummary}>{data.summary}</div>
-      </div>
+      <AiSummary text={data.summary} />
 
       {data.top_actions?.length > 0 && (
         <div className={styles.section}>
