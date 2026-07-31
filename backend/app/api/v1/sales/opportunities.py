@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.api.deps import get_current_user
 from app.api.v1.sales._shared import (
@@ -57,7 +58,6 @@ async def _bump_opportunity_caches() -> None:
     await cache_bump_version("dashboard:kpi")
 
 
-
 async def _compute_opportunity_counts(
     db: AsyncSession,
     *,
@@ -83,7 +83,7 @@ async def _compute_opportunity_counts(
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     in_14d = today_start + timedelta(days=14)
 
-    base_filters = [Opportunity.deleted_at.is_(None)]
+    base_filters: list[ColumnElement[bool]] = [Opportunity.deleted_at.is_(None)]
     if customer_id:
         base_filters.append(Opportunity.customer_id == customer_id)
     if status:
@@ -94,66 +94,80 @@ async def _compute_opportunity_counts(
         base_filters.append(Opportunity.assigned_to == assigned_to)
     if q and q.strip():
         from app.services.sales_service._helpers import _customer_search_ids
-        pattern = f"%{q.strip()}%"
-        base_filters.append(or_(
-            Opportunity.title.ilike(pattern),
-            Opportunity.description.ilike(pattern),
-            Opportunity.notes.ilike(pattern),
-            Opportunity.source.ilike(pattern),
-            Opportunity.assigned_to.ilike(pattern),
-            Opportunity.customer_id.in_(_customer_search_ids(q.strip())),
-        ))
 
-    counts_q = (
-        select(
-            func.count(Opportunity.id).label("count"),
-            func.coalesce(func.sum(Opportunity.amount), 0).label("amount"),
-            func.coalesce(
-                func.sum(
-                    func.coalesce(Opportunity.amount, 0)
-                    * func.coalesce(Opportunity.win_probability, 0) / 100.0
-                ),
-                0,
-            ).label("weighted_amount"),
-            func.coalesce(
-                func.sum(case((Opportunity.status == "active", 1), else_=0)), 0
-            ).label("active"),
-            func.coalesce(
-                func.sum(case((
-                    and_(
-                        Opportunity.status == "active",
-                        Opportunity.expected_close_date.is_not(None),
-                        Opportunity.expected_close_date < today_start,
-                    ),
-                    1,
-                ), else_=0)), 0
-            ).label("overdue"),
-            func.coalesce(
-                func.sum(case((
-                    and_(
-                        Opportunity.status == "active",
-                        Opportunity.expected_close_date.is_not(None),
-                        Opportunity.expected_close_date >= today_start,
-                        Opportunity.expected_close_date < in_14d,
-                    ),
-                    1,
-                ), else_=0)), 0
-            ).label("due_soon"),
-            func.coalesce(
-                func.sum(case((Opportunity.ai_risk_level == "high", 1), else_=0)), 0
-            ).label("at_risk"),
+        pattern = f"%{q.strip()}%"
+        base_filters.append(
+            or_(
+                Opportunity.title.ilike(pattern),
+                Opportunity.description.ilike(pattern),
+                Opportunity.notes.ilike(pattern),
+                Opportunity.source.ilike(pattern),
+                Opportunity.assigned_to.ilike(pattern),
+                Opportunity.customer_id.in_(_customer_search_ids(q.strip())),
+            )
         )
-        .where(*base_filters)
-    )
+
+    counts_q = select(
+        func.count(Opportunity.id).label("count"),
+        func.coalesce(func.sum(Opportunity.amount), 0).label("amount"),
+        func.coalesce(
+            func.sum(
+                func.coalesce(Opportunity.amount, 0)
+                * func.coalesce(Opportunity.win_probability, 0)
+                / 100.0
+            ),
+            0,
+        ).label("weighted_amount"),
+        func.coalesce(
+            func.sum(case((Opportunity.status == "active", 1), else_=0)), 0
+        ).label("active"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        and_(
+                            Opportunity.status == "active",
+                            Opportunity.expected_close_date.is_not(None),
+                            Opportunity.expected_close_date < today_start,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("overdue"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        and_(
+                            Opportunity.status == "active",
+                            Opportunity.expected_close_date.is_not(None),
+                            Opportunity.expected_close_date >= today_start,
+                            Opportunity.expected_close_date < in_14d,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("due_soon"),
+        func.coalesce(
+            func.sum(case((Opportunity.ai_risk_level == "high", 1), else_=0)), 0
+        ).label("at_risk"),
+    ).where(*base_filters)
     row = (await db.execute(counts_q)).one()
+    mapping = row._mapping
     return {
-        "count": int(row.count or 0),
-        "amount": float(row.amount or 0),
-        "weightedAmount": float(row.weighted_amount or 0),
-        "active": int(row.active or 0),
-        "overdue": int(row.overdue or 0),
-        "dueSoon": int(row.due_soon or 0),
-        "atRisk": int(row.at_risk or 0),
+        "count": int(mapping["count"] or 0),
+        "amount": float(mapping["amount"] or 0),
+        "weightedAmount": float(mapping["weighted_amount"] or 0),
+        "active": int(mapping["active"] or 0),
+        "overdue": int(mapping["overdue"] or 0),
+        "dueSoon": int(mapping["due_soon"] or 0),
+        "atRisk": int(mapping["at_risk"] or 0),
     }
 
 
@@ -211,8 +225,8 @@ async def list_opportunities(
         result = json.loads(cached_payload)
         if include_ai and result.get("list"):
             from app.services.sales_ai_service import enrich_opportunity_list
-            ai_map = await enrich_opportunity_list(db, result["list"])
-            result["ai"] = ai_map
+
+            result["ai"] = await enrich_opportunity_list(db, result["list"])
         response.headers["X-Cache"] = "HIT"
         response.headers["X-Cache-Key"] = cache_key
         return ok(result)
@@ -240,14 +254,17 @@ async def list_opportunities(
         q=q,
     )
 
-    ai_map = None
+    ai_map: dict[int, dict] | None = None
     if include_ai and result["list"]:
         from app.services.sales_ai_service import enrich_opportunity_list
+
         ai_map = await enrich_opportunity_list(db, result["list"])
 
     serialized = {
         "list": [
-            OpportunityResponse.model_validate(o, from_attributes=True).model_dump(mode="json")
+            OpportunityResponse.model_validate(o, from_attributes=True).model_dump(
+                mode="json"
+            )
             for o in result["list"]
         ],
         "total": result["total"],
@@ -300,34 +317,42 @@ async def list_opportunity_followups(
     if not opportunity:
         return fail("商机不存在", 404)
     rows = (
-        await db.execute(
-            select(CustomerFollowUp)
-            .where(
-                CustomerFollowUp.opportunity_id == opp_id,
-                CustomerFollowUp.deleted_at.is_(None),
-            )
-            .order_by(
-                CustomerFollowUp.planned_at.asc().nulls_last(),
-                CustomerFollowUp.created_at.desc(),
+        (
+            await db.execute(
+                select(CustomerFollowUp)
+                .where(
+                    CustomerFollowUp.opportunity_id == opp_id,
+                    CustomerFollowUp.deleted_at.is_(None),
+                )
+                .order_by(
+                    CustomerFollowUp.planned_at.asc().nulls_last(),
+                    CustomerFollowUp.created_at.desc(),
+                )
             )
         )
-    ).scalars().all()
-    return ok([
-        {
-            "id": row.id,
-            "opportunity_id": row.opportunity_id,
-            "method": row.method,
-            "status": row.status,
-            "content": row.content,
-            "result": row.result,
-            "planned_at": row.planned_at.isoformat() if row.planned_at else None,
-            "completed_at": row.completed_at.isoformat() if row.completed_at else None,
-            "priority": row.priority,
-            "assigned_to": row.assigned_to,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-        }
-        for row in rows
-    ])
+        .scalars()
+        .all()
+    )
+    return ok(
+        [
+            {
+                "id": row.id,
+                "opportunity_id": row.opportunity_id,
+                "method": row.method,
+                "status": row.status,
+                "content": row.content,
+                "result": row.result,
+                "planned_at": row.planned_at.isoformat() if row.planned_at else None,
+                "completed_at": row.completed_at.isoformat()
+                if row.completed_at
+                else None,
+                "priority": row.priority,
+                "assigned_to": row.assigned_to,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+    )
 
 
 @router.get("/opportunities/{opp_id}/business-chain")
@@ -362,9 +387,7 @@ async def create_opportunity(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    opp = await svc.create_opportunity(
-        db, body.model_dump(), actor=_audit_actor(_user)
-    )
+    opp = await svc.create_opportunity(db, body.model_dump(), actor=_audit_actor(_user))
     from app.services.sales_ai_pipeline import after_opportunity_save
 
     after_opportunity_save(opp.id)
