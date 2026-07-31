@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 async def _persist_customer_alerts(
-    db: AsyncSession, anomalies: dict, scan_time: datetime.datetime
+    db: AsyncSession,
+    anomalies: dict,
+    scan_time: datetime.datetime,
+    lookback_days: int = 90,
 ) -> int:
     """Write customer-related anomalies (churn_risk, order_drop) to AlertEvent table.
     Returns the number of events written.
@@ -57,8 +60,11 @@ async def _persist_customer_alerts(
                 rule_type="order_drop",
                 rule_name="订单量下降",
                 severity="warning",
-                message="客户 %s 近90天订单量从 %s 单骤降至 %s 单（降 %s%%）"
-                % (name, drop["prev_orders"], drop["recent_orders"], drop["drop_pct"]),
+                message=(
+                    f"客户 {name} 近{lookback_days}天订单量从 "
+                    f"{drop['prev_orders']} 单骤降至 {drop['recent_orders']} 单"
+                    f"（降 {drop['drop_pct']}%%）"
+                ),
                 is_read=False,
             )
         )
@@ -194,28 +200,46 @@ async def scan_order_drop(
     ]
 
 
+def _inventory_qty_query(qty_filter, *, order_by_qty: bool = False):
+    """Shared SELECT for low-stock and out-of-stock queries.
+
+    Always selects 6 columns (id, name, sku, qty, safety, brand_name).
+    scan_out_of_stock ignores the last 2 columns in its return mapping.
+    `order_by_qty=True` adds `ORDER BY Inventory.quantity` (low-stock wants the
+    lowest-qty items first); `False` leaves no ordering (out-of-stock doesn't care).
+    """
+    stmt = (
+        select(
+            Product.id,
+            Product.name,
+            Product.sku,
+            Inventory.quantity,
+            Inventory.safety_stock,
+            Brand.name,
+        )
+        .join(Inventory, Product.id == Inventory.product_id)
+        .outerjoin(Brand, Product.brand_id == Brand.id)
+        .where(
+            qty_filter,
+            Product.deleted_at.is_(None),
+            Inventory.deleted_at.is_(None),
+        )
+        .limit(20)
+    )
+    if order_by_qty:
+        stmt = stmt.order_by(Inventory.quantity)
+    return stmt
+
+
 async def scan_low_stock(db: AsyncSession) -> list[dict]:
     """Inventory 0 < qty <= safety_stock. Returns 20 rows: product_id, product_name, brand, qty, safety."""
     rows = (
         await db.execute(
-            select(
-                Product.id,
-                Product.name,
-                Product.sku,
-                Inventory.quantity,
-                Inventory.safety_stock,
-                Brand.name,
+            _inventory_qty_query(
+                (Inventory.quantity <= Inventory.safety_stock)
+                & (Inventory.quantity > 0),
+                order_by_qty=True,
             )
-            .join(Inventory, Product.id == Inventory.product_id)
-            .outerjoin(Brand, Product.brand_id == Brand.id)
-            .where(
-                Inventory.quantity <= Inventory.safety_stock,
-                Inventory.quantity > 0,
-                Product.deleted_at.is_(None),
-                Inventory.deleted_at.is_(None),
-            )
-            .order_by(Inventory.quantity)
-            .limit(20)
         )
     ).all()
     return [
@@ -232,24 +256,12 @@ async def scan_low_stock(db: AsyncSession) -> list[dict]:
 
 async def scan_out_of_stock(db: AsyncSession) -> list[dict]:
     """Inventory qty <= 0. Returns 20 rows: product_id, product_name, brand."""
-    rows = (
-        await db.execute(
-            select(Product.id, Product.name, Product.sku, Brand.name)
-            .join(Inventory, Product.id == Inventory.product_id)
-            .outerjoin(Brand, Product.brand_id == Brand.id)
-            .where(
-                Inventory.quantity <= 0,
-                Product.deleted_at.is_(None),
-                Inventory.deleted_at.is_(None),
-            )
-            .limit(20)
-        )
-    ).all()
+    rows = (await db.execute(_inventory_qty_query(Inventory.quantity <= 0))).all()
     return [
         {
             "product_id": r[0],
             "product_name": f"{r[2] or ''} {r[1]}",
-            "brand": r[3] or "未知",
+            "brand": r[5] or "未知",
         }
         for r in rows
     ]

@@ -244,3 +244,45 @@ async def test_generate_ai_summary_failure_falls_back(monkeypatch):
     assert "暂不可用" in result["summary"]
     assert result["top_actions"] == []
     assert result["risk_areas"] == []
+
+
+async def test_persist_customer_alerts_dynamic_lookback(db_session):
+    """Message should reflect lookback_days parameter, not hardcoded 90."""
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.models.customer import AlertEvent, Customer
+    from app.services.watchtower_service import _persist_customer_alerts
+
+    customer = Customer(name="下降客户A", industry="电子", level="A")
+    db_session.add(customer)
+    await db_session.flush()
+    cid = customer.id
+
+    await _persist_customer_alerts(
+        db_session,
+        {
+            "order_drop": [
+                {
+                    "customer_id": cid,
+                    "name": "下降客户A",
+                    "prev_orders": 10,
+                    "recent_orders": 2,
+                    "drop_pct": 80,
+                }
+            ],
+            "churn_risk": [],
+        },
+        scan_time=datetime.now(timezone.utc),
+        lookback_days=30,
+    )
+    await db_session.commit()
+
+    alert = (
+        await db_session.execute(
+            select(AlertEvent).where(AlertEvent.rule_type == "order_drop")
+        )
+    ).scalar_one_or_none()
+    assert alert is not None
+    assert "近30天" in alert.message
