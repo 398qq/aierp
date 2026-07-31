@@ -66,7 +66,9 @@ async def watchtower_cached_scan(
 
     total_alerts = sum(len(v) for v in anomalies.values())
     ai = await watchtower_service.generate_ai_summary(anomalies, total_alerts)
-    persisted = await watchtower_service._persist_customer_alerts(db, anomalies, now)
+    persisted = await watchtower_service._persist_customer_alerts(
+        db, anomalies, now, lookback_days=days_back
+    )
 
     result = {
         "scanned_at": now.isoformat(),
