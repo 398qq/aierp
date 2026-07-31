@@ -36,7 +36,8 @@ import {
   importSalesOrderPDF,
   getApiErrorMessage,
 } from "../../api";
-import type { SalesOrder, SalesOrderPDFImportResult } from "../../api";
+import type { SalesOrder } from "../../types";
+import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
 import {
   CustomerLink,
@@ -130,37 +131,31 @@ export default function SalesOrderList() {
     onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
   });
 
-  // PDF import uses FormData - handle separately
-  const pdfImportMut = useApiMutation<
-    SalesOrderPDFImportResult,
-    { file: File; customerId?: number }
-  >({
-    mutationFn: async (vars) => {
-      const resp = await importSalesOrderPDF(vars.file, vars.customerId);
-      return resp.data as unknown as SalesOrderPDFImportResult;
-    },
-    onSuccess: (data) => {
-      setPdfResult(data);
-      message.success("PDF订单导入成功");
-      queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
-    },
-    onError: (e) => message.error(getApiErrorMessage(e, "导入失败")),
-  });
-
   const handleBatchDelete = () => {
     batchDeleteMut.mutate(selected);
   };
 
-  const handlePdfImport = () => {
+  const handlePdfImport = async () => {
     if (!pdfFile) {
       message.warning("请选择PDF订单文件");
       return;
     }
     setPdfImporting(true);
-    pdfImportMut.mutate(
-      { file: pdfFile as unknown as File, customerId: pdfCustomerId },
-      { onSettled: () => setPdfImporting(false) },
-    );
+    try {
+      const resp = await importSalesOrderPDF(pdfFile as unknown as File, pdfCustomerId);
+      const body = resp.data as { code?: number; msg?: string; data?: SalesOrderPDFImportResult };
+      if (body.code !== 0) {
+        message.error(body.msg || "导入失败");
+        return;
+      }
+      setPdfResult(body.data ?? null);
+      message.success(body.msg || "PDF订单导入成功");
+      queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+    } catch (err) {
+      message.error(getApiErrorMessage(err, "导入失败"));
+    } finally {
+      setPdfImporting(false);
+    }
   };
 
   const handleSearch = () => {
@@ -179,9 +174,9 @@ export default function SalesOrderList() {
       dataIndex: "order_no",
       fixed: "left" as const,
       width: 160,
-      render: (value: string | null, record: SalesOrder) => (
+      render: (_: unknown, record: SalesOrder) => (
         <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>
-          {value || `#${record.id}`}
+          {record.order_no || `#${record.id}`}
         </Typography.Link>
       ),
     },
@@ -189,10 +184,10 @@ export default function SalesOrderList() {
       title: "客户名称",
       dataIndex: "customer_name",
       width: 160,
-      render: (value: string | null, record: SalesOrder) =>
-        value ? (
+      render: (_: unknown, record: SalesOrder) =>
+        record.customer_name ? (
           <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>
-            {value}
+            {record.customer_name}
           </Typography.Link>
         ) : (
           <CustomerLink id={record.customer_id} />
@@ -203,17 +198,17 @@ export default function SalesOrderList() {
       dataIndex: "total_amount",
       width: 130,
       sorter: (a: any, b: any) => Number(a.total_amount || 0) - Number(b.total_amount || 0),
-      render: money,
+      render: (_: unknown, record: SalesOrder) => money(record.total_amount),
     },
     {
       title: "状态",
       dataIndex: "status",
       width: 100,
       sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
-      render: (value: string) => (
+      render: (_: unknown, record: SalesOrder) => (
         <>
-          {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
-          <SalesStatusTag value={value} />
+          {statusDot(ERP_STATUS_DOT[record.status || ""] || "#d9d9d9")}
+          <SalesStatusTag value={record.status} />
         </>
       ),
     },
@@ -222,20 +217,23 @@ export default function SalesOrderList() {
       dataIndex: "order_date",
       width: 120,
       sorter: (a: any, b: any) => (a.order_date || "").localeCompare(b.order_date || ""),
-      render: shortDate,
+      render: (_: unknown, record: SalesOrder) => shortDate(record.order_date),
     },
     {
       title: "交付",
       dataIndex: "delivery_date",
       width: 120,
       sorter: (a: any, b: any) => (a.delivery_date || "").localeCompare(b.delivery_date || ""),
-      render: shortDate,
+      render: (_: unknown, record: SalesOrder) => shortDate(record.delivery_date),
     },
     {
       title: "AI",
       width: 100,
       render: (_: unknown, record: SalesOrder) => (
-        <AIInlineBadge riskLevel={aiMap[record.id]?.delivery_risk} flag={aiMap[record.id]?.flag} />
+        <AIInlineBadge
+          riskLevel={aiMap[record.id]?.delivery_risk}
+          flag={aiMap[record.id]?.flags?.[0]}
+        />
       ),
     },
     {
