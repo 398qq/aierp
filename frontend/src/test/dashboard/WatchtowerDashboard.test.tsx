@@ -6,20 +6,15 @@ import { MemoryRouter } from "react-router-dom";
 import WatchtowerDashboard from "@/pages/dashboard/WatchtowerDashboard";
 import client from "@/api/client";
 
-// Mock the client so useApiQuery gets the data directly
+// Mock the client so useApiQuery gets the data directly.
+// getWatchtowerScan is NOT used by the component (useApiQuery calls client.get
+// directly with a URL), so we don't mock it at the @/api level.
 vi.mock("@/api/client", () => ({
   default: {
     get: vi.fn(),
   },
   getApiErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
-
-// Mock getWatchtowerScan at api index level
-vi.mock("@/api", () => ({
-  getWatchtowerScan: vi.fn(),
-}));
-
-import { getWatchtowerScan } from "@/api";
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -138,13 +133,11 @@ describe("WatchtowerDashboard", () => {
       </Wrapper>,
     );
     await waitFor(() => screen.getByText("全局监控中心"));
-    // Manually trigger refetch by calling refetch
-    const { refetch } = (Wrapper as any)._queryRefetch || {};
-    await act(async () => {
-      // Click refresh button
-      await userEvent.click(screen.getByRole("button", { name: /刷新/ }));
+    // Reset call count after the initial render's fetch settles.
+    vi.mocked(client.get).mockClear();
+    await userEvent.click(screen.getByRole("button", { name: /刷新/ }));
+    await waitFor(() => {
+      expect(client.get).toHaveBeenCalled();
     });
-    // Just verify button is present and clickable
-    expect(screen.getByRole("button", { name: /刷新/ })).toBeInTheDocument();
   });
 });
