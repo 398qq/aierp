@@ -36,6 +36,15 @@ cd frontend && npx playwright test e2e/route-smoke.spec.ts   # E2E，需先起 d
 
 `make lint` 里的 mypy 并非全量：`backend/mypy.ini` 对约 49 个遗留模块设了 `ignore_errors=True`；新代码要保证类型通过。pre-commit 只跑 ruff / prettier / detect-secrets / bandit，**不跑 mypy 和 pytest**。
 
+## Skills / Agents / Hooks
+
+本项目挂了 30 个 `superpowers-zh` 技能 + 8 个领域 agent + 3 个项目级 hook。开工前**先看一眼**：
+
+- **`.claude/skills/`** — 30 个 skill（`.claude/skills/using-superpowers/SKILL.md` 是元规则）。**哪怕只有 1% 可能性某个 skill 适用当前任务，都必须用 `Skill` 工具加载并遵循**。常驻调用：`brainstorming`（任何创造性工作前）、`test-driven-development`（写代码前）、`verification-before-completion`（宣称完成前）、`systematic-debugging`（遇到 bug）、`requesting-code-review`（功能完成时）、`writing-plans`（多步骤任务）。`chinese-*` 系列仅在用户显式 `/chinese-*` 时触发。
+- **`.claude/agents/`** — 领域 agent，按作用域委派：`aierp-orchestrator`（任务派发）/ `aierp-developer`（全栈实施）/ `backend-architect`（设计，只读）/ `frontend-builder`（前端，限定 `frontend/src/`）/ `db-migrator`（迁移，限定 migration/model）/ `qa-reviewer`（审 PR，只读）/ `brand-analysis-agent`（品牌智能）。每个 agent 工具白名单见对应 `.md`。
+- **`.claude/settings.json` 钩子** — `PostToolUse` 自动跑 `format-on-edit.sh`（Prettier/Ruff）、`PreToolUse` 跑 `pre-bash-guard.sh` 拦危险命令、`Stop` 跑 `stop-lint.sh` 收尾 lint。不要在 hook 外手动跑这些。
+- **工作分支** 当前 `refactor/full-target-form`；与 `master` 的偏离体现在「前端 List 页全面 Pro v6 化」迁移（见 `docs/frontend/pro-v6-migration-guide.md`、`docs/frontend/x2-prov6-learning-guide.md`）。
+
 ## 技术栈
 
 | 层级 | 技术 |
@@ -118,6 +127,10 @@ access.ts             # Umi access 插件契约：canAdmin/canSales/canFinance
                         APScheduler → 14 个周期作业
 ```
 
+### 当前在飞的迁移：前端 Pro v6 化
+
+`useApiQuery` + `useApiMutation` 已成为标准数据获取层；`refactor(sales|finance|...): unify Pro v6 patterns with useApiQuery` 是进行中的合流提交前缀。新写 List / Form 必须直接按 `docs/frontend/pro-v6-migration-guide.md` 模板走（`params` + `request` 函数、`keepPreviousData`、`invalidateKeys`），不要新建 `useEffect + axios` 模式。AI Chat 已切到 `@ant-design/x` 的 `useXChat`（自定义 AIERP provider，鉴权走 `/auth/me` 拿到的 token，**不是 localStorage**）。
+
 ## 关键约定
 
 **响应信封**：统一 `{code, msg, data, request_id}`。成功用 `ok(data)`（普通 dict，状态码由路由装饰器决定）；失败用 `fail(msg, code=400)`（返回 `JSONResponse`，**HTTP 状态码等于 code**，前端拦截器靠状态码分流）。全局处理器覆盖 `DomainError`（取 `exc.http_status`）、`HTTPException`、`RequestValidationError`（422）、未捕获异常（500，非 DEBUG 不泄漏详情）。
@@ -192,6 +205,7 @@ access.ts             # Umi access 插件契约：canAdmin/canSales/canFinance
 - [AGENTS.md](AGENTS.md) — 仓库简版入口（本文件是其「工程底线与命令参考」）
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 分支节奏、Dependabot、覆盖率与 bundle 预算、PR 模板
 - [DESIGN.md](DESIGN.md) — 前端设计系统（配色、字号、组件与响应式规范）
-- [docs/README.md](docs/README.md) — 文档索引；`docs/architecture/adr/` 有 6 篇 ADR
-- [docs/MIGRATIONS.md](docs/MIGRATIONS.md) · [docs/OPS.md](docs/OPS.md) · [docs/CI.md](docs/CI.md) · [docs/frontend/](docs/frontend/)
-- `GEMINI.md` 已过时（层次与覆盖率说法均不准），**不要以它为准**。
+- [docs/README.md](docs/README.md) — 文档总索引
+- [docs/architecture/adr/](docs/architecture/adr/) — 6 篇 ADR：缓存架构 / 事件总线派发 / 限界上下文拆分 / 用例路由 / AI 编排分层 / 共享 UI 组件库
+- [docs/development-workflow.md](docs/development-workflow.md) · [docs/MIGRATIONS.md](docs/MIGRATIONS.md) · [docs/OPS.md](docs/OPS.md) · [docs/CI.md](docs/CI.md) · [docs/frontend/](docs/frontend/)
+- **不要读** `GEMINI.md`（已过时，层次与覆盖率说法均不准）· **不要当安全策略**用根目录的 `SECURITY.md`（仍是 GitHub 默认模板，待替换）。

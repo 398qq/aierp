@@ -8,8 +8,12 @@ All endpoints scope results to the authenticated user; cross-user
 reads are not supported. Cascade on user delete is configured at the
 table level (FOREIGN KEY ... ON DELETE CASCADE).
 """
+
+from typing import cast
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,16 +43,20 @@ async def list_prefs(
     _user: dict = Depends(get_current_user),
 ):
     rows = (
-        await db.execute(
-            select(UserPreference)
-            .where(
-                UserPreference.user_id == _user["user_id"],
-                UserPreference.scope == scope,
-                UserPreference.deleted_at.is_(None),
+        (
+            await db.execute(
+                select(UserPreference)
+                .where(
+                    UserPreference.user_id == _user["user_id"],
+                    UserPreference.scope == scope,
+                    UserPreference.deleted_at.is_(None),
+                )
+                .order_by(UserPreference.key)
             )
-            .order_by(UserPreference.key)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return ok(UserPreferenceList(items=[_row_to_item(p) for p in rows]))
 
 
@@ -66,15 +74,19 @@ async def upsert_pref(
     if body.scope != scope or body.key != key:
         return fail("path scope/key does not match body", 400)
     existing = (
-        await db.execute(
-            select(UserPreference).where(
-                UserPreference.user_id == _user["user_id"],
-                UserPreference.scope == scope,
-                UserPreference.key == key,
-                UserPreference.deleted_at.is_(None),
+        (
+            await db.execute(
+                select(UserPreference).where(
+                    UserPreference.user_id == _user["user_id"],
+                    UserPreference.scope == scope,
+                    UserPreference.key == key,
+                    UserPreference.deleted_at.is_(None),
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if existing is not None:
         existing.value = body.value
         item = existing
@@ -105,13 +117,16 @@ async def delete_pref(
     _user: dict = Depends(get_current_user),
 ):
     # soft-delete via deleted_at; cascade is for hard delete of user
-    res = await db.execute(
-        delete(UserPreference).where(
-            UserPreference.user_id == _user["user_id"],
-            UserPreference.scope == scope,
-            UserPreference.key == key,
-            UserPreference.deleted_at.is_(None),
-        )
+    res = cast(
+        CursorResult,
+        await db.execute(
+            delete(UserPreference).where(
+                UserPreference.user_id == _user["user_id"],
+                UserPreference.scope == scope,
+                UserPreference.key == key,
+                UserPreference.deleted_at.is_(None),
+            )
+        ),
     )
     if res.rowcount == 0:
         return fail("not found", 404)
