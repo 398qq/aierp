@@ -1,13 +1,13 @@
 import { Col, Row, Alert, Button, Typography } from "antd";
-import { WarningOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useApiQuery } from "@/lib/queries";
 import { getApiErrorMessage } from "@/api/client";
 import { EmptyState, StatusTag } from "@/ui";
 import FullPageLoader from "@/ui/FullPageLoader";
+import { ScanHeader } from "./components/ScanHeader";
 import type { WatchtowerScanResponse } from "@/types/watchtower";
 import styles from "./WatchtowerDashboard.module.css";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const SCAN_LOOKBACK_DAYS = 90;
 
 const severityTone = (s: string): "success" | "warning" | "danger" =>
@@ -18,17 +18,6 @@ const domainLabels: Record<string, string> = {
   order_drop: "订单量下降",
   low_stock: "低库存",
   out_of_stock: "缺货",
-};
-
-const safeFormatDate = (d: string | undefined | null): string => {
-  if (!d) return "未知时间";
-  try {
-    const date = new Date(d);
-    if (isNaN(date.getTime())) return "无效时间";
-    return date.toLocaleString();
-  } catch {
-    return "无效时间";
-  }
 };
 
 export default function WatchtowerDashboard() {
@@ -57,19 +46,11 @@ export default function WatchtowerDashboard() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <Title level={4} className={styles.title}>
-          <WarningOutlined /> 全局监控中心
-        </Title>
-        <Text type="secondary">扫描时间: {safeFormatDate(data.scanned_at)}</Text>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => query.refetch()}
-          loading={query.isFetching}
-        >
-          刷新
-        </Button>
-      </div>
+      <ScanHeader
+        scanned_at={data.scanned_at}
+        loading={query.isFetching}
+        onRefresh={() => query.refetch()}
+      />
 
       <Row gutter={[16, 16]} className={styles.kpiRow}>
         <Col xs={24} sm={6}>
