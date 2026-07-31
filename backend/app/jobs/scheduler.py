@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
 
 from app.database import async_session
@@ -238,6 +239,14 @@ async def _run_watchtower_scan():
                 )
     except Exception as e:
         logger.error(f"scheduler: watchtower_scan failed: {e}")
+
+
+async def bump_watchtower_report_at_midnight() -> None:
+    """Cross-midnight invalidation of daily-report cache. cron: 00:05 UTC."""
+    from app.services.cache_service import cache_bump_version
+
+    await cache_bump_version("watchtower:report")
+    logger.info("watchtower:report cache bumped at midnight")
 
 
 async def _populate_customer_insights():
@@ -1013,6 +1022,12 @@ def start():
         hours=4,
         id="watchtower_scan",
         misfire_grace_time=300,
+    )
+    scheduler.add_job(
+        bump_watchtower_report_at_midnight,
+        CronTrigger(hour=0, minute=5),
+        id="bump_watchtower_report_midnight",
+        replace_existing=True,
     )
     scheduler.add_job(
         _populate_customer_insights,
