@@ -33,7 +33,6 @@ import {
   FileTextOutlined,
   PlusOutlined,
   ReloadOutlined,
-  ThunderboltOutlined,
 } from "@ant-design/icons";
 
 import {
