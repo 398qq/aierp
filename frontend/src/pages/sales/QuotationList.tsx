@@ -177,27 +177,31 @@ export default function QuotationList() {
     }
   }, [query.data?.list, query.data?.total, scene]);
 
-  const batchDeleteMut = useApiMutation("post", () => "/quotations/batch-delete", {
-    invalidateKeys: [["quotations"]],
-    onSuccess: () => {
-      message.success("已批量删除");
-      setSelected([]);
+  const batchDeleteMut = useApiMutation<unknown, { ids: number[] }>(
+    "post",
+    () => "/quotations/batch-delete",
+    {
+      invalidateKeys: [["quotations"]],
+      onSuccess: () => {
+        message.success("已批量删除");
+        setSelected([]);
+      },
+      onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
     },
-    onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
-  });
+  );
 
   const handleBatchDelete = () => {
-    batchDeleteMut.mutate({ ids: selected } as never);
+    batchDeleteMut.mutate({ ids: selected });
   };
 
-  const duplicateMut = useApiMutation<{ id: number }, number>(
+  const duplicateMut = useApiMutation<Quotation, number>(
     "post",
     (id) => `/quotations/${id}/duplicate`,
     {
       invalidateKeys: [["quotations"]],
       onSuccess: (data) => {
         message.success("已复制为新报价");
-        navigate(`/sales/quotations/${(data as unknown as { id: number }).id}/edit`);
+        navigate(`/sales/quotations/${data.id}/edit`);
       },
       onError: (e) => message.error(getApiErrorMessage(e, "复制失败")),
     },
