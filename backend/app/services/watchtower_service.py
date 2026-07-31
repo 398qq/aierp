@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 async def _persist_customer_alerts(
-    db: AsyncSession, anomalies: dict, scan_time: datetime.datetime
+    db: AsyncSession,
+    anomalies: dict,
+    scan_time: datetime.datetime,
+    lookback_days: int = 90,
 ) -> int:
     """Write customer-related anomalies (churn_risk, order_drop) to AlertEvent table.
     Returns the number of events written.
@@ -57,8 +60,11 @@ async def _persist_customer_alerts(
                 rule_type="order_drop",
                 rule_name="订单量下降",
                 severity="warning",
-                message="客户 %s 近90天订单量从 %s 单骤降至 %s 单（降 %s%%）"
-                % (name, drop["prev_orders"], drop["recent_orders"], drop["drop_pct"]),
+                message=(
+                    f"客户 {name} 近{lookback_days}天订单量从 "
+                    f"{drop['prev_orders']} 单骤降至 {drop['recent_orders']} 单"
+                    f"（降 {drop['drop_pct']}%%）"
+                ),
                 is_read=False,
             )
         )
