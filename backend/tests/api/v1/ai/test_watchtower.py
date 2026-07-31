@@ -152,7 +152,13 @@ async def test_daily_report_decimal_math(db_session):
 
 
 async def test_watchtower_scan_requires_permission(async_client, auth_headers):
-    """User without reports:read permission gets 403."""
+    """User without reports:read permission gets 403.
+
+    Pairs with `test_scan_endpoint_unauth` (no token). The project error
+    envelope (`{code, msg, data, request_id}`) is generic, so we cannot
+    distinguish RBAC denial from auth failure by body — but the two tests
+    together cover both denial paths.
+    """
     r = await async_client.get(
         "/api/v1/ai/watchtower/scan?days_back=90", headers=auth_headers
     )
@@ -160,6 +166,6 @@ async def test_watchtower_scan_requires_permission(async_client, auth_headers):
 
 
 async def test_daily_report_requires_permission(async_client, auth_headers):
-    """User without reports:read permission gets 403."""
+    """User without reports:read permission gets 403 (see scan test for caveat)."""
     r = await async_client.get("/api/v1/ai/daily-report", headers=auth_headers)
     assert r.status_code == 403
