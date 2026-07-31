@@ -6,6 +6,7 @@ import FullPageLoader from "@/ui/FullPageLoader";
 import { ScanHeader } from "./components/ScanHeader";
 import { KpiCards } from "./components/KpiCards";
 import { AiSummary } from "./components/AiSummary";
+import { TopActions } from "./components/TopActions";
 import type { WatchtowerScanResponse } from "@/types/watchtower";
 import styles from "./WatchtowerDashboard.module.css";
 
@@ -62,16 +63,7 @@ export default function WatchtowerDashboard() {
 
       <AiSummary text={data.summary} />
 
-      {data.top_actions?.length > 0 && (
-        <div className={styles.section}>
-          <Text strong>优先行动</Text>
-          <ol className={styles.topActions}>
-            {data.top_actions.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ol>
-        </div>
-      )}
+      {data.top_actions?.length > 0 && <TopActions items={data.top_actions} />}
 
       <div className={styles.section}>
         <Text strong>异常详情</Text>

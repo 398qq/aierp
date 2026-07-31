@@ -1,0 +1,12 @@
+.section {
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
