@@ -84,3 +84,24 @@ async def test_scan_endpoint_unauth(async_client):
     """No token -> 401."""
     r = await async_client.get("/api/v1/ai/watchtower/scan?days_back=90")
     assert r.status_code in (401, 403)
+
+
+async def test_daily_report_cached(async_client, auth_headers, test_user):
+    """Second call within TTL should not re-run queries."""
+    from app.api.v1.ai import watchtower as watchtower_route
+
+    with patch.object(
+        watchtower_route, "_compute_daily_report", new_callable=AsyncMock
+    ) as mock_compute:
+        mock_compute.return_value = {
+            "report_date": "2026-07-31",
+            "generated_at": "2026-07-31T10:00:00+00:00",
+            "metrics": {},
+        }
+        r1 = await async_client.get("/api/v1/ai/daily-report", headers=auth_headers)
+        assert r1.status_code == 200
+        assert mock_compute.call_count == 1
+        r2 = await async_client.get("/api/v1/ai/daily-report", headers=auth_headers)
+        assert r2.status_code == 200
+        # Cached: not called again
+        assert mock_compute.call_count == 1
