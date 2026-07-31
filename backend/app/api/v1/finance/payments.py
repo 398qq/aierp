@@ -34,7 +34,10 @@ from app.schemas.finance import (
     PaymentStats,
 )
 from app.services import finance_service as svc
-from app.domain.states import assert_can_transition_invoice, assert_can_transition_payment
+from app.domain.states import (
+    assert_can_transition_invoice,
+    assert_can_transition_payment,
+)
 from app.services.state_transition_service import transition_status
 from app.services.cache_service import (
     cache_bump_version,
@@ -271,6 +274,7 @@ async def create_payment(
 ):
     pay = await svc.create_payment(db, body.model_dump())
     await _bump_payment_caches()
+    await cache_bump_version("watchtower:scan")
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
     order_no = await _load_order_no(db, pay.sales_order_id)
     delivery_note_no = await _load_delivery_note_no(db, pay.delivery_note_id)
@@ -344,7 +348,9 @@ async def replace_payment_allocations(
             or 0
         )
         if allocated_elsewhere + requested.amount > float(invoice.amount) + 0.000001:
-            return fail(f"发票 {invoice.invoice_no or invoice.id} 核销金额超出发票金额", 400)
+            return fail(
+                f"发票 {invoice.invoice_no or invoice.id} 核销金额超出发票金额", 400
+            )
         db.add(
             PaymentAllocation(
                 payment_id=pay.id,
@@ -377,9 +383,7 @@ async def replace_payment_allocations(
             )
 
     target_status = (
-        "completed"
-        if requested_total >= float(pay.amount) - 0.000001
-        else "partial"
+        "completed" if requested_total >= float(pay.amount) - 0.000001 else "partial"
     )
     await transition_status(
         db,
@@ -419,6 +423,7 @@ async def update_payment(
         actor=_user["user_id"],
     )
     await _bump_payment_caches()
+    await cache_bump_version("watchtower:scan")
     invoice_no = await _load_invoice_no(db, pay.invoice_id)
     order_no = await _load_order_no(db, pay.sales_order_id)
     delivery_note_no = await _load_delivery_note_no(db, pay.delivery_note_id)
@@ -443,4 +448,5 @@ async def delete_payment(
         return fail("回款记录不存在", 404)
     await svc.delete_payment(db, pay)
     await _bump_payment_caches()
+    await cache_bump_version("watchtower:scan")
     return ok({"deleted": pay_id})

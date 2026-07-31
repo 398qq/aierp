@@ -151,15 +151,12 @@ async def batch_set_owner(
 
     # Fetch current owners before update
     rows = (
-        (
-            await db.execute(
-                select(Customer.id, Customer.owner).where(
-                    Customer.id.in_(ids), Customer.deleted_at.is_(None)
-                )
+        await db.execute(
+            select(Customer.id, Customer.owner).where(
+                Customer.id.in_(ids), Customer.deleted_at.is_(None)
             )
         )
-        .all()
-    )
+    ).all()
     current_owner_map = {row.id: row.owner for row in rows}
     found_ids = list(current_owner_map.keys())
 
@@ -189,6 +186,7 @@ async def batch_set_owner(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
 
     return ok(
         {
@@ -226,15 +224,12 @@ async def assign_customers(
     now = datetime.now(timezone.utc)
 
     rows = (
-        (
-            await db.execute(
-                select(Customer.id, Customer.owner).where(
-                    Customer.id.in_(body.ids), Customer.deleted_at.is_(None)
-                )
+        await db.execute(
+            select(Customer.id, Customer.owner).where(
+                Customer.id.in_(body.ids), Customer.deleted_at.is_(None)
             )
         )
-        .all()
-    )
+    ).all()
     found_ids = [row.id for row in rows]
     current_owner_map = {row.id: row.owner for row in rows}
 
@@ -261,6 +256,7 @@ async def assign_customers(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
 
     return ok(
         {

@@ -2,11 +2,14 @@
 
 import logging
 from datetime import datetime as dt, timezone
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.v1.ai._shared import watchtower_cached_report, watchtower_cached_scan
+from app.core.permissions import require_perm
 from app.database import get_db
 from app.schemas.common import fail, ok
 
@@ -19,29 +22,26 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 async def watchtower_scan(
     days_back: int = Query(90),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _: dict = Depends(require_perm("reports", "read")),
 ):
-    """Scan all domains for anomalies — overdue payments, low stock, churn risk, etc."""
-    from app.services.watchtower_service import scan_all
-
     try:
-        result = await scan_all(db, days_back)
+        result = await watchtower_cached_scan(db, days_back, dt.now(timezone.utc))
         return ok(result)
     except Exception as e:
         return fail(str(e), 500)
 
 
-@router.get("/daily-report")
-async def daily_report(
-    db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
-):
-    """Generate a daily cross-domain report with AI summary."""
-    now = dt.now(timezone.utc)
+async def _compute_daily_report(
+    db: AsyncSession,
+    now: dt,
+) -> dict:
+    """Generate daily cross-domain report. `now` is injected by the route (Clock pattern)."""
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Today's orders
+    from app.models.customer import Customer
+    from app.models.product import Inventory
     from app.models.sales import SalesOrder
+    from app.models.transaction import Payment
 
     today_orders = (
         await db.execute(
@@ -55,10 +55,7 @@ async def daily_report(
         )
     ).first()
     orders_count = today_orders[0] if today_orders else 0
-    orders_amount = float(today_orders[1]) if today_orders else 0.0
-
-    # New customers today
-    from app.models.customer import Customer
+    orders_amount = Decimal(str(today_orders[1])) if today_orders else Decimal("0")
 
     new_cust = (
         await db.execute(
@@ -68,9 +65,6 @@ async def daily_report(
             )
         )
     ).scalar() or 0
-
-    # Inventory summary
-    from app.models.product import Inventory
 
     low_stock = (
         await db.execute(
@@ -90,9 +84,6 @@ async def daily_report(
         )
     ).scalar() or 0
 
-    # Payments today
-    from app.models.transaction import Payment
-
     today_payments = (
         await db.execute(
             select(
@@ -104,7 +95,9 @@ async def daily_report(
         )
     ).first()
     payments_count = today_payments[0] if today_payments else 0
-    payments_amount = float(today_payments[1]) if today_payments else 0.0
+    payments_amount = (
+        Decimal(str(today_payments[1])) if today_payments else Decimal("0")
+    )
 
     report = {
         "report_date": today_start.strftime("%Y-%m-%d"),
@@ -120,7 +113,6 @@ async def daily_report(
         },
     }
 
-    # AI summary
     try:
         from app.services.ai.client import ai_client
 
@@ -157,5 +149,16 @@ async def daily_report(
         report["ai_summary"] = "AI摘要暂不可用"
         report["mood"] = "一般"
         report["top_action"] = ""
+    return report
 
-    return ok(report)
+
+@router.get("/daily-report")
+async def daily_report(
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(require_perm("reports", "read")),
+):
+    try:
+        result = await watchtower_cached_report(db, dt.now(timezone.utc))
+        return ok(result)
+    except Exception as e:
+        return fail(str(e), 500)

@@ -38,6 +38,7 @@ from app.services.batch_transfer_service import (
 )
 from app.services.expiry_alert_service import expiry_alert_service
 from app.services.inventory_batch_service import inventory_batch_service
+from app.services.cache_service import cache_bump_version
 
 router = APIRouter(prefix="/inventory", tags=["inventory-batch"])
 
@@ -127,9 +128,7 @@ async def get_batch_traceability(
 async def get_expiring_batches(
     buckets: str | None = Query(
         None,
-        description=(
-            "逗号分隔的 bucket 列表: expired,7d,30d,90d。默认全部。"
-        ),
+        description=("逗号分隔的 bucket 列表: expired,7d,30d,90d。默认全部。"),
     ),
     warehouse_id: int | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -169,9 +168,7 @@ async def get_expiring_summary(
     _user: dict = Depends(get_current_user),
 ):
     """Dashboard widget 概要 — 每个 bucket 的计数 + total。"""
-    summary = await expiry_alert_service.get_summary(
-        db, warehouse_id=warehouse_id
-    )
+    summary = await expiry_alert_service.get_summary(db, warehouse_id=warehouse_id)
     return ok(summary)
 
 
@@ -212,6 +209,7 @@ async def recall_batch(
         )
     except BatchRecallError as e:
         return fail(str(e), 400)
+    await cache_bump_version("watchtower:scan")
     return ok(result)
 
 
@@ -243,6 +241,7 @@ async def transfer_batch(
         )
     except BatchTransferError as e:
         return fail(str(e), 400)
+    await cache_bump_version("watchtower:scan")
     return ok(result)
 
 
@@ -269,6 +268,7 @@ async def merge_batches(
         )
     except BatchMergeError as e:
         return fail(str(e), 400)
+    await cache_bump_version("watchtower:scan")
     return ok(result)
 
 
@@ -298,6 +298,7 @@ async def split_batch(
         )
     except BatchSplitError as e:
         return fail(str(e), 400)
+    await cache_bump_version("watchtower:scan")
     return ok(result)
 
 
@@ -374,30 +375,38 @@ async def commit_allocation(
         total_cogs = await inventory_batch_service.commit_deduction(
             db, result.allocations
         )
-        return ok(
-            {
-                "total_cogs": float(total_cogs),
-                "allocations": [
-                    {
-                        "batch_id": a.batch_id,
-                        "batch_no": a.batch_no,
-                        "quantity": a.quantity,
-                        "unit_cost": a.unit_cost,
-                        "line_cost": round(a.quantity * a.unit_cost, 2),
-                    }
-                    for a in result.allocations
-                ],
-            }
-        )
     except ValueError as e:
         # Stage 17 follow-up: log detail server-side, return generic message
         # to avoid leaking internal state via error strings.
         import logging
+
         logging.getLogger(__name__).warning(
             "Batch allocation rejected: product=%s warehouse=%s err=%s",
-            body.product_id, body.warehouse_id, e,
+            body.product_id,
+            body.warehouse_id,
+            e,
         )
         return fail("Batch allocation rejected — check inputs and retry", 400)
+
+    # Bump after the try/except so a partial-failure path (e.g. allocate succeeded
+    # but commit_deduction raised) still invalidates the watchtower cache — inventory
+    # was already changed by the allocate step.
+    await cache_bump_version("watchtower:scan")
+    return ok(
+        {
+            "total_cogs": float(total_cogs),
+            "allocations": [
+                {
+                    "batch_id": a.batch_id,
+                    "batch_no": a.batch_no,
+                    "quantity": a.quantity,
+                    "unit_cost": a.unit_cost,
+                    "line_cost": round(a.quantity * a.unit_cost, 2),
+                }
+                for a in result.allocations
+            ],
+        }
+    )
 
 
 # ── COGS Report ──────────────────────────────────────────────────────────

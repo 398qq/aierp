@@ -25,10 +25,15 @@ async def list_followups(
     customer_id: int,
     page: int = Query(1, ge=1, le=10_000, description="1-based page index"),
     page_size: int = Query(20, ge=1, le=100, description="rows per page, max 100"),
-    status: Optional[str] = Query(None, max_length=32, description="exact match on status"),
-    priority: Optional[str] = Query(None, max_length=32, description="exact match on priority"),
+    status: Optional[str] = Query(
+        None, max_length=32, description="exact match on status"
+    ),
+    priority: Optional[str] = Query(
+        None, max_length=32, description="exact match on priority"
+    ),
     due_bucket: Optional[str] = Query(
-        None, description="overdue|today|upcoming|unscheduled|closed",
+        None,
+        description="overdue|today|upcoming|unscheduled|closed",
     ),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_perm("customers", "read")),
@@ -55,7 +60,8 @@ async def list_followups(
     """
     if due_bucket is not None and due_bucket not in VALID_DUE_BUCKETS:
         return fail(
-            f"due_bucket must be one of {sorted(VALID_DUE_BUCKETS)}", 422,
+            f"due_bucket must be one of {sorted(VALID_DUE_BUCKETS)}",
+            422,
         )
 
     now = datetime.now(timezone.utc)
@@ -100,9 +106,7 @@ async def list_followups(
             q = q.where(bucket_expr == due_bucket)
         return q
 
-    main_q = (
-        select(CustomerFollowUp, bucket_expr).where(*base_filters)
-    )
+    main_q = select(CustomerFollowUp, bucket_expr).where(*base_filters)
     main_q = apply_filters(main_q)
     main_q = main_q.order_by(
         bucket_weight_expr.asc(),
@@ -155,33 +159,35 @@ async def list_followups(
     counts_q = apply_filters(counts_q)
     cnts = (await db.execute(counts_q)).one()
 
-    return ok({
-        "list": [
-            {
-                "id": f.id,
-                "opportunity_id": f.opportunity_id,
-                "method": f.method,
-                "status": f.status,
-                "content": f.content,
-                "result": f.result,
-                "planned_at": str(f.planned_at) if f.planned_at else None,
-                "completed_at": str(f.completed_at) if f.completed_at else None,
-                "priority": f.priority,
-                "assigned_to": f.assigned_to,
-                "created_at": str(f.created_at) if f.created_at else None,
-                "due_bucket": bucket,
-            }
-            for (f, bucket) in rows
-        ],
-        "total": int(total),
-        "counts": {
-            "open": int(cnts.open),
-            "completed": int(cnts.completed),
-            "high": int(cnts.high),
-            "overdue": int(cnts.overdue),
-            "today": int(cnts.today),
-        },
-    })
+    return ok(
+        {
+            "list": [
+                {
+                    "id": f.id,
+                    "opportunity_id": f.opportunity_id,
+                    "method": f.method,
+                    "status": f.status,
+                    "content": f.content,
+                    "result": f.result,
+                    "planned_at": str(f.planned_at) if f.planned_at else None,
+                    "completed_at": str(f.completed_at) if f.completed_at else None,
+                    "priority": f.priority,
+                    "assigned_to": f.assigned_to,
+                    "created_at": str(f.created_at) if f.created_at else None,
+                    "due_bucket": bucket,
+                }
+                for (f, bucket) in rows
+            ],
+            "total": int(total),
+            "counts": {
+                "open": int(cnts.open),
+                "completed": int(cnts.completed),
+                "high": int(cnts.high),
+                "overdue": int(cnts.overdue),
+                "today": int(cnts.today),
+            },
+        }
+    )
 
 
 @router.post("/{customer_id}/follow-ups", status_code=201)
@@ -228,6 +234,7 @@ async def create_followup(
         await cache_bump_version("customers:list")
         await cache_bump_version("dashboard:overview")
         await cache_bump_version("dashboard:kpi")
+        await cache_bump_version("watchtower:scan")
         return ok({"id": followup_id})
     except Exception as e:
         import traceback
@@ -287,6 +294,7 @@ async def update_followup(
     await cache_bump_version("customers:list")
     await cache_bump_version("dashboard:overview")
     await cache_bump_version("dashboard:kpi")
+    await cache_bump_version("watchtower:scan")
     return ok({"id": followup.id})
 
 
@@ -310,4 +318,5 @@ async def delete_followup(
     followup.deleted_at = datetime.now(timezone.utc)
     await db.flush()
     await cache_bump_version("customers:list")
+    await cache_bump_version("watchtower:scan")
     return ok(msg="deleted")
