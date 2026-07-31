@@ -128,9 +128,71 @@ async def scan_churn_risk(
 
 
 async def scan_order_drop(
-    db: AsyncSession, lookback: datetime.datetime, prev_lookback: datetime.datetime
+    db: AsyncSession,
+    lookback: datetime.datetime,
+    prev_lookback: datetime.datetime,
 ) -> list[dict]:
-    raise NotImplementedError
+    """Per-customer order count prev vs recent; drop >50% with prev>=3.
+    Returns: [{customer_id, name, prev_orders, recent_orders, drop_pct}], max 20.
+    """
+    recent_counts = dict(
+        (
+            await db.execute(
+                select(SalesOrder.customer_id, func.count(SalesOrder.id))
+                .where(
+                    SalesOrder.created_at >= lookback, SalesOrder.deleted_at.is_(None)
+                )
+                .group_by(SalesOrder.customer_id)
+            )
+        ).all()
+        or []
+    )
+    prev_counts = dict(
+        (
+            await db.execute(
+                select(SalesOrder.customer_id, func.count(SalesOrder.id))
+                .where(
+                    SalesOrder.created_at.between(prev_lookback, lookback),
+                    SalesOrder.deleted_at.is_(None),
+                )
+                .group_by(SalesOrder.customer_id)
+            )
+        ).all()
+        or []
+    )
+
+    order_drops = []
+    for cid in set(list(recent_counts.keys()) + list(prev_counts.keys())):
+        prev_c = prev_counts.get(cid, 0)
+        recent_c = recent_counts.get(cid, 0)
+        if prev_c >= 3 and recent_c < prev_c * 0.5:
+            order_drops.append(
+                {
+                    "customer_id": cid,
+                    "prev_orders": prev_c,
+                    "recent_orders": recent_c,
+                    "drop_pct": round((1 - recent_c / prev_c) * 100),
+                }
+            )
+
+    if not order_drops:
+        return []
+
+    cids = [d["customer_id"] for d in order_drops[:20]]
+    cnames = dict(
+        (
+            await db.execute(
+                select(Customer.id, Customer.name).where(
+                    Customer.id.in_(cids), Customer.deleted_at.is_(None)
+                )
+            )
+        ).all()
+        or []
+    )
+    return [
+        {**d, "name": cnames.get(d["customer_id"], f"#{d['customer_id']}")}
+        for d in order_drops[:20]
+    ]
 
 
 async def scan_low_stock(db: AsyncSession) -> list[dict]:
