@@ -33,6 +33,7 @@ import {
   FileTextOutlined,
   PlusOutlined,
   ReloadOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -500,7 +501,7 @@ export default function OpportunityList() {
             <Select
               placeholder={`批量推进 ${selected.length} 个`}
               style={{ width: 180 }}
-              onChange={(nextStage) => batchStageMut.mutate({ ids: selected, stage: nextStage })}
+              onChange={(nextStage) => batchStage(nextStage)}
               options={STAGE_OPTIONS}
             />
           ) : null}
