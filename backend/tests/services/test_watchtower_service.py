@@ -67,7 +67,6 @@ async def test_scan_order_drop_marks_significant_drops(db_session: AsyncSession)
     db_session.add(c)
     await db_session.flush()
     cid = c.id
-    # 10 prev orders
     for i in range(10):
         db_session.add(
             SalesOrder(
@@ -76,7 +75,6 @@ async def test_scan_order_drop_marks_significant_drops(db_session: AsyncSession)
                 created_at=prev_lookback + timedelta(days=1, hours=i),
             )
         )
-    # 1 recent order
     db_session.add(
         SalesOrder(
             customer_id=cid, total_amount=100, created_at=now - timedelta(days=1)
@@ -125,7 +123,7 @@ async def test_scan_order_drop_below_threshold_excluded(db_session: AsyncSession
 
 
 async def test_scan_low_stock_returns_below_safety(db_session: AsyncSession):
-    """Products with 0<qty<=safety_stock should appear; qty<=0 should NOT (that's out_of_stock)."""
+    """Products with 0<qty<=safety_stock should appear; qty<=0 should NOT."""
     from app.models.product import Brand, Product, Inventory, Warehouse
 
     warehouse = Warehouse(name="测试仓库", location="TEST-LOC")
@@ -201,3 +199,48 @@ async def test_scan_out_of_stock_returns_zero_qty(db_session: AsyncSession):
     ids = {r["product_id"] for r in result}
     assert p_oos.id in ids
     assert p_ok.id not in ids
+
+
+async def test_generate_ai_summary_no_anomalies(monkeypatch):
+    """Empty anomalies should still call AI once with '无明显异常' text."""
+    from app.services import watchtower_service
+    from app.services.ai import client as ai_client_module
+
+    called = {"count": 0, "last_text": None}
+
+    async def fake_chat(messages, schema):
+        called["count"] += 1
+        called["last_text"] = messages[1]["content"]
+        return {
+            "severity": "正常",
+            "summary": "ok",
+            "top_actions": [],
+            "risk_areas": [],
+        }
+
+    monkeypatch.setattr(ai_client_module.ai_client, "chat_structured", fake_chat)
+
+    result = await watchtower_service.generate_ai_summary({}, 0)
+    assert called["count"] == 1
+    assert "无明显异常" in called["last_text"]
+    assert result["severity"] == "正常"
+
+
+async def test_generate_ai_summary_failure_falls_back(monkeypatch):
+    """If ai_client throws, return fallback {severity: '正常', summary: 'AI分析暂不可用', ...}."""
+    from app.services import watchtower_service
+    from app.services.ai import client as ai_client_module
+
+    async def fake_chat(messages, schema):
+        raise RuntimeError("AI service down")
+
+    monkeypatch.setattr(ai_client_module.ai_client, "chat_structured", fake_chat)
+
+    anomalies = {
+        "churn_risk": [{"name": "A", "industry": "电子", "level": "A", "signal": "x"}]
+    }
+    result = await watchtower_service.generate_ai_summary(anomalies, 1)
+    assert result["severity"] == "正常"
+    assert "暂不可用" in result["summary"]
+    assert result["top_actions"] == []
+    assert result["risk_areas"] == []

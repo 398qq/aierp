@@ -257,8 +257,77 @@ async def scan_out_of_stock(db: AsyncSession) -> list[dict]:
     ]
 
 
-async def generate_ai_summary(anomalies: dict, total_alerts: int) -> dict | None:
-    raise NotImplementedError
+async def generate_ai_summary(anomalies: dict, total_alerts: int) -> dict:
+    """Build alert_text from anomalies, call ai_client.chat_structured.
+    On AI failure returns {severity: '正常', summary: 'AI分析暂不可用', top_actions: [], risk_areas: []}.
+    """
+    alert_text_parts = []
+    if "churn_risk" in anomalies and anomalies["churn_risk"]:
+        alert_text_parts.append(
+            f"**流失风险客户 ({len(anomalies['churn_risk'])}个):**\n"
+            + "\n".join(
+                f"- {a['name']} ({a.get('industry') or '未知行业'}, {a.get('level') or '未知等级'}) — {a.get('signal', '无信号')}"
+                for a in anomalies["churn_risk"][:10]
+            )
+        )
+    if "order_drop" in anomalies and anomalies["order_drop"]:
+        alert_text_parts.append(
+            f"\n**订单量下降客户 ({len(anomalies['order_drop'])}个):**\n"
+            + "\n".join(
+                f"- {a['name']}: {a['prev_orders']}单→{a['recent_orders']}单 (降{a['drop_pct']}%)"
+                for a in anomalies["order_drop"][:10]
+            )
+        )
+    if "low_stock" in anomalies and anomalies["low_stock"]:
+        alert_text_parts.append(
+            f"\n**低库存产品 ({len(anomalies['low_stock'])}个):**\n"
+            + "\n".join(
+                f"- [{a['brand']}] {a['product_name']}: {a['qty']}件 (安全线{a['safety']}件)"
+                for a in anomalies["low_stock"][:10]
+            )
+        )
+    if "out_of_stock" in anomalies and anomalies["out_of_stock"]:
+        alert_text_parts.append(
+            f"\n**缺货产品 ({len(anomalies['out_of_stock'])}个):**\n"
+            + "\n".join(
+                f"- [{a['brand']}] {a['product_name']}"
+                for a in anomalies["out_of_stock"][:10]
+            )
+        )
+
+    alert_text = "\n".join(alert_text_parts) if alert_text_parts else "无明显异常"
+
+    from app.services.ai.client import ai_client
+    from app.services.ai.prompts import watchtower_prompt
+
+    schema = {
+        "severity": "string: 正常/需关注/紧急",
+        "summary": "string, 2-3 sentence overall assessment",
+        "top_actions": ["string, prioritized actions to take"],
+        "risk_areas": ["string, risk areas identified"],
+    }
+    try:
+        return await ai_client.chat_structured(
+            [
+                {
+                    "role": "system",
+                    "content": "你是一个ERP系统监控专家，擅长发现经营异常并提供优先级建议。",
+                },
+                {
+                    "role": "user",
+                    "content": watchtower_prompt(alert_text, total_alerts),
+                },
+            ],
+            schema,
+        )
+    except Exception as e:
+        logger.error(f"Watchtower AI analysis failed: {e}")
+        return {
+            "severity": "正常",
+            "summary": "AI分析暂不可用",
+            "top_actions": [],
+            "risk_areas": [],
+        }
 
 
 async def scan_all(db: AsyncSession, days_back: int = 90) -> dict:
