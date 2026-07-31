@@ -200,28 +200,42 @@ async def scan_order_drop(
     ]
 
 
+def _inventory_qty_query(qty_filter, *, order_by_qty: bool = False) -> select:
+    """Shared SELECT for low-stock and out-of-stock queries.
+
+    Always selects 6 columns (id, name, sku, qty, safety, brand_name).
+    scan_out_of_stock ignores the last 2 columns in its return mapping.
+    """
+    return (
+        select(
+            Product.id,
+            Product.name,
+            Product.sku,
+            Inventory.quantity,
+            Inventory.safety_stock,
+            Brand.name,
+        )
+        .join(Inventory, Product.id == Inventory.product_id)
+        .outerjoin(Brand, Product.brand_id == Brand.id)
+        .where(
+            qty_filter,
+            Product.deleted_at.is_(None),
+            Inventory.deleted_at.is_(None),
+        )
+        .order_by(Inventory.quantity if order_by_qty else None)
+        .limit(20)
+    )
+
+
 async def scan_low_stock(db: AsyncSession) -> list[dict]:
     """Inventory 0 < qty <= safety_stock. Returns 20 rows: product_id, product_name, brand, qty, safety."""
     rows = (
         await db.execute(
-            select(
-                Product.id,
-                Product.name,
-                Product.sku,
-                Inventory.quantity,
-                Inventory.safety_stock,
-                Brand.name,
+            _inventory_qty_query(
+                (Inventory.quantity <= Inventory.safety_stock)
+                & (Inventory.quantity > 0),
+                order_by_qty=True,
             )
-            .join(Inventory, Product.id == Inventory.product_id)
-            .outerjoin(Brand, Product.brand_id == Brand.id)
-            .where(
-                Inventory.quantity <= Inventory.safety_stock,
-                Inventory.quantity > 0,
-                Product.deleted_at.is_(None),
-                Inventory.deleted_at.is_(None),
-            )
-            .order_by(Inventory.quantity)
-            .limit(20)
         )
     ).all()
     return [
@@ -238,24 +252,12 @@ async def scan_low_stock(db: AsyncSession) -> list[dict]:
 
 async def scan_out_of_stock(db: AsyncSession) -> list[dict]:
     """Inventory qty <= 0. Returns 20 rows: product_id, product_name, brand."""
-    rows = (
-        await db.execute(
-            select(Product.id, Product.name, Product.sku, Brand.name)
-            .join(Inventory, Product.id == Inventory.product_id)
-            .outerjoin(Brand, Product.brand_id == Brand.id)
-            .where(
-                Inventory.quantity <= 0,
-                Product.deleted_at.is_(None),
-                Inventory.deleted_at.is_(None),
-            )
-            .limit(20)
-        )
-    ).all()
+    rows = (await db.execute(_inventory_qty_query(Inventory.quantity <= 0))).all()
     return [
         {
             "product_id": r[0],
             "product_name": f"{r[2] or ''} {r[1]}",
-            "brand": r[3] or "未知",
+            "brand": r[5] or "未知",
         }
         for r in rows
     ]
