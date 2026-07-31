@@ -18,4 +18,6 @@ export * from "./samples";
 export * from "./suppliers";
 export * from "./tickets";
 export * from "./users";
+export * from "./uoms";
 export * from "./visits";
+export * from "./warehouses";

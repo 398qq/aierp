@@ -1,76 +1,159 @@
 // Transactions
 export interface PurchaseOrder {
-  id: number; order_no: string | null; supplier_id: number;
+  id: number;
+  order_no: string | null;
+  supplier_id: number;
   supplier_name?: string;
-  status: string; total_amount: number;
-  currency: string; incoterms: string | null; payment_terms: string | null;
+  status: string;
+  total_amount: number;
+  currency: string;
+  incoterms: string | null;
+  payment_terms: string | null;
   supplier_contact: string | null;
-  sales_order_id: number | null; sales_order_no?: string | null; customer_name?: string | null;
-  delivery_address: string | null; tax_rate: number; subtotal: number; tax_amount: number;
+  sales_order_id: number | null;
+  sales_order_no?: string | null;
+  customer_name?: string | null;
+  delivery_address: string | null;
+  tax_rate: number;
+  subtotal: number;
+  tax_amount: number;
   expected_date: string | null;
-  large_order_confirmed: boolean; large_order_confirmed_at?: string | null;
-  supplier_confirmation_status: string; supplier_confirmed_at?: string | null;
-  supplier_confirmation_method?: string | null; supplier_confirmed_delivery_date?: string | null;
-  allow_partial_delivery: boolean; contract_terms_version: string; sent_at?: string | null;
-  notes: string | null; created_at: string;
+  large_order_confirmed: boolean;
+  large_order_confirmed_at?: string | null;
+  supplier_confirmation_status: string;
+  supplier_confirmed_at?: string | null;
+  supplier_confirmation_method?: string | null;
+  supplier_confirmed_delivery_date?: string | null;
+  allow_partial_delivery: boolean;
+  contract_terms_version: string;
+  sent_at?: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface PurchaseOrderItem {
-  id: number; product_id: number; sales_order_id: number | null;
-  supplier_mpn: string | null; product_sku: string | null; product_name: string | null;
-  brand_name: string | null; package_type: string | null;
-  quantity: number; unit: string; min_pack_qty: number | null; min_pack_unit: string | null;
-  date_code_requirement: string; tax_rate: number; unit_price: number; amount: number;
-  customer_name: string | null; notes: string | null;
+  id: number;
+  product_id: number;
+  sales_order_id: number | null;
+  supplier_mpn: string | null;
+  product_sku: string | null;
+  product_name: string | null;
+  brand_name: string | null;
+  package_type: string | null;
+  quantity: number;
+  unit: string;
+  min_pack_qty: number | null;
+  min_pack_unit: string | null;
+  date_code_requirement: string;
+  tax_rate: number;
+  unit_price: number;
+  amount: number;
+  customer_name: string | null;
+  notes: string | null;
 }
 
 export interface PaymentRecord {
-  id: number; sales_order_id: number; sales_order_no: string | null; customer_id: number;
-  delivery_note_id: number | null; delivery_note_no: string | null;
-  invoice_id: number | null; invoice_no: string | null;
-  amount: number; payment_date: string | null;
-  payment_method: string; status: string;
-  currency: string; transaction_ref: string | null;
+  id: number;
+  sales_order_id: number;
+  sales_order_no: string | null;
+  customer_id: number;
+  delivery_note_id: number | null;
+  delivery_note_no: string | null;
+  invoice_id: number | null;
+  invoice_no: string | null;
+  amount: number;
+  payment_date: string | null;
+  payment_method: string;
+  status: string;
+  currency: string;
+  transaction_ref: string | null;
   bank_account: string | null;
-  notes: string | null; created_at: string; updated_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface SalesTarget {
-  id: number; user_id: number; target_amount: number;
-  period: string | null; target_orders: number | null;
-  target_type: string; period_start: string | null; period_end: string | null;
-  actual_amount: number; status: string;
-  created_at: string; updated_at: string | null;
+  id: number;
+  user_id: number;
+  target_amount: number;
+  period: string | null;
+  target_orders: number | null;
+  target_type: string;
+  period_start: string | null;
+  period_end: string | null;
+  actual_amount: number;
+  status: string;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface Ticket {
-  id: number; ticket_no: string | null; customer_id: number | null;
-  title: string; description: string | null; status: string; priority: string;
-  category: string | null; assigned_to: string | null;
-  sla_deadline: string | null; root_cause: string | null;
+  id: number;
+  ticket_no: string | null;
+  customer_id: number | null;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  category: string | null;
+  assigned_to: string | null;
+  sla_deadline: string | null;
+  root_cause: string | null;
   resolution_time_minutes: number | null;
-  resolved_at: string | null; notes: string | null; created_at: string | null;
+  resolved_at: string | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface JournalEntry {
+  id: number;
+  entry_no: string;
+  entry_date: string;
+  description: string;
+  status: string;
+  created_at: string;
 }
 
 export interface Visit {
-  id: number; visit_no: string | null; customer_id: number; contact_id: number | null;
-  title: string | null; visit_type: string | null; location: string | null;
+  id: number;
+  visit_no: string | null;
+  customer_id: number;
+  contact_id: number | null;
+  title: string | null;
+  visit_type: string | null;
+  location: string | null;
   duration_minutes: number | null;
-  visit_date: string | null; type: string | null;
-  status: string | null; outcome: string | null; next_plan: string | null;
-  content: string | null; result: string | null;
-  stage: string | null; purpose: string | null;
-  main_product: string | null; key_points: string | null;
-  followup_date: string | null; created_at: string;
+  visit_date: string | null;
+  type: string | null;
+  status: string | null;
+  outcome: string | null;
+  next_plan: string | null;
+  content: string | null;
+  result: string | null;
+  stage: string | null;
+  purpose: string | null;
+  main_product: string | null;
+  key_points: string | null;
+  followup_date: string | null;
+  created_at: string;
 }
 
 export interface Sample {
-  id: number; customer_id: number; product_id: number | null;
-  quantity: number; unit: string | null;
-  status: string; tracking_no: string | null;
-  approved_by: number | null; sample_result: string | null;
-  apply_date: string | null; shipped_date: string | null; received_date: string | null;
-  notes: string | null; created_at: string;
+  id: number;
+  customer_id: number;
+  product_id: number | null;
+  quantity: number;
+  unit: string | null;
+  status: string;
+  tracking_no: string | null;
+  approved_by: number | null;
+  sample_result: string | null;
+  apply_date: string | null;
+  shipped_date: string | null;
+  received_date: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface CustomerLog {

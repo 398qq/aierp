@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button, Dropdown, Modal, Select, Space, Typography, message } from "antd";
+import { App, Button, Dropdown, Modal, Select, Space, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
@@ -38,6 +38,7 @@ const STATUS: Record<string, { color: string; label: string }> = {
 export default function InvoiceList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
 

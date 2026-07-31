@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  App,
   Button,
   Card,
   Dropdown,
@@ -14,10 +15,9 @@ import {
   Tag,
   Tooltip,
   Typography,
-  message,
 } from "antd";
 import { StatusTag, type StatusTone } from "../../ui";
-import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
 import {
@@ -38,12 +38,11 @@ import {
   downloadQuotationPDF,
   duplicateQuotation,
   getQuotationStats,
-  getQuotations,
   sendQuotation,
   getApiErrorMessage,
 } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
-import type { Quotation, QuotationStats } from "../../types";
+import type { PageData, Quotation, QuotationStats } from "../../types";
 import {
   CustomerLink,
   CustomerSelect,
@@ -57,6 +56,7 @@ import {
   statusDot,
   ERP_STATUS_DOT,
 } from "./salesUi";
+import { useApiQuery, useApiMutation, useQueryClient } from "@/lib/queries";
 
 type QuoteScene = "all" | "draft" | "sent" | "expiring" | "expired" | "won" | "lost";
 
@@ -92,7 +92,10 @@ const getDueMeta = (validUntil?: string | null, status?: string) => {
 };
 
 export default function QuotationList() {
-  const actionRef = useRef<ActionType>(null);
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
   const [stats, setStats] = useState<QuotationStats | null>(null);
   const [scene, setScene] = useState<QuoteScene>("all");
   const [customerId, setCustomerId] = useState<number | undefined>();
@@ -104,7 +107,6 @@ export default function QuotationList() {
   );
   const [selected, setSelected] = useState<number[]>([]);
   const [pageStats, setPageStats] = useState({ amount: 0, total: 0 });
-  const navigate = useNavigate();
 
   const status = ["draft", "sent", "won", "lost"].includes(scene) ? scene : undefined;
 
@@ -129,45 +131,119 @@ export default function QuotationList() {
     loadStats();
   }, []);
 
-  const handleBatchDelete = async () => {
-    try {
-      await batchDeleteQuotations(selected);
-      message.success("已批量删除");
-      setSelected([]);
-      actionRef.current?.reload();
-    } catch (e: unknown) {
-      message.error(getApiErrorMessage(e, "删除失败"));
+  const apiStatus = ["draft", "sent", "won", "lost"].includes(scene) ? scene : undefined;
+  const queryParams: Record<string, unknown> = {
+    scene,
+    page: 1,
+    page_size: 20,
+    sort_by: "updated_at",
+    sort_order: "desc",
+  };
+  if (apiStatus) queryParams.status = apiStatus;
+  if (customerId) queryParams.customer_id = customerId;
+  if (q) queryParams.q = q;
+  if (includeAi) queryParams.include_ai = true;
+
+  const query = useApiQuery<
+    PageData<Quotation> & { ai?: Record<number, { pricing_health?: string; flag?: string }> }
+  >(["quotations", scene, customerId, q, includeAi], "/quotations", queryParams, {
+    staleTime: 30 * 1000,
+    keepPreviousData: true,
+  });
+
+  // Update aiMap when query data changes
+  useEffect(() => {
+    if (query.data?.ai) {
+      setAiMap(query.data.ai as Record<number, { pricing_health?: string; flag?: string }>);
     }
+  }, [query.data?.ai]);
+
+  // Update pageStats when list changes
+  useEffect(() => {
+    const list = query.data?.list || [];
+    if (scene === "expiring" || scene === "expired") {
+      const filtered = list.filter(
+        (item) => getDueMeta(item.valid_until, item.status).scene === scene,
+      );
+      setPageStats({
+        amount: filtered.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+        total: filtered.length,
+      });
+    } else {
+      setPageStats({
+        amount: list.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+        total: query.data?.total || 0,
+      });
+    }
+  }, [query.data?.list, query.data?.total, scene]);
+
+  const batchDeleteMut = useApiMutation<unknown, { ids: number[] }>(
+    "post",
+    () => "/quotations/batch-delete",
+    {
+      invalidateKeys: [["quotations"]],
+      onSuccess: () => {
+        message.success("已批量删除");
+        setSelected([]);
+      },
+      onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
+    },
+  );
+
+  const handleBatchDelete = () => {
+    batchDeleteMut.mutate({ ids: selected });
   };
 
-  const handleDuplicate = async (record: Quotation) => {
-    try {
-      const resp = await duplicateQuotation(record.id);
-      message.success("已复制为新报价");
-      navigate(`/sales/quotations/${resp.data.data.id}/edit`);
-    } catch (e: unknown) {
-      message.error(getApiErrorMessage(e, "复制失败"));
-    }
+  const duplicateMut = useApiMutation<Quotation, number>(
+    "post",
+    (id) => `/quotations/${id}/duplicate`,
+    {
+      invalidateKeys: [["quotations"]],
+      onSuccess: (data) => {
+        message.success("已复制为新报价");
+        navigate(`/sales/quotations/${data.id}/edit`);
+      },
+      onError: (e) => message.error(getApiErrorMessage(e, "复制失败")),
+    },
+  );
+
+  const handleDuplicate = (record: Quotation) => {
+    duplicateMut.mutate(record.id);
   };
 
-  const handleSend = async (record: Quotation) => {
-    try {
-      await sendQuotation(record.id);
-      message.success("已标记为已发送");
-      actionRef.current?.reload();
-    } catch (e: unknown) {
-      message.error(getApiErrorMessage(e, "发送失败"));
-    }
+  const sendMut = useApiMutation("put", (id: number) => `/quotations/${id}/send`, {
+    invalidateKeys: [["quotations"]],
+    onSuccess: () => message.success("已标记为已发送"),
+    onError: (e) => message.error(getApiErrorMessage(e, "发送失败")),
+  });
+
+  const handleSend = (record: Quotation) => {
+    sendMut.mutate(record.id);
   };
 
-  const handleConvert = async (record: Quotation) => {
-    try {
-      await convertQuotationToOrder(record.id);
-      message.success("已转为订单");
-      actionRef.current?.reload();
-    } catch (e: unknown) {
-      message.error(getApiErrorMessage(e, "转换失败"));
-    }
+  const convertMut = useApiMutation("post", (id: number) => `/quotations/${id}/convert-to-order`, {
+    invalidateKeys: [["quotations"]],
+    onSuccess: () => message.success("已转为订单"),
+    onError: (e) => message.error(getApiErrorMessage(e, "转换失败")),
+  });
+
+  const handleConvert = (record: Quotation) => {
+    convertMut.mutate(record.id);
+  };
+
+  const deleteMut = useApiMutation("delete", (id: number) => `/quotations/${id}`, {
+    invalidateKeys: [["quotations"]],
+    onSuccess: () => message.success("已删除"),
+    onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
+  });
+
+  const handleDelete = (record: Quotation) => {
+    deleteMut.mutate(record.id);
+  };
+
+  const handleSearch = () => {
+    queryClient.invalidateQueries({ queryKey: ["quotations"] });
+    loadStats();
   };
 
   const sceneCount = (key: QuoteScene) => {
@@ -177,6 +253,178 @@ export default function QuotationList() {
     if (key === "expired") return stats.expired;
     return stats[key];
   };
+
+  const columns: ProColumns<Quotation>[] = [
+    {
+      title: "#",
+      width: 45,
+      fixed: "left",
+      render: (_: unknown, __: Quotation, index: number) => index + 1,
+    },
+    {
+      title: "报价单号",
+      dataIndex: "quotation_no",
+      fixed: "left",
+      width: 160,
+      render: (_: unknown, r: Quotation) => (
+        <Typography.Link strong onClick={() => navigate(`/sales/quotations/${r.id}`)}>
+          {r.quotation_no || r.title || `#${r.id}`}
+        </Typography.Link>
+      ),
+    },
+    {
+      title: "客户名称",
+      dataIndex: "customer_name",
+      width: 160,
+      render: (_: unknown, r: Quotation) =>
+        r.customer_name ? (
+          <Typography.Link onClick={() => navigate(`/customers/${r.customer_id}`)}>
+            {r.customer_name}
+          </Typography.Link>
+        ) : (
+          <CustomerLink id={r.customer_id} />
+        ),
+    },
+    {
+      title: "金额",
+      dataIndex: "total_amount",
+      width: 120,
+      sorter: (a: unknown, b: unknown) =>
+        Number((a as Quotation).total_amount || 0) - Number((b as Quotation).total_amount || 0),
+      render: (_: unknown, r: Quotation) => money(r.total_amount),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 90,
+      sorter: (a: unknown, b: unknown) =>
+        ((a as Quotation).status || "").localeCompare((b as Quotation).status || ""),
+      render: (_: unknown, r: Quotation) => (
+        <>
+          {statusDot(ERP_STATUS_DOT[r.status] || "#d9d9d9")}
+          <SalesStatusTag value={r.status} />
+        </>
+      ),
+    },
+    {
+      title: "有效期",
+      dataIndex: "valid_until",
+      width: 130,
+      sorter: (a: unknown, b: unknown) =>
+        ((a as Quotation).valid_until || "").localeCompare((b as Quotation).valid_until || ""),
+      render: (_: unknown, r: Quotation) => {
+        const due = getDueMeta(r.valid_until, r.status);
+        return <StatusTag status={due.text} tone={due.tone} />;
+      },
+    },
+    {
+      title: "AI",
+      width: 90,
+      render: (_: unknown, record: Quotation) => (
+        <AIInlineBadge
+          riskLevel={
+            aiMap[record.id]?.pricing_health === "poor"
+              ? "high"
+              : aiMap[record.id]?.pricing_health === "fair"
+                ? "medium"
+                : "low"
+          }
+          flag={aiMap[record.id]?.flag}
+        />
+      ),
+    },
+    {
+      title: "下一步",
+      width: 100,
+      render: (_: unknown, record: Quotation) => {
+        const due = getDueMeta(record.valid_until, record.status);
+        if (record.status === "draft")
+          return <StatusTag status="发送报价" tone="info" icon={<SendOutlined />} />;
+        if (record.status === "sent" && due.scene === "expired")
+          return <StatusTag status="重新报价" tone="danger" />;
+        if (record.status === "sent")
+          return <StatusTag status="跟进转单" tone="success" icon={<FileDoneOutlined />} />;
+        if (record.status === "won") return <StatusTag status="订单执行" tone="success" />;
+        return <Tag>复盘原因</Tag>;
+      },
+    },
+    {
+      title: "操作",
+      width: 60,
+      fixed: "right",
+      render: (_: unknown, record: Quotation) => {
+        const items: MenuProps["items"] = [
+          {
+            key: "view",
+            icon: <FileDoneOutlined />,
+            label: "查看详情",
+            onClick: () => navigate(`/sales/quotations/${record.id}`),
+          },
+          ...(record.status === "draft"
+            ? [
+                {
+                  key: "send",
+                  icon: <SendOutlined />,
+                  label: "标记发送",
+                  onClick: () => handleSend(record),
+                },
+              ]
+            : []),
+          {
+            key: "pdf",
+            icon: <DownloadOutlined />,
+            label: "智能 PDF",
+            onClick: () =>
+              downloadQuotationPDF(
+                record.id,
+                `QUOTATION_${record.quotation_no || record.id}.pdf`,
+              ).catch(() => message.error("下载失败")),
+          },
+          {
+            key: "copy",
+            icon: <CopyOutlined />,
+            label: "复制",
+            onClick: () => handleDuplicate(record),
+          },
+          ...(record.status !== "won"
+            ? [
+                {
+                  key: "convert",
+                  icon: <ShoppingCartOutlined />,
+                  label: "转订单",
+                  onClick: () => {
+                    Modal.confirm({
+                      title: "转为销售订单?",
+                      content: `将报价 ${record.quotation_no || `#${record.id}`} 转为销售订单`,
+                      onOk: () => handleConvert(record),
+                    });
+                  },
+                },
+              ]
+            : []),
+          { type: "divider" as const },
+          {
+            key: "delete",
+            icon: <DeleteOutlined />,
+            label: "删除",
+            danger: true,
+            onClick: () => {
+              Modal.confirm({
+                title: "确定删除?",
+                content: `删除报价 ${record.quotation_no || `#${record.id}`}`,
+                onOk: () => handleDelete(record),
+              });
+            },
+          },
+        ];
+        return (
+          <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+            <Button size="small" icon={<EllipsisOutlined />} type="text" />
+          </Dropdown>
+        );
+      },
+    },
+  ];
 
   return (
     <SalesModuleShell
@@ -210,13 +458,7 @@ export default function QuotationList() {
           >
             新建报价
           </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              actionRef.current?.reload();
-              loadStats();
-            }}
-          >
+          <Button icon={<ReloadOutlined />} onClick={handleSearch}>
             刷新
           </Button>
           <Input.Search
@@ -298,246 +540,25 @@ export default function QuotationList() {
           }))}
         />
         <ProTable<Quotation>
-          actionRef={actionRef}
           rowKey="id"
           size="small"
           bordered
           search={false}
-          options={{ reload: true, density: true, setting: true }}
+          options={{ reload: handleSearch, density: true, setting: true }}
           rowClassName={erpRowClass}
           rowSelection={{
             selectedRowKeys: selected,
             onChange: (keys) => setSelected(keys as number[]),
           }}
           scroll={{ x: "max-content" }}
-          params={tableParams}
-          request={async (params) => {
-            const apiStatus = ["draft", "sent", "won", "lost"].includes(params.scene as string)
-              ? params.scene
-              : undefined;
-            const queryParams: Record<string, unknown> = {
-              page: params.current || 1,
-              page_size: params.pageSize || 20,
-              sort_by: "updated_at",
-              sort_order: "desc",
-            };
-            if (apiStatus) queryParams.status = apiStatus;
-            if (params.customer_id) queryParams.customer_id = params.customer_id;
-            if (params.q?.trim()) queryParams.q = params.q.trim();
-            if (params.include_ai) queryParams.include_ai = true;
-            const resp = await getQuotations(queryParams);
-            let list: Quotation[] = resp.data.data.list || [];
-            const total = resp.data.data.total || 0;
-            setAiMap(
-              params.include_ai
-                ? (
-                    resp.data.data as unknown as {
-                      ai?: Record<number, { pricing_health?: string; flag?: string }>;
-                    }
-                  ).ai || {}
-                : {},
-            );
-            if (params.scene === "expiring" || params.scene === "expired") {
-              list = list.filter(
-                (item) => getDueMeta(item.valid_until, item.status).scene === params.scene,
-              );
-            }
-            setPageStats({
-              amount: list.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
-              total:
-                params.scene === "expiring" || params.scene === "expired" ? list.length : total,
-            });
-            return {
-              data: list,
-              success: true,
-              total:
-                params.scene === "expiring" || params.scene === "expired" ? list.length : total,
-            };
+          dataSource={query.data?.list || []}
+          columns={columns}
+          loading={query.isLoading || query.isFetching}
+          pagination={{
+            total: pageStats.total,
+            showSizeChanger: true,
+            onChange: () => query.refetch(),
           }}
-          columns={
-            [
-              {
-                title: "#",
-                width: 45,
-                fixed: "left",
-                render: (_: unknown, __: Quotation, index: number) => index + 1,
-              },
-              {
-                title: "报价单号",
-                dataIndex: "quotation_no",
-                fixed: "left",
-                width: 160,
-                render: (value: string | null, record: Quotation) => (
-                  <Typography.Link
-                    strong
-                    onClick={() => navigate(`/sales/quotations/${record.id}`)}
-                  >
-                    {value || record.title || `#${record.id}`}
-                  </Typography.Link>
-                ),
-              },
-              {
-                title: "客户名称",
-                dataIndex: "customer_name",
-                width: 160,
-                render: (value: string | null, record: Quotation) =>
-                  value ? (
-                    <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>
-                      {value}
-                    </Typography.Link>
-                  ) : (
-                    <CustomerLink id={record.customer_id} />
-                  ),
-              },
-              {
-                title: "金额",
-                dataIndex: "total_amount",
-                width: 120,
-                sorter: (a: any, b: any) =>
-                  Number(a.total_amount || 0) - Number(b.total_amount || 0),
-                render: money,
-              },
-              {
-                title: "状态",
-                dataIndex: "status",
-                width: 90,
-                sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
-                render: (value: string) => (
-                  <>
-                    {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
-                    <SalesStatusTag value={value} />
-                  </>
-                ),
-              },
-              {
-                title: "有效期",
-                dataIndex: "valid_until",
-                width: 130,
-                sorter: (a: any, b: any) =>
-                  (a.valid_until || "").localeCompare(b.valid_until || ""),
-                render: (value: string | null, record: Quotation) => {
-                  const due = getDueMeta(value, record.status);
-                  return <StatusTag status={due.text} tone={due.tone} />;
-                },
-              },
-              {
-                title: "AI",
-                width: 90,
-                render: (_: unknown, record: Quotation) => (
-                  <AIInlineBadge
-                    riskLevel={
-                      aiMap[record.id]?.pricing_health === "poor"
-                        ? "high"
-                        : aiMap[record.id]?.pricing_health === "fair"
-                          ? "medium"
-                          : "low"
-                    }
-                    flag={aiMap[record.id]?.flag}
-                  />
-                ),
-              },
-              {
-                title: "下一步",
-                width: 100,
-                render: (_: unknown, record: Quotation) => {
-                  const due = getDueMeta(record.valid_until, record.status);
-                  if (record.status === "draft")
-                    return <StatusTag status="发送报价" tone="info" icon={<SendOutlined />} />;
-                  if (record.status === "sent" && due.scene === "expired")
-                    return <StatusTag status="重新报价" tone="danger" />;
-                  if (record.status === "sent")
-                    return (
-                      <StatusTag status="跟进转单" tone="success" icon={<FileDoneOutlined />} />
-                    );
-                  if (record.status === "won")
-                    return <StatusTag status="订单执行" tone="success" />;
-                  return <Tag>复盘原因</Tag>;
-                },
-              },
-              {
-                title: "操作",
-                width: 60,
-                fixed: "right",
-                render: (_: unknown, record: Quotation) => {
-                  const items: MenuProps["items"] = [
-                    {
-                      key: "view",
-                      icon: <FileDoneOutlined />,
-                      label: "查看详情",
-                      onClick: () => navigate(`/sales/quotations/${record.id}`),
-                    },
-                    ...(record.status === "draft"
-                      ? [
-                          {
-                            key: "send",
-                            icon: <SendOutlined />,
-                            label: "标记发送",
-                            onClick: () => handleSend(record),
-                          },
-                        ]
-                      : []),
-                    {
-                      key: "pdf",
-                      icon: <DownloadOutlined />,
-                      label: "智能 PDF",
-                      onClick: () =>
-                        downloadQuotationPDF(
-                          record.id,
-                          `QUOTATION_${record.quotation_no || record.id}.pdf`,
-                        ).catch(() => message.error("下载失败")),
-                    },
-                    {
-                      key: "copy",
-                      icon: <CopyOutlined />,
-                      label: "复制",
-                      onClick: () => handleDuplicate(record),
-                    },
-                    ...(record.status !== "won"
-                      ? [
-                          {
-                            key: "convert",
-                            icon: <ShoppingCartOutlined />,
-                            label: "转订单",
-                            onClick: () => {
-                              Modal.confirm({
-                                title: "转为销售订单?",
-                                content: `将报价 ${record.quotation_no || `#${record.id}`} 转为销售订单`,
-                                onOk: () => handleConvert(record),
-                              });
-                            },
-                          },
-                        ]
-                      : []),
-                    { type: "divider" as const },
-                    {
-                      key: "delete",
-                      icon: <DeleteOutlined />,
-                      label: "删除",
-                      danger: true,
-                      onClick: () => {
-                        Modal.confirm({
-                          title: "确定删除?",
-                          content: `删除报价 ${record.quotation_no || `#${record.id}`}`,
-                          onOk: () =>
-                            deleteQuotation(record.id)
-                              .then(() => {
-                                message.success("已删除");
-                                actionRef.current?.reload();
-                              })
-                              .catch(() => message.error("删除失败")),
-                        });
-                      },
-                    },
-                  ];
-                  return (
-                    <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
-                      <Button size="small" icon={<EllipsisOutlined />} type="text" />
-                    </Dropdown>
-                  );
-                },
-              },
-            ] as ProColumns<Quotation>[]
-          }
         />
       </Card>
     </SalesModuleShell>

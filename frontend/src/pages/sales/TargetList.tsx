@@ -51,6 +51,14 @@ const EMPTY_STATS: TargetStats = {
   achievement_pct: 0,
 };
 
+interface TargetStats {
+  total_target: number;
+  total_actual: number;
+  achievement_pct: number;
+  count?: number;
+  completed?: number;
+}
+
 export default function TargetList() {
   const { message, modal } = App.useApp();
   const navigate = useNavigate();

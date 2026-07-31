@@ -1,12 +1,39 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Space, message, Card, Modal, InputNumber, Dropdown, Select, DatePicker, Typography, Input, Popconfirm } from "antd";
+import {
+  Button,
+  Space,
+  Card,
+  Modal,
+  InputNumber,
+  Dropdown,
+  Select,
+  DatePicker,
+  Typography,
+  Input,
+  Popconfirm,
+  App,
+} from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag, type StatusTone } from "../../ui";
 import type { MenuProps } from "antd";
-import { ReloadOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, MoreOutlined, ClearOutlined } from "@ant-design/icons";
-import { getPurchaseOrders, receivePurchaseOrder, deletePurchaseOrder, batchDeletePurchaseOrders, getApiErrorMessage } from "../../api";
+import {
+  ReloadOutlined,
+  CheckCircleOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  MoreOutlined,
+  ClearOutlined,
+} from "@ant-design/icons";
+import {
+  getPurchaseOrders,
+  receivePurchaseOrder,
+  deletePurchaseOrder,
+  batchDeletePurchaseOrders,
+  getApiErrorMessage,
+} from "../../api";
 import type { PurchaseOrder, PageData, Supplier } from "@/types";
 import dayjs from "dayjs";
 import { useApiQuery, useQueryClient } from "@/lib/queries";
@@ -24,6 +51,7 @@ const STATUS: Record<string, { tone: StatusTone; label: string }> = {
 export default function PurchaseOrderList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [receivePO, setReceivePO] = useState<PurchaseOrder | null>(null);
   const [receiveWarehouseId, setReceiveWarehouseId] = useState(1);
@@ -92,7 +120,9 @@ export default function PurchaseOrderList() {
       message.success("已批量删除");
       setSelected([]);
       invalidatePOs();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "批量删除失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "批量删除失败"));
+    }
   };
 
   const handleReceive = async () => {
@@ -103,8 +133,11 @@ export default function PurchaseOrderList() {
       message.success(`PO #${receivePO.order_no || receivePO.id} 已收货，库存已自动入库`);
       setReceiveModalOpen(false);
       invalidatePOs();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "收货失败")); }
-    finally { setReceiving(false); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "收货失败"));
+    } finally {
+      setReceiving(false);
+    }
   };
 
   const handleDelete = async (po: PurchaseOrder) => {
@@ -113,7 +146,9 @@ export default function PurchaseOrderList() {
       message.success(`PO ${po.order_no || `#${po.id}`} 已删除`);
       setSelected((prev) => prev.filter((id) => id !== po.id));
       invalidatePOs();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    } catch (e: unknown) {
+      message.error(getApiErrorMessage(e, "删除失败"));
+    }
   };
 
   const exportData = useMemo(
@@ -133,52 +168,104 @@ export default function PurchaseOrderList() {
   const columns: ProColumns<PurchaseOrder>[] = [
     { title: "#", width: 40, fixed: "left", render: (_, __, index) => index + 1 },
     {
-      title: "采购单", dataIndex: "order_no", minWidth: 200,
+      title: "采购单",
+      dataIndex: "order_no",
+      minWidth: 200,
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => navigate(`/sales/purchase-orders/${r.id}`)}>{r.order_no || `PO#${r.id}`}</a>
+          <a onClick={() => navigate(`/sales/purchase-orders/${r.id}`)}>
+            {r.order_no || `PO#${r.id}`}
+          </a>
           <Space size={8}>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.supplier_name || `#${r.supplier_id}`}</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {r.supplier_name || `#${r.supplier_id}`}
+            </Typography.Text>
           </Space>
         </Space>
       ),
     },
     {
-      title: "状态", dataIndex: "status", width: 80,
-      render: (_, r) => <StatusTag status={r.status} tone={STATUS[r.status]?.tone || "neutral"} label={STATUS[r.status]?.label || r.status} />,
+      title: "状态",
+      dataIndex: "status",
+      width: 80,
+      render: (_, r) => (
+        <StatusTag
+          status={r.status}
+          tone={STATUS[r.status]?.tone || "neutral"}
+          label={STATUS[r.status]?.label || r.status}
+        />
+      ),
     },
     {
-      title: "金额", dataIndex: "total_amount", width: 120,
+      title: "金额",
+      dataIndex: "total_amount",
+      width: 120,
       render: (_, r) => `¥${r.total_amount?.toLocaleString() ?? 0}`,
     },
-    { title: "预计到货", dataIndex: "expected_date", width: 100, render: (_, r) => shortDate(r.expected_date) },
-    { title: "备注", dataIndex: "notes", ellipsis: true },
-    { title: "创建时间", dataIndex: "created_at", width: 100, render: (_, r) => shortDate(r.created_at) },
     {
-      title: "操作", key: "action", width: 60, fixed: "right",
+      title: "预计到货",
+      dataIndex: "expected_date",
+      width: 100,
+      render: (_, r) => shortDate(r.expected_date),
+    },
+    { title: "备注", dataIndex: "notes", ellipsis: true },
+    {
+      title: "创建时间",
+      dataIndex: "created_at",
+      width: 100,
+      render: (_, r) => shortDate(r.created_at),
+    },
+    {
+      title: "操作",
+      key: "action",
+      width: 60,
+      fixed: "right",
       render: (_, r) => {
         const items: MenuProps["items"] = [
-          { key: "view", label: "查看详情", onClick: () => navigate(`/sales/purchase-orders/${r.id}`) },
-          ...(r.status === "draft" ? [
-            { key: "edit", icon: <EditOutlined />, label: "编辑",
-              onClick: () => navigate(`/sales/purchase-orders/${r.id}/edit`) },
-            { type: "divider" as const },
-            {
-              key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true,
-              onClick: () => Modal.confirm({
-                title: "确认删除",
-                content: `确定要删除 ${r.order_no || `PO#${r.id}`} 吗？`,
-                okText: "删除",
-                cancelText: "取消",
-                okButtonProps: { danger: true },
-                onOk: () => handleDelete(r),
-              }),
-            },
-          ] : []),
-          ...(["ordered", "partially_received"].includes(r.status) ? [
-            { key: "receive", icon: <CheckCircleOutlined />, label: "收货",
-              onClick: () => { setReceivePO(r); setReceiveModalOpen(true); } },
-          ] : []),
+          {
+            key: "view",
+            label: "查看详情",
+            onClick: () => navigate(`/sales/purchase-orders/${r.id}`),
+          },
+          ...(r.status === "draft"
+            ? [
+                {
+                  key: "edit",
+                  icon: <EditOutlined />,
+                  label: "编辑",
+                  onClick: () => navigate(`/sales/purchase-orders/${r.id}/edit`),
+                },
+                { type: "divider" as const },
+                {
+                  key: "delete",
+                  icon: <DeleteOutlined />,
+                  label: "删除",
+                  danger: true,
+                  onClick: () =>
+                    Modal.confirm({
+                      title: "确认删除",
+                      content: `确定要删除 ${r.order_no || `PO#${r.id}`} 吗？`,
+                      okText: "删除",
+                      cancelText: "取消",
+                      okButtonProps: { danger: true },
+                      onOk: () => handleDelete(r),
+                    }),
+                },
+              ]
+            : []),
+          ...(["ordered", "partially_received"].includes(r.status)
+            ? [
+                {
+                  key: "receive",
+                  icon: <CheckCircleOutlined />,
+                  label: "收货",
+                  onClick: () => {
+                    setReceivePO(r);
+                    setReceiveModalOpen(true);
+                  },
+                },
+              ]
+            : []),
         ];
         return (
           <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
@@ -194,12 +281,20 @@ export default function PurchaseOrderList() {
       title="采购订单"
       subtitle="管理供应商采购，跟踪到货和入库"
       activeKey="procurement"
-      extra={(
+      extra={
         <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/purchase-orders/new")}>新建采购单</Button>
-          <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate("/sales/purchase-orders/new")}
+          >
+            新建采购单
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>
+            刷新
+          </Button>
         </Space>
-      )}
+      }
     >
       <MetricBand
         items={[
@@ -272,12 +367,18 @@ export default function PurchaseOrderList() {
             value={filterDateTo ? dayjs(filterDateTo) : null}
             onChange={(d) => setFilterDateTo(d?.format("YYYY-MM-DD"))}
           />
-          <Button icon={<ClearOutlined />} onClick={clearFilters} disabled={!filterSupplierId && !filterStatus && !filterDateFrom && !filterDateTo}>
+          <Button
+            icon={<ClearOutlined />}
+            onClick={clearFilters}
+            disabled={!filterSupplierId && !filterStatus && !filterDateFrom && !filterDateTo}
+          >
             清除筛选
           </Button>
           {selected.length > 0 ? (
             <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}>
-              <Button danger icon={<DeleteOutlined />}>删除 {selected.length}</Button>
+              <Button danger icon={<DeleteOutlined />}>
+                删除 {selected.length}
+              </Button>
             </Popconfirm>
           ) : null}
         </Space>
@@ -286,13 +387,15 @@ export default function PurchaseOrderList() {
       <Card
         size="small"
         className="sales-erp-table-card"
-        title={(
+        title={
           <Space size={8} wrap>
             <Typography.Text strong>采购订单单据</Typography.Text>
-            <Typography.Text type="secondary">{list.length} / {totalRecords} 单</Typography.Text>
+            <Typography.Text type="secondary">
+              {list.length} / {totalRecords} 单
+            </Typography.Text>
             {selected.length > 0 && <StatusTag status={`已选 ${selected.length}`} tone="info" />}
           </Space>
-        )}
+        }
       >
         <ProTable<PurchaseOrder>
           rowKey="id"
@@ -303,7 +406,10 @@ export default function PurchaseOrderList() {
           options={{ reload: () => query.refetch(), density: true, setting: true }}
           size="small"
           bordered
-          rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: (keys) => setSelected(keys as number[]),
+          }}
           scroll={{ x: 900 }}
           pagination={{
             total: totalRecords,
@@ -323,11 +429,20 @@ export default function PurchaseOrderList() {
       >
         {receivePO && (
           <>
-            <p><strong>订单号:</strong> {receivePO.order_no || `#${receivePO.id}`}</p>
-            <p><strong>供应商:</strong> {receivePO.supplier_name || `#${receivePO.supplier_id}`}</p>
+            <p>
+              <strong>订单号:</strong> {receivePO.order_no || `#${receivePO.id}`}
+            </p>
+            <p>
+              <strong>供应商:</strong> {receivePO.supplier_name || `#${receivePO.supplier_id}`}
+            </p>
             <p>
               <strong>入库仓库:</strong>
-              <InputNumber min={1} value={receiveWarehouseId} onChange={(v) => setReceiveWarehouseId(v || 1)} style={{ marginLeft: 8, width: 80 }} />
+              <InputNumber
+                min={1}
+                value={receiveWarehouseId}
+                onChange={(v) => setReceiveWarehouseId(v || 1)}
+                style={{ marginLeft: 8, width: 80 }}
+              />
             </p>
             <p style={{ color: "#52c41a" }}>确认收货后，系统将自动为每个采购项增加库存。</p>
           </>

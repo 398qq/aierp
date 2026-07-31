@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Button, Space, message, Card, Popconfirm, Tooltip, Tag } from "antd";
+import { App, Button, Card, Popconfirm, Space, Tag, Tooltip } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
-import { PlusOutlined, ReloadOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, getApiErrorMessage } from "../../api";
-import type { Warehouse, PageData } from "@/types";
-import { useApiQuery, useQueryClient } from "@/lib/queries";
+import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { getApiErrorMessage } from "../../api";
+import { useApiMutation, useApiQuery, useQueryClient } from "@/lib/queries";
+import type { Warehouse } from "@/types";
 import WarehouseForm from "./WarehouseForm";
 
 interface WarehouseRecord extends Warehouse {
@@ -13,10 +13,10 @@ interface WarehouseRecord extends Warehouse {
 }
 
 export default function WarehouseList() {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["warehouses"] });
 
-  const query = useApiQuery<PageData<WarehouseRecord>>(
+  const query = useApiQuery<{ list: WarehouseRecord[]; total: number }>(
     ["warehouses"],
     "/warehouses",
     undefined,
@@ -32,16 +32,40 @@ export default function WarehouseList() {
   const [editRecord, setEditRecord] = useState<WarehouseRecord | null>(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  const handleCreate = async (values: { name: string; location?: string; description?: string }) => {
-    setCreateLoading(true);
-    try {
-      await createWarehouse(values);
+  const createMut = useApiMutation<
+    unknown,
+    { name: string; location?: string; description?: string }
+  >("post", "/warehouses", {
+    invalidateKeys: [["warehouses"]],
+    onSuccess: () => {
       message.success("创建成功");
       setCreateOpen(false);
-      invalidate();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "创建失败")); } finally {
-      setCreateLoading(false);
-    }
+    },
+    onError: (e) => message.error(getApiErrorMessage(e, "创建失败")),
+  });
+
+  const updateMut = useApiMutation<
+    unknown,
+    { id: number; name: string; location?: string; description?: string }
+  >("put", (v) => `/warehouses/${v.id}`, {
+    invalidateKeys: [["warehouses"]],
+    onSuccess: () => {
+      message.success("更新成功");
+      setEditOpen(false);
+      setEditRecord(null);
+    },
+    onError: (e) => message.error(getApiErrorMessage(e, "更新失败")),
+  });
+
+  const deleteMut = useApiMutation<unknown, number>("delete", (id) => `/warehouses/${id}`, {
+    invalidateKeys: [["warehouses"]],
+    onSuccess: () => message.success("已删除"),
+    onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
+  });
+
+  const handleCreate = (values: { name: string; location?: string; description?: string }) => {
+    setCreateLoading(true);
+    createMut.mutate(values, { onSettled: () => setCreateLoading(false) });
   };
 
   const openEdit = (record: WarehouseRecord) => {
@@ -49,36 +73,46 @@ export default function WarehouseList() {
     setEditOpen(true);
   };
 
-  const handleEdit = async (values: { name: string; location?: string; description?: string }) => {
+  const handleEdit = (values: { name: string; location?: string; description?: string }) => {
     if (!editRecord) return;
     setEditLoading(true);
-    try {
-      await updateWarehouse(editRecord.id, values);
-      message.success("更新成功");
-      setEditOpen(false);
-      setEditRecord(null);
-      invalidate();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "更新失败")); } finally {
-      setEditLoading(false);
-    }
+    updateMut.mutate({ id: editRecord.id, ...values }, { onSettled: () => setEditLoading(false) });
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteWarehouse(id);
-      message.success("已删除");
-      invalidate();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+  const handleDelete = (id: number) => {
+    deleteMut.mutate(id);
+  };
+
+  const handleSearch = () => {
+    queryClient.invalidateQueries({ queryKey: ["warehouses"] });
   };
 
   const columns: ProColumns<WarehouseRecord>[] = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "名称", dataIndex: "name", width: 200 },
-    { title: "位置", dataIndex: "location", width: 200, render: (_, r) => r.location || <Tag>未设置</Tag> },
-    { title: "描述", dataIndex: "description", ellipsis: true, render: (_, r) => r.description || "-" },
-    { title: "创建时间", dataIndex: "created_at", width: 100, render: (_, r) => r.created_at?.slice(0, 10) || "-" },
     {
-      title: "操作", key: "actions", width: 120, render: (_, r) => (
+      title: "位置",
+      dataIndex: "location",
+      width: 200,
+      render: (_, r) => r.location || <Tag>未设置</Tag>,
+    },
+    {
+      title: "描述",
+      dataIndex: "description",
+      ellipsis: true,
+      render: (_, r) => r.description || "-",
+    },
+    {
+      title: "创建时间",
+      dataIndex: "created_at",
+      width: 100,
+      render: (_, r) => r.created_at?.slice(0, 10) || "-",
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 120,
+      render: (_, r) => (
         <Space size={4}>
           <Tooltip title="编辑">
             <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -97,8 +131,12 @@ export default function WarehouseList() {
         title="仓库管理"
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新增仓库</Button>
+            <Button icon={<ReloadOutlined />} onClick={handleSearch}>
+              刷新
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+              新增仓库
+            </Button>
           </Space>
         }
       >
@@ -108,7 +146,7 @@ export default function WarehouseList() {
           dataSource={query.data?.list || []}
           loading={query.isLoading || query.isFetching}
           search={false}
-          options={{ reload: () => query.refetch(), density: true, setting: true }}
+          options={{ reload: handleSearch, density: true, setting: true }}
           size="small"
           pagination={{
             total: query.data?.total || 0,
@@ -131,7 +169,10 @@ export default function WarehouseList() {
           open={editOpen}
           loading={editLoading}
           initialValues={editRecord}
-          onCancel={() => { setEditOpen(false); setEditRecord(null); }}
+          onCancel={() => {
+            setEditOpen(false);
+            setEditRecord(null);
+          }}
           onSubmit={handleEdit}
           mode="edit"
         />

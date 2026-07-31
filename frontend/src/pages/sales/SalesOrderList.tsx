@@ -1,35 +1,78 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Select, Space, Switch, Tag, Typography, Upload, message } from "antd";
-import type { ActionType } from "@ant-design/pro-components";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Descriptions,
+  Dropdown,
+  Input,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  Typography,
+  Upload,
+} from "antd";
 import { ProTable } from "@ant-design/pro-components";
-import { StatusTag } from "../../ui";
+import type { ProColumns } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
-import { CarOutlined, DeleteOutlined, DownloadOutlined, EllipsisOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  CarOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EllipsisOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { batchDeleteSalesOrders, convertSalesOrderToDelivery, deleteSalesOrder, getSalesOrders, importSalesOrderPDF, getApiErrorMessage } from "../../api";
+import {
+  batchDeleteSalesOrders,
+  convertSalesOrderToDelivery,
+  deleteSalesOrder,
+  importSalesOrderPDF,
+  getApiErrorMessage,
+} from "../../api";
+import type { SalesOrder } from "../../types";
 import type { SalesOrderPDFImportResult } from "../../api";
 import AIInlineBadge from "../../components/sales/AIInlineBadge";
-import type { SalesOrder } from "../../types";
-import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, SalesQuickActions, SalesStatusTag, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
+import {
+  CustomerLink,
+  CustomerSelect,
+  ErpExportButton,
+  MetricBand,
+  SalesModuleShell,
+  SalesQuickActions,
+  SalesStatusTag,
+  erpRowClass,
+  money,
+  shortDate,
+  statusDot,
+  ERP_STATUS_DOT,
+} from "./salesUi";
+import { useApiMutation, useApiQuery, useQueryClient } from "@/lib/queries";
+import type { PageData, SalesOrderAI } from "@/types";
 
 export default function SalesOrderList() {
-  const actionRef = useRef<ActionType>(null);
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [searchText, setSearchText] = useState("");
   const [q, setQ] = useState("");
   const [includeAi, setIncludeAi] = useState(false);
-  const [aiMap, setAiMap] = useState<Record<number, { delivery_risk?: string; flag?: string }>>({});
   const [selected, setSelected] = useState<number[]>([]);
-  const [stats, setStats] = useState({ amount: 0, confirmed: 0, pending: 0, itemCount: 0, total: 0 });
-  const [currentData, setCurrentData] = useState<SalesOrder[]>([]);
+
   const [pdfImportOpen, setPdfImportOpen] = useState(false);
   const [pdfFile, setPdfFile] = useState<UploadFile | null>(null);
   const [pdfCustomerId, setPdfCustomerId] = useState<number | undefined>();
   const [pdfImporting, setPdfImporting] = useState(false);
   const [pdfResult, setPdfResult] = useState<SalesOrderPDFImportResult | null>(null);
-  const navigate = useNavigate();
 
   const tableParams = useMemo(() => {
     const p: Record<string, unknown> = {};
@@ -40,13 +83,56 @@ export default function SalesOrderList() {
     return p;
   }, [status, customerId, q, includeAi]);
 
-  const handleBatchDelete = async () => {
-    try {
-      await batchDeleteSalesOrders(selected);
+  const query = useApiQuery<PageData<SalesOrder> & { ai?: Record<number, SalesOrderAI> }>(
+    ["salesOrders", status ?? "", customerId ?? "", q, includeAi],
+    "/sales-orders",
+    tableParams,
+    { staleTime: 30 * 1000 },
+  );
+
+  const currentData = useMemo(() => query.data?.list || [], [query.data]);
+
+  const stats = useMemo(() => {
+    const list = currentData;
+    return {
+      amount: list.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+      confirmed: list.filter((item) => item.status === "confirmed").length,
+      pending: list.filter((item) => item.status === "pending").length,
+      itemCount: list.reduce((sum, item) => sum + (item.items?.length || 0), 0),
+      total: query.data?.total || 0,
+    };
+  }, [currentData, query.data?.total]);
+
+  const aiMap = useMemo(() => (includeAi ? query.data?.ai || {} : {}), [includeAi, query.data?.ai]);
+
+  // Mutations
+  const batchDeleteMut = useApiMutation<unknown, number[]>("post", "/sales-orders/batch-delete", {
+    invalidateKeys: [["salesOrders"]],
+    onSuccess: () => {
       message.success("已批量删除");
       setSelected([]);
-      actionRef.current?.reload();
-    } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
+    },
+    onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
+  });
+
+  const convertMut = useApiMutation<{ id: number; document_no: string; msg: string }, number>(
+    "post",
+    (id) => `/sales-orders/${id}/convert-to-delivery`,
+    {
+      invalidateKeys: [["salesOrders"]],
+      onSuccess: () => message.success("已转为发货单"),
+      onError: (e) => message.error(getApiErrorMessage(e, "转换失败")),
+    },
+  );
+
+  const deleteMut = useApiMutation<unknown, number>("delete", (id) => `/sales-orders/${id}`, {
+    invalidateKeys: [["salesOrders"]],
+    onSuccess: () => message.success("已删除"),
+    onError: (e) => message.error(getApiErrorMessage(e, "删除失败")),
+  });
+
+  const handleBatchDelete = () => {
+    batchDeleteMut.mutate(selected);
   };
 
   const handlePdfImport = async () => {
@@ -57,20 +143,145 @@ export default function SalesOrderList() {
     setPdfImporting(true);
     try {
       const resp = await importSalesOrderPDF(pdfFile as unknown as File, pdfCustomerId);
-      if (resp.data.code !== 0) {
-        message.error(resp.data.msg || "导入失败");
+      const body = resp.data as { code?: number; msg?: string; data?: SalesOrderPDFImportResult };
+      if (body.code !== 0) {
+        message.error(body.msg || "导入失败");
         return;
       }
-      setPdfResult(resp.data.data);
-      message.success(resp.data.msg || "PDF订单导入成功");
-      actionRef.current?.reload();
-    } catch (err: unknown) {
-      const serverMsg = (err as { response?: { data?: { msg?: string } } })?.response?.data?.msg;
-      message.error(serverMsg || "导入失败");
+      setPdfResult(body.data ?? null);
+      message.success(body.msg || "PDF订单导入成功");
+      queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+    } catch (err) {
+      message.error(getApiErrorMessage(err, "导入失败"));
     } finally {
       setPdfImporting(false);
     }
   };
+
+  const handleSearch = () => {
+    queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+  };
+
+  const columns: ProColumns<SalesOrder>[] = [
+    {
+      title: "#",
+      width: 40,
+      fixed: "left" as const,
+      render: (_: unknown, __: SalesOrder, index: number) => index + 1,
+    },
+    {
+      title: "单号",
+      dataIndex: "order_no",
+      fixed: "left" as const,
+      width: 160,
+      render: (_: unknown, record: SalesOrder) => (
+        <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>
+          {record.order_no || `#${record.id}`}
+        </Typography.Link>
+      ),
+    },
+    {
+      title: "客户名称",
+      dataIndex: "customer_name",
+      width: 160,
+      render: (_: unknown, record: SalesOrder) =>
+        record.customer_name ? (
+          <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>
+            {record.customer_name}
+          </Typography.Link>
+        ) : (
+          <CustomerLink id={record.customer_id} />
+        ),
+    },
+    {
+      title: "金额",
+      dataIndex: "total_amount",
+      width: 130,
+      sorter: (a: any, b: any) => Number(a.total_amount || 0) - Number(b.total_amount || 0),
+      render: (_: unknown, record: SalesOrder) => money(record.total_amount),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 100,
+      sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
+      render: (_: unknown, record: SalesOrder) => (
+        <>
+          {statusDot(ERP_STATUS_DOT[record.status || ""] || "#d9d9d9")}
+          <SalesStatusTag value={record.status} />
+        </>
+      ),
+    },
+    {
+      title: "下单",
+      dataIndex: "order_date",
+      width: 120,
+      sorter: (a: any, b: any) => (a.order_date || "").localeCompare(b.order_date || ""),
+      render: (_: unknown, record: SalesOrder) => shortDate(record.order_date),
+    },
+    {
+      title: "交付",
+      dataIndex: "delivery_date",
+      width: 120,
+      sorter: (a: any, b: any) => (a.delivery_date || "").localeCompare(b.delivery_date || ""),
+      render: (_: unknown, record: SalesOrder) => shortDate(record.delivery_date),
+    },
+    {
+      title: "AI",
+      width: 100,
+      render: (_: unknown, record: SalesOrder) => (
+        <AIInlineBadge
+          riskLevel={aiMap[record.id]?.delivery_risk}
+          flag={aiMap[record.id]?.flags?.[0]}
+        />
+      ),
+    },
+    {
+      title: "操作",
+      width: 60,
+      fixed: "right" as const,
+      render: (_: unknown, record: SalesOrder) => {
+        const items: MenuProps["items"] = [
+          {
+            key: "view",
+            label: "查看详情",
+            onClick: () => navigate(`/sales/orders/${record.id}`),
+          },
+          {
+            key: "delivery",
+            label: "转为发货单",
+            icon: <CarOutlined />,
+            onClick: () => {
+              Modal.confirm({
+                title: "转为发货单?",
+                content: `将订单 ${record.order_no || `#${record.id}`} 转为发货单`,
+                onOk: () => convertMut.mutate(record.id),
+              });
+            },
+          },
+          { type: "divider" as const },
+          {
+            key: "delete",
+            label: "删除",
+            danger: true,
+            icon: <DeleteOutlined />,
+            onClick: () => {
+              Modal.confirm({
+                title: "确定删除?",
+                content: `删除订单 ${record.order_no || `#${record.id}`}`,
+                onOk: () => deleteMut.mutate(record.id),
+              });
+            },
+          },
+        ];
+        return (
+          <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+            <Button size="small" icon={<EllipsisOutlined />} type="text" />
+          </Dropdown>
+        );
+      },
+    },
+  ];
 
   return (
     <SalesModuleShell
@@ -91,7 +302,13 @@ export default function SalesOrderList() {
 
       <Card size="small" className="sales-erp-toolbar" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/orders/new")}>新建订单</Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate("/sales/orders/new")}
+          >
+            新建订单
+          </Button>
           <Button
             icon={<UploadOutlined />}
             onClick={() => {
@@ -103,7 +320,9 @@ export default function SalesOrderList() {
           >
             导入PDF订单
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={handleSearch}>
+            刷新
+          </Button>
           <ErpExportButton
             data={currentData as unknown as Record<string, unknown>[]}
             columns={[
@@ -113,7 +332,7 @@ export default function SalesOrderList() {
               { key: "order_date", title: "下单日期" },
               { key: "delivery_date", title: "交付日期" },
             ]}
-            filename="销售订单.csv"
+            filename="销售订单"
           />
           <Input.Search
             allowClear
@@ -125,7 +344,9 @@ export default function SalesOrderList() {
                 setQ("");
               }
             }}
-            onSearch={(value) => { setQ(value); }}
+            onSearch={(value) => {
+              setQ(value);
+            }}
             style={{ width: 260 }}
           />
           <div style={{ width: 260 }}>
@@ -133,7 +354,9 @@ export default function SalesOrderList() {
           </div>
           {selected.length > 0 ? (
             <Popconfirm title="确定批量删除?" onConfirm={handleBatchDelete}>
-              <Button danger icon={<DeleteOutlined />}>删除 {selected.length}</Button>
+              <Button danger icon={<DeleteOutlined />}>
+                删除 {selected.length}
+              </Button>
             </Popconfirm>
           ) : null}
           <Select
@@ -159,113 +382,32 @@ export default function SalesOrderList() {
       <Card
         size="small"
         className="sales-erp-table-card"
-        title={(
+        title={
           <Space size={8} wrap>
             <Typography.Text strong>销售订单单据</Typography.Text>
-            <Typography.Text type="secondary">{currentData.length} / {stats.total} 单</Typography.Text>
-            {selected.length > 0 && <StatusTag tone="info">已选 {selected.length}</StatusTag>}
+            <Typography.Text type="secondary">
+              {currentData.length} / {stats.total} 单
+            </Typography.Text>
+            {selected.length > 0 && <SalesStatusTag value={`selected:${selected.length}`} />}
           </Space>
-        )}
+        }
       >
         <ProTable<SalesOrder>
-          actionRef={actionRef}
           rowKey="id"
           size="small"
           bordered
           search={false}
-          options={{ reload: true, density: true, setting: true }}
+          options={{ reload: handleSearch, density: true, setting: true }}
           rowClassName={erpRowClass}
-          rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as number[]) }}
-          scroll={{ x: "max-content" }}
-          params={tableParams}
-          request={async (params) => {
-            const queryParams: Record<string, unknown> = { page: params.current || 1, page_size: params.pageSize || 20 };
-            if (params.status) queryParams.status = params.status;
-            if (params.customer_id) queryParams.customer_id = params.customer_id;
-            if (params.q?.trim()) queryParams.q = params.q.trim();
-            if (params.include_ai) queryParams.include_ai = true;
-            const resp = await getSalesOrders(queryParams);
-            const list: SalesOrder[] = resp.data.data.list || [];
-            const total = resp.data.data.total || 0;
-            const aiData = params.include_ai ? ((resp.data.data as unknown as { ai?: Record<number, { delivery_risk?: string; flag?: string }> }).ai || {}) : {};
-            setAiMap(aiData);
-            setCurrentData(list);
-            setStats({
-              amount: list.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
-              confirmed: list.filter((item) => item.status === "confirmed").length,
-              pending: list.filter((item) => item.status === "pending").length,
-              itemCount: list.reduce((sum, item) => sum + (item.items?.length || 0), 0),
-              total,
-            });
-            return { data: list, success: true, total };
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: (keys) => setSelected(keys as number[]),
           }}
-          columns={[
-            { title: "#", width: 40, fixed: "left" as const, render: (_: unknown, __: SalesOrder, index: number) => index + 1 },
-            {
-              title: "单号",
-              dataIndex: "order_no",
-              fixed: "left",
-              width: 160,
-              render: (value: string | null, record: SalesOrder) => (
-                <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.id}`)}>
-                  {value || `#${record.id}`}
-                </Typography.Link>
-              ),
-            },
-            {
-              title: "客户名称",
-              dataIndex: "customer_name",
-              width: 160,
-              render: (value: string | null, record: SalesOrder) =>
-                value
-                  ? <Typography.Link onClick={() => navigate(`/customers/${record.customer_id}`)}>{value}</Typography.Link>
-                  : <CustomerLink id={record.customer_id} />,
-            },
-            { title: "金额", dataIndex: "total_amount", width: 130, sorter: (a: any, b: any) => Number(a.total_amount || 0) - Number(b.total_amount || 0), render: money },
-            {
-              title: "状态", dataIndex: "status", width: 100,
-              sorter: (a: any, b: any) => (a.status || "").localeCompare(b.status || ""),
-              render: (value: string) => (
-                <>
-                  {statusDot(ERP_STATUS_DOT[value] || "#d9d9d9")}
-                  <SalesStatusTag value={value} />
-                </>
-              ),
-            },
-            { title: "下单", dataIndex: "order_date", width: 120, sorter: (a: any, b: any) => (a.order_date || "").localeCompare(b.order_date || ""), render: shortDate },
-            { title: "交付", dataIndex: "delivery_date", width: 120, sorter: (a: any, b: any) => (a.delivery_date || "").localeCompare(b.delivery_date || ""), render: shortDate },
-            {
-              title: "AI",
-              width: 100,
-              render: (_: unknown, record: SalesOrder) => <AIInlineBadge riskLevel={aiMap[record.id]?.delivery_risk} flag={aiMap[record.id]?.flag} />,
-            },
-            {
-              title: "操作",
-              width: 60,
-              fixed: "right" as const,
-              render: (_: unknown, record: SalesOrder) => {
-                const items: MenuProps["items"] = [
-                  { key: "view", label: "查看详情", onClick: () => navigate(`/sales/orders/${record.id}`) },
-                  { key: "delivery", label: "转为发货单", icon: <CarOutlined />, onClick: () => {
-                    Modal.confirm({ title: "转为发货单?", content: `将订单 ${record.order_no || `#${record.id}`} 转为发货单`, onOk: async () => {
-                      try { await convertSalesOrderToDelivery(record.id); message.success("已转为发货单"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "转换失败")); }
-                    } });
-                  }},
-                  { type: "divider" as const },
-                  { key: "delete", label: "删除", danger: true, icon: <DeleteOutlined />, onClick: () => {
-                    Modal.confirm({ title: "确定删除?", content: `删除订单 ${record.order_no || `#${record.id}`}`, onOk: async () => {
-                      try { await deleteSalesOrder(record.id); message.success("已删除"); actionRef.current?.reload(); } catch (e: unknown) { message.error(getApiErrorMessage(e, "删除失败")); }
-                    } });
-                  }},
-                ];
-                return (
-                  <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
-                    <Button size="small" icon={<EllipsisOutlined />} type="text" />
-                  </Dropdown>
-                );
-              },
-            },
-          ] as any}
+          scroll={{ x: "max-content" }}
+          dataSource={currentData}
+          loading={query.isLoading || query.isFetching}
+          pagination={{ total: query.data?.total || 0, showSizeChanger: true }}
+          columns={columns}
         />
       </Card>
 
@@ -301,7 +443,8 @@ export default function SalesOrderList() {
               <CustomerSelect value={pdfCustomerId} onChange={setPdfCustomerId} />
             </div>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              PDF 内客户名称无法准确匹配时，可手工指定客户；系统会保留 PDF 文件名和识别摘要到订单备注。
+              PDF 内客户名称无法准确匹配时，可手工指定客户；系统会保留 PDF
+              文件名和识别摘要到订单备注。
             </Typography.Text>
           </div>
           <Alert
@@ -312,13 +455,21 @@ export default function SalesOrderList() {
           {pdfResult ? (
             <div style={{ borderTop: "1px solid #eef2f7", paddingTop: 12 }}>
               <Descriptions size="small" column={2} bordered>
-                <Descriptions.Item label="订单号">{pdfResult.order_no || `#${pdfResult.id}`}</Descriptions.Item>
-                <Descriptions.Item label="客户">{pdfResult.matched.customer_name}</Descriptions.Item>
+                <Descriptions.Item label="订单号">
+                  {pdfResult.order_no || `#${pdfResult.id}`}
+                </Descriptions.Item>
+                <Descriptions.Item label="客户">
+                  {pdfResult.matched.customer_name}
+                </Descriptions.Item>
                 <Descriptions.Item label="明细行">{pdfResult.parsed.item_count}</Descriptions.Item>
-                <Descriptions.Item label="金额">{money(pdfResult.parsed.total_amount)}</Descriptions.Item>
+                <Descriptions.Item label="金额">
+                  {money(pdfResult.parsed.total_amount)}
+                </Descriptions.Item>
               </Descriptions>
               <Space style={{ marginTop: 12 }}>
-                <Button type="primary" onClick={() => navigate(`/sales/orders/${pdfResult.id}`)}>查看订单</Button>
+                <Button type="primary" onClick={() => navigate(`/sales/orders/${pdfResult.id}`)}>
+                  查看订单
+                </Button>
                 <Button onClick={() => setPdfImportOpen(false)}>关闭</Button>
               </Space>
             </div>
