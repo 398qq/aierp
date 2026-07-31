@@ -5,6 +5,7 @@ import logging
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.product import Brand, Inventory, Product
 from app.models.sales import SalesOrder
 from app.models.customer import Customer, AlertEvent
 
@@ -196,7 +197,39 @@ async def scan_order_drop(
 
 
 async def scan_low_stock(db: AsyncSession) -> list[dict]:
-    raise NotImplementedError
+    """Inventory 0 < qty <= safety_stock. Returns 20 rows: product_id, product_name, brand, qty, safety."""
+    rows = (
+        await db.execute(
+            select(
+                Product.id,
+                Product.name,
+                Product.sku,
+                Inventory.quantity,
+                Inventory.safety_stock,
+                Brand.name,
+            )
+            .join(Inventory, Product.id == Inventory.product_id)
+            .outerjoin(Brand, Product.brand_id == Brand.id)
+            .where(
+                Inventory.quantity <= Inventory.safety_stock,
+                Inventory.quantity > 0,
+                Product.deleted_at.is_(None),
+                Inventory.deleted_at.is_(None),
+            )
+            .order_by(Inventory.quantity)
+            .limit(20)
+        )
+    ).all()
+    return [
+        {
+            "product_id": r[0],
+            "product_name": f"{r[2] or ''} {r[1]}",
+            "brand": r[5] or "未知",
+            "qty": r[3],
+            "safety": r[4] or 0,
+        }
+        for r in rows
+    ]
 
 
 async def scan_out_of_stock(db: AsyncSession) -> list[dict]:

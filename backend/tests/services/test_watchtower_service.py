@@ -1,7 +1,11 @@
 import pytest
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.watchtower_service import scan_churn_risk, scan_order_drop
+from app.services.watchtower_service import (
+    scan_churn_risk,
+    scan_order_drop,
+    scan_low_stock,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -117,3 +121,44 @@ async def test_scan_order_drop_below_threshold_excluded(db_session: AsyncSession
 
     result = await scan_order_drop(db_session, lookback, prev_lookback)
     assert all(r["customer_id"] != cid for r in result)
+
+
+async def test_scan_low_stock_returns_below_safety(db_session: AsyncSession):
+    """Products with 0<qty<=safety_stock should appear; qty<=0 should NOT (that's out_of_stock)."""
+    from app.models.product import Brand, Product, Inventory, Warehouse
+
+    warehouse = Warehouse(name="测试仓库", location="TEST-LOC")
+    db_session.add(warehouse)
+    await db_session.flush()
+    brand = Brand(name="BrandX")
+    db_session.add(brand)
+    await db_session.flush()
+    p_low = Product(name="低库存品", sku="LOW-1", brand_id=brand.id)
+    p_oos = Product(name="缺货品", sku="OOS-1", brand_id=brand.id)
+    db_session.add_all([p_low, p_oos])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            Inventory(
+                product_id=p_low.id,
+                warehouse_id=warehouse.id,
+                quantity=2,
+                safety_stock=10,
+            ),  # low
+            Inventory(
+                product_id=p_oos.id,
+                warehouse_id=warehouse.id,
+                quantity=0,
+                safety_stock=5,
+            ),  # out of stock, NOT low
+        ]
+    )
+    await db_session.commit()
+
+    result = await scan_low_stock(db_session)
+    ids = {r["product_id"] for r in result}
+    assert p_low.id in ids
+    assert p_oos.id not in ids
+    match = next(r for r in result if r["product_id"] == p_low.id)
+    assert match["qty"] == 2
+    assert match["safety"] == 10
