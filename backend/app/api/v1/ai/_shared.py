@@ -26,16 +26,22 @@ def _cache_key(**parts: object) -> str:
     return f"watchtower:{digest}"
 
 
-async def watchtower_cached_scan(db: AsyncSession, days_back: int) -> dict:
+async def watchtower_cached_scan(
+    db: AsyncSession,
+    days_back: int,
+    now: datetime.datetime,
+) -> dict:
+    """`now` is injected by the route layer (Clock pattern, CLAUDE.md bottom line).
+    Routes are entry points; business logic receives the time, doesn't read it.
+    """
     key = _cache_key(endpoint="scan", days_back=days_back)
     try:
         cached = await cache_get_versioned("watchtower:scan", key)
         if cached is not None:
             return json.loads(cached)
-    except (json.JSONDecodeError, TypeError):
-        pass
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.debug("watchtower.scan cache decode failed: %s", exc)
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     lookback = now - datetime.timedelta(days=days_back)
     prev_lookback = lookback - datetime.timedelta(days=days_back)
 
@@ -82,19 +88,21 @@ async def watchtower_cached_scan(db: AsyncSession, days_back: int) -> dict:
     return result
 
 
-async def watchtower_cached_report(db: AsyncSession) -> dict:
-    """Wrap /ai/daily-report. TTL 600s; bumped by scheduler at midnight (task 9)."""
+async def watchtower_cached_report(db: AsyncSession, now: datetime.datetime) -> dict:
+    """Wrap /ai/daily-report. `now` is injected by the route (Clock pattern).
+    TTL 600s; bumped by scheduler at midnight (task 9).
+    """
     key = _cache_key(endpoint="report")
     try:
         cached = await cache_get_versioned("watchtower:report", key)
         if cached is not None:
             return json.loads(cached)
-    except (json.JSONDecodeError, TypeError):
-        pass
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.debug("watchtower.report cache decode failed: %s", exc)
 
     from app.api.v1.ai.watchtower import _compute_daily_report
 
-    result = await _compute_daily_report(db)
+    result = await _compute_daily_report(db, now)
 
     await cache_set_versioned(
         "watchtower:report",

@@ -23,15 +23,17 @@ async def watchtower_scan(
     _user: dict = Depends(get_current_user),
 ):
     try:
-        result = await watchtower_cached_scan(db, days_back)
+        result = await watchtower_cached_scan(db, days_back, dt.now(timezone.utc))
         return ok(result)
     except Exception as e:
         return fail(str(e), 500)
 
 
-async def _compute_daily_report(db: AsyncSession) -> dict:
-    """Generate daily cross-domain report. Moved from inline route handler."""
-    now = dt.now(timezone.utc)
+async def _compute_daily_report(
+    db: AsyncSession,
+    now: dt,
+) -> dict:
+    """Generate daily cross-domain report. `now` is injected by the route (Clock pattern)."""
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     from app.models.sales import SalesOrder
@@ -152,7 +154,7 @@ async def daily_report(
     _user: dict = Depends(get_current_user),
 ):
     try:
-        result = await watchtower_cached_report(db)
+        result = await watchtower_cached_report(db, dt.now(timezone.utc))
         return ok(result)
     except Exception as e:
         return fail(str(e), 500)
