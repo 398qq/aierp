@@ -501,7 +501,7 @@ export default function OpportunityList() {
             <Select
               placeholder={`批量推进 ${selected.length} 个`}
               style={{ width: 180 }}
-              onChange={batchStage}
+              onChange={(nextStage) => batchStageMut.mutate({ ids: selected, stage: nextStage })}
               options={STAGE_OPTIONS}
             />
           ) : null}

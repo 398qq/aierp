@@ -2,296 +2,196 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## 项目概述
 
-AIERP is an AI-powered ERP platform for small/medium electronics trading companies. It handles the full sales pipeline (opportunity → quotation → order → delivery → invoice → payment), plus procurement, inventory, customer/supplier management, and AI-driven intelligence features like RFM analysis, churn prediction, brand benchmarking, supplier scoring, demand forecasting, and inquiry auto-reply.
+AIERP — 电子元器件行业 AI 驱动的 ERP 系统，覆盖销售全流程（商机 → 报价 → 订单 → 发货 → 发票 → 回款）、采购（含三单匹配）、库存（含批次追溯）、客户/供应商管理、佣金方案，以及 AI 智能功能（RFM 分析、流失预测、品牌对比、供应商评分、需求预测、询盘自动回复、自然语言查询）。
 
-## Tech Stack
+后端 `2.2.0`（`backend/app/config.py`），前端 `2.1.1`（`frontend/package.json`）。
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Pydantic v2 |
-| Database | PostgreSQL 16 + pgvector (vector embeddings) |
-| Cache | Redis 7 |
-| AI Provider | SiliconFlow API (OpenAI-compatible) — DeepSeek-V4-Flash for chat, BAAI/bge-large-zh-v1.5 for embeddings |
-| Frontend | React 19.2, TypeScript 6.0, Vite 8, Ant Design 6, Zustand 5, Recharts |
-| Scheduler | APScheduler (background jobs in-process) |
-| PDF | ReportLab (quotation PDF), pytesseract/rapidocr (sales order PDF import) |
-
-## Key Commands
+## 常用命令
 
 ```bash
-# Development (hot-reload)
-make dev                 # Start both backend :8080 and frontend :3002
-make dev-backend         # Backend only
-make dev-frontend        # Frontend only
-
-# Testing
-make test                # Run all tests (backend pytest + frontend vitest)
-make test-backend        # pytest -v
-make test-backend-cov    # pytest with coverage
-make test-frontend       # vitest run
-make test-frontend-cov   # vitest with coverage
-
-# Single test
-pytest backend/tests/path/to/test_file.py::test_name -v
-
-# Linting
-make lint                # Backend: ruff check + mypy, Frontend: tsc --noEmit
-
-# Security
-make security-check      # pip-audit backend + npm audit frontend
-
-# Database
-make db-reset            # Drop and recreate PostgreSQL database
-make db-backup           # pg_dump to ~/date/
-make db-restore BACKUP=~/date/aierp_YYYYMMDD_HHMMSS.dump
-
-# Docker (start pgvector + redis)
-docker compose up -d
-
-# Build
-make build               # pip install backend + vite build frontend
+make dev              # 后端 :8080 + 前端 :3002（热重载，Ctrl-C 一起停）
+make dev-backend      # 仅后端 / make dev-frontend 仅前端
+make lint             # 后端 ruff check + mypy，前端 tsc --noEmit
+make test             # 后端 pytest + 前端 vitest
+make test-postgres    # 后端测试跑真实 PostgreSQL（默认走 SQLite）
+make test-backend-cov # 后端覆盖率（term-missing + html）
+make db-migrate       # alembic upgrade head
+make db-revision MSG="..."   # 生成 alembic 迁移
+make db-reset         # 删库重建（本地开发用）
+make db-shell         # psql 进开发库
+make security-check   # pip-audit + npm audit
+docker compose up -d  # pgvector:pg16 (5432) + redis:7 (6379)
 ```
 
-## Architecture
+单个测试：
 
-### Backend (`backend/`)
-
-```
-backend/app/
-├── main.py              # FastAPI app, lifespan, CORS, health endpoints
-├── config.py            # Pydantic Settings — all config from env
-├── database.py          # Async engine, session, Base, pgvector init, slow-query logging
-├── core/                # Security (JWT, bcrypt), error handlers, rate_limit, request_logging, request_context, security_headers
-├── api/
-│   ├── deps.py          # get_current_user (Bearer token + httpOnly cookie fallback → user dict with roles)
-│   └── v1/
-│       ├── router.py    # Master router — 25+ sub-routers under /api/v1
-│       ├── auth.py      # POST /auth/login, GET /auth/me, change-password
-│       ├── customers.py # CRUD + tags, contacts, follow-ups, alerts, import/export
-│       ├── products.py  # Products, brands, suppliers, warehouses, inventory
-│       ├── sales.py     # Opportunities, quotations, orders, deliveries, pipeline
-│       ├── finance.py   # Invoices, payments, contracts
-│       ├── transactions.py # Purchase orders, tickets, visits, samples, payments
-│       ├── ai.py        # All /ai/* endpoints (intelligence, chat, agents)
-│       ├── dashboard.py # Sales dashboard, watchtower, daily report
-│       ├── public.py    # Unauthenticated inquiry portal
-│       ├── approvals.py # Approval workflow engine
-│       ├── documents.py # Document management
-│       ├── export_import.py
-│       ├── finance_accounts.py
-│       ├── integrations.py
-│       ├── notifications.py
-│       ├── permissions.py # RBAC permission management
-│       ├── procurement.py
-│       ├── reports.py
-│       ├── targets.py   # Separate from finance
-│       ├── users.py
-│       └── inventory_transactions.py
-├── models/             # SQLAlchemy ORM models (soft-delete via TimestampMixin)
-│   ├── base.py          # TimestampMixin: id, created_at, updated_at, deleted_at
-│   ├── customer.py      # Customer, Contact, FollowUp, Tag, AlertRule, etc.
-│   ├── product.py       # Product, Brand, Supplier, Warehouse, Inventory
-│   ├── sales.py         # Opportunity, Quotation, SalesOrder, DeliveryNote, Inquiry
-│   ├── transaction.py   # PurchaseOrder, Ticket, Visit, Sample
-│   ├── finance.py       # Invoice, Payment, Contract, SalesTarget, Notification
-│   ├── account.py       # Chart of accounts
-│   ├── approval.py      # Approval workflow models
-│   ├── document.py      # Document/attachment storage
-│   ├── rbac.py          # Roles, permissions, user_role mapping
-│   ├── report.py        # Saved reports
-│   └── user.py          # User model
-├── schemas/            # Pydantic request/response schemas (mirrors models/)
-├── services/
-│   ├── ai/              # AI client + agents
-│   │   ├── client.py    # AIClient singleton: chat, chat_stream, chat_structured, embed (tenacity retry 3x)
-│   │   ├── agents.py    # Agent classes: CustomerAgent, ProductAgent, InventoryAgent, WatchtowerService, etc.
-│   │   ├── prompts.py   # Prompt templates
-│   │   └── recommend.py # AI recommendation logic
-│   ├── sales_service.py           # Business logic for sales pipeline
-│   ├── sales_ai_service.py        # AI enrichment for opportunities/quotations
-│   ├── sales_ai_pipeline.py       # Pipeline kanban AI features
-│   ├── sales_order_pdf_import.py  # PDF → structured sales order extraction
-│   ├── brand_intel_service.py
-│   ├── supplier_intel_service.py
-│   ├── po_intel_service.py        # Purchase order AI intelligence
-│   ├── contract_intel_service.py
-│   ├── finance_intel_service.py
-│   ├── product_intel_service.py
-│   ├── ticket_intel_service.py
-│   ├── target_intel_service.py
-│   ├── nlp_query_service.py       # Natural language → DB query
-│   ├── watchtower_service.py      # Cross-domain anomaly detection
-│   ├── notification_service.py
-│   ├── matching_service.py        # Product-customer matching
-│   ├── embedding_pipeline.py
-│   ├── pricing_service.py
-│   ├── pdf_service.py             # Quotation PDF generation (ReportLab)
-│   ├── cache_service.py           # Redis caching layer
-│   ├── docno.py                   # Document number generation
-│   ├── finance_service.py
-│   ├── inventory_service.py
-│   ├── customer_service.py
-│   ├── orchestration_service.py   # Cross-domain orchestration
-│   └── pagination.py
-├── jobs/scheduler.py    # APScheduler: 9 background jobs (6h/12h/24h intervals + cron at 18:00)
-└── migrations/          # Raw SQL migrations (pgvector extension, RBAC seed data, indexes)
+```bash
+cd backend && pytest -v tests/api/v1/customers/test_crud.py::test_get_customer
+cd backend && pytest -v -k "transition"          # 按名字过滤
+cd frontend && npx vitest run src/test/queries.test.tsx
+cd frontend && npx playwright test e2e/route-smoke.spec.ts   # E2E，需先起 dev
 ```
 
-### Middleware Pipeline
+`make lint` 里的 mypy 并非全量：`backend/mypy.ini` 对约 49 个遗留模块设了 `ignore_errors=True`；新代码要保证类型通过。pre-commit 只跑 ruff / prettier / detect-secrets / bandit，**不跑 mypy 和 pytest**。
 
-Applied in `main.py` in this order:
-1. **CORSMiddleware** — configured origins from env
-2. **RateLimitMiddleware** — per-IP rate limiting
-3. **RequestLoggingMiddleware** — logs method, path, status, duration
-4. **SecurityHeadersMiddleware** — CSP, HSTS, X-Content-Type-Options, etc.
-5. **RequestContextMiddleware** — request_id injection for tracing
-6. **Exception handlers** — unified `{code, msg, data, request_id}` response format
+## 技术栈
 
-### Frontend (`frontend/src/`)
+| 层级 | 技术 |
+|------|------|
+| 后端 | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Pydantic v2 |
+| 数据库 | PostgreSQL 16 + pgvector（`Vector(1024)` 语义检索） |
+| 缓存 | Redis 7（列表缓存、权限缓存、限流、Telegram 轮询锁） |
+| AI | SiliconFlow API — DeepSeek-V4-Flash（对话）、BAAI/bge-large-zh-v1.5（embedding）、MiniMax-M3（`AI_CODE_MODEL`） |
+| 前端 | **UmiJS Max 4**, React 19, TypeScript 6, Ant Design 6 + ProComponents 3, TanStack Query 5, Zustand 5, Recharts |
+| 调度 | APScheduler `AsyncIOScheduler`（进程内，14 个作业） |
+| 测试 | pytest（`asyncio_mode=auto`）/ Vitest + Testing Library / Playwright |
 
-```
-frontend/src/
-├── App.tsx              # Routes (react-router-dom v7), lazy-loaded pages, auth guard
-├── api/index.ts         # All API calls — axios-based, typed request/response
-├── api/client.ts        # Axios instance with httpOnly cookie auth interceptor + error normalization
-├── store/auth.ts        # Zustand auth store (login, logout, user state)
-├── layouts/MainLayout.tsx  # Ant Design ProLayout with sidebar
-├── types/index.ts       # TypeScript interfaces for all entities + APIResponse<T> + PageData<T>
-├── pages/               # One directory per domain — lazy-loaded
-│   ├── ai/              # AI Chat (SSE streaming) + follow-up intelligence
-│   ├── auth/            # Login page
-│   ├── brands/          # List, Detail, Dashboard, 360, Compare
-│   ├── customers/       # List, Detail, Form, Dashboard, 360, FollowUps, Recognition
-│   ├── dashboard/       # Watchtower, Global360
-│   ├── finance/         # Invoices, Payments
-│   ├── import-export/   # Data import/export UI
-│   ├── inventory/       # Inventory list, ledger
-│   ├── notifications/   # Notification center
-│   ├── procurement/     # Purchase orders, procurement planning
-│   ├── products/        # List, Detail, PriceImport, InventoryManage, Associations
-│   ├── public/          # InquiryPortal (unauthenticated)
-│   ├── reports/         # Report generation
-│   ├── sales/           # Opportunities, Quotations, Orders, Deliveries, Invoices, Payments, Contracts, Targets, PurchaseOrders, AI insights
-│   ├── settings/        # System settings
-│   ├── suppliers/       # List, Detail, Dashboard, 360, Compare
-│   ├── system/          # User management
-│   ├── tickets/         # List, Form, Detail, clusters
-│   └── warehouse/       # Warehouses, Inventory Ledger
-└── components/
-    ├── ai/AIInsight.tsx  # Reusable AI insight card
-    └── sales/            # PipelineBoard (dnd-kit), OpportunityCard, SalesAIInsight
-```
+## 架构
 
-### Data Flow
+### 后端 `backend/app/`
+
+分层正在从「胖 service」向 DDD 迁移，**两套并存**：
 
 ```
-Frontend (Ant Design 6) → axios (withCredentials) → FastAPI /api/v1/* → Service Layer → SQLAlchemy 2.0 async → PostgreSQL
-                                                         ↕                                                     ↕
-                                                 AIClient → SiliconFlow API                          pgvector (Vector(1024))
-                                                 EmbeddingService → pgvector                         Redis (caching)
-                                                 APScheduler → 9 periodic jobs
+main.py            # lifespan：init_db → init_uow → 预热连接池 → 调度器 → Telegram 轮询
+config.py          # Pydantic Settings；生产环境缺 JWT_SECRET/DB_PASSWORD/CORS 会拒绝启动
+database.py        # 异步引擎、init_db()、pgvector 初始化、慢查询日志
+
+# —— 新代码优先走这三层 ——
+domain/            # 纯业务逻辑，不依赖 infra
+  shared/          #   DomainError 体系、Money 值对象、DomainEvent
+  states/          #   状态机转换表 + assert_can_transition_* 函数
+  sales/ procurement/ inventory/ finance/   # 实体、事件、三单匹配、批次分配/成本策略
+application/       # 用例编排
+  uow.py           #   UnitOfWork（成功自动 commit、异常回滚、commit 后才派发事件）
+  sales/ procurement/    # ConfirmSalesOrderUseCase、MatchSupplierInvoiceUseCase 等
+infrastructure/    # 适配器，如 persistence/inventory_repo.py（version 列乐观锁）
+
+# —— 遗留层，仍承载大部分业务 ——
+api/v1/            # 30+ 子路由；小域单文件，大域升级为包（customers/ sales/ finance/ products/ ai/ ...）
+models/            # SQLAlchemy ORM，软删除靠 TimestampMixin
+schemas/           # Pydantic 契约 + common.py 的 ok()/fail()/paginated_ok()
+services/          # 业务逻辑主体（含 ai/、sales_service/、brand_intel/、pdf/、nlp_query/、orchestration/）
+core/              # security、permissions、error_handlers、rate_limit、request_context、
+                   # security_headers、pii_policy、field_encryption、circuit_breaker、data_isolation
+jobs/scheduler.py  # 14 个后台作业
 ```
 
-### Key Patterns
+中间件注册顺序（`main.py`，最外层先注册）：CORS → RateLimit → RequestLogging → SecurityHeaders → RequestContext。
 
-- **Soft delete**: All models inherit `TimestampMixin` with `deleted_at`. Queries always filter `deleted_at.is_(None)`.
-- **Auth**: JWT in httpOnly cookie (`aierp_token`) + Bearer token fallback. `get_current_user` dependency extracts `{user_id, username, roles}`.
-- **RBAC**: Role-based access control. Users → roles → permissions. Permission checks via `require_permissions()` dependency.
-- **AI calls**: `ai_client.chat()` for text, `ai_client.chat_stream()` for SSE, `ai_client.chat_structured(schema)` for JSON, `ai_client.embed()` for vectors. Tenacity retry (3 attempts, exponential backoff).
-- **Embeddings**: Customers, Products, Suppliers, and Brand entities have pgvector `Vector(1024)` columns for semantic search.
-- **AI Agents**: `services/ai/agents.py` defines domain-specific agents (CustomerAgent, ProductAgent, InventoryAgent, WatchtowerService, etc.) that combine AI calls with database operations.
-- **Tests**: SQLite (aiosqlite) replaces PostgreSQL. pgvector Vector columns are patched to `Text` in conftest.py for SQLite compatibility. FastAPI dependency overrides + httpx.AsyncClient.
-- **Error handling**: Unified `{code: number, msg: string, data: T, request_id?: string}` response format. Global exception handlers for HTTPException, RequestValidationError, and unhandled exceptions.
-- **Health endpoints**: `GET /health` (db+redis+ai checks), `GET /health/ready` (db-only liveness), `GET /health/live` (always ok).
-- **Scheduler**: 9 APScheduler jobs — sales insights refresh (6h), overdue alerts (12h), target progress (24h), contract expiry (24h), embedding refresh (24h), watchtower scan (4h), customer insights (24h), daily report (cron 18:00), notification cleanup (24h).
-- **Config**: All config from environment via Pydantic Settings with `backend/.env` override. Key vars: `DB_HOST/PORT/USER/PASSWORD/NAME`, `JWT_SECRET`, `AI_API_KEY`, `AI_BASE_URL`, `CORS_ORIGINS`, `REDIS_URL`.
-- **Slow query logging**: SQLAlchemy event listener logs queries exceeding `SLOW_QUERY_THRESHOLD_MS` with request_id and duration.
+健康检查：`/health`（DB+Redis+AI，返回 ok/degraded/down）、`/health/ready`（DB 就绪，故障返回 503）、`/health/live`、`/metrics/prometheus`。
 
-### Frontend Conventions
+### 前端 `frontend/src/`
 
-- All pages are lazy-loaded via `React.lazy()` in App.tsx
-- `api/index.ts` is the single API layer — all typed endpoints defined here
-- API response pattern: `{ code: 0, msg: "ok", data: T }` — error responses include `request_id` for tracing
-- `api/client.ts`: axios instance with `withCredentials: true` (httpOnly cookie). Error interceptor normalizes messages (401 → redirect to /login, timeout → "请求超时")
-- Zustand store for auth state only; page state is local `useState`/`useEffect`
-- Ant Design 6 with Chinese locale (zhCN) and `@ant-design/v5-patch-for-react-19`
-- Vite proxy: `/api` → `localhost:8080` (configurable via `BACKEND_PORT` env var)
-- DnD (PipelineBoard): `@dnd-kit/core` + `@dnd-kit/sortable`
-- Charts: Recharts for dashboards and analytics
-- Excel import: `read-excel-file`
-- AI Chat: SSE streaming via EventSource
+**这是 UmiJS Max，不是裸 Vite，也没有 `App.tsx`。**
 
-## Rules
+```
+../config/config.ts   # Umi 配置：routes 数组（手写，约 75 个页面）、proxy /api → :8080、port 3002
+layouts/ErpRouteLayout.tsx  # 认证外壳：QueryClientProvider + OfflineBanner + ProLayout + Outlet
+                            # 挂载时 useAuthStore.init() 探测 /auth/me；无 username → 跳 /login
+navigation/appNavigation.tsx # 菜单taxonomy + 全局搜索跳转
+lib/queries.ts        # useApiQuery / useApiMutation（React Query 封装，自动拆 {code,msg,data} 信封）
+lib/queryClient.ts    # staleTime 5min、gcTime 10min、retry 1、refetchOnWindowFocus false
+api/                  # 按域拆文件（customers.ts sales.ts finance.ts ...），index.ts 只是 barrel
+api/client.ts         # axios：baseURL /api/v1、withCredentials、X-Request-ID、
+                      # GET 幂等重试（408/429/5xx）、401 跳登录、getApiErrorMessage 中文化
+api/schemas/          # zod 运行时校验试点：safeGet/safePost + customer.ts
+ui/                   # 共享原语（见下）
+design-tokens.ts      # 设计令牌唯一来源；styles/*.css 用 erp- 前缀类名
+store/auth.ts         # Zustand：username/roles/loading/login/logout/init
+access.ts             # Umi access 插件契约：canAdmin/canSales/canFinance
+```
 
-- Do what has been asked; nothing more, nothing less
-- NEVER create files unless absolutely necessary — prefer editing existing files
-- NEVER create documentation files unless explicitly requested
-- ALWAYS read a file before editing it
-- NEVER commit secrets, credentials, or .env files
-- Keep files under 500 lines
-- Validate input at system boundaries
-- ALWAYS run tests after code changes: `make test`
-- ALWAYS verify build succeeds before committing: `make lint`
+路由 = `config/config.ts` 的 `routes` 数组，Umi 自动为每个页面生成 `React.lazy`（见生成物 `src/.umi/core/route.tsx`），**业务代码里不用自己写 lazy/Suspense**。
 
----
+`src/ui/` 现有原语：`PageHeader`、`StatusTag`（语义 tone，非裸 `<Tag color>`）、`SearchBar`、`MetricBand`、`EmptyState`、`ErrorBoundary`（识别 chunk 加载失败与离线）、`ModuleShell`、`OfflineBanner`、`UomSelect`（按类别分组 + 请求去重）、`IndustryRanking`、`FlexBox`、`FullPageLoader`、`useColumnResize`、`pagination.ts`（`erpPagination()`、`ERP_PAGE_SIZE=20`）、`chunkError.ts`、`AntdOverlayGuard`。
 
-## Engineering Bottom Lines (Non-negotiable)
+### 数据流
 
-When implementing ERP features, prioritize **operational correctness** over visual novelty. Every change is part of a business workflow with: status transitions, permissions, auditability, reporting impact, data consistency.
+```
+前端 → useApiQuery/useApiMutation → axios(/api/v1, cookie) → Vite proxy → FastAPI
+  → api/v1 路由（薄）→ services/ 或 application/ 用例 → SQLAlchemy async → PostgreSQL
+                                  ↕                            ↕
+                        AIClient → SiliconFlow        pgvector / Redis
+                        APScheduler → 14 个周期作业
+```
 
-### Backend
+## 关键约定
 
-1. **State machine is mandatory.** Every business object (`Opportunity`, `Quotation`, `SalesOrder`, `DeliveryNote`, `Invoice`, `PurchaseOrder`, `Receiving`, `Payment`) has an explicit `status` / `stage` field with an `Enum` class — never magic strings. Define transition rules in a single function `assert_can_transition(obj, from_status, to_status)`.
-2. **Soft delete everywhere.** All models inherit `TimestampMixin` (already in `models/base.py`). Base query helpers must filter `deleted_at IS NULL` by default; raw `.execute()` with a `SELECT` is a code-review red flag.
-3. **Service layer owns business logic.** Route handlers stay thin: parse → call service → return schema. No DB queries, no business rules in routes. No `HTTPException` in services — raise `AppError(code, msg)` and let the global handler convert.
-4. **Decimal for money, never float.** `from decimal import Decimal`; convert at the boundary (`Decimal(str(value))`). Database column is `NUMERIC(18, 4)`. Tests assert exact decimal equality.
-5. **Document totals must reconcile.** `SalesOrder.total == sum(line.subtotal) - discount + tax`. Same for `Invoice`, `Quotation`, `PurchaseOrder`. Add a test that mutates one line and asserts the recompute fires.
-6. **Slow dependencies get bounded calls.** AI client, OCR, PDF import, payment gateway, external logistics: explicit `timeout`, `tenacity` retry (3 attempts, exponential backoff), and a safe fallback (cached value, default response, queue for later). Never `await client.call(...)` without a timeout.
-7. **RBAC at every route.** `@router.post(...)` declares `permissions=["customer.create"]`. Service receives `current_user` and re-checks for object-level permissions (data scope by team/region/owner). Field-level (e.g. `cost_price` hidden from sales role) handled at the schema layer.
-8. **Audit fields populated automatically.** `created_by`, `updated_by`, `approved_by` via a SQLAlchemy event listener that reads from `request_context`. Don't ask callers to pass them.
-9. **Request ID end-to-end.** Middleware generates UUID, stores in `contextvars`, includes in: log lines, error responses, slow-query logs, AI call metadata, db transactions. No orphan log lines without a `request_id`.
+**响应信封**：统一 `{code, msg, data, request_id}`。成功用 `ok(data)`（普通 dict，状态码由路由装饰器决定）；失败用 `fail(msg, code=400)`（返回 `JSONResponse`，**HTTP 状态码等于 code**，前端拦截器靠状态码分流）。全局处理器覆盖 `DomainError`（取 `exc.http_status`）、`HTTPException`、`RequestValidationError`（422）、未捕获异常（500，非 DEBUG 不泄漏详情）。
 
-### Frontend
+**认证**：JWT 优先 `Authorization: Bearer`，回退 `aierp_token` httpOnly cookie。`get_current_user`（`api/deps.py`）返回 `{user_id, username, roles}`，并校验 Redis 黑名单 `jti` + `User.token_version`。默认 8 小时过期。
 
-1. **Pages import from `@/ui`, never inline.** `<PageHeader>`, `<StatusTag>`, `<SearchBar>`, `<MetricBand>`, `<EmptyState>`, `<ErrorBoundary>` — already in `frontend/src/ui/`. New patterns extend this library, not pages.
-2. **API layer is one file.** All endpoints in `frontend/src/api/index.ts` with typed request/response. No `axios.get(...)` in components. If a page needs a new endpoint, add it to `api/index.ts` first.
-3. **Async states are explicit.** Every data table/page has: `<EmptyState>` for no data, `<Spin>` for loading, error toast (via `message.error`) for failure. Half-rendered lists are a bug.
-4. **Tables are dense and scannable.** Fixed-height rows (40–48px), 6+ columns fit on 1440px wide, right-align numerics with `tnum` feature, status column uses `<StatusTag>`, action column stays ≤ 3 buttons + "more" dropdown. No marketing-style cards for data lists.
-5. **Forms go in Drawer, not Modal.** Modal ≤ 4 fields. Drawer for 5+ fields or multi-section forms. Multi-page wizards for ≥ 3 logical steps. Submit button always reachable without scrolling on 1080p.
-6. **Permission-aware rendering.** Buttons wrapped in `<Authorized permission="...">`. If absent, the user shouldn't even see the button — server still re-checks. Test by logging in as a sales-only user and confirming admin actions are invisible.
-7. **Money and quantities are typed components.** Use `<MoneyCell>` (or `<Typography.Text type="success|danger">` with `tnum`) — never raw string concatenation. Negative red, currency symbol prefix, thousands separator.
-8. **Lazy-load every page.** `App.tsx` uses `React.lazy()` for all `pages/*/index.tsx` entries. Bundle per route ≤ 200KB gzipped.
-9. **Error boundary per page.** `<ErrorBoundary>` wraps every lazy-loaded page; failures show a recovery UI, not a white screen.
+**RBAC**：路由声明 `Depends(require_perm(resource, action))`（`core/permissions.py`）——单条 EXISTS 查询、`admin` 角色直通、Redis 缓存 10 秒（允许与拒绝都缓存）。资源码见 `RESOURCES`（customers/products/sales/purchases/finance/inventory/reports/system）。RBAC 变更后要调 `_invalidate_perm_cache()`。部分遗留端点只有 `Depends(get_current_user)`，属待补审计项——新端点必须声明权限。
 
-### Code Style
+**状态机**：转换表与守卫在 `domain/states/`（`SALES_ORDER_TRANSITIONS` + `assert_can_transition_sales_order(current, target)` 等，覆盖商机/报价/订单/发货/退货/客户/发票/回款/合同/佣金/采购单/收货/供应商发票/工单/样品）。写路径统一走 `services/state_transition_service.py::transition_status(db, entity, target, guard=..., aggregate_type=..., actor=...)`——同状态返回 `False` 幂等、失败抛 `InvalidStateTransition`、自动写 `StatusTransitionLog`（**不 commit，调用方负责**）。
 
-- **Backend**: snake_case modules, PascalCase classes, `test_*.py` files. Domain behavior in `services/`. Schema-first API contracts. Type hints on every function signature (params + return).
-- **Frontend**: PascalCase components/pages, camelCase functions/hooks, `@/*` alias for `frontend/src/*`. No inline `style={{ color: '#1890ff' }}` — use `theme.useToken()` or `frontend/src/design-tokens.ts`.
-- **Files ≤ 500 lines** (AGENTS.md rule). Extract a helper before adding a 4th concern to a file.
+**迁移**：`backend/alembic/versions/` 是权威（`make db-migrate`）。另有两处历史目录：`backend/app/migrations/*.sql` 是幂等补丁，由 `init_db()` 在启动时自动执行（`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` 风格）；`backend/migrations/*.sql` 是需手动执行的索引/扩展脚本。**新的结构变更一律写 Alembic。**
 
-### Testing Expectations
+**缓存**：`services/cache_service.py` 提供带版本前缀的列表缓存（`cache_bump_version` 使某域缓存整体失效）。写操作后记得 bump。
 
-- **Backend**: pytest `asyncio_mode=auto`. Unit tests for state machines, decimal math, RBAC checks. Integration tests for full CRUD + auth. Mark with `@pytest.mark.unit` / `@pytest.mark.integration`. SQLite (aiosqlite) + pgvector→Text patch in `conftest.py` is the established pattern.
-- **Frontend**: Vitest + Testing Library. Snapshot tests for layout primitives, interaction tests for forms, render tests for permission gating.
-- **Coverage target**: ≥ 80% on `services/`, `models/`, `ui/`. Lower on boilerplate OK.
-- **For perf or timeout fixes**: capture before/after timings in the commit message and PR.
+## 工程底线（不可协商）
 
-### Commit & PR
+### 后端
 
-- Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`, `perf:`. Chinese summaries are common and acceptable.
-- Keep commits scoped (one logical change). Don't mix refactor + feature.
-- PR description: user-visible change → validation performed (`make test`, `make lint`, screenshots for UI) → issues/docs linked → migration/secret/config notes.
+1. **状态机必定义** — 业务对象的 `status` 用 `Enum` + `domain/states/` 转换表，禁止魔法字符串；改状态走 `transition_status()`。
+2. **软删除** — 所有 model 继承 `TimestampMixin`，查询必须过滤 `deleted_at IS NULL`。
+3. **路由薄、逻辑下沉** — 路由只做解析 → 调 service/用例 → 返回 schema。services 里不抛 `HTTPException`，抛 `DomainError` 子类（`NotFoundError`/`BusinessRuleViolation`/`InvalidStateTransition`/`ConflictError`/`InsufficientStockError`/`ConcurrentModificationError`）。
+4. **金额用 `Decimal`** — `Decimal(str(value))`，DB `NUMERIC(18,4)`，测试断言精确相等。禁止 `float`。
+5. **单据总额必须对账** — `SalesOrder.total == sum(line.subtotal) - discount + tax`，Invoice/Quotation/PurchaseOrder 同理；改行项要有触发重算的测试。
+6. **慢依赖有界** — AI、OCR、PDF、物流、支付：显式 `timeout` + tenacity 重试（3 次指数退避）+ 安全回退（缓存值/默认值/入队）。禁止裸 `await client.call(...)`。
+7. **事务边界** — 通过 `get_db()` 或 `get_uow()`，不在生命周期外 `commit()`。
+8. **审计与请求 ID** — `created_by/updated_by` 由事件监听器从 `request_context` 填充；`request_id` 贯穿日志、错误响应、慢查询日志。
 
-### Anti-Patterns to Refuse
+### 前端
 
-- `datetime.now()` in business logic → inject a `Clock` interface (testable, replayable).
-- `float` for money → `Decimal` always.
-- `String` column for status → `Enum` (Python) + `VARCHAR` with `CHECK` constraint in DB.
-- Hardcoded role check `if user.role == "admin"` → use `permission` system.
-- Inline `<Tag color="green">` for status → `<StatusTag tone="success">`.
-- New page without `<ErrorBoundary>` → bug.
-- `await` on AI call without `timeout` → production outage waiting to happen.
-- `try/except: pass` → silent failure. Log or re-raise.
-- `commit()` outside the session-dep lifecycle → leaks. Always go through `get_db()`.
+1. **共享原语从 `@/ui` 导入**，不在页面里内联重造。新模式扩充 `src/ui/`，不散落到页面。
+2. **API 调用只在 `src/api/<域>.ts`** — 组件里禁止直接 `axios.*`；新端点先加到对应域文件（必要时从 `index.ts` 导出）。
+3. **数据获取走 `useApiQuery`/`useApiMutation`** — query key 用元组（如 `["customers", params]`）；列表页带 `keepPreviousData: true` 避免翻页闪烁；变更用 `invalidateKeys` 失效。
+4. **异步状态显式** — 空数据 `<EmptyState>`、加载 `<Spin>`、失败 `message.error(getApiErrorMessage(err))`。半渲染列表算 bug。
+5. **表格高密度可扫描** — 行高 40–48px、数字右对齐并用 tabular-nums（`design-tokens.ts` 的 `numericStyle`）、状态列用 `<StatusTag tone>`、操作列 ≤ 3 按钮 + 更多下拉。
+6. **表单放 Drawer** — Modal ≤ 4 字段；5+ 字段或多分区用 Drawer；≥ 3 步用向导。提交按钮在 1080p 下无需滚动可达。
+7. **权限感知渲染** — 依据 `useAuthStore` 的 `roles` / `access.ts` 隐藏无权操作；服务端必须再校验一次。
+8. **样式走令牌** — 用 `design-tokens.ts` 与 `styles/*.css` 的 `erp-` 类名，禁止内联 `style={{ color: '#1890ff' }}` 或新造色值/圆角/字重。
+9. **每页 `<ErrorBoundary>`** — 失败给恢复 UI，不要白屏。
+
+### 代码风格
+
+- 后端：`snake_case` 模块、`PascalCase` 类、`test_*.py`；每个函数签名带参数与返回类型注解。
+- 前端：`PascalCase` 组件/页面、`camelCase` 函数与 hook（hook 以 `use` 开头）、`@/*` → `src/*`；prettier `printWidth=100`、双引号、结尾分号。
+- **文件 ≤ 500 行**；加第 4 个关注点之前先抽 helper。
+
+## 测试
+
+- 后端 `pytest asyncio_mode=auto`，标记 `@pytest.mark.unit` / `@pytest.mark.integration`。默认 SQLite（aiosqlite），`conftest.py` 把 pgvector `Vector` 列替换成 `Text`；`make test-postgres` 走真实 PG（每 worker 建独立 schema，需 pgvector 扩展）。
+- 关键 fixture：`async_client`（ASGITransport + 覆盖 `get_db`/`get_uow`）、`test_user`（sales 角色 + customers 权限）、`test_admin`、`auth_headers`/`admin_headers`；autouse 的 Redis 清理（防权限缓存串味）与 Telegram 环境清理；`EMBEDDING_PIPELINE=0` 关掉 fire-and-forget embedding。
+- 前端 Vitest + Testing Library，测试集中在 `src/test/`（`setup.ts` 已 stub matchMedia/ResizeObserver/IntersectionObserver/localStorage）；E2E 在 `frontend/e2e/`（Playwright，chromium，baseURL `:3002`）。
+- 覆盖率下限（CONTRIBUTING.md）：service 80% / api 70% / utils 90% / 前端组件 60%。
+- 性能或超时类修复：在 commit 与 PR 里附前后计时。
+
+## CI（`.github/workflows/`）
+
+`ci.yml` 在 push master/main 与 PR 上跑 6 个 job：`backend-lint`（ruff 0.7.4）、`backend-test`（pytest，SQLite，`pip-audit` 仅告警不阻断）、`frontend-typecheck`（`tsc --noEmit`）、`frontend-lint`、`frontend-test`（vitest）、`frontend-build`（`tsc -b && max build` + npm audit）。另有 `security-audit.yml`（周一严格 pip-audit）、`codeql.yml`（周二，Python + JS/TS）、`dependabot-auto-merge.yml`（patch/minor 自动合并，需 `AUTO_MERGE_TOKEN`）。
+
+提交信息用 Conventional Commits 带 scope（如 `feat(commission): ...`）；PR 正文五段：Why / What / How / Test / Risk。
+
+## 反模式（拒绝）
+
+- 业务逻辑里 `datetime.now()` → 注入 Clock，保证可测可回放。
+- 金额用 `float`、状态用裸 `VARCHAR`、硬编码 `if user.role == "admin"`。
+- 路由里直接写 DB 查询；service 里抛 `HTTPException`。
+- 组件里直接 `axios.*`；绕过 `useApiQuery` 手写 `useEffect` 拉数据。
+- 状态列内联 `<Tag color="green">` → 用 `<StatusTag tone="success">`。
+- AI/外部调用没有 `timeout`；`try/except: pass` 静默失败。
+- 新增结构变更只写 `app/migrations/*.sql` 而不写 Alembic。
+
+## 参考文档
+
+- [AGENTS.md](AGENTS.md) — 仓库简版入口（本文件是其「工程底线与命令参考」）
+- [CONTRIBUTING.md](CONTRIBUTING.md) — 分支节奏、Dependabot、覆盖率与 bundle 预算、PR 模板
+- [DESIGN.md](DESIGN.md) — 前端设计系统（配色、字号、组件与响应式规范）
+- [docs/README.md](docs/README.md) — 文档索引；`docs/architecture/adr/` 有 6 篇 ADR
+- [docs/MIGRATIONS.md](docs/MIGRATIONS.md) · [docs/OPS.md](docs/OPS.md) · [docs/CI.md](docs/CI.md) · [docs/frontend/](docs/frontend/)
+- `GEMINI.md` 已过时（层次与覆盖率说法均不准），**不要以它为准**。
