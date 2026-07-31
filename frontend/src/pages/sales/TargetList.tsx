@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { App, Button, Card, Dropdown, Progress, Select, Space, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
@@ -50,6 +50,14 @@ const EMPTY_STATS: TargetStats = {
   total_actual: 0,
   achievement_pct: 0,
 };
+
+interface TargetStats {
+  total_target: number;
+  total_actual: number;
+  achievement_pct: number;
+  count?: number;
+  completed?: number;
+}
 
 export default function TargetList() {
   const { message, modal } = App.useApp();

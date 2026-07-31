@@ -1,15 +1,39 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Dropdown, Form, InputNumber, Modal, Select, Space, Typography, message } from "antd";
+import { App, Button, Dropdown, Form, InputNumber, Modal, Select, Space, Typography } from "antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
 import { StatusTag } from "../../ui";
 import type { MenuProps } from "antd";
-import { DeleteOutlined, EditOutlined, EllipsisOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { allocatePayment, getInvoices, getPayments, deletePayment, getPaymentStats, getApiErrorMessage } from "../../api";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  EllipsisOutlined,
+  EyeOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
+import {
+  allocatePayment,
+  getInvoices,
+  getPayments,
+  deletePayment,
+  getPaymentStats,
+  getApiErrorMessage,
+} from "../../api";
 import type { Invoice, PaymentRecord, PageData } from "@/types";
 import { useApiQuery, useQueryClient } from "@/lib/queries";
-import { CustomerLink, CustomerSelect, ErpExportButton, MetricBand, SalesModuleShell, erpRowClass, money, shortDate, statusDot, ERP_STATUS_DOT } from "./salesUi";
+import {
+  CustomerLink,
+  CustomerSelect,
+  ErpExportButton,
+  MetricBand,
+  SalesModuleShell,
+  erpRowClass,
+  money,
+  shortDate,
+  statusDot,
+  ERP_STATUS_DOT,
+} from "./salesUi";
 
 const STATUS: Record<string, { color: string; label: string }> = {
   pending: { color: "orange", label: "待收款" },
@@ -27,6 +51,7 @@ interface PaymentStats {
 export default function PaymentList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [allocationTarget, setAllocationTarget] = useState<PaymentRecord | null>(null);
@@ -93,7 +118,8 @@ export default function PaymentList() {
       list.map((r) => ({
         id: r.id,
         sales_order_no: r.sales_order_no || `#${r.sales_order_id}`,
-        delivery_note_no: r.delivery_note_no || (r.delivery_note_id ? `#${r.delivery_note_id}` : ""),
+        delivery_note_no:
+          r.delivery_note_no || (r.delivery_note_id ? `#${r.delivery_note_id}` : ""),
         invoice_no: r.invoice_no || "",
         amount: r.amount,
         payment_method: r.payment_method || "",
@@ -118,11 +144,16 @@ export default function PaymentList() {
   const columns: ProColumns<PaymentRecord>[] = [
     { title: "#", width: 45, fixed: "left", render: (_, __, index) => index + 1 },
     {
-      title: "关联订单号", dataIndex: "sales_order_no", width: 160,
+      title: "关联订单号",
+      dataIndex: "sales_order_no",
+      width: 160,
       render: (_, record) => (
         <div>
           <div className="erp-cell-primary">
-            <Typography.Link strong onClick={() => navigate(`/sales/orders/${record.sales_order_id}`)}>
+            <Typography.Link
+              strong
+              onClick={() => navigate(`/sales/orders/${record.sales_order_id}`)}
+            >
               {record.sales_order_no || `#${record.sales_order_id}`}
             </Typography.Link>
           </div>
@@ -130,7 +161,9 @@ export default function PaymentList() {
       ),
     },
     {
-      title: "关联发货单号", dataIndex: "delivery_note_no", width: 160,
+      title: "关联发货单号",
+      dataIndex: "delivery_note_no",
+      width: 160,
       render: (_, record) => {
         if (!record.delivery_note_id) return <span style={{ color: "#999" }}>-</span>;
         return (
@@ -141,7 +174,9 @@ export default function PaymentList() {
       },
     },
     {
-      title: "发票", dataIndex: "invoice_id", width: 110,
+      title: "发票",
+      dataIndex: "invoice_id",
+      width: 110,
       render: (_, r) => {
         if (!r.invoice_id) return <span style={{ color: "#999" }}>-</span>;
         return (
@@ -151,30 +186,67 @@ export default function PaymentList() {
         );
       },
     },
-    { title: "客户", dataIndex: "customer_id", width: 180, render: (_, r) => <CustomerLink id={r.customer_id} /> },
-    { title: "金额", dataIndex: "amount", width: 120, align: "right", sorter: (a, b) => a.amount - b.amount, render: (_, r) => <Typography.Text strong>{money(r.amount)}</Typography.Text> },
-    { title: "方式", dataIndex: "payment_method", width: 80 },
-    { title: "付款日期", dataIndex: "payment_date", width: 110, sorter: (a, b) => (a.payment_date || "").localeCompare(b.payment_date || ""), render: (_, r) => shortDate(r.payment_date) },
     {
-      title: "状态", dataIndex: "status", width: 90,
+      title: "客户",
+      dataIndex: "customer_id",
+      width: 180,
+      render: (_, r) => <CustomerLink id={r.customer_id} />,
+    },
+    {
+      title: "金额",
+      dataIndex: "amount",
+      width: 120,
+      align: "right",
+      sorter: (a, b) => a.amount - b.amount,
+      render: (_, r) => <Typography.Text strong>{money(r.amount)}</Typography.Text>,
+    },
+    { title: "方式", dataIndex: "payment_method", width: 80 },
+    {
+      title: "付款日期",
+      dataIndex: "payment_date",
+      width: 110,
+      sorter: (a, b) => (a.payment_date || "").localeCompare(b.payment_date || ""),
+      render: (_, r) => shortDate(r.payment_date),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      width: 90,
       sorter: (a, b) => (a.status || "").localeCompare(b.status || ""),
       render: (_, r) => (
         <>
           {statusDot(ERP_STATUS_DOT[r.status] || "#d9d9d9")}
-          <StatusTag tone={STATUS[r.status]?.color}>{STATUS[r.status]?.label || r.status}</StatusTag>
+          <StatusTag tone={STATUS[r.status]?.color}>
+            {STATUS[r.status]?.label || r.status}
+          </StatusTag>
         </>
       ),
     },
     {
-      title: "操作", width: 60, fixed: "right",
+      title: "操作",
+      width: 60,
+      fixed: "right",
       render: (_, r) => {
         const items: MenuProps["items"] = [
-          { key: "view", icon: <EyeOutlined />, label: "查看详情", onClick: () => navigate(`/sales/payments/${r.id}`) },
-          { key: "edit", icon: <EditOutlined />, label: "编辑", onClick: () => navigate(`/sales/payments/${r.id}/edit`) },
+          {
+            key: "view",
+            icon: <EyeOutlined />,
+            label: "查看详情",
+            onClick: () => navigate(`/sales/payments/${r.id}`),
+          },
+          {
+            key: "edit",
+            icon: <EditOutlined />,
+            label: "编辑",
+            onClick: () => navigate(`/sales/payments/${r.id}/edit`),
+          },
           { key: "allocate", label: "核销发票", onClick: () => openAllocation(r) },
           { type: "divider" as const },
           {
-            key: "delete", icon: <DeleteOutlined />, label: "删除", danger: true,
+            key: "delete",
+            icon: <DeleteOutlined />,
+            label: "删除",
+            danger: true,
             onClick: () => {
               Modal.confirm({
                 title: "确定删除?",
@@ -211,10 +283,24 @@ export default function PaymentList() {
       />
 
       <Space wrap className="sales-list-toolbar" style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/sales/payments/new")}>新增回款</Button>
-        <Select placeholder="状态筛选" allowClear style={{ width: 120 }} value={status} onChange={setStatus} options={[
-          { value: "pending", label: "待收款" }, { value: "completed", label: "已收款" },
-        ]} />
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => navigate("/sales/payments/new")}
+        >
+          新增回款
+        </Button>
+        <Select
+          placeholder="状态筛选"
+          allowClear
+          style={{ width: 120 }}
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: "pending", label: "待收款" },
+            { value: "completed", label: "已收款" },
+          ]}
+        />
         <div className="sales-customer-filter" style={{ width: 280 }}>
           <CustomerSelect value={customerId} onChange={setCustomerId} />
         </div>
@@ -254,10 +340,14 @@ export default function PaymentList() {
           return (
             <ProTable.Summary.Row>
               <ProTable.Summary.Cell index={0}>合计</ProTable.Summary.Cell>
-              <ProTable.Summary.Cell index={1}><Typography.Text strong>{data.length} 项</Typography.Text></ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={1}>
+                <Typography.Text strong>{data.length} 项</Typography.Text>
+              </ProTable.Summary.Cell>
               <ProTable.Summary.Cell index={2} />
               <ProTable.Summary.Cell index={3} />
-              <ProTable.Summary.Cell index={4} align="right"><Typography.Text strong>{money(total)}</Typography.Text></ProTable.Summary.Cell>
+              <ProTable.Summary.Cell index={4} align="right">
+                <Typography.Text strong>{money(total)}</Typography.Text>
+              </ProTable.Summary.Cell>
               <ProTable.Summary.Cell index={5} colSpan={4} />
             </ProTable.Summary.Row>
           );
@@ -273,7 +363,8 @@ export default function PaymentList() {
         width={680}
       >
         <Typography.Paragraph type="secondary">
-          回款金额：{money(allocationTarget?.amount || 0)}。可拆分核销同一客户的多张发票，核销合计不能超过回款金额。
+          回款金额：{money(allocationTarget?.amount || 0)}
+          。可拆分核销同一客户的多张发票，核销合计不能超过回款金额。
         </Typography.Paragraph>
         <Form form={allocationForm} layout="vertical">
           <Form.List name="allocations">
@@ -281,7 +372,12 @@ export default function PaymentList() {
               <Space direction="vertical" style={{ width: "100%" }}>
                 {fields.map((field) => (
                   <Space key={field.key} align="start">
-                    <Form.Item {...field} name={[field.name, "invoice_id"]} label="发票" rules={[{ required: true }]}>
+                    <Form.Item
+                      {...field}
+                      name={[field.name, "invoice_id"]}
+                      label="发票"
+                      rules={[{ required: true }]}
+                    >
                       <Select
                         style={{ width: 300 }}
                         options={invoiceOptions.map((invoice) => ({
@@ -290,10 +386,19 @@ export default function PaymentList() {
                         }))}
                       />
                     </Form.Item>
-                    <Form.Item {...field} name={[field.name, "amount"]} label="核销金额" rules={[{ required: true }]}>
+                    <Form.Item
+                      {...field}
+                      name={[field.name, "amount"]}
+                      label="核销金额"
+                      rules={[{ required: true }]}
+                    >
                       <InputNumber min={0.01} precision={2} style={{ width: 180 }} />
                     </Form.Item>
-                    {fields.length > 1 && <Button danger onClick={() => remove(field.name)}>删除</Button>}
+                    {fields.length > 1 && (
+                      <Button danger onClick={() => remove(field.name)}>
+                        删除
+                      </Button>
+                    )}
                   </Space>
                 ))}
                 <Button onClick={() => add({ amount: 0 })}>增加核销发票</Button>
