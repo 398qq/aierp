@@ -1,17 +1,15 @@
-import { Col, Row, Alert, Button, Typography } from "antd";
+import { Alert, Button, Typography } from "antd";
 import { useApiQuery } from "@/lib/queries";
 import { getApiErrorMessage } from "@/api/client";
-import { EmptyState, StatusTag } from "@/ui";
+import { EmptyState } from "@/ui";
 import FullPageLoader from "@/ui/FullPageLoader";
 import { ScanHeader } from "./components/ScanHeader";
+import { KpiCards } from "./components/KpiCards";
 import type { WatchtowerScanResponse } from "@/types/watchtower";
 import styles from "./WatchtowerDashboard.module.css";
 
 const { Text } = Typography;
 const SCAN_LOOKBACK_DAYS = 90;
-
-const severityTone = (s: string): "success" | "warning" | "danger" =>
-  s === "紧急" ? "danger" : s === "需关注" ? "warning" : "success";
 
 const domainLabels: Record<string, string> = {
   churn_risk: "客户流失风险",
@@ -52,50 +50,14 @@ export default function WatchtowerDashboard() {
         onRefresh={() => query.refetch()}
       />
 
-      <Row gutter={[16, 16]} className={styles.kpiRow}>
-        <Col xs={24} sm={6}>
-          <div className={styles.kpiCard}>
-            <Text>异常总数</Text>
-            <div className={styles.kpiValue}>{data.total_alerts}</div>
-          </div>
-        </Col>
-        <Col xs={24} sm={6}>
-          <div className={styles.kpiCard}>
-            <Text>严重程度</Text>
-            <div className={styles.kpiValue}>
-              <StatusTag tone={severityTone(data.severity)}>{data.severity}</StatusTag>
-            </div>
-          </div>
-        </Col>
-        <Col xs={24} sm={6}>
-          <div className={styles.kpiCard}>
-            <Text>异常领域</Text>
-            {data.risk_areas?.length ? (
-              data.risk_areas.map((a, i) => (
-                <StatusTag tone="danger" key={i}>
-                  {a}
-                </StatusTag>
-              ))
-            ) : (
-              <StatusTag tone="success">无</StatusTag>
-            )}
-          </div>
-        </Col>
-        <Col xs={24} sm={6}>
-          <div className={styles.kpiCard}>
-            <Text>领域分布</Text>
-            {anomalyEntries.length ? (
-              anomalyEntries.map(([domain, items]) => (
-                <StatusTag key={domain} tone={items.length > 5 ? "danger" : "warning"}>
-                  {domainLabels[domain] || domain}: {items.length}
-                </StatusTag>
-              ))
-            ) : (
-              <Text type="secondary">暂无异常</Text>
-            )}
-          </div>
-        </Col>
-      </Row>
+      <KpiCards
+        totalAlerts={data.total_alerts}
+        severity={data.severity}
+        riskAreas={data.risk_areas}
+        domainDistribution={anomalyEntries.map(
+          ([d, items]) => [d, items.length] as [string, number],
+        )}
+      />
 
       <div className={styles.section}>
         <Text strong>AI 分析摘要</Text>

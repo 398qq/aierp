@@ -1,0 +1,29 @@
+.row {
+  margin-bottom: 24px;
+}
+
+.card {
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 96px;
+}
+
+.value {
+  font-size: 32px;
+  font-weight: 600;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.severity {
+  margin-top: 8px;
+}
+
+.areaList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
