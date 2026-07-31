@@ -1,19 +1,18 @@
-import { Alert, Button, Typography } from "antd";
+import { Alert, Button } from "antd";
 import { useApiQuery } from "@/lib/queries";
 import { getApiErrorMessage } from "@/api/client";
-import { EmptyState } from "@/ui";
 import FullPageLoader from "@/ui/FullPageLoader";
 import { ScanHeader } from "./components/ScanHeader";
 import { KpiCards } from "./components/KpiCards";
 import { AiSummary } from "./components/AiSummary";
 import { TopActions } from "./components/TopActions";
-import type { WatchtowerScanResponse } from "@/types/watchtower";
+import { AnomalyTable } from "./components/AnomalyTable";
+import type { WatchtowerScanResponse, AnomalyRow, AnomalyDomain } from "@/types/watchtower";
 import styles from "./WatchtowerDashboard.module.css";
 
-const { Text } = Typography;
 const SCAN_LOOKBACK_DAYS = 90;
 
-const domainLabels: Record<string, string> = {
+const DOMAIN_LABELS: Record<AnomalyDomain, string> = {
   churn_risk: "客户流失风险",
   order_drop: "订单量下降",
   low_stock: "低库存",
@@ -42,7 +41,13 @@ export default function WatchtowerDashboard() {
   if (!query.data) return null;
 
   const data = query.data;
-  const anomalyEntries = Object.entries(data.anomalies || {}).filter(([, v]) => v.length > 0);
+  const anomalyEntries: Array<[AnomalyDomain, AnomalyRow[]]> = (
+    Object.entries(data.anomalies) as Array<[AnomalyDomain, AnomalyRow[]]>
+  ).filter(([, v]) => v.length > 0);
+
+  const allAnomalies: AnomalyRow[] = anomalyEntries.flatMap(([domain, items]) =>
+    items.map((item) => ({ ...item, domain, domainLabel: DOMAIN_LABELS[domain] || domain })),
+  );
 
   return (
     <div className={styles.page}>
@@ -65,22 +70,7 @@ export default function WatchtowerDashboard() {
 
       {data.top_actions?.length > 0 && <TopActions items={data.top_actions} />}
 
-      <div className={styles.section}>
-        <Text strong>异常详情</Text>
-        {anomalyEntries.length > 0 ? (
-          <pre className={styles.anomalyPre}>
-            {JSON.stringify(
-              anomalyEntries.flatMap(([domain, items]) =>
-                items.map((it) => ({ ...it, domain, domainLabel: domainLabels[domain] || domain })),
-              ),
-              null,
-              2,
-            )}
-          </pre>
-        ) : (
-          <EmptyState description="未检测到异常，系统运行正常" />
-        )}
-      </div>
+      <AnomalyTable rows={allAnomalies} />
     </div>
   );
 }
