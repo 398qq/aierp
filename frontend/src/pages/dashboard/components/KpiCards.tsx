@@ -1,18 +1,13 @@
 import { Col, Row, Typography } from "antd";
 import { StatusTag } from "@/ui";
+import type { AnomalyDomain } from "@/types/watchtower";
+import { DOMAIN_LABELS } from "../constants";
 import styles from "./KpiCards.module.css";
 
 const { Text } = Typography;
 
 const severityTone = (s: string): "success" | "warning" | "danger" =>
   s === "紧急" ? "danger" : s === "需关注" ? "warning" : "success";
-
-const domainLabels: Record<string, string> = {
-  churn_risk: "客户流失风险",
-  order_drop: "订单量下降",
-  low_stock: "低库存",
-  out_of_stock: "缺货",
-};
 
 export interface KpiCardsProps {
   totalAlerts: number;
@@ -61,7 +56,7 @@ export function KpiCards({ totalAlerts, severity, riskAreas, domainDistribution 
             {domainDistribution.length ? (
               domainDistribution.map(([domain, count]) => (
                 <StatusTag key={domain} tone={count > 5 ? "danger" : "warning"}>
-                  {domainLabels[domain] || domain}: {count}
+                  {DOMAIN_LABELS[domain as AnomalyDomain] || domain}: {count}
                 </StatusTag>
               ))
             ) : (

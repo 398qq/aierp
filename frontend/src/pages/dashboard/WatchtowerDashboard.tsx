@@ -7,17 +7,11 @@ import { KpiCards } from "./components/KpiCards";
 import { AiSummary } from "./components/AiSummary";
 import { TopActions } from "./components/TopActions";
 import { AnomalyTable } from "./components/AnomalyTable";
+import { DOMAIN_LABELS } from "./constants";
 import type { WatchtowerScanResponse, AnomalyRow, AnomalyDomain } from "@/types/watchtower";
 import styles from "./WatchtowerDashboard.module.css";
 
 const SCAN_LOOKBACK_DAYS = 90;
-
-const DOMAIN_LABELS: Record<AnomalyDomain, string> = {
-  churn_risk: "客户流失风险",
-  order_drop: "订单量下降",
-  low_stock: "低库存",
-  out_of_stock: "缺货",
-};
 
 export default function WatchtowerDashboard() {
   const query = useApiQuery<WatchtowerScanResponse>(
