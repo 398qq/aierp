@@ -57,10 +57,13 @@ frontend/src/pages/dashboard/
     AnomalyTable.tsx     + AnomalyTable.module.css
 
   WatchtowerDashboard.module.css  (new, 壳布局)
-  dashboard.css                   (deleted, 散到 5 个 module)
 
   types/watchtower.ts  (new)
     AnomalyRow, WatchtowerScanResponse
+
+  // 注: dashboard.css (597 行) 是 pages/dashboard/index.tsx (Sales Dashboard 主页面) 用的,
+  // 不是 Watchtower 的. 原始 WatchtowerDashboard.tsx 没有 import 任何 CSS.
+  // 此次不动 dashboard.css.
 ```
 
 ### Out of scope (explicit)
@@ -144,13 +147,11 @@ async def watchtower_cached_scan(db: AsyncSession, days_back: int) -> dict:
         return_exceptions=True,
     )
     anomalies = {}
-    failed_domains = []
     for key_name, result in zip(
         ["churn_risk", "order_drop", "low_stock", "out_of_stock"], results
     ):
         if isinstance(result, Exception):
             logger.warning(f"watchtower.scan.{key_name} failed: {result}")
-            failed_domains.append(key_name)
             anomalies[key_name] = []
         else:
             anomalies[key_name] = result
@@ -169,8 +170,6 @@ async def watchtower_cached_scan(db: AsyncSession, days_back: int) -> dict:
         "alerts_persisted": persisted,
         "anomalies": anomalies,
     }
-    if failed_domains:
-        result["degraded_domains"] = failed_domains  # 监控用, 新增可选字段, 不破坏现有 shape
 
     await cache_set_versioned(
         "watchtower:scan", key,
@@ -180,7 +179,7 @@ async def watchtower_cached_scan(db: AsyncSession, days_back: int) -> dict:
     return result
 ```
 
-`degraded_domains` 字段在 `failed_domains` 为空时不出现，为非空时出现。**前端 §3 不消费此字段**（保持"同行为"约束），仅运维 / 监控用。
+**`failed_domains` 仅写日志，不进入 response**（保持"同行为"约束：API shape 100% 不变）。监控走 logger / 后续 alerting。
 
 ### 2.3 cache_bump_version 触发点
 
@@ -213,7 +212,7 @@ async def bump_watchtower_report_at_midnight() -> None:
 ### 2.5 响应 shape 不变
 
 API contract 不动：
-- `GET /ai/watchtower/scan?days_back=N` 返回 keys 跟现状 100% 一致（`scanned_at, total_alerts, severity, summary, top_actions, risk_areas, alerts_persisted, anomalies{churn_risk, order_drop, low_stock, out_of_stock}`）。`degraded_domains` 是新增可选字段，frontend 忽略，**不属于 breaking change**（按 [API versioning policy](https://docs.example.com/api-versioning) "additive fields are backwards-compatible"）。
+- `GET /ai/watchtower/scan?days_back=N` 返回 keys 跟现状 100% 一致（`scanned_at, total_alerts, severity, summary, top_actions, risk_areas, alerts_persisted, anomalies{churn_risk, order_drop, low_stock, out_of_stock}`）。**严格零新增字段**。失败的域通过 logger 暴露，不进 response。
 - `GET /ai/daily-report` 同样 100% 一致。
 
 ---
@@ -314,7 +313,6 @@ export interface WatchtowerScanResponse {
   risk_areas: string[];
   alerts_persisted: number;
   anomalies: Record<AnomalyDomain, AnomalyRow[]>;
-  degraded_domains?: AnomalyDomain[];  // optional, ignored by UI
 }
 ```
 
@@ -322,21 +320,20 @@ export interface WatchtowerScanResponse {
 
 | 现状 | 目标 |
 |---|---|
-| `style={{ color: "#ff4d4f" }}` | CSS module class `styles.alert` |
-| `style={{ color: "#52c41a" }}` | CSS module class `styles.ok` |
-| `style={{ marginBottom: 16 }}` | 删除, 改 CSS module 布局 |
+| `style={{ color: "#ff4d4f" }}` | CSS module class `styles.alert`, 引用 `semantic.danger` |
+| `style={{ color: "#52c41a" }}` | CSS module class `styles.ok`, 引用 `semantic.success` |
+| `style={{ marginBottom: 16 }}` | 删除, 改 CSS module 布局 (flex / gap) |
 | `severityColor` 函数 | 删除, 用 `<StatusTag tone={...}>` prop |
 | `<Tag color="red">` | `<StatusTag tone="danger">` |
-| magic 颜色字面量 | 全部走 `design-tokens.ts`（必要时新增 3-5 个 token, 如 `color.status.danger`） |
+| magic 颜色字面量 | 全部走 `design-tokens.ts` |
 
-`design-tokens.ts` 现状有 `numericStyle`（数字 tabular-nums）。颜色 token 如已存在则引用，不够则在 `design-tokens.ts` 加, **不引第三方**。
+`design-tokens.ts` 已有 `semantic.{success,warning,danger,info,neutral}`（含 `+Bg` 浅色变体）+ `space.*` + `radius.*` + `fontSize.*` —— **足够, 不新增 token, 不引第三方**。CSS module 文件 `import { semantic, space } from "@/design-tokens"` 引用。
 
 ### 3.7 文件改动清单
 
 | 文件 | 改动 |
 |---|---|
 | `pages/dashboard/WatchtowerDashboard.tsx` | 重写 222 → ~80 行 |
-| `pages/dashboard/dashboard.css` | 删 |
 | `pages/dashboard/WatchtowerDashboard.module.css` | 新, 壳布局 |
 | `pages/dashboard/components/ScanHeader.tsx` | 新 |
 | `pages/dashboard/components/ScanHeader.module.css` | 新 |
@@ -349,6 +346,8 @@ export interface WatchtowerScanResponse {
 | `pages/dashboard/components/AnomalyTable.tsx` | 新 |
 | `pages/dashboard/components/AnomalyTable.module.css` | 新 |
 | `types/watchtower.ts` | 新 |
+| `pages/dashboard/dashboard.css` | **不动**（index.tsx 在用） |
+| `pages/dashboard/index.tsx` (Sales Dashboard) | **不动**（显式 out of scope） |
 | `api/ai.ts` | 不动 (`getWatchtowerScan` 已在) |
 
 ---
@@ -359,7 +358,7 @@ export interface WatchtowerScanResponse {
 
 | 层 | 错误 | 处理 |
 |---|---|---|
-| 后端 scan 4 域 | `asyncio.gather(return_exceptions=True)` | 该域返回 `[]` + `logger.warning` + `degraded_domains` 字段 |
+| 后端 scan 4 域 | `asyncio.gather(return_exceptions=True)` | 该域返回 `[]` + `logger.warning`（**不进 response**，保持 API shape 不变） |
 | 后端 AI 失败 | `generate_ai_summary` 内部 try/except | fallback `{severity: 正常, summary: 'AI分析暂不可用', top_actions: [], risk_areas: []}` |
 | 后端 cache 反序列化 | try/except 包 cache_get | 坏值丢弃, 重新计算 |
 | 前端 query error | useApiQuery 暴露 | `<Alert type="error">` + `<Button onClick={refetch}>重试</Button>` |
