@@ -75,7 +75,10 @@ async def scan_churn_risk(
     prev_lookback: datetime.datetime,
 ) -> list[dict]:
     """Customers active in [prev_lookback, lookback) but silent in [lookback, now).
-    Returns: [{customer_id, name, level, industry, signal}], max 20.
+    Returns: [{customer_id, name, level, industry, signal}].
+
+    No DB-level cap is applied (mirrors the original scan_all behavior).
+    Callers can slice the result if a limit is needed.
     """
     prev_active = set(
         (
